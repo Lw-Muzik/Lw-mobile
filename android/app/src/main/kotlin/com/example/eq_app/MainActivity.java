@@ -1,0 +1,309 @@
+package com.example.eq_app;
+
+
+import android.media.audiofx.Equalizer;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Objects;
+import androidx.annotation.NonNull;
+
+import java.util.ArrayList;
+
+import io.flutter.embedding.android.FlutterActivity;
+import io.flutter.embedding.engine.FlutterEngine;
+import io.flutter.plugin.common.MethodChannel;
+import android.media.audiofx.Visualizer;
+
+public class MainActivity extends FlutterActivity {
+
+  private static final String CHANNEL = "eq_app";
+  private final AudioVisualizer visualizer =  AudioVisualizer.instance;
+  private MethodChannel visualizerChannel; // Define the MethodChannel here
+
+  @Override
+  public void configureFlutterEngine(@NonNull FlutterEngine flutterEngine) {
+  super.configureFlutterEngine(flutterEngine);
+  visualizerChannel =  new MethodChannel(flutterEngine.getDartExecutor().getBinaryMessenger(), CHANNEL);
+
+     visualizerChannel.setMethodCallHandler(
+          (call, result) -> {
+            switch (call.method) {
+                case "activate_visualizer":
+                if (visualizer.isActive()) {
+                    return;
+                }
+                int sessionID = (int)call.argument("sessionID");
+                visualizer.activate(new Visualizer.OnDataCaptureListener() {
+                    @Override
+                    public void onWaveFormDataCapture(Visualizer visualizer, byte[] waveform, int samplingRate) {
+                        Map<String, Object> args = new HashMap<>();
+                        args.put("waveform", waveform);
+
+                        visualizerChannel.invokeMethod("onWaveformVisualization", args);
+                    }
+
+                    @Override
+                    public void onFftDataCapture(Visualizer visualizer, byte[] sharedFft, int samplingRate) {
+                        Map<String, Object> args = new HashMap<>();
+                        args.put("fft", sharedFft);
+
+                        visualizerChannel.invokeMethod("onFftVisualization", args);
+                    }
+                },sessionID);
+                break;
+
+                case "enableVisual":
+                    boolean enable = call.argument("enableVisual");
+                    visualizer.enableVisual(enable);
+                    break;
+                case "getEnabled":
+                    boolean eqEnabled = visualizer.isEnabled();
+                    result.success(eqEnabled);
+                    break;
+                case "scaleVisualizer":
+                    int scale = call.argument("scale");
+                    visualizer.scaleVisualizer(scale);
+                    break;
+                case "init":
+                    int sessionId = call.argument("sessionId");
+                    CustomEq.init(sessionId);
+                    break;
+                case "enableEq":
+                    boolean enableEq = call.argument("enable");
+                   CustomEq.enable(enableEq);
+                    break;
+                case "isEnabled":
+                  boolean isEnabled =  CustomEq.isEnabled();
+                  result.success(isEnabled);
+                    break;
+                case "getSettings":
+                    String settings = CustomEq.getSettings();
+                    result.success(settings);
+                break;
+                case "getBandLevel":
+                    int _b = call.argument("_band");
+                    short _bb = (short)_b;
+                    int res = CustomEq.getBandLevel(_bb);
+                    result.success(res);
+                    break;
+                case "setBandLevel":
+                    int band = (int)call.argument("band");
+                    int level = (int)call.argument("level");//(int)(1500f / 100f
+                    CustomEq.setBandLevel(band,  (100 * level));
+                    break;
+                case "getBandLevelRange":
+                    ArrayList<Integer> bandLevels = CustomEq.getBandLevelRange();
+                    result.success(bandLevels);
+                    break;
+                case "setSettings":
+                    int bands = call.argument("nBands");
+                    CustomEq.setSettings(bands);
+                    break;
+        
+                case "getBandFreq":
+                    ArrayList<Integer> freq = CustomEq.getCenterBandFreqs();
+                    result.success(freq);
+                    break;
+                case"getPresetNames":
+                    ArrayList<String> preset = CustomEq.getPresetNames();
+                    result.success(preset);
+                    break;
+                case "setPreset":
+                    String presetName = call.argument("preset");
+                    CustomEq.setPreset(presetName);
+                    break;
+                case "getPreset":
+                        String presetId = call.argument("preset");
+                        CustomEq.setPreset(presetId);
+                    break;
+//                        virtualizer
+                case "initVirtualizer":
+                        int sessionIdV = call.argument("sessionId");
+                        VirtualizerControl.init(sessionIdV);
+                    break;
+
+                case "enableVirtualizer":
+                     boolean enableV = call.argument("enable");
+                     VirtualizerControl.enable(enableV);
+                    break;
+
+                case "virtualizerStrength":
+                    int strength = VirtualizerControl.getStrength();
+                    result.success(strength);
+                    break;
+
+                case "setVirtualizerStrength":
+                        int strengthV = call.argument("strength");
+                        VirtualizerControl.setStrength(strengthV);
+                    break;
+
+//                        bassboost
+                case "initBassBoost":
+                        int sessionIdB = call.argument("sessionId");
+                        BassEq.init(sessionIdB);
+                    break;
+
+                case "enableBassBoost":
+                            boolean enableB = call.argument("enableBass");
+                            BassEq.enable(enableB);
+                            break;
+                case "isBassEnabled":
+                    boolean isBassEnabled = BassEq.isEnabled();
+                    result.success(isBassEnabled);
+                    break;
+
+                case "bassBoostStrength":
+                        int strengthB = ((int)BassEq.getStrength());
+                        result.success(strengthB);
+                        break;
+                case "setBassBoostStrength":
+                        int strengthBB = call.argument("strength");
+                        BassEq.setStrength(strengthBB);
+                        break;
+
+
+//                        loudnessEnhancer
+                case "initLoudnessEnhancer":
+                        int sessionIdL = call.argument("sessionId");
+                        LoudnessControl.init(sessionIdL);
+                        break;
+                case "enableLoudnessEnhancer":
+                            boolean enableL = call.argument("enableLoud");
+                            LoudnessControl.enable(enableL);
+                            break;
+                case "loudnessEnhancerEnabled":
+                    boolean enabled = LoudnessControl.isEnabled();
+                   result.success(enabled);
+                    break;
+                case "loudnessEnhancerStrength":
+                        float strengthL = LoudnessControl.getTargetGain();
+                        result.success(strengthL);
+                        break;
+                case "setLoudnessEnhancerStrength":
+                        int strengthLL = call.argument("strength");
+                        LoudnessControl.setTargetGain(strengthLL);
+                        break;
+                
+//                            reverb
+                case "initReverb":
+                        int sessionIdR = call.argument("sessionId");
+                        ReverbControl.init(sessionIdR);
+                        break;
+
+                case "enableReverb":
+                            boolean enableR = call.argument("enableReverb");
+                            ReverbControl.enable(enableR);
+                            break;
+                case "isReverbEnabled":
+                boolean isReverbEnabled = ReverbControl.isEnabled();
+                result.success(isReverbEnabled);
+                break;
+                
+                case "setDecayTime":
+                        int strengthRR = call.argument("decayTime");
+                        ReverbControl.setDecayTime(strengthRR);
+                        break;
+
+                case "getDecayTime":
+                           int decayTime =  ReverbControl.getDecayTime();
+                           result.success(decayTime);
+                        break;
+
+                case "setDensity":
+                    int density = call.argument("density");
+                    ReverbControl.setDensity(density);
+                    break;
+
+                case "getDensity":
+                    int gDensity = ReverbControl.getDensity();
+                    result.success(gDensity);
+                    break;
+
+                case "setDiffusion":
+                        int diffusion = call.argument("diffusion");
+                        ReverbControl.setDiffusion(diffusion);
+                    break;
+
+                case "getDiffusion":
+                        int getDiffusion = ReverbControl.getDiffusion();
+                        result.success(getDiffusion);
+                    break;
+
+                case "setReflectionsDelay":
+                        int reflectionsDelay = call.argument("reflectionsDelay");
+                        ReverbControl.setReflectionsDelay(reflectionsDelay);
+                    break;
+
+                case "getReflectionsDelay":
+                        int getReflectionsDelay = ReverbControl.getReflectionsDelay();
+                        result.success(getReflectionsDelay);
+                        break;
+
+                case "setReflectionsLevel":
+                        int reflectionsLevel = call.argument("reflectionsLevel");
+                        ReverbControl.setReflectionsLevel(reflectionsLevel);
+                        break;
+
+                case "getReflectionsLevel":
+                        int getReflectionsLevel = ReverbControl.getReflectionsLevel();
+                        result.success(getReflectionsLevel);
+                        break;
+
+                case "setReverbDelay":
+                        int reverbDelay = call.argument("reverbDelay");
+                        ReverbControl.setReverbDelay(reverbDelay);
+                        break;
+
+                case "getReverbDelay":
+                            int getReverbDelay = ReverbControl.getReverbDelay();
+                            result.success(getReverbDelay);
+                        break;
+
+                case "setReverbLevel":
+                                int reverbLevel = call.argument("reverbLevel");
+                                ReverbControl.setReverbLevel(reverbLevel);
+                        break;
+
+                case "getReverbLevel":
+                        int getReverbLevel = ReverbControl.getReverbLevel();
+                        result.success(getReverbLevel);
+                        break;
+
+                    case "setRoomLevel":
+                            int roomLevel = call.argument("roomLevel");
+                             ReverbControl.setRoomLevel(roomLevel);
+                            break;
+
+                    case "getRoomLevel":
+                                int getRoomLevel = ReverbControl.getRoomLevel();
+                                result.success(getRoomLevel);
+                                break;
+
+                    case "setRoomHFLevel":
+                            int roomHFLevel = call.argument("roomHFLevel");
+                            ReverbControl.setRoomHFLevel(roomHFLevel);
+                            break;
+
+                    case "getRoomHFLevel":
+                            int getRoomHFLevel = ReverbControl.getRoomHFLevel();
+                            result.success(getRoomHFLevel);
+                            break;
+
+                    case "setDecayHFRatio":
+                        int decayHFRatio = call.argument("decayHFRatio");
+                        ReverbControl.setDecayHFRatioLevel(decayHFRatio);
+                        break;
+
+                    case "getDecayHFRatio":
+                            int getDecayHFRatio = ReverbControl.getDecayHFRatio();
+                            result.success(getDecayHFRatio);
+                            break;
+
+                    default:
+                        result.notImplemented();
+                        break;
+            }
+          }
+        );
+  }
+}
