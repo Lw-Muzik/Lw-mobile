@@ -1,3 +1,6 @@
+import 'package:eq_app/Routes/routes.dart';
+import 'package:eq_app/extensions/index.dart';
+import 'package:eq_app/pages/GenreSongs.dart';
 import 'package:flutter/material.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 
@@ -20,18 +23,43 @@ class _GenresState extends State<Genres> {
             mainAxisSpacing: 26,
             children: List.generate(
               snapshot.data?.length ?? 0,
-              (index) => GridTile(
-                footer: Card(
-                  elevation: 0,
-                  margin: const EdgeInsets.only(top: 100),
-                  child: Text(
-                    "${snapshot.data?[index].numOfSongs} Songs",
-                    textAlign: TextAlign.center,
+              (index) => InkWell(
+                onTap: () => Routes.routeTo(
+                    GenreSongs(
+                        genreId: snapshot.data![index].id,
+                        genre: snapshot.data![index].genre),
+                    context),
+                child: GridTile(
+                  footer: Card(
+                    color: Theme.of(context).cardColor.withOpacity(0.4),
+                    child: SizedBox(
+                      height: 46,
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            snapshot.data?[index].genre ?? 'Unknown',
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.labelMedium,
+                          ),
+                          Text(snapshot.data![index].numOfSongs.nSongs,
+                              textAlign: TextAlign.center,
+                              style: Theme.of(context).textTheme.titleSmall),
+                        ],
+                      ),
+                    ),
                   ),
-                ),
-                child: QueryArtworkWidget(
-                  id: snapshot.data![index].id,
-                  type: ArtworkType.GENRE,
+                  child: QueryArtworkWidget(
+                    artworkBorder: BorderRadius.circular(10),
+                    id: snapshot.data![index].id,
+                    type: ArtworkType.GENRE,
+                    nullArtworkWidget: ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: Image.asset(
+                        "assets/audio.jpeg",
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ),

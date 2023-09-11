@@ -1,25 +1,25 @@
 package com.example.eq_app;
 
 
-import android.media.audiofx.Equalizer;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Objects;
+import android.media.audiofx.Visualizer;
+import android.os.Build;
+
 import androidx.annotation.NonNull;
 
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
 
 import io.flutter.embedding.android.FlutterActivity;
 import io.flutter.embedding.engine.FlutterEngine;
 import io.flutter.plugin.common.MethodChannel;
-import android.media.audiofx.Visualizer;
 
 public class MainActivity extends FlutterActivity {
 
   private static final String CHANNEL = "eq_app";
   private final AudioVisualizer visualizer =  AudioVisualizer.instance;
   private MethodChannel visualizerChannel; // Define the MethodChannel here
-
+ 
   @Override
   public void configureFlutterEngine(@NonNull FlutterEngine flutterEngine) {
   super.configureFlutterEngine(flutterEngine);
@@ -32,42 +32,53 @@ public class MainActivity extends FlutterActivity {
                 if (visualizer.isActive()) {
                     return;
                 }
-                int sessionID = (int)call.argument("sessionID");
-                visualizer.activate(new Visualizer.OnDataCaptureListener() {
-                    @Override
-                    public void onWaveFormDataCapture(Visualizer visualizer, byte[] waveform, int samplingRate) {
-                        Map<String, Object> args = new HashMap<>();
-                        args.put("waveform", waveform);
+                int sessionID = call.argument("sessionID");
+                    visualizer.activate(new Visualizer.OnDataCaptureListener() {
+                        @Override
+                        public void onWaveFormDataCapture(Visualizer visualizer, byte[] waveform, int samplingRate) {
+                            Map<String, Object> args = new HashMap<>();
+                            args.put("waveform", waveform);
+                            args.put("sampleRate", samplingRate);
 
-                        visualizerChannel.invokeMethod("onWaveformVisualization", args);
-                    }
+                            // Initialize the visualization frame rate controls
+                            // Sleep for a second to slow down the rendering.
+                            visualizerChannel.invokeMethod("onWaveformVisualization", args);
+                        }
 
-                    @Override
-                    public void onFftDataCapture(Visualizer visualizer, byte[] sharedFft, int samplingRate) {
-                        Map<String, Object> args = new HashMap<>();
-                        args.put("fft", sharedFft);
-
-                        visualizerChannel.invokeMethod("onFftVisualization", args);
-                    }
-                },sessionID);
-                break;
+                        @Override
+                        public void onFftDataCapture(Visualizer visualizer, byte[] sharedFft, int samplingRate) {
+                            Map<String, Object> args = new HashMap<>();
+                            args.put("fft", sharedFft);
+                            visualizerChannel.invokeMethod("onFftVisualization", args);
+                        }
+                    }, sessionID);
+                    break;
 
                 case "enableVisual":
                     boolean enable = call.argument("enableVisual");
                     visualizer.enableVisual(enable);
                     break;
+
                 case "getEnabled":
                     boolean eqEnabled = visualizer.isEnabled();
                     result.success(eqEnabled);
                     break;
-                case "scaleVisualizer":
-                    int scale = call.argument("scale");
-                    visualizer.scaleVisualizer(scale);
+
+                case "setScalingMode":
+                    boolean scale = call.argument("scale");
+                    visualizer.setScalingMode(scale);
                     break;
+
+                case "setFrameRate":
+                int frameRate = call.argument("frameRate");
+                visualizer.setFrameRate(frameRate);
+                break;
+
                 case "init":
                     int sessionId = call.argument("sessionId");
                     CustomEq.init(sessionId);
                     break;
+                    
                 case "enableEq":
                     boolean enableEq = call.argument("enable");
                    CustomEq.enable(enableEq);
@@ -112,32 +123,32 @@ public class MainActivity extends FlutterActivity {
                     String presetName = call.argument("preset");
                     CustomEq.setPreset(presetName);
                     break;
-                case "getPreset":
-                        String presetId = call.argument("preset");
-                        CustomEq.setPreset(presetId);
-                    break;
+
 //                        virtualizer
                 case "initVirtualizer":
                         int sessionIdV = call.argument("sessionId");
-                        VirtualizerControl.init(sessionIdV);
+                        VirtualizedControl.initVirtualizer(sessionIdV);
                     break;
 
                 case "enableVirtualizer":
                      boolean enableV = call.argument("enable");
-                     VirtualizerControl.enable(enableV);
+                     VirtualizedControl.enable(enableV);
                     break;
 
                 case "virtualizerStrength":
-                    int strength = VirtualizerControl.getStrength();
+                    int strength = VirtualizedControl.getStrength();
                     result.success(strength);
                     break;
 
                 case "setVirtualizerStrength":
                         int strengthV = call.argument("strength");
-                        VirtualizerControl.setStrength(strengthV);
+                        VirtualizedControl.setStrength(strengthV);
+                    break;
+                case "forceVirtualization":
+                    result.success(VirtualizedControl.forceVirtualizationEnabled());
                     break;
 
-//                        bassboost
+        //     bassboost
                 case "initBassBoost":
                         int sessionIdB = call.argument("sessionId");
                         BassEq.init(sessionIdB);
@@ -195,9 +206,9 @@ public class MainActivity extends FlutterActivity {
                             ReverbControl.enable(enableR);
                             break;
                 case "isReverbEnabled":
-                boolean isReverbEnabled = ReverbControl.isEnabled();
-                result.success(isReverbEnabled);
-                break;
+                    boolean isReverbEnabled = ReverbControl.isEnabled();
+                    result.success(isReverbEnabled);
+                    break;
                 
                 case "setDecayTime":
                         int strengthRR = call.argument("decayTime");
@@ -280,7 +291,7 @@ public class MainActivity extends FlutterActivity {
                                 break;
 
                     case "setRoomHFLevel":
-                            int roomHFLevel = call.argument("roomHFLevel");
+                            int roomHFLevel = (int)call.argument("roomHFLevel");
                             ReverbControl.setRoomHFLevel(roomHFLevel);
                             break;
 
@@ -298,10 +309,120 @@ public class MainActivity extends FlutterActivity {
                             int getDecayHFRatio = ReverbControl.getDecayHFRatio();
                             result.success(getDecayHFRatio);
                             break;
+        //    DSP configurations
+                case "initDSPEngine":
+                    int dspId = call.argument("dspId");
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                        DSPEngine.setAudioSessionId(dspId);
+                        DSPEngine.initDSPEngine();
+                    }
+                    break;
+                case "setDSPSpeakers":
+                    Map<String, Object> spks = call.argument("spks");
+//                    Object[] s = call.argument("speakers");
+//                    Object[] l = call.argument("levels");
+//                   speakers
+                    int[] speakers = new int[10];
+                    int[] levels = new int[10];
+                    if(spks != null){
+                        for(int x = 0; x < 10; x++){
+//                            speakers[x] = (int) Objects.requireNonNull(spks.get("speakers"))[x];
+//                            levels[x] = (int)spks.get("levels")[x];
+                        }
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                            DSPEngine.setDspSpeakers(speakers, levels);
+                        }
+                    }
+                    break;
 
-                    default:
-                        result.notImplemented();
-                        break;
+                case "enableDSP":
+                    boolean dspEnable = call.argument("enableEngine");
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                        DSPEngine.enableEngine(dspEnable);
+                    }
+                    break;
+
+                case "setOutGain":
+                    double limitGain = call.argument("outGain");
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                        DSPEngine.setOutGain(((float)limitGain));
+                    }
+                    break;
+
+                case "getOutGain":
+                    float lGain = 0;
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                        lGain = DSPEngine.getGainValue();
+                        result.success(lGain);
+                        
+                    }
+                    result.success(lGain);
+                    break;
+
+                case "setDSPXBass":
+                    double bassGain = call.argument("xBass");
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                        DSPEngine.setDSPXBass((float)bassGain);
+                    }
+                    break;
+                case "setExtraBass":
+                    double xtraGain = call.argument("extraBass");
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                        DSPEngine.setDSPx((float)xtraGain);
+                    }
+                    break;
+                case "setDSPPowerBass":
+                    double powerBass = call.argument("powerBass");
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                        DSPEngine.setDSPPowerBass(((float)powerBass));
+                    }
+                    break;
+                    
+                case "setDSPXTreble":
+                    double trebleGain = call.argument("trebleGain");
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                        DSPEngine.setDSPTreble((float)trebleGain);
+                    }
+                    break;
+                case "setDSPVolume":
+                    double dspVolume = call.argument("dspVolume");
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                        DSPEngine.setDSPVolume(((float)dspVolume));
+                    }
+                    break;
+
+//                case "setChannel2Gain":
+//                    double ch2Gain = call.argument("ch2Gain");
+//                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+//                        DSPEngine.setChannel2Gain(((float)ch2Gain));
+//                    }
+//                    break;
+                case "disposeDSP":
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                        DSPEngine.dispose();
+                    }
+                    break;
+                case "initPresetReverb":
+                    int audioId = call.argument("priorityId");
+                    ReverbEngine.initPresetReverb(audioId);
+                    break;
+                case "enablePresetReverb":
+                    boolean enablePreset = call.argument("enablePreset");
+                    ReverbEngine.enablePresetReverb(enablePreset);
+                    break;
+                case "setReverbPreset":
+                    int pPreset = (int)call.argument("preset");
+                    ReverbEngine.setPreset(((short)pPreset));
+                    break;
+
+                case "getReverbPreset":
+                    short g = ReverbEngine.getPreset();
+                    result.success(((short)g));
+                    break;
+
+                default:
+                result.notImplemented();
+                break;
             }
           }
         );

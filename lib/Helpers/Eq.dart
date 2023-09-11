@@ -4,13 +4,17 @@
 //
 // flutter run -t lib/example_effects.dart
 
+import 'dart:async';
 import 'dart:math';
 
 import 'package:audio_session/audio_session.dart';
+import 'package:eq_app/controllers/AppController.dart';
+import 'package:eq_app/extensions/index.dart';
 import 'package:eq_app/widgets/common.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:provider/provider.dart';
 
 import 'package:rxdart/rxdart.dart';
 
@@ -169,60 +173,73 @@ class EqualizerControls extends StatefulWidget {
 }
 
 class _EqualizerControlsState extends State<EqualizerControls> {
-  List<int> bandValues = [0, 0, 0, 0, 0];
+  // Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+  }
+
+  @override
+  void dispose() {
+    // _timer?.cancel();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<List<int>>(
-      stream: Stream.fromFuture(Channel.getBandFreq()),
-      builder: (context, snapshot) {
-        final bands = snapshot.data;
+    return Consumer<AppController>(builder: (context, eq, x) {
+      return StreamBuilder<List<int>>(
+        stream: Stream.fromFuture(Channel.getBandFreq()),
+        builder: (context, snapshot) {
+          final bands = snapshot.data;
 
-        return Row(
-          children: [
-            ...List.generate(
-              bands?.length ?? 0,
-              (i) => Expanded(
-                child: StreamBuilder<int>(
-                    stream: Stream.fromFuture(Channel.getBandLevel(i)),
-                    builder: (context, level) {
-                      int? l = level.data;
-                      if (l != null) {
-                        bandValues[i] = l;
-                      }
-                      return Column(
-                        children: [
-                          Text("${bandValues[i]} Hz"),
-                          StreamBuilder<List<int>>(
-                              stream: Stream.fromFuture(
-                                  Channel.getBandLevelRange()),
-                              builder: (context, bandLevel) {
-                                return SizedBox(
-                                  width: MediaQuery.of(context).size.width,
-                                  height:
-                                      MediaQuery.of(context).size.height / 2.5,
-                                  child: VerticalSlider(
-                                    min: bandLevel.data?.first.toDouble() ?? 0,
-                                    max: bandLevel.data?.last.toDouble() ?? 1.0,
-                                    value: level.data?.toDouble() ?? 0,
-                                    onChanged: (value) {
-                                      setState(() {
-                                        bandValues[i] = value.toInt();
-                                      });
-                                      Channel.setBandLevel(i, value.toInt());
-                                    },
-                                  ),
-                                );
-                              }),
-                          Text('${bands![i] ~/ 1000} Hz'),
-                        ],
-                      );
-                    }),
-              ),
-            ).toList(),
-          ],
-        );
-      },
-    );
+          return Row(
+            children: [
+              ...List.generate(
+                bands?.length ?? 0,
+                (i) => Expanded(
+                  child: StreamBuilder<int>(
+                      stream: Stream.fromFuture(Channel.getBandLevel(i)),
+                      builder: (context, level) {
+                        int? l = level.data;
+
+                        if (l != null) {
+                          l = level.data;
+
+                          eq.bandValues[i] = l ?? 0;
+                        }
+                        // });
+
+                        return Column(
+                          children: [
+                            if (l != null) Text("$l Hz"),
+                            SizedBox(
+                              width: MediaQuery.of(context).size.width,
+                              height: MediaQuery.of(context).size.height / 3.53,
+                              child: VerticalSlider(
+                                min: -15,
+                                max: 15,
+                                value: level.data?.toDouble() ?? 0,
+                                onChanged: (value) {
+                                  setState(() {
+                                    eq.bandValues[i] = value.toInt();
+                                  });
+                                  Channel.setBandLevel(i, value.toInt());
+                                },
+                              ),
+                            ),
+                            if (l != null) Text(bands![i].formatBandFrequency),
+                          ],
+                        );
+                      }),
+                ),
+              ).toList(),
+            ],
+          );
+        },
+      );
+    });
   }
 }
 
@@ -255,6 +272,7 @@ class VerticalSlider extends StatelessWidget {
             data: const SliderThemeData(
               trackHeight: 3,
               thumbShape: RoundSliderThumbShape(enabledThumbRadius: 16),
+              tickMarkShape: RoundSliderTickMarkShape(tickMarkRadius: 2),
             ),
             child: Slider(
               value: value,

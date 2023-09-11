@@ -26,20 +26,45 @@ class _ControlsState extends State<Controls> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: <Widget>[
-                IconButton(
-                  highlightColor: Colors.transparent,
-                  splashColor: Colors.transparent,
-                  onPressed: () {
-                    setState(() {
-                      isLoop = !isLoop;
-                    });
-                    widget.controller.audioPlayer
-                        .setLoopMode(isLoop ? LoopMode.one : LoopMode.off);
+                // IconButton(
+                //   highlightColor: Colors.transparent,
+                //   splashColor: Colors.transparent,
+                //   onPressed: () {
+                //     setState(() {
+                //       isLoop = !isLoop;
+                //     });
+                //     widget.controller.audioPlayer
+                //         .setLoopMode(isLoop ? LoopMode.one : LoopMode.off);
+                //   },
+                //   icon: Icon(
+                //     isLoop ? Icons.repeat_one : Icons.repeat,
+                //     color: Colors.white.withOpacity(isLoop ? 0.9 : 0.4),
+                //   ),
+                // ),
+                StreamBuilder<LoopMode>(
+                  stream: widget.controller.audioPlayer.loopModeStream,
+                  builder: (context, snapshot) {
+                    final loopMode = snapshot.data ?? LoopMode.off;
+                    const icons = [
+                      Icon(Icons.repeat, color: Colors.grey),
+                      Icon(Icons.repeat, color: Colors.orange),
+                      Icon(Icons.repeat_one, color: Colors.orange),
+                    ];
+                    const cycleModes = [
+                      LoopMode.off,
+                      LoopMode.all,
+                      LoopMode.one,
+                    ];
+                    final index = cycleModes.indexOf(loopMode);
+                    return IconButton(
+                      icon: icons[index],
+                      onPressed: () {
+                        widget.controller.audioPlayer.setLoopMode(cycleModes[
+                            (cycleModes.indexOf(loopMode) + 1) %
+                                cycleModes.length]);
+                      },
+                    );
                   },
-                  icon: Icon(
-                    isLoop ? Icons.repeat_one : Icons.repeat,
-                    color: Colors.white.withOpacity(isLoop ? 0.9 : 0.4),
-                  ),
                 ),
                 IconButton(
                   iconSize: 32,
@@ -52,21 +77,43 @@ class _ControlsState extends State<Controls> {
                   onPressed: () => widget.controller.next(),
                   icon: const Icon(Icons.skip_next, color: Colors.white),
                 ),
-                IconButton(
-                  highlightColor: Colors.transparent,
-                  splashColor: Colors.transparent,
-                  onPressed: () {
-                    setState(() {
-                      isShuffle = !isShuffle;
-                    });
-                    widget.controller.audioPlayer
-                        .setShuffleModeEnabled(isShuffle);
+                StreamBuilder<bool>(
+                  stream:
+                      widget.controller.audioPlayer.shuffleModeEnabledStream,
+                  builder: (context, snapshot) {
+                    final shuffleModeEnabled = snapshot.data ?? false;
+                    return IconButton(
+                      icon: shuffleModeEnabled
+                          ? const Icon(Icons.shuffle, color: Colors.orange)
+                          : const Icon(Icons.shuffle, color: Colors.grey),
+                      onPressed: () async {
+                        widget.controller.shuffleSongs();
+
+                        final enable = !shuffleModeEnabled;
+
+                        widget.controller.isShuffled = enable;
+
+                        await widget.controller.audioPlayer
+                            .setShuffleModeEnabled(enable);
+                      },
+                    );
                   },
-                  icon: Icon(
-                    isShuffle ? Icons.shuffle_on_rounded : Icons.shuffle,
-                    color: Colors.white.withOpacity(isShuffle ? 0.9 : 0.4),
-                  ),
                 ),
+                // IconButton(
+                //   highlightColor: Colors.transparent,
+                //   splashColor: Colors.transparent,
+                //   onPressed: () {
+                //     setState(() {
+                //       isShuffle = !isShuffle;
+                //     });
+                //     widget.controller.audioPlayer
+                //         .setShuffleModeEnabled(isShuffle);
+                //   },
+                //   icon: Icon(
+                //     isShuffle ? Icons.shuffle_on_rounded : Icons.shuffle,
+                //     color: Colors.white.withOpacity(isShuffle ? 0.9 : 0.4),
+                //   ),
+                // ),
               ],
             ),
           ),

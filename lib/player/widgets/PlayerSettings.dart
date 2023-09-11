@@ -32,15 +32,6 @@ class _PlayerSettingsState extends State<PlayerSettings> {
           ExpansionTile(
             title: const Text("Background"),
             children: [
-              // HorizontalSlider(
-              //     title: "Opacity",
-              //     onChanged: (x) {
-              //       widget.controller.opacity = x;
-              //     },
-              //     value: widget.controller.opacity,
-              //     max: 1,
-              //     min: 0,
-              //     dB: "${widget.controller.opacity}"),
               Consumer<AppController>(builder: (context, control, child) {
                 return HorizontalSlider(
                     title: "Blur",

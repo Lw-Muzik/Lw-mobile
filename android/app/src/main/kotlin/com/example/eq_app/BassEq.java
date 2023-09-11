@@ -3,10 +3,11 @@ package com.example.eq_app;
 import android.media.audiofx.BassBoost;
 
 public class BassEq {
+    public static int m = Integer.MAX_VALUE;
     private static BassBoost bassBoost;
 
     public static void init(int sessionId) {
-        bassBoost = new BassBoost(0, sessionId);
+        bassBoost = new BassBoost(m, 0);
     }
 
     public static void enable(boolean enable) {

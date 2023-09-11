@@ -95,7 +95,7 @@ class SeekBarState extends State<SeekBar> {
         ),
         Positioned(
             right: 0.0,
-            left: 00,
+            left: 0.0,
             bottom: -5.0,
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24.0),

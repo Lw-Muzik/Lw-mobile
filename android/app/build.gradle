@@ -25,7 +25,7 @@ if (flutterVersionName == null) {
 android {
     namespace "com.example.eq_app"
     compileSdkVersion flutter.compileSdkVersion
-    ndkVersion flutter.ndkVersion
+    // ndkVersion flutter.ndkVersion
 
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
@@ -50,6 +50,11 @@ android {
         targetSdkVersion flutter.targetSdkVersion
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
+        // externalNativeBuild {
+        //     cmake {
+        //         cppFlags ''
+        //     }
+        // }
     }
 
     buildTypes {
@@ -59,10 +64,16 @@ android {
             signingConfig signingConfigs.debug
         }
     }
+    // externalNativeBuild {
+    //     cmake {
+    //         path file('src/main/cpp/CMakeLists.txt')
+    //         version '3.22.1'
+    //     }
+    // }
 }
 
 flutter {
     source '../..'
 }
 
-dependencies {}
+// dependencies {}

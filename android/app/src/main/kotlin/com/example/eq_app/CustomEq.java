@@ -6,18 +6,19 @@ import android.media.audiofx.Equalizer;
 import java.util.ArrayList;
 
 public class CustomEq {
+	private static int m = Integer.MAX_VALUE;
 	private static Equalizer equalizer;
 
 	public static void init(int sessionId) {
-		equalizer = new Equalizer(0, sessionId);
+		equalizer = new Equalizer(m,sessionId);
 	}
 
 	public static void enable(boolean enable) {
 		if (equalizer != null){
-			if(enable == true){
-				equalizer.setEnabled(enable);
+			if(enable){
+				equalizer.setEnabled(true);
 			} else {
-				equalizer.setEnabled(enable);
+				equalizer.setEnabled(false);
 				// equalizer.release();
 			}
 		}
@@ -44,6 +45,7 @@ public class CustomEq {
 	}
 
 	public static ArrayList<Integer> getBandLevelRange() {
+
 		short[] bandLevelRange = equalizer.getBandLevelRange();
 		ArrayList<Integer> bandLevels = new ArrayList<>();
 		bandLevels.add(bandLevelRange[0] / 100);

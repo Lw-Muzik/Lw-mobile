@@ -21,13 +21,10 @@ class Routes {
     } else {
       Navigator.of(context).push(
         PageRouteBuilder(
-          transitionDuration: const Duration(milliseconds: 1000),
-          reverseTransitionDuration: const Duration(milliseconds: 1000),
+          transitionDuration: const Duration(milliseconds: 80),
+          reverseTransitionDuration: const Duration(milliseconds: 80),
           pageBuilder: (context, animation, secondaryAnimation) {
-            return FadeTransition(
-              opacity: animation,
-              child: page,
-            );
+            return FadeTransition(opacity: animation, child: page);
           },
         ),
       );

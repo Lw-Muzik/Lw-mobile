@@ -23,35 +23,35 @@ class CircularBarVisualizer extends CustomPainter {
       required this.height,
       required this.width,
       required this.color,
-      this.density = 150,
+      this.density = 100,
       this.gap = 2})
       : wavePaint = Paint()
           ..color = color!.withOpacity(1.0)
-          ..style = PaintingStyle.fill,
+          ..style = PaintingStyle.stroke,
         assert(height != null),
         assert(width != null);
 
   @override
   void paint(Canvas canvas, Size size) {
     if (radius == -1) {
-      radius = getHeight() < getWidth() ? getHeight() : getWidth();
-      radius = (radius * 0.35 / 2);
+      radius = getHeight() < getWidth() ? getHeight() * 9 : getWidth();
+      radius = (radius * 0.25 / 2);
       double circumference = 2 * 3.141 * radius;
-      wavePaint.strokeWidth = circumference / 120;
+      wavePaint.strokeWidth = circumference / 90;
       wavePaint.style = PaintingStyle.stroke;
     }
-    canvas.drawCircle(
-        Offset(getWidth() / 2, getHeight() / 2), radius.toDouble(), wavePaint);
+    // canvas.drawCircle(
+    //     Offset(getWidth() / 2, getHeight() / 2), radius.toDouble(), wavePaint);
     if (waveData.isNotEmpty) {
-      if (points == null || points!.length < waveData.length * 4) {
-        points = Float32List(waveData.length * 4);
+      if (points == null || points!.length < waveData.length * 8) {
+        points = Float32List(waveData.length * 8);
       }
       double angle = 0;
 
       for (int i = 0; i < 120; i++, angle += 3) {
-        int x = (i * 8.5).ceil();
+        int x = (i * 6.5).ceil();
         int t =
-            (((-(waveData[x]).abs() + 128)) * (getHeight() / 4) ~/ 128).abs();
+            (((-(waveData[x]).abs() + 125)) * (getHeight() / 4) ~/ 128).abs();
 
         points![i * 4] = getWidth() / 2 + radius * cos(radians(angle));
 
@@ -62,6 +62,12 @@ class CircularBarVisualizer extends CustomPainter {
 
         points![i * 4 + 3] =
             getHeight() / 2 + (radius + t) * sin(radians(angle));
+        points![i * 4 + 4] =
+            getHeight() / 2 + (radius + t) * cos(radians(angle));
+        points![i * 4 + 8] =
+            getHeight() / 2 + (radius + t) * cos(radians(angle / 2));
+        points![i * 8 + 16] =
+            getHeight() / 2 + (radius + t) * cos(radians(angle));
       }
 
       canvas.drawRawPoints(PointMode.lines, points!, wavePaint);

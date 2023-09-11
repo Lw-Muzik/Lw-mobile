@@ -1,6 +1,8 @@
 import 'dart:developer';
 
+import 'package:eq_app/Routes/routes.dart';
 import 'package:eq_app/pages/Albums.dart';
+import 'package:eq_app/pages/Equalizer.dart';
 import 'package:eq_app/pages/Folders.dart';
 import 'package:eq_app/pages/Genres.dart';
 import 'package:eq_app/pages/SearchPage.dart';
@@ -13,6 +15,7 @@ import '../Helpers/Channel.dart';
 import '../controllers/AppController.dart';
 import '../widgets/BottomPlayer.dart';
 import 'Artists.dart';
+import 'Settings.dart';
 import 'Songs.dart';
 
 class Home extends StatefulWidget {
@@ -88,71 +91,104 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
         .androidAudioSessionIdStream
         .listen((event) {
       log("message: $event");
-      Channel.setSessionId(event ?? 0);
+      if (event != null) {
+        Channel.setSessionId(event);
+      }
     });
-    return Consumer<AppController>(builder: (context, controller, child) {
-      return Scaffold(
-        appBar: AppBar(
-          title: const Text("Musix"),
-          actions: [
-            Padding(
-              padding: const EdgeInsets.only(right: 18.0),
-              child: IconButton(
-                onPressed: () {
-                  showSearch(context: context, delegate: SearchPage());
+    return Body(
+      child: Consumer<AppController>(builder: (context, controller, child) {
+        return Scaffold(
+          backgroundColor: controller.isFancy
+              ? Colors.transparent
+              : Theme.of(context).scaffoldBackgroundColor,
+          appBar: AppBar(
+            forceMaterialTransparency: controller.isFancy,
+            title: const Text("Hype Muziki"),
+            actions: [
+              Padding(
+                padding: const EdgeInsets.only(right: 18.0),
+                child: IconButton(
+                  onPressed: () {
+                    showSearch<SongModel>(
+                        context: context, delegate: SearchPage());
+                  },
+                  icon: const Icon(Icons.search),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(right: 18.0),
+                child: IconButton(
+                  onPressed: () {
+                    Routes.routeTo(const Settings(), context);
+                  },
+                  icon: const Icon(Icons.settings),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(right: 18.0),
+                child: IconButton(
+                  onPressed: () {
+                    Routes.routeTo(const Equalizer(), context);
+                  },
+                  icon: const Icon(Icons.equalizer),
+                ),
+              )
+            ],
+            bottom: TabBar(
+              isScrollable: true,
+              controller: _tabController,
+              tabs: const [
+                Tab(child: Text("Songs")),
+                Tab(
+                  child: Text("Artists"),
+                ),
+                Tab(
+                  child: Text("Albums"),
+                ),
+                Tab(
+                  child: Text("Genres"),
+                ),
+                Tab(
+                  child: Text("Folders"),
+                )
+              ],
+            ),
+          ),
+          body: Stack(
+            children: [
+              GestureDetector(
+                onScaleUpdate: (details) {
+                  log(details.scale.toString());
                 },
-                icon: const Icon(Icons.search),
+                child: TabBarView(
+                  controller: _tabController,
+                  children: const [
+                    AllSongs(),
+                    Artists(),
+                    Albums(),
+                    Genres(),
+                    Folders()
+                  ],
+                ),
               ),
-            )
-          ],
-          bottom: TabBar(
-            controller: _tabController,
-            tabs: const [
-              Tab(child: Text("Songs")),
-              Tab(
-                child: Text("Artists"),
-              ),
-              Tab(
-                child: Text("Albums"),
-              ),
-              Tab(
-                child: Text("Genres"),
-              ),
-              Tab(
-                child: Text("Folders"),
-              )
+              if (controller.audioPlayer.playing)
+                Positioned(
+                  bottom: 0,
+                  right: 3,
+                  left: 3,
+                  child: BottomPlayer(
+                    controller: controller,
+                  ),
+                ),
             ],
           ),
-        ),
-        body: GestureDetector(
-          onScaleUpdate: (details) {
-            print(details.scale);
-          },
-          child: TabBarView(
-            controller: _tabController,
-            children: const [
-              AllSongs(),
-              Artists(),
-              Albums(),
-              Genres(),
-              Folders()
-            ],
-          ),
-        ),
-        floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-        bottomNavigationBar: controller.audioPlayer.playing
-            ? Container(
-                margin: const EdgeInsets.only(left: 10, bottom: 40, right: 10),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(15),
-                  color: Colors.white70,
-                ),
-                child: BottomPlayer(
-                  controller: controller,
-                ),
-              )
-            : null,
-      );
-    });
+          // bottomNavigationBar: controller.audioPlayer.playing
+          //     ? BottomPlayer(
+          //         controller: controller,
+          //       )
+          //     : null,
+        );
+      }),
+    );
   }
 }

@@ -5,9 +5,15 @@ import 'package:flutter/widgets.dart';
 import 'AudioVisualizer.dart';
 
 class VisualizerWidget extends StatefulWidget {
-  final Function(BuildContext context, List<int> fft) builder;
+  final Widget Function(BuildContext context, List<int> fft, int sampleRate)
+      builder;
+
   int id;
-  VisualizerWidget({super.key, required this.builder, required this.id});
+  VisualizerWidget({
+    super.key,
+    required this.builder,
+    required this.id,
+  });
 
   @override
   _VisualizerWidgetState createState() => _VisualizerWidgetState();
@@ -15,7 +21,9 @@ class VisualizerWidget extends StatefulWidget {
 
 class _VisualizerWidgetState extends State<VisualizerWidget> {
   AudioVisualizer? visualizer;
-  List<int> fft = const [];
+  int sampleRate = 0;
+  List<int> waveData = const [];
+
   @override
   void initState() {
     super.initState();
@@ -31,9 +39,11 @@ class _VisualizerWidgetState extends State<VisualizerWidget> {
   Widget build(BuildContext context) {
     visualizer = Visualizers.audioVisualizer()
       ..activate(widget.id)
-      ..addListener(waveformCallback: (List<int> samples) {
-        setState(() => fft = samples);
+      ..addListener(waveformCallback: (samples, sampleRate) {
+        setState(() => waveData = samples);
+        setState(() => sampleRate = sampleRate);
       });
-    return widget.builder(context, fft);
+
+    return widget.builder(context, waveData, sampleRate);
   }
 }

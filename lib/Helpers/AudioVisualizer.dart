@@ -8,19 +8,22 @@ class Visualizers {
     );
   }
 
-  // static Future<int> getCurrentFreq(List<int> fft) async {
-  //   int freq =
-  //       await Player.channel.invokeMethod("getCurrentFreq", {"fft": fft});
-  //   return freq;
-  // }
-
   static void enableVisual(bool enable) {
     Channel.channel.invokeMethod("enableVisual", {"enableVisual": enable});
   }
 
 // scaleVisualizer
-  static void scaleVisualizer(int scale) async {
-    await Channel.channel.invokeMethod("scaleVisualizer", {"scale": scale});
+  static void scaleVisualizer(bool scale) async {
+    await Channel.channel.invokeMethod("setScalingMode", {"scale": scale});
+  }
+
+  static void setFrameRate(int frameRate) async {
+    await Channel.channel
+        .invokeMethod("setFrameRate", {"frameRate": frameRate});
+  }
+
+  static Future<bool> getEnabled() async {
+    return await Channel.channel.invokeMethod("getEnabled");
   }
 }
 
@@ -42,8 +45,9 @@ class AudioVisualizer {
           break;
         case 'onWaveformVisualization':
           List<int> samples = call.arguments['waveform'];
+          int sampleRate = call.arguments['sampleRate'];
           for (Function callback in _waveformCallbacks) {
-            callback(samples);
+            callback(samples, sampleRate);
           }
           break;
         default:
@@ -92,4 +96,5 @@ class AudioVisualizer {
 }
 
 typedef FftCallback = void Function(List<int> fftSamples);
-typedef WaveformCallback = void Function(List<int> waveformSamples);
+typedef WaveformCallback = void Function(
+    List<int> waveformSamples, int sampleRate);

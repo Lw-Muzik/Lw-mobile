@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:provider/provider.dart';
 
+import '../Helpers/VisualizerWidget.dart';
+import '../Visualizers/MultiwaveVisualizer.dart';
 import '../controllers/AppController.dart';
 
 class PlayerBody extends StatefulWidget {
@@ -36,7 +38,7 @@ class _PlayerBodyState extends State<PlayerBody> {
                     fit: BoxFit.cover,
                     filterQuality: FilterQuality.medium,
                   ),
-                  size: 1000,
+                  size: 2000,
                   type: ArtworkType.AUDIO),
             ),
             BackdropFilter(
@@ -47,18 +49,18 @@ class _PlayerBodyState extends State<PlayerBody> {
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: [
-                      const Color.fromARGB(255, 0, 0, 0).withOpacity(0),
-                      const Color.fromARGB(255, 0, 0, 0).withOpacity(0.5),
-                      const Color.fromARGB(255, 0, 0, 0).withOpacity(0.8)
+                      const Color.fromARGB(255, 0, 0, 0).withOpacity(0.2),
+                      const Color.fromARGB(255, 0, 0, 0).withOpacity(0.50),
+                      const Color.fromARGB(255, 0, 0, 0).withOpacity(0.80)
                     ],
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
-                    stops: const [0.0, 0.5, 0.8],
+                    stops: const [0.0, 0.50, 1.0],
                   ),
                 ),
               ),
             ),
-            widget.child
+            widget.child,
           ],
         );
       },

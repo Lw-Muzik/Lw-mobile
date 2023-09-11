@@ -1,3 +1,6 @@
+import 'dart:developer';
+
+import 'package:eq_app/Helpers/Channel.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/widgets.dart';
 
@@ -19,33 +22,38 @@ class HorizontalSlider extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Text(
-          title,
-          style: Theme.of(context).textTheme.bodyLarge,
-        ),
-        SizedBox(
-          width: MediaQuery.of(context).size.width / 1.4,
-          child: SliderTheme(
-            data: const SliderThemeData(
-              trackHeight: 3,
-              thumbShape: RoundSliderThumbShape(enabledThumbRadius: 6),
-            ),
-            child: Slider.adaptive(
-              max: max,
-              min: min,
-              value: value,
-              onChanged: onChanged,
+    // Channel.getOutGain().then((value) => log("Gain $value"));
+    return Padding(
+      padding: const EdgeInsets.all(5.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            title,
+            style: Theme.of(context).textTheme.labelLarge,
+          ),
+          SizedBox(
+            width: MediaQuery.of(context).size.width / 1.8,
+            child: SliderTheme(
+              data: const SliderThemeData(
+                trackHeight: 1.2,
+                minThumbSeparation: 4,
+                thumbShape: RoundSliderThumbShape(enabledThumbRadius: 8),
+              ),
+              child: Slider.adaptive(
+                max: max,
+                min: min,
+                value: value,
+                onChanged: onChanged,
+              ),
             ),
           ),
-        ),
-        Text(
-          dB,
-          style: Theme.of(context).textTheme.bodyLarge,
-        )
-      ],
+          Text(
+            dB,
+            style: Theme.of(context).textTheme.labelLarge,
+          )
+        ],
+      ),
     );
   }
 }

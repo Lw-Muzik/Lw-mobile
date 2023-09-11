@@ -1,12 +1,14 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
-class LineVisualiser extends CustomPainter {
+class LineVisualizer extends CustomPainter {
   final List<int> waveData;
   final double width;
   final double height;
   final Color color;
 
-  LineVisualiser({
+  LineVisualizer({
     required this.waveData,
     required this.width,
     required this.height,
@@ -27,9 +29,9 @@ class LineVisualiser extends CustomPainter {
     for (int i = 0; i < waveData.length; i++) {
       double x = i * dx;
       double y = height - waveData[i] * height;
-      // print("height $x");
+      print("data ${waveData.length}");
       if (i == 0) {
-        path.moveTo(x, y);
+        path.moveTo(x, y / 2);
       } else {
         path.lineTo(x, y);
       }

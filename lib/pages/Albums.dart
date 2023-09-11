@@ -1,3 +1,6 @@
+import 'package:eq_app/Routes/routes.dart';
+import 'package:eq_app/extensions/index.dart';
+import 'package:eq_app/pages/AlbumSongs.dart';
 import 'package:flutter/material.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 
@@ -20,19 +23,43 @@ class _AlbumsState extends State<Albums> {
             mainAxisSpacing: 26,
             children: List.generate(
               snapshot.data?.length ?? 0,
-              (index) => GridTile(
-                footer: Card(
-                  child: Center(
-                    child: Text("${snapshot.data?[index].numOfSongs} Songs",
-                        style: Theme.of(context).textTheme.titleMedium),
+              (index) => InkWell(
+                onTap: () => Routes.routeTo(
+                    AlbumSongs(
+                      albumId: snapshot.data![index].id,
+                      album: snapshot.data![index].album,
+                    ),
+                    context),
+                child: GridTile(
+                  footer: Card(
+                    color: Theme.of(context).cardColor.withOpacity(0.4),
+                    child: SizedBox(
+                      height: 46,
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            "${snapshot.data?[index].getMap['album'] ?? 'Unknown'}",
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.labelMedium,
+                          ),
+                          Text(snapshot.data![index].numOfSongs.nSongs,
+                              textAlign: TextAlign.center,
+                              style: Theme.of(context).textTheme.titleSmall),
+                        ],
+                      ),
+                    ),
                   ),
-                ),
-                child: QueryArtworkWidget(
-                  id: snapshot.data![index].id,
-                  type: ArtworkType.ALBUM,
-                  nullArtworkWidget: ClipRRect(
-                    borderRadius: BorderRadius.circular(50),
-                    child: Image.asset("assets/audio.jpeg"),
+                  child: QueryArtworkWidget(
+                    artworkBorder: BorderRadius.circular(10),
+                    id: snapshot.data![index].id,
+                    type: ArtworkType.ALBUM,
+                    nullArtworkWidget: ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: Image.asset(
+                        "assets/audio.jpeg",
+                      ),
+                    ),
                   ),
                 ),
               ),

@@ -1,12 +1,15 @@
-import 'dart:io';
+import 'package:on_audio_query/on_audio_query.dart';
 
 class Files {
-  static List<Map<String, String>> queryFromFolder(String path) {
-    var dir = Directory(path).listSync(recursive: true);
-    List<Map<String, String>> songs = dir
-        .map((e) =>
-            {"title": e.path.split("/").last.split(".").first, "path": e.path})
+  static Future<List<SongModel>> queryFromFolder(String path) async {
+    List<SongModel> filteredSongs = [];
+
+    var songs = await OnAudioQuery().querySongs();
+    filteredSongs = songs
+        .where((s) =>
+            s.data.split("/")[s.data.split("/").length - 2] ==
+            path.split("/").last)
         .toList();
-    return songs;
+    return filteredSongs;
   }
 }

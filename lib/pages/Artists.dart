@@ -16,7 +16,9 @@ class _ArtistsState extends State<Artists> {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
+    return Container(
+      margin: const EdgeInsets.only(top: 15),
+      padding: const EdgeInsets.all(10),
       child: FutureBuilder<List<ArtistModel>>(
         // Default values:
         future: _audioQuery.queryArtists(
@@ -46,7 +48,7 @@ class _ArtistsState extends State<Artists> {
           // List<SongModel> songs = item.data!;
           return GridView.builder(
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 3, crossAxisSpacing: 26, mainAxisSpacing: 26),
+                crossAxisCount: 3, crossAxisSpacing: 4, mainAxisSpacing: 6),
             itemCount: item.data!.length,
             itemBuilder: (context, index) {
               return InkWell(
@@ -60,36 +62,40 @@ class _ArtistsState extends State<Artists> {
                       context,
                       animate: true);
                 },
-                child: GridTile(
-                  footer: Card(
-                    child: SizedBox(
-                      height: 46,
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            "${item.data?[index].getMap['artist'] ?? 'Unknown'}",
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.labelMedium,
-                          ),
-                          Text("${item.data?[index].numberOfTracks} Songs",
-                              textAlign: TextAlign.center,
-                              style: Theme.of(context).textTheme.titleSmall),
-                        ],
+                child: Container(
+                  margin: const EdgeInsets.all(10),
+                  child: GridTile(
+                    footer: Card(
+                      color: Theme.of(context).cardColor.withOpacity(0.4),
+                      child: SizedBox(
+                        height: 46,
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              "${item.data?[index].getMap['artist'] ?? 'Unknown'}",
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.labelMedium,
+                            ),
+                            Text("${item.data?[index].numberOfTracks} Songs",
+                                textAlign: TextAlign.center,
+                                style: Theme.of(context).textTheme.titleSmall),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                  child: QueryArtworkWidget(
-                    artworkBorder: BorderRadius.circular(10),
-                    format: ArtworkFormat.PNG,
-                    size: 500,
-                    controller: _audioQuery,
-                    id: item.data![index]?.id ?? 0,
-                    nullArtworkWidget: ClipRRect(
-                      borderRadius: BorderRadius.circular(10),
-                      child: Image.asset("assets/audio.jpeg"),
+                    child: QueryArtworkWidget(
+                      artworkBorder: BorderRadius.circular(10),
+                      format: ArtworkFormat.PNG,
+                      size: 500,
+                      controller: _audioQuery,
+                      id: item.data![index].id,
+                      nullArtworkWidget: ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: Image.asset("assets/audio.jpeg"),
+                      ),
+                      type: ArtworkType.ARTIST,
                     ),
-                    type: ArtworkType.ARTIST,
                   ),
                 ),
               );

@@ -1,6 +1,9 @@
 import 'dart:developer';
 
+import 'package:eq_app/controllers/AppController.dart';
+import 'package:eq_app/widgets/EqPresets.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import 'BassControl.dart';
 import '../Helpers/Channel.dart';
@@ -14,37 +17,57 @@ class EqView extends StatefulWidget {
 }
 
 class _EqViewState extends State<EqView> {
-  double bass = 0;
+  int selected = 0;
   bool eq = false;
   bool ebass = false;
   List<double> bandValues = [0, 0, 0, 0, 0];
   @override
   Widget build(BuildContext context) {
-    return ListView(
-      children: [
-        StreamBuilder<bool>(
-            stream: Stream.fromFuture(Channel.isEnabled()),
-            builder: (context, snapshot) {
-              eq = snapshot.data ?? false;
-              return SwitchListTile(
-                title: const Text("Equalizer"),
-                subtitle: Text(eq ? "On" : "Off"),
-                value: snapshot.data ?? eq,
-                onChanged: (value) {
-                  setState(() {});
-                  Channel.enableEq(value);
-                },
-              );
-            }),
-        const SizedBox(
-          height: 4,
+    return Padding(
+      padding: const EdgeInsets.only(left: 10.0, right: 10.0),
+      child: SingleChildScrollView(
+        child: Flex(
+          direction: Axis.vertical,
+          children: [
+            StreamBuilder<bool>(
+                stream: Stream.fromFuture(Channel.isEnabled()),
+                builder: (context, snapshot) {
+                  eq = snapshot.data ?? false;
+                  return SwitchListTile(
+                    title: const Text("Equalizer"),
+                    subtitle: Text(eq ? "On" : "Off"),
+                    value: snapshot.data ?? eq,
+                    onChanged: (value) {
+                      setState(() {});
+                      Channel.enableEq(value);
+                    },
+                  );
+                }),
+            const SizedBox(
+              height: 4,
+            ),
+            const EqualizerControls(),
+            Padding(
+              padding: const EdgeInsets.all(18.0),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  "Presets",
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ),
+            ),
+            const EqPresets(),
+            const SizedBox(
+              height: 4,
+            ),
+            const BassControl(),
+            const SizedBox(
+              height: 4,
+            ),
+          ],
         ),
-        const EqualizerControls(),
-        const SizedBox(
-          height: 4,
-        ),
-        const BassControl(),
-      ],
+      ),
     );
   }
 }

@@ -1,12 +1,13 @@
-import 'dart:math';
-
+import 'package:eq_app/Global/index.dart';
 import 'package:eq_app/Helpers/Files.dart';
 import 'package:eq_app/pages/ArtistSongs.dart';
+import 'package:eq_app/widgets/Body.dart';
 import 'package:flutter/material.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:provider/provider.dart';
 
 import '../controllers/AppController.dart';
+import '../widgets/BottomPlayer.dart';
 
 class FolderSongs extends StatefulWidget {
   final String path;
@@ -17,55 +18,116 @@ class FolderSongs extends StatefulWidget {
 }
 
 class _FolderSongsState extends State<FolderSongs> {
+  int songs = 0;
+  @override
+  void initState() {
+    super.initState();
+    Files.queryFromFolder(widget.path).then((value) {
+      setState(() {
+        songs = value.length;
+      });
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    var songs = Files.queryFromFolder(widget.path);
     return NestedScrollView(
       headerSliverBuilder: (context, h) {
         return [
           SliverAppBar(
-              toolbarHeight: 100,
-              floating: true,
-              snap: true,
-              flexibleSpace: FlexibleSpaceBar(
-                centerTitle: true,
-                title: Center(
-                  child: Text(widget.path.split("/").last,
-                      style: Theme.of(context).textTheme.titleLarge),
-                ),
-              ))
+            forceMaterialTransparency: context.watch<AppController>().isFancy,
+            expandedHeight: 400,
+            shadowColor: Colors.transparent,
+            elevation: 0,
+            floating: true,
+            // pinned: true,
+            flexibleSpace: FlexibleSpaceBar(
+              centerTitle: true,
+              background: Stack(
+                children: [
+                  StreamBuilder<List<SongModel>>(
+                      stream:
+                          Stream.fromFuture(Files.queryFromFolder(widget.path)),
+                      builder: (context, snapshot) {
+                        return snapshot.hasData
+                            ? Consumer<AppController>(
+                                builder: (context, controller, child) {
+                                return headerWidget(
+                                    controller, context, snapshot.data!);
+                              })
+                            : Container();
+                      }),
+                  Positioned(
+                    bottom: 45,
+                    left: 10,
+                    child: RichText(
+                      text: TextSpan(
+                        children: [
+                          TextSpan(
+                            text: "${widget.path.split("/").last}\n",
+                            style: Theme.of(context).textTheme.displayMedium,
+                          ),
+                          TextSpan(
+                            text: "$songs",
+                            style: Theme.of(context)
+                                .textTheme
+                                .headlineLarge!
+                                .copyWith(fontWeight: FontWeight.w300),
+                          ),
+                          TextSpan(
+                            text: songs == 1
+                                ? " Available Track\n"
+                                : " Available Tracks\n",
+                            style: Theme.of(context)
+                                .textTheme
+                                .headlineSmall!
+                                .copyWith(fontWeight: FontWeight.w300),
+                          ),
+                          TextSpan(
+                            text: "${widget.path}",
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleMedium!
+                                .copyWith(fontWeight: FontWeight.w600),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                ],
+              ),
+              // title: ,
+            ),
+          )
         ];
       },
       body: Consumer<AppController>(builder: (context, controller, child) {
         return Scaffold(
-          body: ListView.builder(
-            itemCount: songs.length,
-            itemBuilder: (context, i) {
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 18.0),
-                child: ListTile(
-                  leading: ClipRRect(
-                    borderRadius: BorderRadius.circular(50),
-                    child: Image.asset("assets/audio.jpeg"),
+          backgroundColor: controller.isFancy
+              ? Colors.transparent
+              : Theme.of(context).scaffoldBackgroundColor,
+          body: Stack(
+            children: [
+              StreamBuilder(
+                stream: Stream.fromFuture(Files.queryFromFolder(widget.path)),
+                builder: (context, snap) {
+                  return snap.hasData
+                      ? SongLists(songs: snap.data ?? [])
+                      : const Center(
+                          child: CircularProgressIndicator.adaptive());
+                },
+              ),
+              if (controller.audioPlayer.playing)
+                Positioned(
+                  bottom: 0,
+                  right: 3,
+                  left: 3,
+                  child: BottomPlayer(
+                    controller: controller,
                   ),
-                  title: Text("${songs[i]['title']}"),
-                  onTap: () {
-                    // controller.songs = songs;
-                  },
                 ),
-              );
-            },
+            ],
           ),
-          // body:
-          // StreamBuilder(
-          //   stream: Stream.fromFuture(
-          //       OnAudioQuery.platform.queryFromFolder(widget.path)),
-          //   builder: (context, snap) {
-          //     return snap.hasData
-          //         ? SongLists(songs: snap.data ?? [])
-          //         : Center(child: const CircularProgressIndicator.adaptive());
-          //   },
-          // ),
         );
       }),
     );

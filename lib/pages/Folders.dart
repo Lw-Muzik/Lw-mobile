@@ -18,8 +18,8 @@ class _FoldersState extends State<Folders> {
         builder: (context, snapshot) {
           return GridView.count(
             crossAxisCount: 3,
-            crossAxisSpacing: 26,
-            mainAxisSpacing: 26,
+            crossAxisSpacing: 2,
+            mainAxisSpacing: 2,
             children: List.generate(
               snapshot.data?.length ?? 0,
               (index) => InkWell(
@@ -30,11 +30,12 @@ class _FoldersState extends State<Folders> {
                 child: GridTile(
                   footer: Text(
                     snapshot.data?[index].split("/").last ?? "",
+                    maxLines: 1,
                     textAlign: TextAlign.center,
                   ),
                   child: const Icon(
                     Icons.folder,
-                    size: 60,
+                    size: 100,
                   ),
                 ),
               ),

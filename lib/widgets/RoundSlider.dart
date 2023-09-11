@@ -50,15 +50,16 @@ class RoundSlider extends StatelessWidget {
           max: max,
           appearance: CircularSliderAppearance(
               customWidths: CustomSliderWidths(
-                  progressBarWidth: 7,
-                  handlerSize: 10,
-                  trackWidth: 7,
+                  progressBarWidth: 2,
+                  handlerSize: 8,
+                  trackWidth: 2,
                   shadowWidth: 0),
               customColors: CustomSliderColors(
-                dotColor: Theme.of(context).primaryColor,
-                trackColor: Theme.of(context).primaryColor.withOpacity(0.2),
-                progressBarColor: Theme.of(context).primaryColor,
-              )),
+                  // dotColor: Theme.of(context).primaryColor,
+                  // trackColor:
+                  //     Theme.of(context).primaryColorLight.withOpacity(0.2),
+                  // progressBarColor: Theme.of(context).primaryColorLight,
+                  )),
           onChange: onChanged),
     );
   }

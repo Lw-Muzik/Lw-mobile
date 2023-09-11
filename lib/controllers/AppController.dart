@@ -1,8 +1,83 @@
+import 'dart:math';
+
+import 'package:eq_app/Themes/AppThemes.dart';
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:on_audio_query/on_audio_query.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class AppController with ChangeNotifier {
+  List<int> _bandValues = [0, 0, 0, 0, 0];
+  // app themes
+  ThemeData _theme = AppThemes.lightTheme;
+  bool _isDark = false;
+  bool _playerVisual = false;
+  /*
+     private static final float out_gain = 0.0f;
+    private static final float dsp_volume = -8.0f;
+    private static final float dsp_powerBass = 8.0f;
+    private static final float dsp_xBass = 11.0f;
+    private static final float dsp_treble = 3.3f*/
+  // DSP settings
+  bool _enableDSP = false;
+  double _dspVolume = -8.0;
+  double _dspXTreble = 3.3;
+  double _dspPowerBass = 8.0;
+  double _dspXBass = 11.0;
+  double _dspXBass2 = 13.0;
+  double _dspOutGain = 3.0;
+  // DSP getters
+  bool get enableDSP => _enableDSP;
+  double get dspVolume => _dspVolume;
+  double get dspXTreble => _dspXTreble;
+  double get dspPowerBass => _dspPowerBass;
+  double get dspXBass => _dspXBass;
+  double get dspXBass2 => _dspXBass2;
+  double get dspOutGain => _dspOutGain;
+
+  // DSP setters
+  set enableDSP(bool dsp) {
+    _enableDSP = dsp;
+    notifyListeners();
+  }
+
+  set dspVolume(double vol) {
+    _dspVolume = vol;
+    notifyListeners();
+  }
+
+  set dspXTreble(double xtreble) {
+    _dspXTreble = xtreble;
+    notifyListeners();
+  }
+
+  set dspPowerBass(double powerBass) {
+    _dspPowerBass = powerBass;
+    notifyListeners();
+  }
+
+  set dspXBass(double xBass) {
+    _dspXBass = xBass;
+    notifyListeners();
+  }
+
+  set dspXBass2(double xBass2) {
+    _dspXBass2 = xBass2;
+    notifyListeners();
+  }
+
+  set dspOutGain(double gain) {
+    _dspOutGain = gain;
+    notifyListeners();
+  }
+  //----------- end of dsp initialization --------------------------------
+
+  double _bgQuality = 2.0;
+  int _selectedPreset = 0;
+  bool _isFancy = false;
+  bool _isShuffled = false;
+  bool _isVisualInBackground = false;
+  bool _visuals = false;
   int _songId = 0;
   bool _isLoop = false;
   int _artWorkId = 0;
@@ -13,15 +88,16 @@ class AppController with ChangeNotifier {
 
   final AudioPlayer _audioPlayer = AudioPlayer();
   List<SongModel> _songs = [];
+  List<SongModel> _shuffledSongs = [];
   AppController() {
     _audioPlayer.playerStateStream.listen((event) {
       if (event.processingState == ProcessingState.completed) {
         songId += 1;
-        if (songId > songs.length + 1) {
-          songId = 0;
-          artWorkId = songs[songId].id;
-          _audioPlayer.setUrl(songs[songId].data);
-          _audioPlayer.play();
+
+        if (songId == songs.length) {
+          // songId = 0;
+          // artWorkId = songs[songId].id;
+          _audioPlayer.stop();
         } else {
           artWorkId = songs[songId].id;
           _audioPlayer.setUrl(songs[songId].data);
@@ -30,21 +106,137 @@ class AppController with ChangeNotifier {
       }
     });
   }
+  bool get isDark {
+    // SharedPreferences.getInstance().then((value) {
+    //   bool k = value.getBool("isDark") ?? false;
+    //   _isDark = k;
+    //   notifyListeners();
+    // });
+    return _isDark;
+  }
 
-  int get songId => _songId;
+  List<int> get bandValues => _bandValues;
+  set bandValues(List<int> bandLevels) {
+    _bandValues = bandLevels;
+    notifyListeners();
+  }
+
+  bool get isShuffled => _isShuffled;
+
+  int get selectedPreset {
+    SharedPreferences.getInstance().then((value) {
+      int p = value.getInt("selectedPreset") ?? 0;
+      _selectedPreset = p;
+      notifyListeners();
+    });
+    return _selectedPreset;
+  }
+
+  bool get playerVisual => _playerVisual;
+  double get bgQuality => _bgQuality;
+  bool get isFancy {
+    // SharedPreferences.getInstance().then((value) {
+    //   bool f = value.getBool("isFancy") ?? false;
+    //   _isFancy = f;
+    //   notifyListeners();
+    // });
+    return _isFancy;
+  }
+
+  ThemeData get theme {
+    SharedPreferences.getInstance().then((value) {
+      bool isD = value.getBool("isDark") ?? false;
+      _theme = isD ? AppThemes.darkTheme : AppThemes.lightTheme;
+      notifyListeners();
+    });
+    return _theme;
+  }
+
+  bool get isVisualInBackground => _isVisualInBackground;
+
+  int get songId {
+    // SharedPreferences.getInstance().then((value) {
+    //   int sId = value.getInt("songId") ?? 0;
+    //   _songId = sId;
+    //   notifyListeners();
+    // });
+    return _songId;
+  }
+
+  bool get visuals => _visuals;
   double get opacity => _opacity;
   double get blur => _blur;
   int get artWorkId => _artWorkId;
-  List<SongModel> get songs => _songs;
+  List<SongModel> get songs {
+    return isShuffled ? _shuffledSongs : _songs;
+  }
+
+  List<SongModel> get shuffledSongs => _shuffledSongs;
   AudioPlayer get audioPlayer => _audioPlayer;
   OnAudioQuery get audioQuery => _audioQuery;
 
+  set visuals(bool v) {
+    _visuals = v;
+    notifyListeners();
+  }
+
+  set isShuffled(bool sh) {
+    _isShuffled = sh;
+    notifyListeners();
+  }
+
+  set setTheme(bool t) {
+    SharedPreferences.getInstance().then((value) {
+      value.setBool("isDark", t);
+    });
+    _isDark = t;
+    _theme = t ? AppThemes.darkTheme : AppThemes.lightTheme;
+    notifyListeners();
+  }
+
+// ========================
+  set selectedPreset(int pr) {
+    SharedPreferences.getInstance().then((value) {
+      value.setInt("selectedPreset", pr);
+      _selectedPreset = pr;
+      notifyListeners();
+    });
+  }
+
+  set playerVisual(bool pV) {
+    _playerVisual = pV;
+    notifyListeners();
+  }
+
+  /// adjusting player's background
+  set bgQuality(double q) {
+    _bgQuality = q;
+    notifyListeners();
+  }
+
+  set isVisualInBackground(bool b) {
+    _isVisualInBackground = b;
+    notifyListeners();
+  }
+
+  set isFancy(bool fancy) {
+    // SharedPreferences.getInstance().then((value) {
+    //   value.setBool("isFancy", fancy);
+    // });
+    _isFancy = fancy;
+    notifyListeners();
+  }
+
   set songs(List<SongModel> value) {
+    _shuffledSongs = value;
     _songs = value;
     notifyListeners();
   }
 
   set artWorkId(int id) {
+    // SharedPreferences.getInstance().then((value) {
+    //   value.setInt("artWorkId", id);
+    // });
     _artWorkId = id;
     notifyListeners();
   }
@@ -59,22 +251,47 @@ class AppController with ChangeNotifier {
     notifyListeners();
   }
 
-  set songId(int value) {
-    _songId = value;
+  void shuffleSongs() {
+    List sample = shuffledSongs;
+    final random = Random();
+    for (var i = 0; i < sample.length; i++) {
+      final j = random.nextInt(i + 1);
+      final temp = sample[i];
+      sample[i] = sample[j];
+      sample[j] = temp;
+    }
+  }
+
+  set songId(int id) {
+    // SharedPreferences.getInstance().then((value) {
+    //   value.setInt("songId", id);
+    //   notifyListeners();
+    // });
+    _songId = id;
     notifyListeners();
   }
 
   void next() {
     songId += 1;
-    artWorkId = songs[songId].id;
-    _audioPlayer.setUrl(songs[songId].data);
-    _audioPlayer.play();
+    if (songId == songs.length) {
+      songId = 0;
+      _audioPlayer.stop();
+    } else {
+      artWorkId = songs[songId].id;
+      _audioPlayer.setUrl(songs[songId].data);
+      _audioPlayer.play();
+    }
   }
 
   void prev() {
     songId -= 1;
-    artWorkId = songs[songId].id;
-    _audioPlayer.setUrl(songs[songId].data);
-    _audioPlayer.play();
+    if (songId == 0) {
+      songId = 0;
+      _audioPlayer.stop();
+    } else {
+      artWorkId = songs[songId].id;
+      _audioPlayer.setUrl(songs[songId].data);
+      _audioPlayer.play();
+    }
   }
 }

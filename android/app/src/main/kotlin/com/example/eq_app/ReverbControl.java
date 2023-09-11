@@ -4,9 +4,9 @@ import android.media.audiofx.EnvironmentalReverb;
 
 public class ReverbControl {
     private static EnvironmentalReverb environmentalReverb;
-
+    private static final int m = Integer.MAX_VALUE;
     public static void init(int sessionId) {
-        environmentalReverb = new EnvironmentalReverb(0, sessionId);
+        environmentalReverb = new EnvironmentalReverb(m, sessionId);
     }
 
     public static void enable(boolean enable) {

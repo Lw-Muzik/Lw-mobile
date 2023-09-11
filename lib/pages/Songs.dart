@@ -1,3 +1,4 @@
+import 'package:eq_app/Global/index.dart';
 import 'package:eq_app/Helpers/Channel.dart';
 import 'package:flutter/material.dart';
 import 'package:on_audio_query/on_audio_query.dart';
@@ -13,18 +14,37 @@ class AllSongs extends StatefulWidget {
 }
 
 class _AllSongsState extends State<AllSongs> {
+  ScrollController scrollController = ScrollController();
+  @override
+  void initState() {
+    super.initState();
+
+    // scrollController?.addListener(() {
+    //   scrollController?.animateTo(
+    //       context.read<AppController>().songId.toDouble(),
+    //       duration: const Duration(milliseconds: 900),
+    //       curve: Curves.decelerate);
+    // });
+  }
+
+  @override
+  void dispose() {
+    super.dispose();
+    scrollController.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Center(
       child: Consumer<AppController>(builder: (context, controller, child) {
-        return FutureBuilder<List<SongModel>>(
+        return StreamBuilder<List<SongModel>>(
           // Default values:
-          future: controller.audioQuery.querySongs(
+          stream: Stream.fromFuture(controller.audioQuery.querySongs(
             sortType: null,
             orderType: OrderType.ASC_OR_SMALLER,
             uriType: UriType.EXTERNAL,
             ignoreCase: true,
-          ),
+          )),
 
           builder: (context, item) {
             // Display error, if any.
@@ -41,44 +61,98 @@ class _AllSongsState extends State<AllSongs> {
             if (item.data!.isEmpty) {
               return const Text("Nothing found!");
             }
-
+            controller.audioPlayer.playerStateStream.listen((event) {
+              if (event.playing) {
+                if (scrollController.hasClients) {
+                  // print(scrollController!.offset);
+                  // scrollController.animateTo(
+                  //   controller.songId.toDouble() * 56,
+                  //   duration: const Duration(milliseconds: 900),
+                  //   curve: Curves.decelerate,
+                  // );
+                }
+              }
+            });
             // You can use [item.data!] direct or you can create a:
             // List<SongModel> songs = item.data!;
-            return ListView.builder(
-              itemCount: item.data!.length,
-              itemBuilder: (context, index) {
-                return ListTile(
-                  selected: controller.songId == index,
-                  selectedTileColor:
-                      Theme.of(context).primaryColorDark.withOpacity(0.1),
-                  selectedColor: Theme.of(context).primaryColor,
-                  title: Text(item.data![index].title),
-                  subtitle: Text(item.data![index].artist ?? "No Artist"),
-                  trailing: const Icon(Icons.arrow_forward_rounded),
-                  onTap: () {
-                    setState(() {
-                      controller.songId = index;
-                    });
-                    controller.audioPlayer.setUrl(item.data![index].data);
-                    controller.audioPlayer.play();
-                    Channel.setSessionId(
-                        controller.audioPlayer.androidAudioSessionId ?? 0);
-                  },
-                  // This Widget will query/load image.
-                  // You can use/create your own widget/method using [queryArtwork].
-                  leading: QueryArtworkWidget(
-                    artworkHeight: 60,
-                    artworkWidth: 60,
-                    nullArtworkWidget: ClipRRect(
-                      borderRadius: BorderRadius.circular(60),
-                      child: Image.asset("assets/audio.jpeg"),
+            return Scrollbar(
+              controller: scrollController,
+              child: ListView.builder(
+                controller: scrollController,
+                itemCount: item.data!.length,
+                itemBuilder: (context, index) {
+                  return Container(
+                    decoration: commonDeration(controller, index, context),
+                    child: ListTile(
+                      selected: controller.songId == index,
+                      // selectedTileColor:
+
+                      selectedColor:
+                          Theme.of(context).brightness == Brightness.light
+                              ? Theme.of(context).primaryColor
+                              : Theme.of(context).primaryColorLight,
+                      title: Text(
+                        item.data![index].title,
+                        maxLines: 1,
+                        overflow: item.data![index].title.length > 32
+                            ? TextOverflow.fade
+                            : TextOverflow.visible,
+                        style: Theme.of(context).textTheme.bodyLarge,
+                      ),
+                      subtitle: Text(item.data![index].artist ?? "No Artist"),
+                      trailing: Icon(
+                        controller.songId == index
+                            ? Icons.equalizer
+                            : Icons.play_arrow,
+                        color: Colors.white,
+                      ),
+                      onTap: () {
+                        setState(() {
+                          controller.songId = index;
+                        });
+                        if (controller.songs.length < item.data!.length) {
+                          controller.songs = item.data!;
+                        }
+
+                        controller.audioPlayer.setUrl(item.data![index].data);
+                        controller.audioPlayer.play();
+                        Channel.setSessionId(
+                            controller.audioPlayer.androidAudioSessionId ?? 0);
+                      },
+                      // This Widget will query/load image.
+                      // You can use/create your own widget/method using [queryArtwork].
+                      leading:
+                          // ClipRRect(
+                          //   borderRadius: BorderRadius.circular(50),
+                          //   child: fetchArtwork(item.data![index].data,
+                          //                   item.data![index].id)
+                          //               .existsSync() ==
+                          //           false
+                          //       ? Image.asset("assets/audio.jpeg")
+                          //       : Image.file(
+                          //           fetchArtwork(item.data![index].data,
+                          //               item.data![index].id),
+                          //           errorBuilder: (context, error, stackTrace) =>
+                          //               const CircularProgressIndicator
+                          //                   .adaptive(),
+                          //         ),
+                          // )
+                          //
+                          QueryArtworkWidget(
+                        artworkHeight: 60,
+                        artworkWidth: 60,
+                        nullArtworkWidget: ClipRRect(
+                          borderRadius: BorderRadius.circular(60),
+                          child: Image.asset("assets/audio.jpeg"),
+                        ),
+                        controller: controller.audioQuery,
+                        id: item.data![index].id,
+                        type: ArtworkType.AUDIO,
+                      ),
                     ),
-                    controller: controller.audioQuery,
-                    id: item.data![index].id,
-                    type: ArtworkType.AUDIO,
-                  ),
-                );
-              },
+                  );
+                },
+              ),
             );
           },
         );

@@ -1,4 +1,20 @@
+// ignore_for_file: constant_identifier_names
+
+import 'dart:collection';
+import 'dart:developer';
+
 import 'package:flutter/services.dart';
+
+enum PresetReverb {
+  SMALL_ROOM,
+  LARGE_ROOM,
+  PRESET_PLATE,
+  NONE,
+  MEDIUM_ROOM,
+  MEDIUM_HALL,
+  LARGE_HALL,
+  PRESET
+}
 
 class Channel {
   static MethodChannel channel = const MethodChannel("eq_app");
@@ -9,10 +25,11 @@ class Channel {
     await channel.invokeMethod("release");
   }
 
-  static Future<List<String>> getPreset() async {
+  static Future<List<Map<String, dynamic>>> getPreset() async {
     List<String> p =
         (await channel.invokeMethod("getPresetNames")).cast<String>();
-    return p;
+    return List.generate(
+        p.length, (index) => {"id": index, "preset": p[index]});
   }
 
   static void setPreset(String p) async {
@@ -59,6 +76,8 @@ class Channel {
     initLoudnessEnhancer(sessionId);
     initVirtualizer(sessionId);
     initReverb(sessionId);
+    initDSPEngine(sessionId);
+    initPresetReverb(sessionId);
     await channel.invokeMethod("init", {"sessionId": sessionId});
   }
 
@@ -90,6 +109,10 @@ class Channel {
 
   static void enableVirtualizer(bool enable) async {
     await channel.invokeMethod("enableVirtualizer", {"enable": enable});
+  }
+
+  static Future<bool> forceVirtualization() async {
+    return await channel.invokeMethod("forceVirtualization");
   }
 
   static void setVirtualizerStrength(int strength) async {
@@ -238,5 +261,106 @@ class Channel {
   /// reflections getReflectionsLevel The valid range is [-9000, 1000]
   static Future<int> getReflectionsLevel() async {
     return (await channel.invokeMethod("getReflectionsLevel"));
+  }
+
+  /// initialize DSP engine
+  static void initDSPEngine(int audioSessionId) async {
+    await channel.invokeMethod("initDSPEngine", {"dspId": audioSessionId});
+  }
+
+  static void enableDSPEngine(bool enable) async {
+    await channel.invokeMethod("enableDSP", {"enableEngine": enable});
+  }
+
+  static void setOutGain(double limit) async {
+    await channel.invokeMethod("setOutGain", {"outGain": limit});
+  }
+
+  static Future<double> getOutGain() async {
+    return await channel.invokeMethod("getOutGain");
+  }
+
+  static Future<double> setDSPVolume(double v) async {
+    return await channel.invokeMethod("setDSPVolume", {"dspVolume": v});
+  }
+
+  @Deprecated("shouldn't be used anymore")
+  static void setChannelGain(double v) async {
+    //  await channel.invokeMethod("setChannelGain", {"chGain": v});
+  }
+  @Deprecated("shouldn't be used anymore")
+  static void setChannel2Gain(double v) async {
+    //  await channel.invokeMethod("setChannel2Gain", {"ch2Gain": v});
+  }
+
+  static void setDSPXBass(double bass) async {
+    await channel.invokeMethod("setDSPXBass", {"xBass": bass});
+  }
+
+  static void setDSPXBass2(double gain2) async {
+    log("XBass2 $gain2");
+    await channel.invokeMethod("setExtraBass", {"extraBass": gain2});
+  }
+
+  static void setDSPPowerBass(double bass) async {
+    await channel.invokeMethod("setDSPPowerBass", {"powerBass": bass});
+  }
+
+  static void setDSPTreble(double treble) async {
+    await channel.invokeMethod("setDSPXTreble", {"trebleGain": treble});
+  }
+
+  static void setDSPSpeakers(List<int> speakers, List<double> levels) async {
+    Map<String, dynamic> dsps = {"speakers": speakers, "levels": levels};
+    await channel.invokeMethod("setDSPSpeakers", {"spks": dsps});
+  }
+
+  static void disposeDSP() async {
+    await channel.invokeMethod("disposeDSP");
+  }
+
+  static void initPresetReverb(int sessionId) async {
+    await channel.invokeMethod("initPresetReverb", {"priorityId": sessionId});
+  }
+
+  static void enablePresetReverb(bool enable) async {
+    await channel.invokeMethod("enablePresetReverb", {"enablePreset": enable});
+  }
+
+  static void setReverbPreset(PresetReverb preset) async {
+    int x = 0;
+    switch (preset) {
+      case PresetReverb.NONE:
+        x = 0;
+        break;
+
+      case PresetReverb.SMALL_ROOM:
+        x = 1;
+        break;
+      case PresetReverb.LARGE_ROOM:
+        x = 3;
+        break;
+      case PresetReverb.PRESET_PLATE:
+        x = 6;
+        break;
+      case PresetReverb.MEDIUM_ROOM:
+        x = 2;
+        break;
+      case PresetReverb.MEDIUM_HALL:
+        x = 4;
+        break;
+      case PresetReverb.LARGE_HALL:
+        x = 5;
+        break;
+      case PresetReverb.PRESET:
+        x = 0;
+        break;
+    }
+    log("Preset $x");
+    await channel.invokeMethod("setReverbPreset", {"preset": x});
+  }
+
+  static Future<int> getReverbPreset() async {
+    return await channel.invokeMethod("getReverbPreset");
   }
 }
