@@ -9,6 +9,7 @@ import 'package:provider/provider.dart';
 import '../Helpers/VisualizerWidget.dart';
 import '../Visualizers/BarVisualizer.dart';
 import '../Visualizers/CircularBarVisualizer.dart';
+import 'ArtworkWidget.dart';
 import 'BottomPlayer.dart';
 
 class Body extends StatelessWidget {
@@ -27,19 +28,13 @@ class Body extends StatelessWidget {
             if (controller.songs.isNotEmpty)
               SizedBox(
                 height: MediaQuery.of(context).size.height,
-                child: QueryArtworkWidget(
-                  artworkBorder: BorderRadius.zero,
-                  format: ArtworkFormat.PNG,
+                child: ArtworkWidget(
+                  useSaved: false,
                   size: controller.bgQuality.toInt(),
                   quality: 1,
-                  artworkWidth: MediaQuery.of(context).size.width,
-                  artworkHeight: MediaQuery.of(context).size.height,
-                  id: controller.songs[controller.songId].id,
-                  nullArtworkWidget: Image.asset(
-                    "assets/audio.jpeg",
-                    filterQuality: FilterQuality.high,
-                    fit: BoxFit.cover,
-                  ),
+                  width: MediaQuery.of(context).size.width,
+                  height: MediaQuery.of(context).size.height,
+                  songId: controller.songs[controller.songId].id,
                   type: ArtworkType.AUDIO,
                 ),
               ),
@@ -63,6 +58,28 @@ class Body extends StatelessWidget {
                   ),
                 ),
               ),
+            if (controller.isVisualInBackground)
+              StreamBuilder(
+                  stream: controller.audioPlayer.androidAudioSessionIdStream,
+                  builder: (context, session) {
+                    return session.hasData
+                        ? VisualizerWidget(
+                            builder: (context, fft, rate) {
+                              return CustomPaint(
+                                painter: CircularBarVisualizer(
+                                    color: Theme.of(context)
+                                        .primaryColorLight
+                                        .withOpacity(0.1),
+                                    waveData: fft,
+                                    width: MediaQuery.of(context).size.width,
+                                    height: MediaQuery.of(context).size.height),
+                                child: const Center(),
+                              );
+                            },
+                            id: session.data ?? 0,
+                          )
+                        : Container();
+                  }),
             Container(
               decoration: const BoxDecoration(
                 backgroundBlendMode: BlendMode.colorBurn,
@@ -72,34 +89,6 @@ class Body extends StatelessWidget {
               height: MediaQuery.of(context).size.height,
               child: child,
             ),
-            if (controller.isVisualInBackground)
-              Positioned(
-                bottom: 0,
-                left: 0,
-                right: 0,
-                child: StreamBuilder(
-                    stream: controller.audioPlayer.androidAudioSessionIdStream,
-                    builder: (context, session) {
-                      return session.hasData
-                          ? VisualizerWidget(
-                              builder: (context, fft, rate) {
-                                return CustomPaint(
-                                  painter: CircularBarVisualizer(
-                                      color: Theme.of(context)
-                                          .primaryColorLight
-                                          .withOpacity(0.1),
-                                      waveData: fft,
-                                      width: MediaQuery.of(context).size.width,
-                                      height:
-                                          MediaQuery.of(context).size.height),
-                                  child: const Center(),
-                                );
-                              },
-                              id: session.data ?? 0,
-                            )
-                          : Container();
-                    }),
-              ),
           ],
         );
       },

@@ -1,9 +1,11 @@
 import 'package:eq_app/Global/index.dart';
 import 'package:eq_app/Helpers/Channel.dart';
+import 'package:eq_app/widgets/ArtworkWidget.dart';
 import 'package:flutter/material.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:provider/provider.dart';
 
+import '../Helpers/index.dart';
 import '../controllers/AppController.dart';
 
 class AllSongs extends StatefulWidget {
@@ -84,72 +86,47 @@ class _AllSongsState extends State<AllSongs> {
                   return Container(
                     decoration: commonDeration(controller, index, context),
                     child: ListTile(
-                      selected: controller.songId == index,
-                      // selectedTileColor:
+                        selected: controller.songId == index,
+                        // selectedTileColor:
 
-                      selectedColor:
-                          Theme.of(context).brightness == Brightness.light
-                              ? Theme.of(context).primaryColor
-                              : Theme.of(context).primaryColorLight,
-                      title: Text(
-                        item.data![index].title,
-                        maxLines: 1,
-                        overflow: item.data![index].title.length > 32
-                            ? TextOverflow.fade
-                            : TextOverflow.visible,
-                        style: Theme.of(context).textTheme.bodyLarge,
-                      ),
-                      subtitle: Text(item.data![index].artist ?? "No Artist"),
-                      trailing: Icon(
-                        controller.songId == index
-                            ? Icons.equalizer
-                            : Icons.play_arrow,
-                        color: Colors.white,
-                      ),
-                      onTap: () {
-                        setState(() {
-                          controller.songId = index;
-                        });
-                        if (controller.songs.length < item.data!.length) {
-                          controller.songs = item.data!;
-                        }
-
-                        controller.audioPlayer.setUrl(item.data![index].data);
-                        controller.audioPlayer.play();
-                        Channel.setSessionId(
-                            controller.audioPlayer.androidAudioSessionId ?? 0);
-                      },
-                      // This Widget will query/load image.
-                      // You can use/create your own widget/method using [queryArtwork].
-                      leading:
-                          // ClipRRect(
-                          //   borderRadius: BorderRadius.circular(50),
-                          //   child: fetchArtwork(item.data![index].data,
-                          //                   item.data![index].id)
-                          //               .existsSync() ==
-                          //           false
-                          //       ? Image.asset("assets/audio.jpeg")
-                          //       : Image.file(
-                          //           fetchArtwork(item.data![index].data,
-                          //               item.data![index].id),
-                          //           errorBuilder: (context, error, stackTrace) =>
-                          //               const CircularProgressIndicator
-                          //                   .adaptive(),
-                          //         ),
-                          // )
-                          //
-                          QueryArtworkWidget(
-                        artworkHeight: 60,
-                        artworkWidth: 60,
-                        nullArtworkWidget: ClipRRect(
-                          borderRadius: BorderRadius.circular(60),
-                          child: Image.asset("assets/audio.jpeg"),
+                        selectedColor:
+                            Theme.of(context).brightness == Brightness.light
+                                ? Theme.of(context).primaryColor
+                                : Theme.of(context).primaryColorLight,
+                        title: Text(
+                          item.data![index].title,
+                          maxLines: 1,
+                          overflow: item.data![index].title.length > 32
+                              ? TextOverflow.fade
+                              : TextOverflow.visible,
+                          style: Theme.of(context).textTheme.bodyLarge,
                         ),
-                        controller: controller.audioQuery,
-                        id: item.data![index].id,
-                        type: ArtworkType.AUDIO,
-                      ),
-                    ),
+                        subtitle: Text(item.data![index].artist ?? "No Artist"),
+                        trailing: Icon(
+                          controller.songId == index
+                              ? Icons.equalizer
+                              : Icons.play_arrow,
+                          color: Colors.white,
+                        ),
+                        onTap: () {
+                          setState(() {
+                            controller.songId = index;
+                          });
+                          if (controller.songs.length < item.data!.length) {
+                            controller.songs = item.data!;
+                          }
+
+                          controller.audioPlayer.setUrl(item.data![index].data);
+                          controller.audioPlayer.play();
+                          Channel.setSessionId(
+                              controller.audioPlayer.androidAudioSessionId ??
+                                  0);
+                        },
+                        // This Widget will query/load image.
+                        // You can use/create your own widget/method using [queryArtwork].
+                        leading: ArtworkWidget(
+                            path: item.data![index].data,
+                            songId: item.data![index].id)),
                   );
                 },
               ),

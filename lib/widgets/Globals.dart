@@ -1,11 +1,9 @@
-import 'dart:ui';
-
 import 'package:eq_app/Routes/routes.dart';
 import 'package:eq_app/player/PlayerUI.dart';
 import 'package:flutter/material.dart';
-import 'package:on_audio_query/on_audio_query.dart';
 
 import '../controllers/AppController.dart';
+import 'ArtworkWidget.dart';
 
 Widget bottomPlayer(AppController controller, BuildContext context) {
   return ListTile(
@@ -13,17 +11,12 @@ Widget bottomPlayer(AppController controller, BuildContext context) {
       Routes.routeTo(const Player(), context);
     },
     leading: Transform.rotate(
-      angle: 0,
-      child: QueryArtworkWidget(
-          // artworkBorder: BorderRadius.circular(5),
-          controller: controller.audioQuery,
-          id: controller.songs[controller.songId].id,
-          type: ArtworkType.AUDIO,
-          nullArtworkWidget: ClipRRect(
-            borderRadius: BorderRadius.circular(60),
-            child: Image.asset("assets/audio.jpeg"),
-          )),
-    ),
+        angle: 0,
+        child: ArtworkWidget(
+          songId: controller.songs[controller.songId].id,
+          path: controller.songs[controller.songId].data,
+          borderRadius: BorderRadius.circular(60),
+        )),
     title: Text(
       controller.songs[controller.songId].title,
       overflow: TextOverflow.ellipsis,

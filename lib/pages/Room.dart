@@ -77,7 +77,7 @@ class _RoomEffectsState extends State<RoomEffects> {
                 value: _reverbLevel.toDouble(),
                 max: 20000,
                 min: -9000,
-                dB: _reverbLevel.toDouble(),
+                dB: ((_reverbLevel / 20000) * 100).toDouble(),
               );
             }),
         const SizedBox(
