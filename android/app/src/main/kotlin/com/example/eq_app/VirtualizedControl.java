@@ -6,21 +6,29 @@ public class VirtualizedControl {
     private static Virtualizer virtualizer;
     private static final int m = Integer.MAX_VALUE;
     static void initVirtualizer(int sessionId) {
-        virtualizer = new Virtualizer(m, sessionId);
+        if(virtualizer == null){
+            virtualizer = new Virtualizer(m, sessionId);
+        }
     }
 
     public static void enable(boolean enable) {
         if (virtualizer != null) {
             virtualizer.setEnabled(enable);
-            virtualizer.forceVirtualizationMode(Virtualizer.VIRTUALIZATION_MODE_BINAURAL); // VIRTUALIZATION_MODE_TRANSAURAL => 3, VIRTUALIZATION_MODE_BINAURAL => 2
+//            virtualizer.forceVirtualizationMode(Virtualizer.VIRTUALIZATION_MODE_BINAURAL); // VIRTUALIZATION_MODE_TRANSAURAL => 3, VIRTUALIZATION_MODE_BINAURAL => 2
         }
     }
+    public static boolean getVirtualEnabled(){
+        if(virtualizer != null){
+            return virtualizer.getEnabled();
+        }
+        return false;
+    }
 
-   public static boolean forceVirtualizationEnabled() {
+   public static int forceVirtualizationEnabled() {
        if (virtualizer != null) {
-           return virtualizer.forceVirtualizationMode(Virtualizer.VIRTUALIZATION_MODE_BINAURAL);
+           return virtualizer.getVirtualizationMode();
        }
-       return false;
+       return 0;
    }
 
     public static void setStrength(int strength) {

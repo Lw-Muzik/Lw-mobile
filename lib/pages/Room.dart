@@ -1,5 +1,7 @@
 import 'package:eq_app/Helpers/Channel.dart';
+import 'package:eq_app/controllers/AppController.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../widgets/RoundSlider.dart';
 
@@ -25,6 +27,7 @@ class _RoomEffectsState extends State<RoomEffects> {
   ];
   @override
   Widget build(BuildContext context) {
+    var controller = Provider.of<AppController>(context);
     return ListView(
       children: [
         StreamBuilder<bool>(
@@ -115,22 +118,35 @@ class _RoomEffectsState extends State<RoomEffects> {
             ),
           ],
         ),
-        Container(
+        SizedBox(
           height: MediaQuery.of(context).size.width,
-          margin: const EdgeInsets.only(right: 10, top: 10, left: 10),
-          child: GridView.count(
-            mainAxisSpacing: 10,
-            crossAxisCount: 3,
-            crossAxisSpacing: 10,
-            children: List.generate(
-              p.length,
-              (index) => InkWell(
-                onTap: () {
-                  Channel.setReverbPreset(p[index]["value"]);
-                },
-                child: Card(
-                  child: Center(
-                    child: Text("${p[index]['name']}"),
+          child: Card(
+            // decoration: BoxDecoration(color: Theme.of(context).cardColor),
+            margin: const EdgeInsets.only(right: 10, top: 10, left: 10),
+            child: GridView.count(
+              mainAxisSpacing: 10,
+              crossAxisCount: 3,
+              crossAxisSpacing: 10,
+              children: List.generate(
+                p.length,
+                (index) => InkWell(
+                  onTap: () {
+                    controller.selectedRoomPreset = index;
+                    Channel.setReverbPreset(p[index]["value"]);
+                  },
+                  child: Card(
+                    color: controller.selectedRoomPreset == index
+                        ? Theme.of(context).colorScheme.primary
+                        : Theme.of(context).primaryColorLight.withOpacity(0.4),
+                    child: Center(
+                      child: Text(
+                        "${p[index]['name']}",
+                        style: Theme.of(context).textTheme.labelLarge!.apply(
+                            color: controller.selectedRoomPreset == index
+                                ? Colors.black
+                                : Colors.white),
+                      ),
+                    ),
                   ),
                 ),
               ),

@@ -9,7 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:provider/provider.dart';
 
-import '../Helpers/Channel.dart';
+import '../widgets/ArtworkWidget.dart';
 import '../widgets/BottomPlayer.dart';
 
 class AlbumSongs extends StatefulWidget {
@@ -85,8 +85,6 @@ class _AlbumSongsState extends State<AlbumSongs> {
                       );
               },
             ),
-            floatingActionButtonLocation:
-                FloatingActionButtonLocation.centerDocked,
             bottomNavigationBar: controller.audioPlayer.playing
                 ? BottomPlayer(
                     controller: controller,
@@ -144,15 +142,11 @@ class SongLists extends StatelessWidget {
                   },
                   // This Widget will query/load image.
                   // You can use/create your own widget/method using [queryArtwork].
-                  leading: QueryArtworkWidget(
-                    artworkHeight: 60,
-                    artworkWidth: 60,
-                    nullArtworkWidget: ClipRRect(
-                      borderRadius: BorderRadius.circular(60),
-                      child: Image.asset("assets/audio.jpeg"),
-                    ),
-                    controller: controller.audioQuery,
-                    id: songs[index].id,
+                  leading: ArtworkWidget(
+                    height: 60,
+                    width: 60,
+                    path: songs[index].data,
+                    songId: songs[index].id,
                     type: ArtworkType.AUDIO,
                   ),
                 );

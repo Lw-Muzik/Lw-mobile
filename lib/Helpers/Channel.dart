@@ -1,6 +1,5 @@
 // ignore_for_file: constant_identifier_names
 
-import 'dart:collection';
 import 'dart:developer';
 
 import 'package:flutter/services.dart';
@@ -71,29 +70,23 @@ class Channel {
     await channel.invokeMethod("enableEq", {"enable": enabled});
   }
 
-  static void setSessionId(int sessionId) async {
-    initBassBoost(sessionId);
-    initLoudnessEnhancer(sessionId);
-    initVirtualizer(sessionId);
-    initReverb(sessionId);
-    initDSPEngine(sessionId);
-    initPresetReverb(sessionId);
-    await channel.invokeMethod("init", {"sessionId": sessionId});
-  }
-
   /// initializing bass boost
-  static void initBassBoost(int sessionId) async {
+  @Deprecated("nolonger used")
+  static void _initBassBoost(int sessionId) async {
     await channel.invokeMethod("initBassBoost", {"sessionId": sessionId});
   }
 
+  @Deprecated("nolonger used")
   static void enableBass(bool enable) async {
     await channel.invokeMethod("enableBassBoost", {"enableBass": enable});
   }
 
+  @Deprecated("nolonger used")
   static Future<bool> isBassEnabled() async {
     return (await channel.invokeMethod("isBassEnabled"));
   }
 
+  @Deprecated("nolonger used")
   static Future<int> getBassStrength() async {
     return await channel.invokeMethod("bassBoostStrength");
   }
@@ -103,7 +96,7 @@ class Channel {
   }
 
   /// Virtualizer
-  static void initVirtualizer(int sessionId) async {
+  static void _initVirtualizer(int sessionId) async {
     await channel.invokeMethod("initVirtualizer", {"sessionId": sessionId});
   }
 
@@ -111,7 +104,11 @@ class Channel {
     await channel.invokeMethod("enableVirtualizer", {"enable": enable});
   }
 
-  static Future<bool> forceVirtualization() async {
+  static Future<bool> getVirtualizerEnabled() async {
+    return await channel.invokeMethod("getVirtualEnabled");
+  }
+
+  static Future<int> forceVirtualization() async {
     return await channel.invokeMethod("forceVirtualization");
   }
 
@@ -125,29 +122,33 @@ class Channel {
   }
 
   /// Loudness
-  static void initLoudnessEnhancer(int sessionId) async {
+  @Deprecated("nolonger used")
+  static void _initLoudnessEnhancer(int sessionId) async {
     await channel
         .invokeMethod("initLoudnessEnhancer", {"sessionId": sessionId});
   }
 
+  @Deprecated("nolonger used")
   static void enableLoudnessEnhancer(bool enable) async {
     await channel
         .invokeMethod("enableLoudnessEnhancer", {"enableLoud": enable});
   }
 
   /// Sets the target gain
+  @Deprecated("nolonger used")
   static void setTargetGain(int strength) async {
     await channel
         .invokeMethod("setLoudnessEnhancerStrength", {"strength": strength});
   }
 
   /// retrieves the target gain value
+  @Deprecated("nolonger used")
   static Future<double> getTargetGain() async {
     return (await channel.invokeMethod("loudnessEnhancerStrength"));
   }
 
   // Reverb effects
-  static void initReverb(int sessionId) async {
+  static void _initReverb(int sessionId) async {
     await channel.invokeMethod("initReverb", {"sessionId": sessionId});
   }
 
@@ -264,7 +265,7 @@ class Channel {
   }
 
   /// initialize DSP engine
-  static void initDSPEngine(int audioSessionId) async {
+  static void _initDSPEngine(int audioSessionId) async {
     await channel.invokeMethod("initDSPEngine", {"dspId": audioSessionId});
   }
 
@@ -291,6 +292,13 @@ class Channel {
   @Deprecated("shouldn't be used anymore")
   static void setChannel2Gain(double v) async {
     //  await channel.invokeMethod("setChannel2Gain", {"ch2Gain": v});
+  }
+  static void enableTuner(bool enable) async {
+    await channel.invokeMethod("enableTuner", {"enableTuner": enable});
+  }
+
+  static void setTunerBass(double value) async {
+    await channel.invokeMethod("setTunerBass", {"tunerBass": value});
   }
 
   static void setDSPXBass(double bass) async {
@@ -319,12 +327,21 @@ class Channel {
     await channel.invokeMethod("disposeDSP");
   }
 
-  static void initPresetReverb(int sessionId) async {
+  static void _initPresetReverb(int sessionId) async {
     await channel.invokeMethod("initPresetReverb", {"priorityId": sessionId});
   }
 
-  static void enablePresetReverb(bool enable) async {
-    await channel.invokeMethod("enablePresetReverb", {"enablePreset": enable});
+  static Future<int> enablePresetReverb(bool enable) async {
+    return await channel
+        .invokeMethod("enablePresetReverb", {"enablePreset": enable});
+  }
+
+  static void setCutOffFreq(int freq) async {
+    await channel.invokeMethod("setCutOffFreq", {"tunerBassFreq": freq});
+  }
+
+  static Future<double> getVocalLevel() async {
+    return await channel.invokeMethod("getVocalLevel");
   }
 
   static void setReverbPreset(PresetReverb preset) async {
@@ -356,11 +373,20 @@ class Channel {
         x = 0;
         break;
     }
-    log("Preset $x");
     await channel.invokeMethod("setReverbPreset", {"preset": x});
   }
 
   static Future<int> getReverbPreset() async {
     return await channel.invokeMethod("getReverbPreset");
+  }
+
+  static void setSessionId(int sessionId) async {
+    _initBassBoost(sessionId);
+    _initLoudnessEnhancer(sessionId);
+    _initVirtualizer(sessionId);
+    _initReverb(sessionId);
+    _initDSPEngine(sessionId);
+    _initPresetReverb(sessionId);
+    await channel.invokeMethod("init", {"sessionId": sessionId});
   }
 }

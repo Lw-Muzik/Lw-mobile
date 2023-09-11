@@ -57,7 +57,6 @@ class _BottomPlayerState extends State<BottomPlayer>
       height: MediaQuery.of(context).size.width / 5.7,
       margin: const EdgeInsets.only(left: 10, bottom: 30, right: 10),
       borderRadius: BorderRadius.circular(50),
-      colorFilter: const ColorFilter.mode(Colors.black26, BlendMode.darken),
       child: bottomPlayer(widget.controller, context),
     );
   }

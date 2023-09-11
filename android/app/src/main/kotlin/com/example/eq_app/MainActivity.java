@@ -134,6 +134,10 @@ public class MainActivity extends FlutterActivity {
                      boolean enableV = call.argument("enable");
                      VirtualizedControl.enable(enableV);
                     break;
+                case "getVirtualEnabled":
+                  boolean virtualEnabled =  VirtualizedControl.getVirtualEnabled();
+                  result.success(virtualEnabled);
+                  break;
 
                 case "virtualizerStrength":
                     int strength = VirtualizedControl.getStrength();
@@ -348,7 +352,12 @@ public class MainActivity extends FlutterActivity {
                         DSPEngine.setOutGain(((float)limitGain));
                     }
                     break;
-
+                case "getVocalLevel":
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                        float vocalLevel = DSPEngine.getVocalLevel();
+                        result.success(vocalLevel);
+                    }
+                    break;
                 case "getOutGain":
                     float lGain = 0;
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
@@ -390,13 +399,24 @@ public class MainActivity extends FlutterActivity {
                         DSPEngine.setDSPVolume(((float)dspVolume));
                     }
                     break;
-
-//                case "setChannel2Gain":
-//                    double ch2Gain = call.argument("ch2Gain");
-//                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-//                        DSPEngine.setChannel2Gain(((float)ch2Gain));
-//                    }
-//                    break;
+                case "enableTuner":
+                    boolean enableTuner = call.argument("enableTuner");
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                        DSPEngine.setTuner(enableTuner);
+                    }
+                    break;
+                case "setTunerBass":
+                    double tBass = call.argument("tunerBass");
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                        DSPEngine.adjustTunerBass((float)tBass);
+                    }
+                    break;
+                case"setCutOffFreq":
+                    int tBasFreq = call.argument("tunerBassFreq");
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                        DSPEngine.setCutOffFrequencyForTunerBass(tBasFreq);
+                    }
+                    break;
                 case "disposeDSP":
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                         DSPEngine.dispose();
@@ -408,11 +428,12 @@ public class MainActivity extends FlutterActivity {
                     break;
                 case "enablePresetReverb":
                     boolean enablePreset = call.argument("enablePreset");
-                    ReverbEngine.enablePresetReverb(enablePreset);
+                   int check = ReverbEngine.enablePresetReverb(enablePreset);
+                   result.success(check);
                     break;
                 case "setReverbPreset":
                     int pPreset = (int)call.argument("preset");
-                    ReverbEngine.setPreset(((short)pPreset));
+                    ReverbEngine.setPreset(pPreset);
                     break;
 
                 case "getReverbPreset":

@@ -1,17 +1,17 @@
 import 'dart:math';
 
-import 'package:eq_app/Themes/AppThemes.dart';
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-class AppController with ChangeNotifier {
+class AppController extends ChangeNotifier {
   List<int> _bandValues = [0, 0, 0, 0, 0];
   // app themes
-  ThemeData _theme = AppThemes.lightTheme;
+  String _selectedTheme = "light";
   bool _isDark = false;
   bool _playerVisual = false;
+  int _selectedRoomPreset = -1;
   /*
      private static final float out_gain = 0.0f;
     private static final float dsp_volume = -8.0f;
@@ -124,11 +124,11 @@ class AppController with ChangeNotifier {
   bool get isShuffled => _isShuffled;
 
   int get selectedPreset {
-    SharedPreferences.getInstance().then((value) {
-      int p = value.getInt("selectedPreset") ?? 0;
-      _selectedPreset = p;
-      notifyListeners();
-    });
+    // SharedPreferences.getInstance().then((value) {
+    //   int p = value.getInt("selectedPreset") ?? 0;
+    //   _selectedPreset = p;
+    //   notifyListeners();
+    // });
     return _selectedPreset;
   }
 
@@ -143,13 +143,13 @@ class AppController with ChangeNotifier {
     return _isFancy;
   }
 
-  ThemeData get theme {
-    SharedPreferences.getInstance().then((value) {
-      bool isD = value.getBool("isDark") ?? false;
-      _theme = isD ? AppThemes.darkTheme : AppThemes.lightTheme;
-      notifyListeners();
-    });
-    return _theme;
+  String get selectedTheme {
+    // SharedPreferences.getInstance().then((value) {
+    //   String isD = value.getString("selectedTheme") ?? "light";
+    //   _selectedTheme = isD;
+    //   notifyListeners();
+    // });
+    return _selectedTheme;
   }
 
   bool get isVisualInBackground => _isVisualInBackground;
@@ -161,6 +161,12 @@ class AppController with ChangeNotifier {
     //   notifyListeners();
     // });
     return _songId;
+  }
+
+  int get selectedRoomPreset => _selectedRoomPreset;
+  set selectedRoomPreset(int x) {
+    _selectedRoomPreset = x;
+    notifyListeners();
   }
 
   bool get visuals => _visuals;
@@ -185,12 +191,11 @@ class AppController with ChangeNotifier {
     notifyListeners();
   }
 
-  set setTheme(bool t) {
+  set selectedTheme(String t) {
     SharedPreferences.getInstance().then((value) {
-      value.setBool("isDark", t);
+      value.setString("selectedTheme", t);
     });
-    _isDark = t;
-    _theme = t ? AppThemes.darkTheme : AppThemes.lightTheme;
+    _selectedTheme = t;
     notifyListeners();
   }
 
@@ -260,6 +265,9 @@ class AppController with ChangeNotifier {
       sample[i] = sample[j];
       sample[j] = temp;
     }
+    songId = 0;
+    _audioPlayer.setUrl(sample[0].data);
+    _audioPlayer.play();
   }
 
   set songId(int id) {

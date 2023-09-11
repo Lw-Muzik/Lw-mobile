@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import '../Helpers/VisualizerWidget.dart';
 import '../Visualizers/MultiwaveVisualizer.dart';
 import '../controllers/AppController.dart';
+import '../widgets/ArtworkWidget.dart';
 
 class PlayerBody extends StatefulWidget {
   final AppController controller;
@@ -26,20 +27,16 @@ class _PlayerBodyState extends State<PlayerBody> {
           children: [
             SizedBox(
               height: MediaQuery.of(context).size.height,
-              child: QueryArtworkWidget(
-                  artworkBlendMode: BlendMode.darken,
-                  artworkBorder: BorderRadius.zero,
-                  artworkHeight: MediaQuery.of(context).size.height,
-                  artworkWidth: MediaQuery.of(context).size.width,
-                  id: controller.songs[controller.songId].id,
-                  format: ArtworkFormat.PNG,
-                  nullArtworkWidget: Image.asset(
-                    "assets/audio.jpeg",
-                    fit: BoxFit.cover,
-                    filterQuality: FilterQuality.medium,
-                  ),
-                  size: 2000,
-                  type: ArtworkType.AUDIO),
+              child: ArtworkWidget(
+                // artworkBlendMode: BlendMode.darken,
+
+                height: MediaQuery.of(context).size.height,
+                width: MediaQuery.of(context).size.width,
+                songId: controller.songs[controller.songId].id,
+                size: 2000,
+                type: ArtworkType.AUDIO,
+                path: controller.songs[controller.songId].data,
+              ),
             ),
             BackdropFilter(
               filter: ImageFilter.blur(

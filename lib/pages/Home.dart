@@ -1,12 +1,12 @@
 import 'dart:developer';
 
-import 'package:eq_app/Routes/routes.dart';
-import 'package:eq_app/pages/Albums.dart';
-import 'package:eq_app/pages/Equalizer.dart';
-import 'package:eq_app/pages/Folders.dart';
-import 'package:eq_app/pages/Genres.dart';
-import 'package:eq_app/pages/SearchPage.dart';
-import 'package:eq_app/widgets/Body.dart';
+import '/Routes/routes.dart';
+import '/pages/Albums.dart';
+import '/pages/Equalizer.dart';
+import '/pages/Folders.dart';
+import '/pages/Genres.dart';
+import '/pages/SearchPage.dart';
+import '/widgets/Body.dart';
 import 'package:flutter/material.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:provider/provider.dart';
@@ -90,105 +90,103 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
         .audioPlayer
         .androidAudioSessionIdStream
         .listen((event) {
-      log("message: $event");
       if (event != null) {
         Channel.setSessionId(event);
       }
     });
+    var controller = Provider.of<AppController>(context);
     return Body(
-      child: Consumer<AppController>(builder: (context, controller, child) {
-        return Scaffold(
-          backgroundColor: controller.isFancy
-              ? Colors.transparent
-              : Theme.of(context).scaffoldBackgroundColor,
-          appBar: AppBar(
-            forceMaterialTransparency: controller.isFancy,
-            title: const Text("Hype Muziki"),
-            actions: [
-              Padding(
-                padding: const EdgeInsets.only(right: 18.0),
-                child: IconButton(
-                  onPressed: () {
-                    showSearch<SongModel>(
-                        context: context, delegate: SearchPage());
-                  },
-                  icon: const Icon(Icons.search),
-                ),
+      child: Scaffold(
+        backgroundColor: controller.isFancy
+            ? Colors.transparent
+            : Theme.of(context).scaffoldBackgroundColor,
+        appBar: AppBar(
+          forceMaterialTransparency: controller.isFancy,
+          title: const Text("Hype Muziki"),
+          actions: [
+            Padding(
+              padding: const EdgeInsets.only(right: 18.0),
+              child: IconButton(
+                onPressed: () {
+                  showSearch<SongModel>(
+                      context: context, delegate: SearchPage());
+                },
+                icon: const Icon(Icons.search),
               ),
-              Padding(
-                padding: const EdgeInsets.only(right: 18.0),
-                child: IconButton(
-                  onPressed: () {
-                    Routes.routeTo(const Settings(), context);
-                  },
-                  icon: const Icon(Icons.settings),
-                ),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(right: 18.0),
+              child: IconButton(
+                onPressed: () {
+                  Routes.routeTo(const Settings(), context);
+                },
+                icon: const Icon(Icons.settings),
               ),
-              Padding(
-                padding: const EdgeInsets.only(right: 18.0),
-                child: IconButton(
-                  onPressed: () {
-                    Routes.routeTo(const Equalizer(), context);
-                  },
-                  icon: const Icon(Icons.equalizer),
-                ),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(right: 18.0),
+              child: IconButton(
+                onPressed: () {
+                  Routes.routeTo(const Equalizer(), context);
+                },
+                icon: const Icon(Icons.equalizer),
+              ),
+            )
+          ],
+          bottom: TabBar(
+            isScrollable: true,
+            controller: _tabController,
+            tabs: const [
+              Tab(child: Text("Songs")),
+              Tab(
+                child: Text("Artists"),
+              ),
+              Tab(
+                child: Text("Albums"),
+              ),
+              Tab(
+                child: Text("Genres"),
+              ),
+              Tab(
+                child: Text("Folders"),
               )
             ],
-            bottom: TabBar(
-              isScrollable: true,
-              controller: _tabController,
-              tabs: const [
-                Tab(child: Text("Songs")),
-                Tab(
-                  child: Text("Artists"),
-                ),
-                Tab(
-                  child: Text("Albums"),
-                ),
-                Tab(
-                  child: Text("Genres"),
-                ),
-                Tab(
-                  child: Text("Folders"),
-                )
-              ],
-            ),
           ),
-          body: Stack(
-            children: [
-              GestureDetector(
-                onScaleUpdate: (details) {
-                  log(details.scale.toString());
-                },
-                child: TabBarView(
-                  controller: _tabController,
-                  children: const [
-                    AllSongs(),
-                    Artists(),
-                    Albums(),
-                    Genres(),
-                    Folders()
-                  ],
+        ),
+        body: Stack(
+          children: [
+            GestureDetector(
+              onScaleUpdate: (details) {
+                log(details.scale.toString());
+              },
+              child: TabBarView(
+                controller: _tabController,
+                children: const [
+                  AllSongs(),
+                  Artists(),
+                  Albums(),
+                  Genres(),
+                  Folders()
+                ],
+              ),
+            ),
+            if (controller.audioPlayer.playing)
+              Positioned(
+                bottom: 0,
+                right: 3,
+                left: 3,
+                child: BottomPlayer(
+                  controller: controller,
                 ),
               ),
-              if (controller.audioPlayer.playing)
-                Positioned(
-                  bottom: 0,
-                  right: 3,
-                  left: 3,
-                  child: BottomPlayer(
-                    controller: controller,
-                  ),
-                ),
-            ],
-          ),
-          // bottomNavigationBar: controller.audioPlayer.playing
-          //     ? BottomPlayer(
-          //         controller: controller,
-          //       )
-          //     : null,
-        );
-      }),
+          ],
+        ),
+        // bottomNavigationBar: controller.audioPlayer.playing
+        //     ? BottomPlayer(
+        //         controller: controller,
+        //       )
+        //     : null,
+      ),
     );
   }
 }

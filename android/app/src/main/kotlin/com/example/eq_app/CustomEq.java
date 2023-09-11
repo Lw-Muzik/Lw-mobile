@@ -6,21 +6,19 @@ import android.media.audiofx.Equalizer;
 import java.util.ArrayList;
 
 public class CustomEq {
-	private static int m = Integer.MAX_VALUE;
+	private static final int m = Integer.MAX_VALUE;
 	private static Equalizer equalizer;
 
 	public static void init(int sessionId) {
-		equalizer = new Equalizer(m,sessionId);
+		if(equalizer == null){
+			equalizer = new Equalizer(m,0);
+		}
 	}
 
 	public static void enable(boolean enable) {
 		if (equalizer != null){
-			if(enable){
-				equalizer.setEnabled(true);
-			} else {
-				equalizer.setEnabled(false);
-				// equalizer.release();
-			}
+			// equalizer.release();
+			equalizer.setEnabled(enable);
 		}
 	}
 	public static boolean isEnabled() {
@@ -45,36 +43,51 @@ public class CustomEq {
 	}
 
 	public static ArrayList<Integer> getBandLevelRange() {
-
-		short[] bandLevelRange = equalizer.getBandLevelRange();
 		ArrayList<Integer> bandLevels = new ArrayList<>();
-		bandLevels.add(bandLevelRange[0] / 100);
-		bandLevels.add(bandLevelRange[1] / 100);
+		if(equalizer != null){
+			short[] bandLevelRange = equalizer.getBandLevelRange();
+			bandLevels.add(bandLevelRange[0] / 100);
+			bandLevels.add(bandLevelRange[1] / 100);
+			return bandLevels;
+		}
 		return bandLevels;
 	}
 
 	public static int getBandLevel(int bandId) {
-		return equalizer.getBandLevel((short)bandId) / 100;
+		if(equalizer != null)
+		  return equalizer.getBandLevel((short)bandId) / 100;
+		return 0;
 	}
 
 	public static void setBandLevel(int bandId, int level) {
-		equalizer.setBandLevel((short)bandId, (short)level);
+		if(equalizer != null){
+			equalizer.setBandLevel((short)bandId, (short)level);
+		}
+
 	}
 
 	public static ArrayList<Integer> getCenterBandFreqs() {
-		int n = equalizer.getNumberOfBands();
 		ArrayList<Integer> bands = new ArrayList<>();
-		for (int i = 0; i < n; i++) {
-			bands.add(equalizer.getCenterFreq((short)i));
+		if(equalizer != null){
+			int n = equalizer.getNumberOfBands();
+			for (int i = 0; i < n; i++) {
+				bands.add(equalizer.getCenterFreq((short)i));
+			}
+			return bands;
 		}
+
 		return bands;
 	}
 
 	public static ArrayList<String> getPresetNames() {
-		short numberOfPresets = equalizer.getNumberOfPresets();
 		ArrayList<String> presets = new ArrayList<>();
-		for (int i = 0; i < numberOfPresets; i++) {
-			presets.add(equalizer.getPresetName((short)i));
+		if(equalizer != null){
+			short numberOfPresets = equalizer.getNumberOfPresets();
+
+			for (int i = 0; i < numberOfPresets; i++) {
+				presets.add(equalizer.getPresetName((short)i));
+			}
+			return presets;
 		}
 		return presets;
 	}

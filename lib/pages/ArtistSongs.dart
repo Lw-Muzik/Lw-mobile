@@ -11,6 +11,7 @@ import 'package:on_audio_query/on_audio_query.dart';
 import 'package:provider/provider.dart';
 
 import '../Helpers/Channel.dart';
+import '../widgets/ArtworkWidget.dart';
 import '../widgets/BottomPlayer.dart';
 
 class ArtistSongs extends StatefulWidget {
@@ -50,20 +51,14 @@ class _ArtistSongsState extends State<ArtistSongs> {
                   ),
                 ),
                 expandedTitleScale: 70,
-                background: QueryArtworkWidget(
-                  artworkBorder: BorderRadius.zero,
-                  format: ArtworkFormat.PNG,
+                background: ArtworkWidget(
+                  borderRadius: BorderRadius.zero,
                   size: 5000,
                   quality: 100,
-                  artworkWidth: MediaQuery.of(context).size.width,
-                  artworkHeight: MediaQuery.of(context).size.width,
-                  nullArtworkWidget: ClipRRect(
-                    child: Image.asset(
-                      "assets/audio.jpeg",
-                      fit: BoxFit.cover,
-                    ),
-                  ),
-                  id: widget.artistId!,
+                  width: MediaQuery.of(context).size.width,
+                  height: MediaQuery.of(context).size.width,
+                  songId: widget.artistId!,
+                  other: widget.artist,
                   type: ArtworkType.ARTIST,
                 ),
               ),
@@ -155,15 +150,11 @@ class SongLists extends StatelessWidget {
                     },
                     // This Widget will query/load image.
                     // You can use/create your own widget/method using [queryArtwork].
-                    leading: QueryArtworkWidget(
-                      artworkHeight: 60,
-                      artworkWidth: 60,
-                      nullArtworkWidget: ClipRRect(
-                        borderRadius: BorderRadius.circular(60),
-                        child: Image.asset("assets/audio.jpeg"),
-                      ),
-                      controller: controller.audioQuery,
-                      id: songs[index].id,
+                    leading: ArtworkWidget(
+                      height: 60,
+                      width: 60,
+                      songId: songs[index].id,
+                      path: songs[index].data,
                       type: ArtworkType.AUDIO,
                     ),
                   ),

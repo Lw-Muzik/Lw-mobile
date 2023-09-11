@@ -1,9 +1,5 @@
-import 'dart:developer';
-
-import 'package:eq_app/controllers/AppController.dart';
 import 'package:eq_app/widgets/EqPresets.dart';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 
 import 'BassControl.dart';
 import '../Helpers/Channel.dart';
@@ -40,6 +36,7 @@ class _EqViewState extends State<EqView> {
                     onChanged: (value) {
                       setState(() {});
                       Channel.enableEq(value);
+                      Channel.enableDSPEngine(value);
                     },
                   );
                 }),

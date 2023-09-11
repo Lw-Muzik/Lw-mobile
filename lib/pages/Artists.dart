@@ -2,6 +2,7 @@ import 'package:eq_app/Routes/routes.dart';
 import 'package:flutter/material.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 
+import '../widgets/ArtworkWidget.dart';
 import 'ArtistSongs.dart';
 
 class Artists extends StatefulWidget {
@@ -84,17 +85,12 @@ class _ArtistsState extends State<Artists> {
                         ),
                       ),
                     ),
-                    child: QueryArtworkWidget(
-                      artworkBorder: BorderRadius.circular(10),
-                      format: ArtworkFormat.PNG,
-                      size: 500,
-                      controller: _audioQuery,
-                      id: item.data![index].id,
-                      nullArtworkWidget: ClipRRect(
-                        borderRadius: BorderRadius.circular(10),
-                        child: Image.asset("assets/audio.jpeg"),
-                      ),
+                    child: ArtworkWidget(
+                      borderRadius: BorderRadius.circular(10),
+                      songId: item.data![index].id,
                       type: ArtworkType.ARTIST,
+                      other:
+                          "${item.data?[index].getMap['artist'] ?? 'Unknown'}",
                     ),
                   ),
                 ),

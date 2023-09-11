@@ -32,7 +32,7 @@ class _GenreSongsState extends State<GenreSongs> {
               toolbarHeight: 300,
               leading: IconButton.filledTonal(
                   onPressed: () => Routes.pop(context),
-                  icon: Icon(Icons.arrow_back)),
+                  icon: const Icon(Icons.arrow_back)),
               // floating: true,
               // snap: true,
               flexibleSpace: FlexibleSpaceBar(
@@ -84,8 +84,6 @@ class _GenreSongsState extends State<GenreSongs> {
                       );
               },
             ),
-            floatingActionButtonLocation:
-                FloatingActionButtonLocation.centerDocked,
             bottomNavigationBar: controller.audioPlayer.playing
                 ? BottomPlayer(
                     controller: controller,

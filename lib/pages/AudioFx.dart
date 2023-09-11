@@ -24,15 +24,15 @@ class _AudioFxState extends State<AudioFx> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            SwitchListTile.adaptive(
-              title: const Text("DSP Engine"),
-              subtitle: Text(controller.enableDSP ? "Enabled" : "Disabled"),
-              value: controller.enableDSP,
-              onChanged: (x) {
-                controller.enableDSP = x;
-                Channel.enableDSPEngine(x);
-              },
-            ),
+            // SwitchListTile.adaptive(
+            //   title: const Text("DSP Engine"),
+            //   subtitle: Text(controller.enableDSP ? "Enabled" : "Disabled"),
+            //   value: controller.enableDSP,
+            //   onChanged: (x) {
+            //     controller.enableDSP = x;
+
+            //   },
+            // ),
             Card(
               child: SizedBox(
                 height: 300,

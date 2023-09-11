@@ -42,30 +42,35 @@ Future<ImageProvider<Object>> fetchArtwork(
   }
 
   if (path.isEmpty && other != "Unknown") {
+    log("here");
     if (type == ArtworkType.ALBUM) {
-      imagePath = "${albumPath.path}/$other.png";
+      imagePath =
+          "${albumPath.path}/${other.replaceFirst(' ', '_').replaceFirst('/', '_')}.png";
     } else if (type == ArtworkType.ARTIST) {
-      imagePath = "${artistPath.path}/$other.png";
+      imagePath =
+          "${artistPath.path}/${other.replaceFirst(' ', '_').replaceFirst('/', '_')}.png";
     } else if (type == ArtworkType.GENRE) {
-      imagePath = "${genrePath.path}/$other.png";
+      imagePath =
+          "${genrePath.path}/${other.replaceFirst(' ', '_').replaceFirst('/', '_')}.png";
     }
   } else {
     imagePath = "$tempPath/${path.split("/").last.split(".").first}.png";
   }
-  //  fetch artwork from songs
-  Uint8List? artworkData = await OnAudioQuery.platform.queryArtwork(
-    id,
-    type,
-    quality: quality,
-    size: size,
-    format: ArtworkFormat.PNG,
-  );
+  if (File(imagePath).existsSync() == false) {
+    //  fetch artwork from songs
+    Uint8List? artworkData = await OnAudioQuery.platform.queryArtwork(
+      id,
+      type,
+      quality: quality,
+      size: size,
+      format: ArtworkFormat.PNG,
+    );
 
-  if (tempPath.isNotEmpty && artworkData != null && artworkData.isNotEmpty) {
-    // ID3Tag tags = ID3TagReader.path(path).readTagSync();
+    if (tempPath.isNotEmpty && artworkData != null && artworkData.isNotEmpty) {
+      // ID3Tag tags = ID3TagReader.path(path).readTagSync();
 
-    // check if metadata is not null and path of the artwork exists
-    if (File(imagePath).existsSync() == false) {
+      // check if metadata is not null and path of the artwork exists
+
       File(imagePath).writeAsBytesSync(artworkData);
     }
   }

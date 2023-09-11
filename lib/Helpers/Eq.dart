@@ -1,194 +1,19 @@
-// This example demonstrates Android audio effects.
-//
-// To run:
-//
-// flutter run -t lib/example_effects.dart
-
-import 'dart:async';
 import 'dart:math';
 
-import 'package:audio_session/audio_session.dart';
-import 'package:eq_app/controllers/AppController.dart';
+import 'package:eq_app/Helpers/Channel.dart';
 import 'package:eq_app/extensions/index.dart';
-import 'package:eq_app/widgets/common.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:provider/provider.dart';
 
-import 'package:rxdart/rxdart.dart';
+import '../controllers/AppController.dart';
 
-import 'Channel.dart';
-
-class MyApp extends StatefulWidget {
-  final AudioPlayer player;
-  final AndroidLoudnessEnhancer loudnessEnhancer;
-  final AndroidEqualizer equalizer;
-  const MyApp(
-      {Key? key,
-      required this.player,
-      required this.loudnessEnhancer,
-      required this.equalizer})
-      : super(key: key);
-
-  @override
-  MyAppState createState() => MyAppState();
-}
-
-class MyAppState extends State<MyApp> with WidgetsBindingObserver {
-  @override
-  void initState() {
-    super.initState();
-    ambiguate(WidgetsBinding.instance)!.addObserver(this);
-    SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-      statusBarColor: Colors.black,
-    ));
-    // _init();
-  }
-
-  // Future<void> _init() async {
-  //   final session = await AudioSession.instance;
-  //   await session.configure(const AudioSessionConfiguration.speech());
-  //   try {
-  //     await widget.player.setAudioSource(AudioSource.uri(Uri.parse(
-  //         "https://s3.amazonaws.com/scifri-episodes/scifri20181123-episode.mp3")));
-  //   } catch (e) {
-  //     print("Error loading audio source: $e");
-  //   }
-  // }
-
-  @override
-  void dispose() {
-    ambiguate(WidgetsBinding.instance)!.removeObserver(this);
-    widget.player.dispose();
-    super.dispose();
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused) {
-      // Release the player's resources when not in use. We use "stop" so that
-      // if the app resumes later, it will still remember what position to
-      // resume from.
-      widget.player.stop();
-    }
-  }
-
-  Stream<PositionData> get _positionDataStream =>
-      Rx.combineLatest3<Duration, Duration, Duration?, PositionData>(
-          widget.player.positionStream,
-          widget.player.bufferedPositionStream,
-          widget.player.durationStream,
-          (position, bufferedPosition, duration) => PositionData(
-              position, bufferedPosition, duration ?? Duration.zero));
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      home: Scaffold(
-        body: SafeArea(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              StreamBuilder<bool>(
-                stream: widget.loudnessEnhancer.enabledStream,
-                builder: (context, snapshot) {
-                  final enabled = snapshot.data ?? false;
-                  return SwitchListTile(
-                    title: const Text('Loudness Enhancer'),
-                    value: enabled,
-                    onChanged: widget.loudnessEnhancer.setEnabled,
-                  );
-                },
-              ),
-              LoudnessEnhancerControls(
-                  loudnessEnhancer: widget.loudnessEnhancer),
-              StreamBuilder<bool>(
-                stream: widget.equalizer.enabledStream,
-                builder: (context, snapshot) {
-                  final enabled = snapshot.data ?? false;
-                  return SwitchListTile(
-                    title: const Text('Equalizer'),
-                    value: enabled,
-                    onChanged: widget.equalizer.setEnabled,
-                  );
-                },
-              ),
-
-              // ControlButtons(widheyplayer),
-              StreamBuilder<PositionData>(
-                stream: _positionDataStream,
-                builder: (context, snapshot) {
-                  final positionData = snapshot.data;
-                  return SeekBar(
-                    duration: positionData?.duration ?? Duration.zero,
-                    position: positionData?.position ?? Duration.zero,
-                    bufferedPosition:
-                        positionData?.bufferedPosition ?? Duration.zero,
-                    onChangeEnd: widget.player.seek,
-                  );
-                },
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class LoudnessEnhancerControls extends StatelessWidget {
-  final AndroidLoudnessEnhancer loudnessEnhancer;
-
-  const LoudnessEnhancerControls({
-    Key? key,
-    required this.loudnessEnhancer,
-  }) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return StreamBuilder<double>(
-      stream: loudnessEnhancer.targetGainStream,
-      builder: (context, snapshot) {
-        final targetGain = snapshot.data ?? 0.0;
-        return Slider(
-          min: -3.0,
-          max: 3.0,
-          value: targetGain,
-          onChanged: loudnessEnhancer.setTargetGain,
-          label: 'foo',
-        );
-      },
-    );
-  }
-}
-
-class EqualizerControls extends StatefulWidget {
+class EqualizerControls extends StatelessWidget {
   const EqualizerControls({Key? key}) : super(key: key);
 
   @override
-  State<EqualizerControls> createState() => _EqualizerControlsState();
-}
-
-class _EqualizerControlsState extends State<EqualizerControls> {
-  // Timer? _timer;
-
-  @override
-  void initState() {
-    super.initState();
-  }
-
-  @override
-  void dispose() {
-    // _timer?.cancel();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    return Consumer<AppController>(builder: (context, eq, x) {
+    return Consumer<AppController>(builder: (context, eq, state) {
       return StreamBuilder<List<int>>(
         stream: Stream.fromFuture(Channel.getBandFreq()),
         builder: (context, snapshot) {
@@ -206,9 +31,8 @@ class _EqualizerControlsState extends State<EqualizerControls> {
 
                         if (l != null) {
                           l = level.data;
-
-                          eq.bandValues[i] = l ?? 0;
                         }
+                        eq.bandValues[i] = l ?? 0;
                         // });
 
                         return Column(
@@ -222,9 +46,8 @@ class _EqualizerControlsState extends State<EqualizerControls> {
                                 max: 15,
                                 value: level.data?.toDouble() ?? 0,
                                 onChanged: (value) {
-                                  setState(() {
-                                    eq.bandValues[i] = value.toInt();
-                                  });
+                                  eq.bandValues[i] = value.toInt();
+
                                   Channel.setBandLevel(i, value.toInt());
                                 },
                               ),

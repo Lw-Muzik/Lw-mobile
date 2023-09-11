@@ -28,7 +28,7 @@ public class EngineService extends Service {
     @Nullable
     @Override
     public IBinder onBind(Intent intent) {
-        DSPEngine.initDSPEngine();
+//        DSPEngine.initDSPEngine();
         return null;
     }
 
@@ -44,14 +44,14 @@ public class EngineService extends Service {
         super.onCreate();
             a();
             DSPEngine.initDSPEngine();
-            DSPEngine.assignBandGains();
+//            DSPEngine.assignBandGains();
     }
 
     @SuppressLint("NewApi")
     @Override // android.app.Service
     public int onStartCommand(Intent intent, int i, int i2) {
            DSPEngine.initDSPEngine();
-            stopForeground(false);
+            stopForeground(true);
             stopSelf();
             return Service.START_REDELIVER_INTENT;
     }

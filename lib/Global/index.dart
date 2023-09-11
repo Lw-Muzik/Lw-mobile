@@ -12,6 +12,7 @@ import '../controllers/AppController.dart';
 import '../pages/VisualUI.dart';
 import '../player/widgets/NowPlaying.dart';
 import '../player/widgets/PlayerSettings.dart';
+import '../widgets/ArtworkWidget.dart';
 
 SystemUiOverlayStyle overlay = const SystemUiOverlayStyle(
     systemNavigationBarDividerColor: Colors.transparent,
@@ -119,20 +120,13 @@ Widget playerCard(Animation<double> animation, BuildContext context,
                 child: SizedBox(
                   height: MediaQuery.of(context).size.width,
                   width: MediaQuery.of(context).size.width,
-                  child: QueryArtworkWidget(
+                  child: ArtworkWidget(
                     quality: 100,
-                    artworkBorder: BorderRadius.circular(15),
+                    borderRadius: BorderRadius.circular(15),
                     size: 1000,
-                    id: controller.songs[controller.songId].id,
-                    format: ArtworkFormat.PNG,
+                    songId: controller.songs[controller.songId].id,
                     type: ArtworkType.AUDIO,
-                    nullArtworkWidget: ClipRRect(
-                      borderRadius: BorderRadius.circular(15),
-                      child: Image.asset(
-                        "assets/audio.jpeg",
-                        fit: BoxFit.cover,
-                      ),
-                    ),
+                    path: controller.songs[controller.songId].data,
                   ),
                 ),
               ),
@@ -177,20 +171,15 @@ headerWidget(
     AppController controller, BuildContext context, List<SongModel> data) {
   return Stack(
     children: [
-      QueryArtworkWidget(
+      ArtworkWidget(
         quality: 100,
-        format: ArtworkFormat.PNG,
         size: 3000,
-        artworkBorder: BorderRadius.zero,
-        artworkWidth: MediaQuery.of(context).size.width,
-        artworkHeight: MediaQuery.of(context).size.height,
-        id: data[data.length > 1 ? data.length - 1 : 0].id,
+        borderRadius: BorderRadius.zero,
+        width: MediaQuery.of(context).size.width,
+        height: MediaQuery.of(context).size.height,
+        songId: data[data.length > 1 ? data.length - 1 : 0].id,
         type: ArtworkType.AUDIO,
-        nullArtworkWidget: Image.asset(
-          "assets/audio.jpeg",
-          width: MediaQuery.of(context).size.width,
-          height: MediaQuery.of(context).size.height,
-        ),
+        path: data[data.length > 1 ? data.length - 1 : 0].data,
       ),
       Container(
         width: MediaQuery.of(context).size.width,

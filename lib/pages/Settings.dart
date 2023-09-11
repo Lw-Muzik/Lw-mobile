@@ -1,8 +1,10 @@
 import 'package:eq_app/Helpers/AudioVisualizer.dart';
 import 'package:eq_app/controllers/AppController.dart';
+import 'package:eq_app/controllers/ThemeController.dart';
 import 'package:eq_app/widgets/Body.dart';
 import 'package:eq_app/widgets/HorizontalSlider.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:provider/provider.dart';
 
 import '../widgets/BottomPlayer.dart';
@@ -29,12 +31,38 @@ class _SettingsState extends State<Settings> {
           ),
           body: Column(
             children: [
-              SwitchListTile.adaptive(
-                value: controller.isDark,
-                secondary: const Icon(Icons.light_mode),
-                subtitle: Text(controller.isDark ? "Dark Mode" : "Light mode"),
+              ExpansionTile(
+                leading: const Icon(Icons.tonality_rounded),
                 title: const Text("App Theme"),
-                onChanged: (x) => controller.setTheme = x,
+                children: [
+                  RadioListTile.adaptive(
+                    value: controller.selectedTheme == "light" ? 1 : 0,
+                    groupValue: 1,
+                    onChanged: (theme) {
+                      BlocProvider.of<ThemeController>(context).setTheme(1);
+                      controller.selectedTheme = "light";
+                    },
+                    title: const Text("Light Theme"),
+                  ),
+                  RadioListTile.adaptive(
+                    value: controller.selectedTheme == "dark" ? 1 : 0,
+                    groupValue: 1,
+                    onChanged: (theme) {
+                      BlocProvider.of<ThemeController>(context).setTheme(1);
+                      controller.selectedTheme = "dark";
+                    },
+                    title: const Text("Dark Theme"),
+                  ),
+                  RadioListTile.adaptive(
+                    value: controller.selectedTheme == "fancy" ? 1 : 0,
+                    groupValue: 1,
+                    onChanged: (theme) {
+                      BlocProvider.of<ThemeController>(context).setTheme(1);
+                      controller.selectedTheme = "fancy";
+                    },
+                    title: const Text("Fancy Theme"),
+                  )
+                ],
               ),
               SwitchListTile.adaptive(
                 value: controller.isFancy,
@@ -48,7 +76,7 @@ class _SettingsState extends State<Settings> {
                 leading: const Icon(
                   Icons.mobile_friendly_rounded,
                 ),
-                title: const Text("Player UI"),
+                title: const Text("Player Background"),
                 children: [
                   ListTile(
                     leading: const Icon(

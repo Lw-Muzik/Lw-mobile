@@ -4,6 +4,8 @@ import 'package:eq_app/pages/GenreSongs.dart';
 import 'package:flutter/material.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 
+import '../widgets/ArtworkWidget.dart';
+
 class Genres extends StatefulWidget {
   const Genres({super.key});
 
@@ -49,16 +51,11 @@ class _GenresState extends State<Genres> {
                       ),
                     ),
                   ),
-                  child: QueryArtworkWidget(
-                    artworkBorder: BorderRadius.circular(10),
-                    id: snapshot.data![index].id,
+                  child: ArtworkWidget(
+                    borderRadius: BorderRadius.circular(10),
+                    songId: snapshot.data![index].id,
                     type: ArtworkType.GENRE,
-                    nullArtworkWidget: ClipRRect(
-                      borderRadius: BorderRadius.circular(10),
-                      child: Image.asset(
-                        "assets/audio.jpeg",
-                      ),
-                    ),
+                    other: snapshot.data?[index].genre ?? 'Unknown',
                   ),
                 ),
               ),

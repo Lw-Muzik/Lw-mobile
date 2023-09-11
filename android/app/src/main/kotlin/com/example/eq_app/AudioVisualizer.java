@@ -19,12 +19,12 @@ public class AudioVisualizer {
     public void activate(Visualizer.OnDataCaptureListener listener, int audioSessionId) {
         if (visualizer == null) {
             visualizer = new Visualizer(audioSessionId);
-            visualizer.setCaptureSize(Visualizer.getCaptureSizeRange()[0]);
+            visualizer.setCaptureSize(Visualizer.getCaptureSizeRange()[1]);
             visualizer.setDataCaptureListener(
                 listener,
                 Visualizer.getMaxCaptureRate() / 2,
                 true,
-                false
+                true
             );
             isActive = true;
         }

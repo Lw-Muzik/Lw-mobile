@@ -1,8 +1,9 @@
 import 'package:eq_app/Helpers/Channel.dart';
+import 'package:eq_app/controllers/AppController.dart';
 import 'package:eq_app/pages/AudioFx.dart';
-import 'package:eq_app/pages/PresetReverb.dart';
 import 'package:eq_app/pages/Room.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import 'EqView.dart';
 
@@ -38,27 +39,38 @@ class _EqualizerState extends State<Equalizer> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text("Sound Effects"),
-        bottom: TabBar(
-          // isScrollable: true,
-          controller: _tabController,
-          dividerColor: Colors.transparent,
-          tabs: const [
-            Tab(text: "Equalizer"),
-            Tab(text: "Audio FX"),
-            Tab(text: "Room Effects"),
-          ],
-        ),
-      ),
-      body: Center(
-        child: TabBarView(
-          // physics: const NeverScrollableScrollPhysics(),
-          controller: _tabController,
-          children: const [EqView(), AudioFx(), RoomEffects()],
-        ),
-      ),
-    );
+    return StreamBuilder<int?>(
+        stream: context
+            .read<AppController>()
+            .audioPlayer
+            .androidAudioSessionIdStream,
+        builder: (context, snapshot) {
+          int? x = snapshot.data;
+          if (snapshot.hasData && x != null) {
+            Channel.setSessionId(x);
+          }
+          return Scaffold(
+            appBar: AppBar(
+              title: const Text("Sound Effects"),
+              bottom: TabBar(
+                // isScrollable: true,
+                controller: _tabController,
+                dividerColor: Colors.transparent,
+                tabs: const [
+                  Tab(text: "Equalizer"),
+                  Tab(text: "Audio FX"),
+                  Tab(text: "Room Effects"),
+                ],
+              ),
+            ),
+            body: Center(
+              child: TabBarView(
+                // physics: const NeverScrollableScrollPhysics(),
+                controller: _tabController,
+                children: const [EqView(), AudioFx(), RoomEffects()],
+              ),
+            ),
+          );
+        });
   }
 }

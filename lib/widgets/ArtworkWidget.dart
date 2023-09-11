@@ -10,6 +10,7 @@ class ArtworkWidget extends StatelessWidget {
   final int quality;
   final ArtworkType type;
   final BoxFit fit;
+  final BlendMode? blendMode;
   final double width;
   final double height;
   final BorderRadiusGeometry? borderRadius;
@@ -34,6 +35,7 @@ class ArtworkWidget extends StatelessWidget {
     this.quality = 100,
     this.size = 2,
     this.useSaved = true,
+    this.blendMode,
   });
 
   @override
@@ -41,7 +43,8 @@ class ArtworkWidget extends StatelessWidget {
     return useSaved
         ? StreamBuilder<ImageProvider>(
             stream: Stream.fromFuture(
-              fetchArtwork(path, songId, other: other, quality: quality),
+              fetchArtwork(path, songId,
+                  type: type, other: other, quality: quality),
             ),
             builder: (context, imageSnap) {
               return Container(
@@ -81,7 +84,11 @@ class ArtworkWidget extends StatelessWidget {
                   borderRadius: borderRadius,
                   image: DecorationImage(
                     fit: fit,
-                    colorFilter: colorFilter,
+                    
+                    colorFilter: colorFilter ??
+                        ColorFilter.mode(
+                            imageSnap.hasData ? Colors.black26 : Colors.black,
+                            BlendMode.darken),
                     image: imageSnap.hasData
                         ? MemoryImage(imageSnap.data!)
                         : const AssetImage("assets/audio.jpeg")
