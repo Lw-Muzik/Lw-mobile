@@ -1,7 +1,6 @@
 import 'package:eq_app/Global/index.dart';
 import 'package:eq_app/Helpers/Files.dart';
 import 'package:eq_app/pages/ArtistSongs.dart';
-import 'package:eq_app/widgets/Body.dart';
 import 'package:flutter/material.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:provider/provider.dart';

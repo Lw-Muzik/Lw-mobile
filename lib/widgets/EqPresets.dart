@@ -12,6 +12,18 @@ class EqPresets extends StatefulWidget {
 }
 
 class _EqPresetsState extends State<EqPresets> {
+  @override
+  void initState() {
+    super.initState();
+    if (_scrollController.hasClients) {
+      _scrollController.animateTo(
+        (context.read<AppController>().selectedPreset * 80).toDouble(),
+        duration: const Duration(milliseconds: 900),
+        curve: Curves.decelerate,
+      );
+    }
+  }
+
   final ScrollController _scrollController = ScrollController();
   @override
   Widget build(BuildContext context) {
@@ -35,9 +47,11 @@ class _EqPresetsState extends State<EqPresets> {
                             presetData.data?[index]["preset"],
                           );
                           if (_scrollController.hasClients) {
-                            _scrollController.animateTo((index * 80).toDouble(),
-                                duration: const Duration(milliseconds: 900),
-                                curve: Curves.decelerate);
+                            _scrollController.animateTo(
+                              (index * 80).toDouble(),
+                              duration: const Duration(milliseconds: 900),
+                              curve: Curves.decelerate,
+                            );
                           }
                         },
                         child: Chip(

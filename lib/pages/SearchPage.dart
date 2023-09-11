@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 
 import '../controllers/AppController.dart';
 import '../player/PlayerUI.dart';
+import '../widgets/ArtworkWidget.dart';
 
 class SearchPage extends SearchDelegate<SongModel> {
   @override
@@ -49,13 +50,10 @@ class SearchPage extends SearchDelegate<SongModel> {
             controller.audioPlayer.play();
             Routes.routeTo(const Player(), context);
           },
-          leading: QueryArtworkWidget(
-            id: songs[i].id,
+          leading: ArtworkWidget(
+            songId: songs[i].id,
             type: ArtworkType.AUDIO,
-            nullArtworkWidget: ClipRRect(
-              borderRadius: BorderRadius.circular(50),
-              child: Image.asset("assets/audio.jpeg"),
-            ),
+            path: songs[i].data,
           ),
           title: Text(
             songs[i].title,
@@ -78,13 +76,10 @@ class SearchPage extends SearchDelegate<SongModel> {
       return ListView.builder(
         itemCount: songs.length,
         itemBuilder: (context, i) => ListTile(
-          leading: QueryArtworkWidget(
-            id: songs[i].id,
+          leading: ArtworkWidget(
+            songId: songs[i].id,
             type: ArtworkType.AUDIO,
-            nullArtworkWidget: ClipRRect(
-              borderRadius: BorderRadius.circular(50),
-              child: Image.asset("assets/audio.jpeg"),
-            ),
+            path: songs[i].data,
           ),
           title: Text(
             songs[i].title,

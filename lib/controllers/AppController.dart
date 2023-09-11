@@ -79,7 +79,6 @@ class AppController extends ChangeNotifier {
   bool _isVisualInBackground = false;
   bool _visuals = false;
   int _songId = 0;
-  bool _isLoop = false;
   int _artWorkId = 0;
   // Main method.
   final OnAudioQuery _audioQuery = OnAudioQuery();

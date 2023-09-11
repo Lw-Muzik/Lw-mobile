@@ -381,8 +381,6 @@ class Channel {
   }
 
   static void setSessionId(int sessionId) async {
-    _initBassBoost(sessionId);
-    _initLoudnessEnhancer(sessionId);
     _initVirtualizer(sessionId);
     _initReverb(sessionId);
     _initDSPEngine(sessionId);
