@@ -1,5 +1,7 @@
 import 'dart:developer';
 
+import 'package:eq_app/pages/Playlist.dart';
+
 import '/Routes/routes.dart';
 import '/pages/Albums.dart';
 import '/pages/Equalizer.dart';
@@ -33,7 +35,7 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 5, vsync: this);
+    _tabController = TabController(length: 6, vsync: this);
     fetchSongs();
     checkAndRequestPermissions();
   }
@@ -43,11 +45,13 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
       setState(() {});
       context.read<AppController>().songs =
           await context.read<AppController>().audioQuery.querySongs(
-                sortType: null,
                 orderType: OrderType.ASC_OR_SMALLER,
                 uriType: UriType.EXTERNAL,
                 ignoreCase: true,
               );
+      // ignore: use_build_context_synchronously
+      context.read<AppController>().playlist =
+          await OnAudioQuery.platform.queryPlaylists();
     }
   }
 
@@ -94,7 +98,7 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
         Channel.setSessionId(event);
       }
     });
-    var controller = Provider.of<AppController>(context);
+    var controller = Provider.of<AppController>(context, listen: true);
     return Body(
       child: Scaffold(
         backgroundColor: controller.isFancy
@@ -137,7 +141,12 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
             isScrollable: true,
             controller: _tabController,
             tabs: const [
-              Tab(child: Text("Songs")),
+              Tab(
+                child: Text("Folders"),
+              ),
+              Tab(
+                child: Text("Playlists"),
+              ),
               Tab(
                 child: Text("Artists"),
               ),
@@ -148,8 +157,8 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
                 child: Text("Genres"),
               ),
               Tab(
-                child: Text("Folders"),
-              )
+                child: Text("Songs"),
+              ),
             ],
           ),
         ),
@@ -162,11 +171,12 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
               child: TabBarView(
                 controller: _tabController,
                 children: const [
-                  AllSongs(),
+                  Folders(),
+                  PlayListView(),
                   Artists(),
                   Albums(),
                   Genres(),
-                  Folders()
+                  AllSongs(),
                 ],
               ),
             ),

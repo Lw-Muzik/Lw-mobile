@@ -21,10 +21,20 @@ class Routes {
     } else {
       Navigator.of(context).push(
         PageRouteBuilder(
-          transitionDuration: const Duration(milliseconds: 80),
-          reverseTransitionDuration: const Duration(milliseconds: 80),
+          transitionDuration: const Duration(milliseconds: 800),
+          reverseTransitionDuration: const Duration(milliseconds: 800),
           pageBuilder: (context, animation, secondaryAnimation) {
-            return FadeTransition(opacity: animation, child: page);
+            return DualTransitionBuilder(
+              animation: animation,
+              forwardBuilder: (context, anim, x) => FadeTransition(
+                opacity: anim,
+                child: page,
+              ),
+              reverseBuilder: (context, reverse, y) => ScaleTransition(
+                scale: reverse,
+                child: page,
+              ),
+            );
           },
         ),
       );

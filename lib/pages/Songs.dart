@@ -37,11 +37,10 @@ class _AllSongsState extends State<AllSongs> {
 
   @override
   Widget build(BuildContext context) {
-    var controller = Provider.of<AppController>(context);
+    var controller = Provider.of<AppController>(context, listen: true);
     return StreamBuilder<List<SongModel>>(
       // Default values:
       stream: Stream.fromFuture(controller.audioQuery.querySongs(
-        sortType: null,
         orderType: OrderType.ASC_OR_SMALLER,
         uriType: UriType.EXTERNAL,
         ignoreCase: true,

@@ -167,19 +167,20 @@ foldersArtwork() {
   // );
 }
 
-headerWidget(
+Widget headerWidget(
     AppController controller, BuildContext context, List<SongModel> data) {
   return Stack(
     children: [
       ArtworkWidget(
         quality: 100,
         size: 3000,
+        useSaved: data.isNotEmpty,
         borderRadius: BorderRadius.zero,
         width: MediaQuery.of(context).size.width,
         height: MediaQuery.of(context).size.height,
-        songId: data[data.length > 1 ? data.length - 1 : 0].id,
+        songId: data[data.length > 2 ? data.length - 2 : 0].id,
         type: ArtworkType.AUDIO,
-        path: data[data.length > 1 ? data.length - 1 : 0].data,
+        path: data[data.length > 2 ? data.length - 2 : 0].data,
       ),
       Container(
         width: MediaQuery.of(context).size.width,
@@ -199,42 +200,40 @@ headerWidget(
           ),
         ),
       ),
-      Positioned(
-        bottom: 160,
-        left: 10,
-        child: InkWell(
-          onTap: () {
-            List<SongModel> s = data;
-            if (s.isNotEmpty) {
-              s.forEach((element) {
-                print(element.data);
-              });
-              controller.songs.clear();
-              controller.songs = s;
-              controller.songId = 0;
-              controller.audioPlayer.setUrl(s[0].data);
-              controller.audioPlayer.play();
-            }
-          },
-          child: Card(
-            child: Row(
-              children: [
-                Padding(
-                  padding: EdgeInsets.all(8.0),
-                  child: Text(
-                    "Play All",
-                    style: Theme.of(context).textTheme.bodyLarge,
+      if (data.isNotEmpty)
+        Positioned(
+          bottom: 160,
+          left: 10,
+          child: InkWell(
+            onTap: () {
+              List<SongModel> s = data;
+              if (s.isNotEmpty) {
+                controller.songs.clear();
+                controller.songs = s;
+                controller.songId = 0;
+                controller.audioPlayer.setUrl(s[0].data);
+                controller.audioPlayer.play();
+              }
+            },
+            child: Card(
+              child: Row(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: Text(
+                      "Play All",
+                      style: Theme.of(context).textTheme.bodyLarge,
+                    ),
                   ),
-                ),
-                Padding(
-                  padding: EdgeInsets.all(8.0),
-                  child: Icon(Icons.play_circle_sharp, size: 35),
-                ),
-              ],
+                  const Padding(
+                    padding: EdgeInsets.all(8.0),
+                    child: Icon(Icons.play_circle_sharp, size: 35),
+                  ),
+                ],
+              ),
             ),
           ),
-        ),
-      )
+        )
     ],
   );
 }

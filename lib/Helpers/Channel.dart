@@ -318,10 +318,10 @@ class Channel {
     await channel.invokeMethod("setDSPXTreble", {"trebleGain": treble});
   }
 
-  static void setDSPSpeakers(List<int> speakers, List<double> levels) async {
+  static void setDSPSpeakers(
+      List<dynamic> speakers, List<double> levels) async {
     Map<String, dynamic> dsps = {"speakers": speakers, "levels": levels};
-    var res = await channel.invokeMethod("setDSPSpeakers", {"spks": dsps});
-    log(res);
+    await channel.invokeMethod("setDSPSpeakers", {"spks": dsps});
   }
 
   static void disposeDSP() async {

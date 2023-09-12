@@ -16,6 +16,7 @@ class AudioFx extends StatefulWidget {
 
 class _AudioFxState extends State<AudioFx> {
   int selected = -1;
+  ScrollController _controller = ScrollController();
   @override
   Widget build(BuildContext context) {
     return Consumer<AppController>(builder: (context, controller, child) {
@@ -24,15 +25,35 @@ class _AudioFxState extends State<AudioFx> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // SwitchListTile.adaptive(
-            //   title: const Text("DSP Engine"),
-            //   subtitle: Text(controller.enableDSP ? "Enabled" : "Disabled"),
-            //   value: controller.enableDSP,
-            //   onChanged: (x) {
-            //     controller.enableDSP = x;
-
-            //   },
-            // ),
+            Card(
+              margin: const EdgeInsets.only(top: 10, bottom: 10),
+              child: ListTile(
+                title: const Text("Restore to default"),
+                leading: const Icon(Icons.restore),
+                trailing: const Icon(Icons.open_in_new),
+                onTap: () {
+                  controller.dspOutGain = 3.0;
+                  controller.dspPowerBass = 8.0;
+                  controller.dspXTreble = 3.0;
+                  controller.dspVolume = -6.0;
+                  controller.dspXBass = 11.0;
+                  // config the system to default
+                  Channel.setDSPVolume(controller.dspVolume);
+                  Channel.setDSPTreble(controller.dspXTreble);
+                  Channel.setDSPPowerBass(controller.dspPowerBass);
+                  Channel.setDSPXBass(controller.dspXBass);
+                  Channel.setOutGain(controller.dspOutGain);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: const Text("Restored to defaults"),
+                      behavior: SnackBarBehavior.floating,
+                      duration: const Duration(milliseconds: 1800),
+                      backgroundColor: Theme.of(context).colorScheme.primary,
+                    ),
+                  );
+                },
+              ),
+            ),
             Card(
               child: SizedBox(
                 height: 300,
@@ -89,13 +110,13 @@ class _AudioFxState extends State<AudioFx> {
 
                     // out gain
                     HorizontalSlider(
-                      title: "Vocal Boost",
+                      title: "Power Gain",
                       onChanged: (x) {
                         controller.dspOutGain = x;
                         Channel.setOutGain(x);
                       },
                       value: controller.dspOutGain,
-                      max: 30,
+                      max: 15,
                       min: 0,
                       dB: controller.dspOutGain.dps,
                     ),
@@ -108,47 +129,36 @@ class _AudioFxState extends State<AudioFx> {
             Center(
               child: Padding(
                 padding: const EdgeInsets.all(8.0),
-                child: Text(
-                  "DSP Speakers",
-                  style: Theme.of(context).textTheme.titleLarge,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      "DSP Speakers",
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    IconButton(
+                        onPressed: () {
+                          controller.dspSpeakerView =
+                              !controller.dspSpeakerView;
+                        },
+                        icon: Icon(controller.dspSpeakerView
+                            ? Icons.grid_view_rounded
+                            : Icons
+                                .list_rounded)) //const Icon(Icons.grid_view_rounded))
+                  ],
                 ),
               ),
             ),
             SizedBox(
               height: 300,
               child: Card(
-                child: ListView(
-                  children: List.generate(
-                    DSPSpeakers.SPEAKERS.length,
-                    (index) => ClipRRect(
-                      borderRadius: BorderRadius.circular(15),
-                      child: RadioListTile(
-                        selected: selected == index,
-                        selectedTileColor: Theme.of(context)
-                            .primaryColorLight
-                            .withOpacity(0.34),
-                        secondary: const Icon(Icons.surround_sound_rounded),
-                        title: Text(
-                          DSPSpeakers.SPEAKERS[index].name,
-                          style: Theme.of(context).textTheme.bodyLarge,
-                        ),
-                        value: selected == index ? 1 : 0,
-                        groupValue: 1,
-                        onChanged: (value) {
-                          setState(
-                            () {
-                              selected = index;
-                              Channel.setDSPSpeakers(
-                                DSPSpeakers.SPEAKERS[index].freq,
-                                DSPSpeakers.SPEAKERS[index].gain,
-                              );
-                            },
-                          );
-                        },
-                      ),
-                    ),
-                  ),
-                ),
+                child: Scrollbar(
+                    trackVisibility: true,
+                    controller: _controller,
+                    child: DSPSpeakerWidget(
+                      controller: controller,
+                      dspScrollController: _controller,
+                    )),
               ),
             )
           ],

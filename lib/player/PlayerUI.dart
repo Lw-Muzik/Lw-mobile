@@ -49,9 +49,9 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
 
   Stream<PositionData> get _positionDataStream =>
       Rx.combineLatest3<Duration, Duration, Duration?, PositionData>(
-          context.read<AppController>().audioPlayer.positionStream,
-          context.read<AppController>().audioPlayer.bufferedPositionStream,
-          context.read<AppController>().audioPlayer.durationStream,
+          context.watch<AppController>().audioPlayer.positionStream,
+          context.watch<AppController>().audioPlayer.bufferedPositionStream,
+          context.watch<AppController>().audioPlayer.durationStream,
           (position, bufferedPosition, duration) => PositionData(
               position, bufferedPosition, duration ?? Duration.zero));
   @override
@@ -117,7 +117,7 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
                         },
                       ),
                       // slider
-                      Controls(controller: context.watch<AppController>()),
+                      Controls(controller:controller),
                       if (controller.playerVisual &&
                           controller.audioPlayer.playing)
                         playerVisual(controller),

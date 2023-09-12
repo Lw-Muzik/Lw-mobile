@@ -1,3 +1,5 @@
+// ignore_for_file: must_be_immutable
+
 import 'package:eq_app/controllers/AppController.dart';
 import 'package:just_audio/just_audio.dart';
 
@@ -6,7 +8,7 @@ import 'package:flutter/material.dart';
 
 class Controls extends StatefulWidget {
   final AppController controller;
-  const Controls({super.key, required this.controller});
+  Controls({super.key, required this.controller});
 
   @override
   State<Controls> createState() => _ControlsState();
@@ -14,7 +16,9 @@ class Controls extends StatefulWidget {
 
 class _ControlsState extends State<Controls> {
   bool isLoop = false;
+
   bool isShuffle = false;
+
   @override
   Widget build(BuildContext context) {
     return SizedBox(

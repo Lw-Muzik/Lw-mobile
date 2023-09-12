@@ -1,4 +1,5 @@
-import 'dart:math';
+import 'dart:math' as math;
+import 'dart:developer';
 
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
@@ -11,6 +12,7 @@ class AppController extends ChangeNotifier {
   String _selectedTheme = "light";
   bool _isDark = false;
   bool _playerVisual = false;
+
   int _selectedRoomPreset = -1;
   /*
      private static final float out_gain = 0.0f;
@@ -20,7 +22,8 @@ class AppController extends ChangeNotifier {
     private static final float dsp_treble = 3.3f*/
   // DSP settings
   bool _enableDSP = false;
-  double _dspVolume = -8.0;
+  int _selectSpeaker = -1;
+  double _dspVolume = -6.0;
   double _dspXTreble = 3.3;
   double _dspPowerBass = 8.0;
   double _dspXBass = 11.0;
@@ -28,6 +31,7 @@ class AppController extends ChangeNotifier {
   double _dspOutGain = 3.0;
   // DSP getters
   bool get enableDSP => _enableDSP;
+  int get selectSpeaker => _selectSpeaker;
   double get dspVolume => _dspVolume;
   double get dspXTreble => _dspXTreble;
   double get dspPowerBass => _dspPowerBass;
@@ -38,6 +42,11 @@ class AppController extends ChangeNotifier {
   // DSP setters
   set enableDSP(bool dsp) {
     _enableDSP = dsp;
+    notifyListeners();
+  }
+
+  set selectSpeaker(int dsp) {
+    _selectSpeaker = dsp;
     notifyListeners();
   }
 
@@ -70,7 +79,21 @@ class AppController extends ChangeNotifier {
     _dspOutGain = gain;
     notifyListeners();
   }
+
   //----------- end of dsp initialization --------------------------------
+  List<PlaylistModel> _playlist = [];
+  List<PlaylistModel> get playlist => _playlist;
+  set playlist(List<PlaylistModel> _plst) {
+    _playlist = _plst;
+    notifyListeners();
+  }
+
+  bool _dspSpeakerView = false;
+  bool get dspSpeakerView => _dspSpeakerView;
+  set dspSpeakerView(bool dspView) {
+    _dspSpeakerView = dspView;
+    notifyListeners();
+  }
 
   double _bgQuality = 2.0;
   int _selectedPreset = 0;
@@ -92,8 +115,8 @@ class AppController extends ChangeNotifier {
     _audioPlayer.playerStateStream.listen((event) {
       if (event.processingState == ProcessingState.completed) {
         songId += 1;
-
-        if (songId == songs.length) {
+        log("SongId $songId");
+        if (songId > songs.length) {
           // songId = 0;
           // artWorkId = songs[songId].id;
           _audioPlayer.stop();
@@ -257,7 +280,7 @@ class AppController extends ChangeNotifier {
 
   void shuffleSongs() {
     List sample = shuffledSongs;
-    final random = Random();
+    final random = math.Random();
     for (var i = 0; i < sample.length; i++) {
       final j = random.nextInt(i + 1);
       final temp = sample[i];

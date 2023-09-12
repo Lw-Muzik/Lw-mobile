@@ -3,6 +3,10 @@ extension IntUtil on int {
     return this == 1 ? "$this Song" : "$this Songs";
   }
 
+  String get aTracks {
+    return this == 1 ? " Available Track\n" : " Available Tracks\n";
+  }
+
   String get formatBandFrequency {
     if (this < 1000) {
       return "";

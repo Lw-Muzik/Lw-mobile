@@ -6,6 +6,7 @@ import 'package:eq_app/Global/index.dart';
 import 'package:eq_app/Routes/routes.dart';
 import 'package:eq_app/controllers/AppController.dart';
 import 'package:eq_app/widgets/Body.dart';
+import 'package:eq_app/widgets/PlayListWidget.dart';
 import 'package:flutter/material.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:provider/provider.dart';
@@ -34,7 +35,7 @@ class _ArtistSongsState extends State<ArtistSongs> {
               toolbarHeight: 300,
               leading: IconButton.filledTonal(
                   onPressed: () => Routes.pop(context),
-                  icon: Icon(Icons.arrow_back)),
+                  icon: const Icon(Icons.arrow_back)),
               // floating: true,
               // snap: true,
               flexibleSpace: FlexibleSpaceBar(
@@ -116,6 +117,21 @@ class SongLists extends StatelessWidget {
                   decoration: commonDeration(controller, index, context),
                   child: ListTile(
                     selected: controller.songId == index,
+                    onLongPress: () {
+                      // showModalBottomSheet(context: context, builder: builder)
+                      showModalBottomSheet(
+                          context: context,
+                          builder: (context) {
+                            return BottomSheet(
+                                onClosing: () {},
+                                builder: (context) {
+                                  return PlaylistWidget(
+                                    audioId: controller.songs[index].id,
+                                    song: controller.songs[index].title,
+                                  );
+                                });
+                          });
+                    },
                     selectedTileColor:
                         Theme.of(context).primaryColor.withOpacity(0.1),
                     selectedColor: Theme.of(context).primaryColor,

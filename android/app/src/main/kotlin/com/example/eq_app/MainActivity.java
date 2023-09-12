@@ -322,22 +322,20 @@ public class MainActivity extends FlutterActivity {
                     }
                     break;
                 case "setDSPSpeakers":
-                    Map<String, Object> spks = call.argument("spks");
-//                    Object[] s = call.argument("speakers");
-//                    Object[] l = call.argument("levels");
+                    Map<String, Object> map = call.argument("spks");
+                    ArrayList<Integer> speaker = (ArrayList<Integer>) map.get("speakers");
+                    ArrayList<Double> l = (ArrayList<Double>) map.get("levels");
 //                   speakers
                     int[] speakers = new int[10];
-                    int[] levels = new int[10];
-                    if(spks != null){
-//                        for(int x = 0; x < 10; x++){
-//                            speakers[x] = (int) Objects.requireNonNull(spks.get("speakers"))[x];
-//                            levels[x] = (int)spks.get("levels")[x];
-//                        }
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                            DSPEngine.setDspSpeakers(speakers, levels);
-                        }
+                    float[] levels = new float[10];
+                    for (int x = 0; x < 10; x++) {
+                        speakers[x] = speaker.get(x);
+                        levels[x] = l.get(x).floatValue();
                     }
-                    result.success(spks);
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                        DSPEngine.setDspSpeakers(speakers, levels);
+                    }
+                    result.success(speaker);
                     break;
 
                 case "enableDSP":
@@ -354,7 +352,7 @@ public class MainActivity extends FlutterActivity {
                     }
                     break;
                 case "getVocalLevel":
-                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                         float vocalLevel = DSPEngine.getVocalLevel();
                         result.success(vocalLevel);
                     }
