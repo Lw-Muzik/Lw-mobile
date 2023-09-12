@@ -31,7 +31,7 @@ class Routes {
                 child: page,
               ),
               reverseBuilder: (context, reverse, y) => ScaleTransition(
-                scale: reverse,
+                scale: animation,
                 child: page,
               ),
             );

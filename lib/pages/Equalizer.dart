@@ -2,6 +2,7 @@ import 'package:eq_app/Helpers/Channel.dart';
 import 'package:eq_app/controllers/AppController.dart';
 import 'package:eq_app/pages/AudioFx.dart';
 import 'package:eq_app/pages/Room.dart';
+import 'package:eq_app/widgets/Body.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -49,25 +50,30 @@ class _EqualizerState extends State<Equalizer> with TickerProviderStateMixin {
           if (snapshot.hasData && x != null) {
             Channel.setSessionId(x);
           }
-          return Scaffold(
-            appBar: AppBar(
-              title: const Text("Sound Effects"),
-              bottom: TabBar(
-                // isScrollable: true,
-                controller: _tabController,
-                dividerColor: Colors.transparent,
-                tabs: const [
-                  Tab(text: "Equalizer"),
-                  Tab(text: "Audio FX"),
-                  Tab(text: "Room Effects"),
-                ],
+          return Body(
+            child: Scaffold(
+              backgroundColor: Colors.transparent,
+              appBar: AppBar(
+                forceMaterialTransparency:
+                    context.watch<AppController>().isFancy,
+                title: const Text("Sound Effects"),
+                bottom: TabBar(
+                  // isScrollable: true,
+                  controller: _tabController,
+                  dividerColor: Colors.transparent,
+                  tabs: const [
+                    Tab(text: "Equalizer"),
+                    Tab(text: "Audio FX"),
+                    Tab(text: "Room Effects"),
+                  ],
+                ),
               ),
-            ),
-            body: Center(
-              child: TabBarView(
-                // physics: const NeverScrollableScrollPhysics(),
-                controller: _tabController,
-                children: const [EqView(), AudioFx(), RoomEffects()],
+              body: Center(
+                child: TabBarView(
+                  // physics: const NeverScrollableScrollPhysics(),
+                  controller: _tabController,
+                  children: const [EqView(), AudioFx(), RoomEffects()],
+                ),
               ),
             ),
           );

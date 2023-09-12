@@ -77,7 +77,6 @@ Future<ImageProvider<Object>> fetchArtwork(
       File(imagePath).writeAsBytesSync(artworkData);
     }
   }
-  log("Current Path $imagePath");
   return File(imagePath).existsSync()
       ? FileImage(File(imagePath))
       : const AssetImage("assets/audio.jpeg") as ImageProvider;
@@ -140,6 +139,7 @@ void showAddPlaylist(TextEditingController textController,
                           .createPlaylist(textController.text)
                           .then((value) {
                         if (value) {
+                          // controller.audioQuery.addToPlaylist()
                           showMessage(
                               context: context,
                               float: true,

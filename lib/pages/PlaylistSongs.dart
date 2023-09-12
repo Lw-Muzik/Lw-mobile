@@ -46,8 +46,8 @@ class _PlaylistSongsState extends State<PlaylistSongs> {
                             ? Consumer<AppController>(
                                 builder: (context, controller, child) {
                                 return snapshot.data!.isNotEmpty
-                                    ? headerWidget(
-                                        controller, context, snapshot.data!)
+                                    ? headerWidget(controller, context,
+                                        data: snapshot.data!)
                                     : Container();
                               })
                             : Container();

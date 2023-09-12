@@ -49,7 +49,7 @@ public class DSPEngine {
     public static void setDspSpeakers(int[] speakers, float[] gains){
         dsp_speakers = speakers;
         dsp_gains = gains;
-        Log.e("ETA","Speakers set**********");
+//        Log.e("ETA","Speakers set**********");
         if(dspEngine != null && dspEq != null){
             for (int b = 0; b < bandCount; b++) {
                 try {

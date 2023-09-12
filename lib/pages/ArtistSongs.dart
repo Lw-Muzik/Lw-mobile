@@ -5,6 +5,7 @@ import 'dart:ui';
 import 'package:eq_app/Global/index.dart';
 import 'package:eq_app/Routes/routes.dart';
 import 'package:eq_app/controllers/AppController.dart';
+import 'package:eq_app/extensions/index.dart';
 import 'package:eq_app/widgets/Body.dart';
 import 'package:eq_app/widgets/PlayListWidget.dart';
 import 'package:flutter/material.dart';
@@ -16,8 +17,15 @@ import '../widgets/BottomPlayer.dart';
 
 class ArtistSongs extends StatefulWidget {
   final int? artistId;
+  final int songs;
+  final int albums;
   final String artist;
-  const ArtistSongs({super.key, required this.artistId, required this.artist});
+  const ArtistSongs(
+      {super.key,
+      required this.artistId,
+      required this.artist,
+      required this.songs,
+      required this.albums});
 
   @override
   State<ArtistSongs> createState() => _ArtistSongsState();
@@ -32,7 +40,7 @@ class _ArtistSongsState extends State<ArtistSongs> {
         headerSliverBuilder: (context, x) {
           return [
             SliverAppBar(
-              toolbarHeight: 300,
+              expandedHeight: 400,
               leading: IconButton.filledTonal(
                   onPressed: () => Routes.pop(context),
                   icon: const Icon(Icons.arrow_back)),
@@ -51,15 +59,58 @@ class _ArtistSongsState extends State<ArtistSongs> {
                   ),
                 ),
                 expandedTitleScale: 70,
-                background: ArtworkWidget(
-                  borderRadius: BorderRadius.zero,
-                  size: 5000,
-                  quality: 100,
-                  width: MediaQuery.of(context).size.width,
-                  height: MediaQuery.of(context).size.width,
-                  songId: widget.artistId!,
-                  other: widget.artist,
-                  type: ArtworkType.ARTIST,
+                background: Stack(
+                  children: [
+                    headerWidget(
+                      context.read<AppController>(),
+                      context,
+                      child: ArtworkWidget(
+                        borderRadius: BorderRadius.zero,
+                        size: 5000,
+                        quality: 100,
+                        width: MediaQuery.of(context).size.width,
+                        height: MediaQuery.of(context).size.width,
+                        songId: widget.artistId!,
+                        other: widget.artist,
+                        type: ArtworkType.ARTIST,
+                      ),
+                    ),
+                    Positioned(
+                      bottom: 45,
+                      left: 20,
+                      child: RichText(
+                        text: TextSpan(
+                          children: [
+                            TextSpan(
+                              text: "${widget.artist}\n",
+                              style: Theme.of(context).textTheme.titleLarge,
+                            ),
+                            TextSpan(
+                              text: "${widget.songs}",
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .headlineLarge!
+                                  .copyWith(fontWeight: FontWeight.w300),
+                            ),
+                            TextSpan(
+                              text: widget.songs.aTracks,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .headlineSmall!
+                                  .copyWith(fontWeight: FontWeight.w300),
+                            ),
+                            TextSpan(
+                              text: widget.albums.nAlbums,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleLarge!
+                                  .copyWith(fontWeight: FontWeight.w600),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                  ],
                 ),
               ),
             )
@@ -67,12 +118,10 @@ class _ArtistSongsState extends State<ArtistSongs> {
         },
         body: Consumer<AppController>(builder: (context, controller, child) {
           return Scaffold(
-            backgroundColor: Colors.transparent,
             body: FutureBuilder(
               future: controller.audioQuery.queryAudiosFrom(
-                AudiosFromType.ARTIST_ID,
-                widget.artistId!,
-              ),
+                  AudiosFromType.ARTIST_ID, widget.artistId ?? 0,
+                  ignoreCase: true),
               builder: (context, snapshot) {
                 return snapshot.hasData
                     ? SongLists(songs: snapshot.data ?? [])
@@ -114,6 +163,7 @@ class SongLists extends StatelessWidget {
               return Consumer<AppController>(
                   builder: (context, controller, ch) {
                 return Container(
+                  margin: const EdgeInsets.only(left: 10, right: 10),
                   decoration: commonDeration(controller, index, context),
                   child: ListTile(
                     selected: controller.songId == index,
@@ -134,11 +184,12 @@ class SongLists extends StatelessWidget {
                     },
                     selectedTileColor:
                         Theme.of(context).primaryColor.withOpacity(0.1),
-                    selectedColor: Theme.of(context).primaryColor,
+                    selectedColor: Theme.of(context).primaryColorLight,
                     title: Text(
                       songs[index].title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodyMedium!,
                     ),
                     subtitle: Text(
                       songs[index].artist ?? "No Artist",
@@ -147,6 +198,9 @@ class SongLists extends StatelessWidget {
                     ),
                     trailing: const Icon(Icons.arrow_forward_rounded),
                     onTap: () {
+                      if (controller.songs.length != songs.length) {
+                        controller.songs = songs;
+                      }
                       controller.songId = (controller.songs.indexWhere(
                           (result) => result.title == songs[index].title));
 

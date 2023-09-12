@@ -49,8 +49,8 @@ class _FolderSongsState extends State<FolderSongs> {
                         return snapshot.hasData
                             ? Consumer<AppController>(
                                 builder: (context, controller, child) {
-                                return headerWidget(
-                                    controller, context, snapshot.data!);
+                                return headerWidget(controller, context,
+                                    data: snapshot.data!);
                               })
                             : Container();
                       }),

@@ -144,11 +144,11 @@ Widget playerCard(Animation<double> animation, BuildContext context,
 Decoration commonDeration(
     AppController controller, int listIndex, BuildContext context) {
   return BoxDecoration(
-    borderRadius: BorderRadius.circular(50),
+    borderRadius: BorderRadius.circular(10),
     color: controller.songId == listIndex && controller.audioPlayer.playing
         ? Theme.of(context).brightness == Brightness.light
-            ? Theme.of(context).primaryColor.withOpacity(0.1)
-            : Theme.of(context).primaryColorLight.withOpacity(0.31)
+            ? Theme.of(context).primaryColor.withOpacity(0.41)
+            : Theme.of(context).colorScheme.primary.withOpacity(0.31)
         : null,
   );
 }
@@ -167,21 +167,22 @@ foldersArtwork() {
   // );
 }
 
-Widget headerWidget(
-    AppController controller, BuildContext context, List<SongModel> data) {
+Widget headerWidget(AppController controller, BuildContext context,
+    {List<SongModel>? data, Widget? child}) {
   return Stack(
     children: [
-      ArtworkWidget(
-        quality: 100,
-        size: 3000,
-        useSaved: data.isNotEmpty,
-        borderRadius: BorderRadius.zero,
-        width: MediaQuery.of(context).size.width,
-        height: MediaQuery.of(context).size.height,
-        songId: data[data.length > 2 ? data.length - 2 : 0].id,
-        type: ArtworkType.AUDIO,
-        path: data[data.length > 2 ? data.length - 2 : 0].data,
-      ),
+      child ??
+          ArtworkWidget(
+            quality: 100,
+            size: 3000,
+            useSaved: data!.isNotEmpty,
+            borderRadius: BorderRadius.zero,
+            width: MediaQuery.of(context).size.width,
+            height: MediaQuery.of(context).size.height,
+            songId: data[data.length > 2 ? data.length - 2 : 0].id,
+            type: ArtworkType.AUDIO,
+            path: data[data.length > 2 ? data.length - 2 : 0].data,
+          ),
       Container(
         width: MediaQuery.of(context).size.width,
         height: MediaQuery.of(context).size.height,
@@ -200,7 +201,7 @@ Widget headerWidget(
           ),
         ),
       ),
-      if (data.isNotEmpty)
+      if (data != null && data.isNotEmpty)
         Positioned(
           bottom: 160,
           left: 10,

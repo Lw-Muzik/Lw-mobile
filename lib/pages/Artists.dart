@@ -56,6 +56,8 @@ class _ArtistsState extends State<Artists> {
                 onTap: () {
                   Routes.routeTo(
                       ArtistSongs(
+                        songs: item.data![index].numberOfTracks ?? 0,
+                        albums: item.data![index].numberOfAlbums ?? 0,
                         artistId: item.data![index].id,
                         artist:
                             "${item.data?[index].getMap['artist'] ?? 'Unknown'}",

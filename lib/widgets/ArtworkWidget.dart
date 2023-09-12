@@ -25,8 +25,8 @@ class ArtworkWidget extends StatelessWidget {
     required this.songId,
     this.type = ArtworkType.AUDIO,
     this.fit = BoxFit.cover,
-    this.width = 55,
-    this.height = 55,
+    this.width = 56,
+    this.height = 56,
     this.borderRadius,
     this.child,
     this.margin,
@@ -52,7 +52,7 @@ class ArtworkWidget extends StatelessWidget {
                 width: width,
                 height: height,
                 decoration: BoxDecoration(
-                  borderRadius: borderRadius,
+                  borderRadius: borderRadius ?? BorderRadius.circular(10),
                   image: DecorationImage(
                     fit: fit,
                     colorFilter: colorFilter,

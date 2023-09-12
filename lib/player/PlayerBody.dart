@@ -29,7 +29,7 @@ class _PlayerBodyState extends State<PlayerBody> {
               height: MediaQuery.of(context).size.height,
               child: ArtworkWidget(
                 // artworkBlendMode: BlendMode.darken,
-
+                useSaved: false,
                 height: MediaQuery.of(context).size.height,
                 width: MediaQuery.of(context).size.width,
                 songId: controller.songs[controller.songId].id,

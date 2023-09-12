@@ -116,13 +116,13 @@ class AppController extends ChangeNotifier {
       if (event.processingState == ProcessingState.completed) {
         songId += 1;
         log("SongId $songId");
-        if (songId > songs.length) {
+        if (_songId == _songs.length) {
           // songId = 0;
           // artWorkId = songs[songId].id;
           _audioPlayer.stop();
         } else {
-          artWorkId = songs[songId].id;
-          _audioPlayer.setUrl(songs[songId].data);
+          artWorkId = _songs[_songId].id;
+          _audioPlayer.setUrl(_songs[_songId].data);
           _audioPlayer.play();
         }
       }

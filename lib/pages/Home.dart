@@ -98,105 +98,109 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
         Channel.setSessionId(event);
       }
     });
-    var controller = Provider.of<AppController>(context, listen: true);
-    return Body(
-      child: Scaffold(
-        backgroundColor: controller.isFancy
-            ? Colors.transparent
-            : Theme.of(context).scaffoldBackgroundColor,
-        appBar: AppBar(
-          forceMaterialTransparency: controller.isFancy,
-          title: const Text("Hype Muziki"),
-          actions: [
-            Padding(
-              padding: const EdgeInsets.only(right: 18.0),
-              child: IconButton(
-                onPressed: () {
-                  showSearch<SongModel>(
-                      context: context, delegate: SearchPage());
-                },
-                icon: const Icon(Icons.search),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.only(right: 18.0),
-              child: IconButton(
-                onPressed: () {
-                  Routes.routeTo(const Settings(), context);
-                },
-                icon: const Icon(Icons.settings),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.only(right: 18.0),
-              child: IconButton(
-                onPressed: () {
-                  Routes.routeTo(const Equalizer(), context);
-                },
-                icon: const Icon(Icons.equalizer),
-              ),
-            )
-          ],
-          bottom: TabBar(
-            isScrollable: true,
-            controller: _tabController,
-            tabs: const [
-              Tab(
-                child: Text("Folders"),
-              ),
-              Tab(
-                child: Text("Playlists"),
-              ),
-              Tab(
-                child: Text("Artists"),
-              ),
-              Tab(
-                child: Text("Albums"),
-              ),
-              Tab(
-                child: Text("Genres"),
-              ),
-              Tab(
-                child: Text("Songs"),
-              ),
-            ],
-          ),
-        ),
-        body: Stack(
-          children: [
-            GestureDetector(
-              onScaleUpdate: (details) {
-                log(details.scale.toString());
-              },
-              child: TabBarView(
-                controller: _tabController,
-                children: const [
-                  Folders(),
-                  PlayListView(),
-                  Artists(),
-                  Albums(),
-                  Genres(),
-                  AllSongs(),
-                ],
-              ),
-            ),
-            if (controller.audioPlayer.playing)
-              Positioned(
-                bottom: 0,
-                right: 3,
-                left: 3,
-                child: BottomPlayer(
-                  controller: controller,
+    // var controller = Provider.of<AppController>(context, listen: true);
+    return Consumer<AppController>(builder: (context, controller, s) {
+      return Body(
+        child: Scaffold(
+          backgroundColor: controller.isFancy
+              ? Colors.transparent
+              : Theme.of(context).scaffoldBackgroundColor,
+          appBar: AppBar(
+            forceMaterialTransparency: controller.isFancy,
+            title: const Text("Hype Muziki"),
+            actions: [
+              Padding(
+                padding: const EdgeInsets.only(right: 18.0),
+                child: IconButton(
+                  onPressed: () {
+                    showSearch<SongModel>(
+                        context: context, delegate: SearchPage());
+                  },
+                  icon: const Icon(Icons.search),
                 ),
               ),
-          ],
+              Padding(
+                padding: const EdgeInsets.only(right: 18.0),
+                child: IconButton(
+                  onPressed: () {
+                    Routes.routeTo(const Settings(), context);
+                  },
+                  icon: const Icon(Icons.settings),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(right: 18.0),
+                child: IconButton(
+                  onPressed: () {
+                    Routes.routeTo(const Equalizer(), context);
+                  },
+                  icon: const Icon(Icons.equalizer),
+                ),
+              )
+            ],
+            bottom: TabBar(
+              isScrollable: true,
+              controller: _tabController,
+              tabs: const [
+                Tab(
+                  child: Text("Folders"),
+                ),
+                Tab(
+                  child: Text("Playlists"),
+                ),
+                Tab(
+                  child: Text("Artists"),
+                ),
+                Tab(
+                  child: Text("Albums"),
+                ),
+                Tab(
+                  child: Text("Genres"),
+                ),
+                Tab(
+                  child: Text("Songs"),
+                ),
+              ],
+            ),
+          ),
+          body: _hasPermission == false
+              ? noAccessToLibraryWidget()
+              : Stack(
+                  children: [
+                    GestureDetector(
+                      onScaleUpdate: (details) {
+                        log(details.scale.toString());
+                      },
+                      child: TabBarView(
+                        controller: _tabController,
+                        children: const [
+                          Folders(),
+                          PlayListView(),
+                          Artists(),
+                          Albums(),
+                          Genres(),
+                          AllSongs(),
+                        ],
+                      ),
+                    ),
+                    if (controller.audioPlayer.playing)
+                      Positioned(
+                        bottom: 0,
+                        right: 3,
+                        left: 3,
+                        child: BottomPlayer(
+                          controller: controller,
+                        ),
+                      ),
+                  ],
+                ),
+          // bottomNavigationBar: controller.audioPlayer.playing
+          //     ? BottomPlayer(
+          //         controller: controller,
+          //       )
+          //     : null,
         ),
-        // bottomNavigationBar: controller.audioPlayer.playing
-        //     ? BottomPlayer(
-        //         controller: controller,
-        //       )
-        //     : null,
-      ),
-    );
+      );
+    });
   }
 }
