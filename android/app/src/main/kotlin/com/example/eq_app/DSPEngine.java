@@ -98,7 +98,7 @@ public class DSPEngine {
             dspBand.setNoiseGateThreshold(-30.0f);
             dspBand.setExpanderRatio(15.0f);
             dspBand.setPreGain(20.0f);
-            dspBand.setPostGain(0.0f);
+            dspBand.setPostGain(20.0f);
         }
         dspBand.setEnabled(true);
     }
@@ -111,7 +111,6 @@ public class DSPEngine {
                 builder.setPreferredFrameDuration(10.0f);
 
                 dspEq = new DynamicsProcessing.Eq(true, true, bandCount);
-//                tuner = new DynamicsProcessing.Eq(true, true, 1);
 
                 dspMbc = new DynamicsProcessing.Mbc(true, true, bandCount);
                 //   Engine configuration
@@ -126,14 +125,10 @@ public class DSPEngine {
                 tunerConfig(0.0f);
                 dspBandConfig(0, dsp_xBass);
                 dspBandConfig(1, dsp_powerBass);
-                dspBandConfig(2, dsp_xBass2);
                 dspBandConfig(4, out_gain);
                 dspBandConfig(9, dsp_treble);
             }
-//            int[] tfreq = {80,12000};
-//            for(int x =0;x<2;x++){
-//                tuner.getBand(x).setCutoffFrequency(tfreq[x]);
-//            }
+
             dspEq.getBand(4).setCutoffFrequency(tunerBassFreq);
          // assign frequencies to the bands
                 for (int b = 0; b < bandCount; b++) {
@@ -153,19 +148,16 @@ public class DSPEngine {
         }
     }
     public static void setTuner(boolean enable){
-        if(dspEq != null){
-//            .setEnabled(enable);
-        }
+
     }
 //    enable the DSP Engine
     public static void enableEngine(boolean enable) {
-        if(dspEngine != null){
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                dspEngine.setEnabled(enable);
-                dspEq.setEnabled(enable);
-                dspMbc.setEnabled(enable);
-                dspLimiter.setEnabled(enable);
-          }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && dspEngine != null) {
+            dspEngine.setEnabled(enable);
+            dspEq.setEnabled(enable);
+            dspMbc.setEnabled(enable);
+            dspLimiter.setEnabled(enable);
         }
     }
     private static void tunerConfig(float gain){
@@ -200,15 +192,14 @@ public class DSPEngine {
         }
     }
     public static void setOutGain(float gain) {
-        if(dspEngine != null){
-            initDSPEngine();
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+        initDSPEngine();
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P &&dspEngine != null) {
                 try{
                     dspLimiter.setPostGain(gain);
 //                    dspBandConfig(4,gain);
                 } catch(Exception ex){
                     ex.printStackTrace();
-                }
 
             }
         }
@@ -217,33 +208,32 @@ public class DSPEngine {
     }
 
     public static float getGainValue(){
+        initDSPEngine();
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && dspEngine != null ) {
-            initDSPEngine();
+
             return dspLimiter.getPostGain();
-//            return dspEq.getBand(4).getGain();
         }
         return 0.0f;
     }
 //    set Gain for all channels
     public static void setDSPPowerBass(float gain){
-        if(dspEngine != null){
             initDSPEngine();
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P&&dspEngine != null) {
                 dspBandConfig(1,gain);
-            }
+
         }
     }
 
     public static void setDSPXBass(float gain){
-        if(dspEngine != null){
+
             initDSPEngine();
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && dspEngine != null) {
                 dspBandConfig(0,gain);
             }
-        }
     }
 
     public static void setDSPx(float gain){
+        initDSPEngine();
         if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && dspEngine != null){
                 dspBandConfig(2,gain);
         }
@@ -252,7 +242,7 @@ public class DSPEngine {
     public static void setDSPVolume(float dsfxVolume) {
         initDSPEngine();
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-
+            initDSPEngine();
             dspEngine.setInputGainAllChannelsTo(dsfxVolume);
         }
     }

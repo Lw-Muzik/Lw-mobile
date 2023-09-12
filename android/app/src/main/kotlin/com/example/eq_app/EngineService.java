@@ -8,13 +8,12 @@ import android.content.Intent;
 import android.os.Build;
 import android.os.IBinder;
 
-import androidx.annotation.Nullable;
-
 public class EngineService extends Service {
     String m = "myChannel";
-    @SuppressLint("NewApi")
     private void a() {
-        DSPEngine.initDSPEngine();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            DSPEngine.initDSPEngine();
+        }
         if (Build.VERSION.SDK_INT >= 26) {
             String string = "HYPE MUZIKI";
             String string2 = "Enjoy hype music";
@@ -24,11 +23,11 @@ public class EngineService extends Service {
             ((NotificationManager) getSystemService(NotificationManager.class)).createNotificationChannel(notificationChannel);
         }
     }
-    @SuppressLint("NewApi")
-    @Nullable
     @Override
     public IBinder onBind(Intent intent) {
-//        DSPEngine.initDSPEngine();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            DSPEngine.initDSPEngine();
+        }
         return null;
     }
 
@@ -38,12 +37,13 @@ public class EngineService extends Service {
     }
 
 
-    @SuppressLint("NewApi")
     @Override // android.app.Service
     public void onCreate() {
         super.onCreate();
             a();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             DSPEngine.initDSPEngine();
+        }
 //            DSPEngine.assignBandGains();
     }
 

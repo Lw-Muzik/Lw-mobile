@@ -320,7 +320,8 @@ class Channel {
 
   static void setDSPSpeakers(List<int> speakers, List<double> levels) async {
     Map<String, dynamic> dsps = {"speakers": speakers, "levels": levels};
-    await channel.invokeMethod("setDSPSpeakers", {"spks": dsps});
+    var res = await channel.invokeMethod("setDSPSpeakers", {"spks": dsps});
+    log(res);
   }
 
   static void disposeDSP() async {

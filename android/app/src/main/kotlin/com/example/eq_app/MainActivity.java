@@ -329,14 +329,15 @@ public class MainActivity extends FlutterActivity {
                     int[] speakers = new int[10];
                     int[] levels = new int[10];
                     if(spks != null){
-                        for(int x = 0; x < 10; x++){
+//                        for(int x = 0; x < 10; x++){
 //                            speakers[x] = (int) Objects.requireNonNull(spks.get("speakers"))[x];
 //                            levels[x] = (int)spks.get("levels")[x];
-                        }
+//                        }
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                             DSPEngine.setDspSpeakers(speakers, levels);
                         }
                     }
+                    result.success(spks);
                     break;
 
                 case "enableDSP":

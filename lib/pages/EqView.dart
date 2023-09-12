@@ -1,4 +1,4 @@
-import 'package:eq_app/widgets/EqPresets.dart';
+import '/widgets/EqPresets.dart';
 import 'package:flutter/material.dart';
 
 import 'BassControl.dart';
