@@ -1,5 +1,9 @@
+// ignore_for_file: non_constant_identifier_names
+
 import 'package:eq_app/Global/index.dart';
-import 'package:eq_app/Helpers/Files.dart';
+import 'package:eq_app/Helpers/index.dart';
+import 'package:eq_app/Routes/routes.dart';
+
 import 'package:eq_app/extensions/index.dart';
 import 'package:eq_app/pages/ArtistSongs.dart';
 import 'package:flutter/material.dart';
@@ -7,6 +11,7 @@ import 'package:on_audio_query/on_audio_query.dart';
 import 'package:provider/provider.dart';
 
 import '../controllers/AppController.dart';
+import '../widgets/ArtworkWidget.dart';
 import '../widgets/BottomPlayer.dart';
 
 class PlaylistSongs extends StatefulWidget {
@@ -99,7 +104,10 @@ class _PlaylistSongsState extends State<PlaylistSongs> {
                     AudiosFromType.PLAYLIST, widget.playlist_id)),
                 builder: (context, snap) {
                   return snap.hasData
-                      ? SongLists(songs: snap.data ?? [])
+                      ? PlaylistSongLists(
+                          songs: snap.data ?? [],
+                          playlist: widget.playlist_id,
+                        )
                       : const Center(
                           child: CircularProgressIndicator.adaptive());
                 },
@@ -118,5 +126,143 @@ class _PlaylistSongsState extends State<PlaylistSongs> {
         );
       }),
     );
+  }
+}
+
+class PlaylistSongLists extends StatelessWidget {
+  final List<SongModel> songs;
+  final int playlist;
+  const PlaylistSongLists(
+      {super.key, required this.songs, required this.playlist});
+
+  @override
+  Widget build(BuildContext context) {
+    return songs.isEmpty
+        ? Center(
+            child: Text(
+              "No songs found",
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+          )
+        : ListView.builder(
+            itemCount: songs.length,
+            itemBuilder: (context, index) {
+              return Consumer<AppController>(
+                  builder: (context, controller, ch) {
+                return Container(
+                  margin: const EdgeInsets.only(left: 10, right: 10),
+                  decoration: commonDeration(controller, index, context),
+                  child: ListTile(
+                    selected: controller.songId == index,
+                    onLongPress: () {
+                      showModalBottomSheet(
+                          context: context,
+                          builder: (context) {
+                            return BottomSheet(
+                                onClosing: () {},
+                                builder: (context) {
+                                  return PlayListEditor(
+                                    audioId: controller.songs[index].id,
+                                    song: controller.songs[index].title,
+                                    playlist: playlist,
+                                  );
+                                });
+                          });
+                    },
+                    selectedTileColor:
+                        Theme.of(context).primaryColor.withOpacity(0.1),
+                    selectedColor: Theme.of(context).primaryColorLight,
+                    title: Text(
+                      songs[index].title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodyMedium!,
+                    ),
+                    subtitle: Text(
+                      songs[index].artist ?? "No Artist",
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    trailing: const Icon(Icons.arrow_forward_rounded),
+                    onTap: () {
+                      if (controller.songs.length != songs.length) {
+                        controller.songs = songs;
+                      }
+                      controller.songId = (controller.songs.indexWhere(
+                          (result) => result.title == songs[index].title));
+
+                      controller.audioPlayer.setUrl(controller
+                          .songs[controller.songs.indexWhere(
+                              (result) => result.title == songs[index].title)]
+                          .data);
+                      controller.audioPlayer.play();
+                      // controller.songs = songs;
+                      // controller.songId = index;
+
+                      // controller.audioPlayer.setUrl(songs[index].data);
+                      // controller.audioPlayer.play();
+                      // Channel.setSessionId(
+                      //     controller.audioPlayer.androidAudioSessionId ?? 0);
+                    },
+                    // This Widget will query/load image.
+                    // You can use/create your own widget/method using [queryArtwork].
+                    leading: ArtworkWidget(
+                      height: 60,
+                      width: 60,
+                      songId: songs[index].id,
+                      path: songs[index].data,
+                      type: ArtworkType.AUDIO,
+                    ),
+                  ),
+                );
+              });
+            });
+  }
+}
+
+class PlayListEditor extends StatefulWidget {
+  final int audioId;
+  final String song;
+  final int playlist;
+  const PlayListEditor({
+    super.key,
+    required this.audioId,
+    required this.song,
+    required this.playlist,
+  });
+
+  @override
+  State<PlayListEditor> createState() => _PlayListEditorState();
+}
+
+class _PlayListEditorState extends State<PlayListEditor> {
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<AppController>(builder: (context, controller, c) {
+      return SizedBox(
+        height: 150,
+        child: Column(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.delete),
+              title: const Text("Remove from playlist"),
+              onTap: () {
+                controller.audioQuery
+                    .removeFromPlaylist(widget.playlist, widget.audioId)
+                    .then((value) {
+                  if (value) {
+                    Routes.pop(context);
+                    showMessage(
+                        context: context,
+                        type: 'success',
+                        msg: "${widget.song} removed successfully");
+                  }
+                });
+              },
+            )
+          ],
+        ),
+      );
+    });
   }
 }

@@ -36,7 +36,9 @@ class _EqViewState extends State<EqView> {
                     onChanged: (value) {
                       setState(() {});
                       Channel.enableEq(value);
+                      setState(() {});
                       Channel.enableDSPEngine(value);
+                      setState(() {});
                     },
                   );
                 }),

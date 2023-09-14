@@ -41,7 +41,7 @@ public class DSPEngine {
     static int audioSessionId = 0;
     static int tunerBassFreq = 916;
 
-  private static DynamicsProcessing.Config.Builder builder =  new DynamicsProcessing.Config.Builder(0, 2, true, bandCount, true, bandCount, true, bandCount, true);
+  private static final DynamicsProcessing.Config.Builder builder =  new DynamicsProcessing.Config.Builder(0, 2, true, bandCount, true, bandCount, true, bandCount, true);
 
    private static final DynamicsProcessing.Config engineConfig  = builder.build();
     
@@ -49,7 +49,7 @@ public class DSPEngine {
     public static void setDspSpeakers(int[] speakers, float[] gains){
         dsp_speakers = speakers;
         dsp_gains = gains;
-//        Log.e("ETA","Speakers set**********");
+
         if(dspEngine != null && dspEq != null){
             for (int b = 0; b < bandCount; b++) {
                 try {
@@ -63,6 +63,7 @@ public class DSPEngine {
             dspEngine.setPostEqAllChannelsTo(dspEq);
             dspEngine.setMbcAllChannelsTo(dspMbc);
             dspEngine.setLimiterAllChannelsTo(dspLimiter);
+            Log.e("ETA","Speakers set**********");
         }
 
     }
@@ -119,9 +120,8 @@ public class DSPEngine {
 
     public static void initDSPEngine() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            setDspSpeakers(dsp_speakers, dsp_gains);
             if(dspEngine == null){
-                dspEngine = new DynamicsProcessing(priority,audioSessionId, engineConfig);
+                dspEngine = new DynamicsProcessing(priority,0, engineConfig);
                 builder.setPreferredFrameDuration(10.0f);
 
                 dspEq = new DynamicsProcessing.Eq(true, true, bandCount);
@@ -171,7 +171,7 @@ public class DSPEngine {
     }
 //    enable the DSP Engine
     public static void enableEngine(boolean enable) {
-        initDSPEngine();
+
         if(dspEngine != null){
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 dspEngine.setEnabled(enable);

@@ -17,12 +17,6 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge, overlays: []);
   SystemChrome.setSystemUIOverlayStyle(overlay);
-  Map<Permission, PermissionStatus> statuses = await [
-    Permission.microphone,
-    Permission.speech,
-    Permission.storage,
-  ].request();
-
   runApp(
     MultiProvider(
       providers: [

@@ -44,8 +44,8 @@ class Body extends StatelessWidget {
                 gradient: LinearGradient(
                   colors: [
                     const Color.fromARGB(255, 0, 0, 0).withOpacity(0.2),
-                    const Color.fromARGB(255, 0, 0, 0).withOpacity(0.50),
-                    const Color.fromARGB(255, 0, 0, 0).withOpacity(0.80)
+                    const Color.fromARGB(255, 0, 0, 0).withOpacity(0.30),
+                    const Color.fromARGB(255, 0, 0, 0).withOpacity(0.50)
                   ],
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,

@@ -23,12 +23,17 @@ class _VisualUIState extends State<VisualUI> {
   Widget build(BuildContext context) {
     Visualizers.setFrameRate(1);
     Visualizers.scaleVisualizer(true);
+
     Visualizers.getEnabled().asStream().listen((v) {
       log("Visual $v");
     });
     return Body(
       child: Consumer<AppController>(
         builder: (context, controller, child) {
+          if (controller.visuals) {
+            Visualizers.enableVisual(true);
+            // Visualizers.scaleVisualizer(!controller.visuals);
+          }
           return Scaffold(
             backgroundColor: controller.isFancy
                 ? Colors.transparent
@@ -38,6 +43,7 @@ class _VisualUIState extends State<VisualUI> {
                 mounted
                     ? VisualizerWidget(
                         builder: (context, fft, x) {
+                          log("fft $x");
                           return CustomPaint(
                             painter: CircularBarVisualizer(
                                 color: Colors.white,

@@ -99,13 +99,13 @@ class _ArtistSongsState extends State<ArtistSongs> {
                                   .headlineSmall!
                                   .copyWith(fontWeight: FontWeight.w300),
                             ),
-                            TextSpan(
-                              text: widget.albums.nAlbums,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .titleLarge!
-                                  .copyWith(fontWeight: FontWeight.w600),
-                            ),
+                            // TextSpan(
+                            //   text: widget.albums.nAlbums,
+                            //   style: Theme.of(context)
+                            //       .textTheme
+                            //       .titleLarge!
+                            //       .copyWith(fontWeight: FontWeight.w600),
+                            // ),
                           ],
                         ),
                       ),

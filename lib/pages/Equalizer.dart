@@ -52,7 +52,9 @@ class _EqualizerState extends State<Equalizer> with TickerProviderStateMixin {
           }
           return Body(
             child: Scaffold(
-              backgroundColor: Colors.transparent,
+              backgroundColor: context.watch<AppController>().isFancy
+                  ? Colors.transparent
+                  : Theme.of(context).scaffoldBackgroundColor,
               appBar: AppBar(
                 forceMaterialTransparency:
                     context.watch<AppController>().isFancy,

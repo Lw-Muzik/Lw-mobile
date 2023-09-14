@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:provider/provider.dart';
 
+import '../Helpers/AudioVisualizer.dart';
 import '../Helpers/VisualizerWidget.dart';
 import '../Visualizers/MultiwaveVisualizer.dart';
 import '../controllers/AppController.dart';
@@ -23,13 +24,16 @@ class _PlayerBodyState extends State<PlayerBody> {
   Widget build(BuildContext context) {
     return Consumer<AppController>(
       builder: (context, controller, state) {
+        if (controller.visuals) {
+          Visualizers.enableVisual(true);
+        }
         return Stack(
           children: [
             SizedBox(
               height: MediaQuery.of(context).size.height,
               child: ArtworkWidget(
                 // artworkBlendMode: BlendMode.darken,
-                useSaved: false,
+                // useSaved: false,
                 height: MediaQuery.of(context).size.height,
                 width: MediaQuery.of(context).size.width,
                 songId: controller.songs[controller.songId].id,

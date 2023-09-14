@@ -8,9 +8,14 @@ import 'package:provider/provider.dart';
 
 import '../controllers/AppController.dart';
 
-class EqualizerControls extends StatelessWidget {
+class EqualizerControls extends StatefulWidget {
   const EqualizerControls({Key? key}) : super(key: key);
 
+  @override
+  State<EqualizerControls> createState() => _EqualizerControlsState();
+}
+
+class _EqualizerControlsState extends State<EqualizerControls> {
   @override
   Widget build(BuildContext context) {
     return Consumer<AppController>(builder: (context, eq, state) {
@@ -18,7 +23,6 @@ class EqualizerControls extends StatelessWidget {
         stream: Stream.fromFuture(Channel.getBandFreq()),
         builder: (context, snapshot) {
           final bands = snapshot.data;
-
           return Row(
             children: [
               ...List.generate(
@@ -28,16 +32,15 @@ class EqualizerControls extends StatelessWidget {
                       stream: Stream.fromFuture(Channel.getBandLevel(i)),
                       builder: (context, level) {
                         int? l = level.data;
-
+// /
                         if (l != null) {
                           l = level.data;
                         }
                         eq.bandValues[i] = l ?? 0;
                         // });
-
                         return Column(
                           children: [
-                            if (l != null) Text("$l Hz"),
+                            if (l != null) Text("$l dB"),
                             SizedBox(
                               width: MediaQuery.of(context).size.width,
                               height: MediaQuery.of(context).size.height / 3.53,
@@ -46,9 +49,10 @@ class EqualizerControls extends StatelessWidget {
                                 max: 15,
                                 value: level.data?.toDouble() ?? 0,
                                 onChanged: (value) {
-                                  eq.bandValues[i] = value.toInt();
-
-                                  Channel.setBandLevel(i, value.toInt());
+                                  setState(() {
+                                    eq.bandValues[i] = value.toInt();
+                                    Channel.setBandLevel(i, value.toInt());
+                                  });
                                 },
                               ),
                             ),

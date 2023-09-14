@@ -30,6 +30,7 @@ class _AlbumsState extends State<Albums> {
                     AlbumSongs(
                       albumId: snapshot.data![index].id,
                       album: snapshot.data![index].album,
+                      songs: snapshot.data![index].numOfSongs,
                     ),
                     context),
                 child: GridTile(

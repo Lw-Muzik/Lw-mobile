@@ -91,12 +91,13 @@ class _ControlsState extends State<Controls> {
                           ? const Icon(Icons.shuffle, color: Colors.orange)
                           : const Icon(Icons.shuffle, color: Colors.grey),
                       onPressed: () async {
-                        widget.controller.shuffleSongs();
-
+                        setState(() {});
                         final enable = !shuffleModeEnabled;
-
+                        setState(() {});
                         widget.controller.isShuffled = enable;
-
+                        if (enable) {
+                          widget.controller.shuffleSongs();
+                        } else {}
                         await widget.controller.audioPlayer
                             .setShuffleModeEnabled(enable);
                       },

@@ -1,3 +1,4 @@
+import 'package:eq_app/Routes/routes.dart';
 import 'package:eq_app/pages/Equalizer.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -38,11 +39,7 @@ class Header extends StatelessWidget {
               ),
             ),
             IconButton(
-              onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (context) => const Equalizer(),
-                ),
-              ),
+              onPressed: () => Routes.routeTo(const Equalizer(), context),
               icon: const Icon(
                 Icons.equalizer_rounded,
                 color: Colors.white,

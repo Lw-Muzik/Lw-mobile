@@ -95,6 +95,13 @@ class AppController extends ChangeNotifier {
     notifyListeners();
   }
 
+  Widget _nowWidget = Container();
+  Widget get nowWidget => _nowWidget;
+  set nowWidget(Widget w) {
+    _nowWidget = w;
+    notifyListeners();
+  }
+
   double _bgQuality = 2.0;
   int _selectedPreset = 0;
   bool _isFancy = false;
@@ -106,7 +113,7 @@ class AppController extends ChangeNotifier {
   // Main method.
   final OnAudioQuery _audioQuery = OnAudioQuery();
   double _opacity = 0.0;
-  double _blur = 50;
+  double _blur = 10;
 
   final AudioPlayer _audioPlayer = AudioPlayer();
   List<SongModel> _songs = [];
@@ -114,15 +121,13 @@ class AppController extends ChangeNotifier {
   AppController() {
     _audioPlayer.playerStateStream.listen((event) {
       if (event.processingState == ProcessingState.completed) {
-        songId += 1;
-        log("SongId $songId");
-        if (_songId == _songs.length) {
-          // songId = 0;
-          // artWorkId = songs[songId].id;
+        if (songId >= songs.length - 1) {
+          // _audioPlayer.load();
           _audioPlayer.stop();
         } else {
-          artWorkId = _songs[_songId].id;
-          _audioPlayer.setUrl(_songs[_songId].data);
+          songId += 1;
+          artWorkId = _songs[songId].id;
+          _audioPlayer.setUrl(_songs[songId].data);
           _audioPlayer.play();
         }
       }
@@ -302,11 +307,11 @@ class AppController extends ChangeNotifier {
   }
 
   void next() {
-    songId += 1;
-    if (songId == songs.length) {
+    if (songId >= songs.length) {
       songId = 0;
       _audioPlayer.stop();
     } else {
+      songId += 1;
       artWorkId = songs[songId].id;
       _audioPlayer.setUrl(songs[songId].data);
       _audioPlayer.play();
@@ -314,11 +319,11 @@ class AppController extends ChangeNotifier {
   }
 
   void prev() {
-    songId -= 1;
     if (songId == 0) {
       songId = 0;
       _audioPlayer.stop();
     } else {
+      songId -= 1;
       artWorkId = songs[songId].id;
       _audioPlayer.setUrl(songs[songId].data);
       _audioPlayer.play();

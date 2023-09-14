@@ -1,7 +1,6 @@
 // ignore_for_file: depend_on_referenced_packages
 
 import 'dart:io';
-import 'dart:developer';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -28,24 +27,20 @@ Future<ImageProvider<Object>> fetchArtwork(
   var albumPath = Directory("$tempPath/Albums");
   if (albumPath.existsSync() == false) {
     await albumPath.create();
-    log("Albums ${albumPath.path}");
   }
   //
   var artistPath = Directory("$tempPath/Artists");
   if (artistPath.existsSync() == false) {
     await artistPath.create();
-    log("Artist ${artistPath.path}");
   }
 
   //
   var genrePath = Directory("$tempPath/Genres");
   if (genrePath.existsSync() == false) {
     await genrePath.create();
-    log("Genres ${genrePath.path}");
   }
 
   if (path.isEmpty && other != "Unknown") {
-    log("here");
     if (type == ArtworkType.ALBUM) {
       imagePath =
           "${albumPath.path}/${other.replaceFirst(' ', '_').replaceFirst('/', '_')}.png";
@@ -70,15 +65,15 @@ Future<ImageProvider<Object>> fetchArtwork(
     );
 
     if (tempPath.isNotEmpty && artworkData != null && artworkData.isNotEmpty) {
-      // ID3Tag tags = ID3TagReader.path(path).readTagSync();
-
       // check if metadata is not null and path of the artwork exists
 
       File(imagePath).writeAsBytesSync(artworkData);
     }
   }
   return File(imagePath).existsSync()
-      ? FileImage(File(imagePath))
+      ? FileImage(
+          File(imagePath),
+        )
       : const AssetImage("assets/audio.jpeg") as ImageProvider;
 }
 
@@ -173,7 +168,7 @@ void showAddPlaylist(TextEditingController textController,
 }
 
 void showDeletePlaylist(AppController controller, String playlist,
-    int playlist_id, BuildContext context) {
+    int playlistId, BuildContext context) {
   showAdaptiveDialog(
       context: context,
       builder: (context) {
@@ -190,7 +185,7 @@ void showDeletePlaylist(AppController controller, String playlist,
                 Routes.pop(context);
                 controller.audioQuery
                     .removePlaylist(
-                  playlist_id,
+                  playlistId,
                 )
                     .then((value) {
                   if (value) {

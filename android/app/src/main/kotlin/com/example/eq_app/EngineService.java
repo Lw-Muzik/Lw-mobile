@@ -1,12 +1,12 @@
 package com.example.eq_app;
 
-import android.annotation.SuppressLint;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.Service;
 import android.content.Intent;
 import android.os.Build;
 import android.os.IBinder;
+import android.util.Log;
 
 public class EngineService extends Service {
     String m = "myChannel";
@@ -42,15 +42,14 @@ public class EngineService extends Service {
         super.onCreate();
             a();
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            Log.e("ESERVICE","Created and running");
+
             DSPEngine.initDSPEngine();
         }
 //            DSPEngine.assignBandGains();
     }
-
-    @SuppressLint("NewApi")
     @Override // android.app.Service
     public int onStartCommand(Intent intent, int i, int i2) {
-           DSPEngine.initDSPEngine();
             stopForeground(true);
             stopSelf();
             return Service.START_REDELIVER_INTENT;

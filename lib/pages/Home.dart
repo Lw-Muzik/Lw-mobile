@@ -1,6 +1,7 @@
 import 'dart:developer';
 
 import 'package:eq_app/pages/Playlist.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import '/Routes/routes.dart';
 import '/pages/Albums.dart';
@@ -38,6 +39,7 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
     _tabController = TabController(length: 6, vsync: this);
     fetchSongs();
     checkAndRequestPermissions();
+    checkPermission();
   }
 
   void fetchSongs() async {
@@ -63,6 +65,15 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
             );
     // Only call update the UI if application has all required permissions.
     _hasPermission ? setState(() {}) : null;
+  }
+
+  Future<List<PermissionStatus>> checkPermission() async {
+    Map<Permission, PermissionStatus> statuses = await [
+      Permission.microphone,
+      Permission.speech,
+      Permission.storage,
+    ].request();
+    return statuses.values.toList();
   }
 
   Widget noAccessToLibraryWidget() {
@@ -98,6 +109,7 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
         Channel.setSessionId(event);
       }
     });
+
     // var controller = Provider.of<AppController>(context, listen: true);
     return Consumer<AppController>(builder: (context, controller, s) {
       return Body(
@@ -163,42 +175,50 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
               ],
             ),
           ),
-          body: _hasPermission == false
-              ? noAccessToLibraryWidget()
-              : Stack(
-                  children: [
-                    GestureDetector(
-                      onScaleUpdate: (details) {
-                        log(details.scale.toString());
-                      },
-                      child: TabBarView(
-                        controller: _tabController,
-                        children: const [
-                          Folders(),
-                          PlayListView(),
-                          Artists(),
-                          Albums(),
-                          Genres(),
-                          AllSongs(),
-                        ],
-                      ),
-                    ),
-                    if (controller.audioPlayer.playing)
-                      Positioned(
-                        bottom: 0,
-                        right: 3,
-                        left: 3,
-                        child: BottomPlayer(
-                          controller: controller,
-                        ),
-                      ),
-                  ],
-                ),
-          // bottomNavigationBar: controller.audioPlayer.playing
-          //     ? BottomPlayer(
-          //         controller: controller,
-          //       )
-          //     : null,
+          body: StreamBuilder(
+              stream: Stream.fromFuture(checkPermission()),
+              builder: (context, snapshot) {
+                var permission = snapshot.data;
+                return snapshot.hasData
+                    ? permission![0].isGranted ||
+                            permission[1].isGranted ||
+                            permission[0].isGranted
+                        ? Stack(
+                            children: [
+                              GestureDetector(
+                                onScaleUpdate: (details) {
+                                  log(details.scale.toString());
+                                },
+                                child: TabBarView(
+                                  controller: _tabController,
+                                  children: const [
+                                    Folders(),
+                                    PlayListView(),
+                                    Artists(),
+                                    Albums(),
+                                    Genres(),
+                                    AllSongs(),
+                                  ],
+                                ),
+                              ),
+                              if (controller.audioPlayer.playing)
+                                Positioned(
+                                  bottom: 0,
+                                  right: 3,
+                                  left: 3,
+                                  child: BottomPlayer(
+                                    controller: controller,
+                                  ),
+                                ),
+                            ],
+                          )
+                        : Center(
+                            child: noAccessToLibraryWidget(),
+                          )
+                    : const Center(
+                        child: CircularProgressIndicator.adaptive(),
+                      );
+              }),
         ),
       );
     });
