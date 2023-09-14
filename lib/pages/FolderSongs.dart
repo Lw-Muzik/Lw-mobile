@@ -103,28 +103,19 @@ class _FolderSongsState extends State<FolderSongs> {
           backgroundColor: controller.isFancy
               ? Colors.transparent
               : Theme.of(context).scaffoldBackgroundColor,
-          body: Stack(
-            children: [
-              StreamBuilder(
-                stream: Stream.fromFuture(Files.queryFromFolder(widget.path)),
-                builder: (context, snap) {
-                  return snap.hasData
-                      ? SongLists(songs: snap.data ?? [])
-                      : const Center(
-                          child: CircularProgressIndicator.adaptive());
-                },
-              ),
-              if (controller.audioPlayer.playing)
-                Positioned(
-                  bottom: 0,
-                  right: 3,
-                  left: 3,
-                  child: BottomPlayer(
-                    controller: controller,
-                  ),
-                ),
-            ],
+          body: StreamBuilder(
+            stream: Stream.fromFuture(Files.queryFromFolder(widget.path)),
+            builder: (context, snap) {
+              return snap.hasData
+                  ? SongLists(songs: snap.data ?? [])
+                  : const Center(child: CircularProgressIndicator.adaptive());
+            },
           ),
+          bottomNavigationBar: controller.audioPlayer.playing
+              ? BottomPlayer(
+                  controller: controller,
+                )
+              : null,
         );
       }),
     );

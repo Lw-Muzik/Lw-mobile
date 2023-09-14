@@ -5,7 +5,9 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:on_audio_query/on_audio_query.dart';
+import 'package:provider/provider.dart';
 
+import '../Helpers/Files.dart';
 import '../Routes/routes.dart';
 import '../Visualizers/MultiwaveVisualizer.dart';
 import '../controllers/AppController.dart';
@@ -153,18 +155,63 @@ Decoration commonDeration(
   );
 }
 
-foldersArtwork() {
-  // QueryArtworkWidget(
-  //   artworkBorder: BorderRadius.circular(10),
-  //   format: ArtworkFormat.PNG,
-  //   size: 500,
-  //   id: item.data![index].id,
-  //   nullArtworkWidget: ClipRRect(
-  //     borderRadius: BorderRadius.circular(10),
-  //     child: Image.asset("assets/audio.jpeg"),
-  //   ),
-  //   type: ArtworkType.ARTIST,
-  // );
+Widget folderArtwork(String path, String title) {
+  return StreamBuilder<List<SongModel>>(
+      stream: Stream.fromFuture(Files.queryFromFolder(path)),
+      builder: (context, snapshot) {
+        var data = snapshot.data;
+        return snapshot.hasData
+            ? Stack(
+                children: [
+                  ArtworkWidget(
+                    quality: 100,
+                    size: 3000,
+                    useSaved: data!.isNotEmpty,
+                    borderRadius: BorderRadius.circular(10),
+                    width: MediaQuery.of(context).size.width,
+                    height: MediaQuery.of(context).size.width,
+                    songId: data[data.length > 2 ? data.length - 2 : 0].id,
+                    type: ArtworkType.AUDIO,
+                    path: data[data.length > 2 ? data.length - 2 : 0].data,
+                  ),
+                  Positioned(
+                    right: 0,
+                    left: 0,
+                    bottom: 0,
+                    child: Card(
+                      margin: const EdgeInsets.all(10),
+                      color: Theme.of(context).cardColor.withOpacity(0.7),
+                      child: RichText(
+                        textAlign: TextAlign.center,
+                        text: TextSpan(
+                          children: [
+                            TextSpan(
+                              text: "$title \n",
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleMedium!
+                                  .apply(
+                                    color: Colors.white,
+                                  ),
+                            ),
+                            TextSpan(
+                              text: "${data.length} Songs",
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodyLarge!
+                                  .apply(
+                                    color: Theme.of(context).primaryColorLight,
+                                  ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              )
+            : Container();
+      });
 }
 
 Widget headerWidget(AppController controller, BuildContext context,

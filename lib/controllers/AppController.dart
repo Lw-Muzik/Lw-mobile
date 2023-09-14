@@ -12,6 +12,26 @@ class AppController extends ChangeNotifier {
   String _selectedTheme = "light";
   bool _isDark = false;
   bool _playerVisual = false;
+  // Player controller
+  final PageController _pageController = PageController();
+  PageController get pageController => _pageController;
+  //
+  bool _enableEffects = false;
+  bool get enableEffects {
+    SharedPreferences.getInstance().asStream().listen((event) {
+      _enableEffects = event.getBool("enableEffects") ?? false;
+      notifyListeners();
+    });
+    return _enableEffects;
+  }
+
+  set enableEffects(bool value) {
+    SharedPreferences.getInstance().asStream().listen((event) {
+      event.setBool("enableEffects", value);
+    });
+    _enableEffects = value;
+    notifyListeners();
+  }
 
   int _selectedRoomPreset = -1;
   /*
@@ -30,17 +50,72 @@ class AppController extends ChangeNotifier {
   double _dspXBass2 = 13.0;
   double _dspOutGain = 3.0;
   // DSP getters
-  bool get enableDSP => _enableDSP;
-  int get selectSpeaker => _selectSpeaker;
-  double get dspVolume => _dspVolume;
-  double get dspXTreble => _dspXTreble;
-  double get dspPowerBass => _dspPowerBass;
-  double get dspXBass => _dspXBass;
-  double get dspXBass2 => _dspXBass2;
-  double get dspOutGain => _dspOutGain;
+  bool get enableDSP {
+    SharedPreferences.getInstance().asStream().listen((event) {
+      _enableDSP = event.getBool("enableDSP") ?? false;
+      notifyListeners();
+    });
+    return _enableDSP;
+  }
+
+  int get selectSpeaker {
+    //   SharedPreferences.getInstance().asStream().listen((event) {
+    //   _enableDSP = event.getBool("enableDSP") ?? false;
+    //   notifyListeners();
+    // });
+    return _selectSpeaker;
+  }
+
+  double get dspVolume {
+    // SharedPreferences.getInstance().asStream().listen((event) {
+    //   _dspVolume = event.getDouble("dspVolume") ?? -6.0;
+    //   notifyListeners();
+    // });
+    return _dspVolume;
+  }
+
+  double get dspXTreble {
+    // SharedPreferences.getInstance().asStream().listen((event) {
+    //   _dspXTreble = event.getDouble("xTreble") ?? 3.3;
+    //   notifyListeners();
+    // });
+    return _dspXTreble;
+  }
+
+  double get dspPowerBass {
+    // SharedPreferences.getInstance().asStream().listen((event) {
+    //   _dspPowerBass = event.getDouble("powerBass") ?? 8.0;
+    //   notifyListeners();
+    // });
+    return _dspPowerBass;
+  }
+
+  double get dspXBass {
+    // SharedPreferences.getInstance().asStream().listen((event) {
+    //   _dspXBass = event.getDouble("xBass") ?? 11.0;
+    //   notifyListeners();
+    // });
+    return _dspXBass;
+  }
+
+  double get dspXBass2 {
+    return _dspXBass2;
+  }
+
+  double get dspOutGain {
+    // SharedPreferences.getInstance().asStream().listen((event) {
+    //   _dspOutGain = event.getDouble("powerGain") ?? 3.0;
+
+    //   notifyListeners();
+    // });
+    return _dspOutGain;
+  }
 
   // DSP setters
   set enableDSP(bool dsp) {
+    SharedPreferences.getInstance().asStream().listen((event) {
+      event.setBool("enableDSP", dsp);
+    });
     _enableDSP = dsp;
     notifyListeners();
   }
@@ -51,21 +126,33 @@ class AppController extends ChangeNotifier {
   }
 
   set dspVolume(double vol) {
+    SharedPreferences.getInstance().asStream().listen((event) {
+      event.setDouble("dspVolume", vol);
+    });
     _dspVolume = vol;
     notifyListeners();
   }
 
   set dspXTreble(double xtreble) {
+    SharedPreferences.getInstance().asStream().listen((event) {
+      event.setDouble("xTreble", xtreble);
+    });
     _dspXTreble = xtreble;
     notifyListeners();
   }
 
   set dspPowerBass(double powerBass) {
+    SharedPreferences.getInstance().asStream().listen((event) {
+      event.setDouble("powerBass", powerBass);
+    });
     _dspPowerBass = powerBass;
     notifyListeners();
   }
 
   set dspXBass(double xBass) {
+    SharedPreferences.getInstance().asStream().listen((event) {
+      event.setDouble("xBass", xBass);
+    });
     _dspXBass = xBass;
     notifyListeners();
   }
@@ -76,6 +163,9 @@ class AppController extends ChangeNotifier {
   }
 
   set dspOutGain(double gain) {
+    SharedPreferences.getInstance().asStream().listen((event) {
+      event.setDouble("powerGain", gain);
+    });
     _dspOutGain = gain;
     notifyListeners();
   }
@@ -122,13 +212,19 @@ class AppController extends ChangeNotifier {
     _audioPlayer.playerStateStream.listen((event) {
       if (event.processingState == ProcessingState.completed) {
         if (songId >= songs.length - 1) {
-          // _audioPlayer.load();
           _audioPlayer.stop();
         } else {
           songId += 1;
-          artWorkId = _songs[songId].id;
-          _audioPlayer.setUrl(_songs[songId].data);
-          _audioPlayer.play();
+          if (pageController.hasClients) {
+            pageController.animateToPage(
+              songId,
+              duration: const Duration(milliseconds: 1100),
+              curve: Curves.decelerate,
+            );
+            artWorkId = _songs[songId].id;
+            _audioPlayer.setUrl(_songs[songId].data);
+            _audioPlayer.play();
+          }
         }
       }
     });
@@ -312,8 +408,9 @@ class AppController extends ChangeNotifier {
       _audioPlayer.stop();
     } else {
       songId += 1;
-      artWorkId = songs[songId].id;
-      _audioPlayer.setUrl(songs[songId].data);
+
+      artWorkId = _songs[songId].id;
+      _audioPlayer.setUrl(_songs[songId].data);
       _audioPlayer.play();
     }
   }
@@ -324,8 +421,9 @@ class AppController extends ChangeNotifier {
       _audioPlayer.stop();
     } else {
       songId -= 1;
-      artWorkId = songs[songId].id;
-      _audioPlayer.setUrl(songs[songId].data);
+
+      artWorkId = _songs[songId].id;
+      _audioPlayer.setUrl(_songs[songId].data);
       _audioPlayer.play();
     }
   }

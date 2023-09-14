@@ -3,6 +3,8 @@ import 'package:eq_app/pages/FolderSongs.dart';
 import 'package:flutter/material.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 
+import '../Global/index.dart';
+
 class Folders extends StatefulWidget {
   const Folders({super.key});
 
@@ -25,17 +27,13 @@ class _FoldersState extends State<Folders> {
               (index) => InkWell(
                 onTap: () {
                   Routes.routeTo(
-                      FolderSongs(path: snapshot.data![index]), context);
+                      FolderSongs(path: snapshot.data?[index] ?? ""), context);
                 },
-                child: GridTile(
-                  footer: Text(
-                    snapshot.data?[index].split("/").last ?? "",
-                    maxLines: 1,
-                    textAlign: TextAlign.center,
-                  ),
-                  child: const Icon(
-                    Icons.folder,
-                    size: 100,
+                child: Container(
+                  margin: const EdgeInsets.all(10),
+                  child: GridTile(
+                    child: folderArtwork(snapshot.data![index],
+                        snapshot.data?[index].split("/").last ?? ""),
                   ),
                 ),
               ),

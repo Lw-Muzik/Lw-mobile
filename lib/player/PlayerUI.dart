@@ -1,4 +1,4 @@
-// ignore_for_file: library_private_types_in_public_api, depend_on_referenced_packages
+// ignore_for_file: library_private_types_in_public_api, depend_on_referenced_packages, invalid_use_of_protected_member
 
 import 'package:eq_app/Global/index.dart';
 import 'package:eq_app/Routes/routes.dart';
@@ -26,17 +26,9 @@ class Player extends StatefulWidget {
 class _PlayerState extends State<Player> with TickerProviderStateMixin {
   AnimationController? _animationController;
   Animation<double>? _animation;
-  late final PageController _movieCardPageController;
-  late final PageController _movieDetailPageController;
 
   @override
   void initState() {
-    _movieCardPageController =
-        PageController(initialPage: context.read<AppController>().songId)
-          ..addListener(_movieCardPagePercentListener);
-    _movieDetailPageController =
-        PageController(initialPage: context.read<AppController>().songId)
-          ..addListener(_movieDetailsPagePercentListener);
     super.initState();
     _animationController = AnimationController(
       vsync: this,
@@ -49,23 +41,12 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
     _animationController?.addStatusListener((status) {});
   }
 
-  _movieCardPagePercentListener() {
-    setState(() {});
-  }
-
-  _movieDetailsPagePercentListener() {
-    setState(() {});
-  }
-
   @override
   void dispose() {
-    _movieCardPageController
-      ..removeListener(_movieCardPagePercentListener)
-      ..dispose();
-    _movieDetailPageController
-      ..removeListener(_movieDetailsPagePercentListener)
-      ..dispose();
     super.dispose();
+    // if (context.read<AppController>().pageController.hasListeners) {
+    //   context.read<AppController>().pageController.
+    // }
   }
 
   Stream<PositionData> get _positionDataStream =>
@@ -103,138 +84,120 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
                   _animationController?.reverse();
                 }
 
-                return StreamBuilder<ProcessingState>(
-                    stream: controller.audioPlayer.processingStateStream,
-                    builder: (context, snapshot) {
-                      var state = snapshot.data;
-                      if (state != null && state == ProcessingState.completed) {
-                        // log("completed");
-                        _movieCardPageController.animateToPage(
-                          controller.songId,
-                          duration: const Duration(milliseconds: 800),
-                          curve:
-                              const Interval(0.85, 1, curve: Curves.decelerate),
-                        );
-                      }
-                      return PlayerBody(
-                        controller: controller,
-                        child: Stack(
-                          children: [
-                            if (controller.playerVisual &&
-                                controller.audioPlayer.playing)
-                              playerVisual(controller),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                return PlayerBody(
+                  controller: controller,
+                  child: Stack(
+                    children: [
+                      if (controller.playerVisual &&
+                          controller.audioPlayer.playing)
+                        playerVisual(controller),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: <Widget>[
+                          SizedBox(height: MediaQuery.of(context).padding.top),
+                          const Header(),
+                          SizedBox(
+                            height: MediaQuery.of(context).size.height - 280,
+                            child: Stack(
                               children: <Widget>[
                                 SizedBox(
-                                    height: MediaQuery.of(context).padding.top),
-                                const Header(),
-                                SizedBox(
-                                  height:
-                                      MediaQuery.of(context).size.height - 280,
-                                  child: Stack(
-                                    children: <Widget>[
-                                      SizedBox(
-                                        width:
-                                            MediaQuery.of(context).size.height,
-                                        child: PageView.builder(
-                                          controller: _movieCardPageController,
-                                          // padEnds: false,
-                                          itemCount: controller.songs.length,
-                                          onPageChanged: (page) {
-                                            if (_movieCardPageController
-                                                .hasClients) {
-                                              if (page == controller.songId) {
-                                                int x = page + 1;
-                                                controller.songId = x;
-                                                controller.audioPlayer.setUrl(
-                                                    controller.songs[x].data);
-                                                controller.audioPlayer.play();
-                                              } else if (page >
-                                                  controller.songId) {
-                                                controller.next();
-                                              } else if (page <
-                                                  controller.songId) {
-                                                controller.prev();
-                                              }
-                                              // log("Page $page");
-                                            }
-                                          },
-                                          itemBuilder: (BuildContext context,
-                                              int index) {
-                                            return Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.stretch,
-                                              children: <Widget>[
-                                                // Header2
-                                                InkWell(
-                                                  onTap: () {
-                                                    Routes.pop(context);
-                                                    // Routes.routeTo(
-                                                    //     controller.nowWidget,
-                                                    //     context);
-                                                  },
-                                                  onLongPress: () {
-                                                    showModalBottomSheet(
-                                                        context: context,
+                                  width: MediaQuery.of(context).size.height,
+                                  child: PageView.builder(
+                                    controller: context
+                                        .read<AppController>()
+                                        .pageController,
+                                    // padEnds: false,
+                                    itemCount: controller.songs.length,
+                                    onPageChanged: (page) {
+                                      if (context
+                                          .read<AppController>()
+                                          .pageController
+                                          .hasClients) {
+                                        if (page == controller.songId) {
+                                          int x = page + 1;
+                                          controller.songId = x;
+                                          controller.audioPlayer
+                                              .setUrl(controller.songs[x].data);
+                                          controller.audioPlayer.play();
+                                        } else if (page > controller.songId) {
+                                          controller.next();
+                                        } else if (page < controller.songId) {
+                                          controller.prev();
+                                        }
+                                        // log("Page $page");
+                                      }
+                                    },
+                                    itemBuilder:
+                                        (BuildContext context, int index) {
+                                      return Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.stretch,
+                                        children: <Widget>[
+                                          // Header2
+                                          InkWell(
+                                            onTap: () {
+                                              Routes.pop(context);
+                                              // Routes.routeTo(
+                                              //     controller.nowWidget,
+                                              //     context);
+                                            },
+                                            onLongPress: () {
+                                              showModalBottomSheet(
+                                                  context: context,
+                                                  builder: (context) {
+                                                    return BottomSheet(
+                                                        onClosing: () {},
                                                         builder: (context) {
-                                                          return BottomSheet(
-                                                              onClosing: () {},
-                                                              builder:
-                                                                  (context) {
-                                                                return TrackInfo(
-                                                                  controller:
-                                                                      controller,
-                                                                );
-                                                              });
+                                                          return TrackInfo(
+                                                            controller:
+                                                                controller,
+                                                          );
                                                         });
-                                                  },
-                                                  child: playerCard(_animation!,
-                                                      context, controller),
-                                                ),
-                                                SizedBox(
-                                                    height:
-                                                        MediaQuery.of(context)
-                                                            .padding
-                                                            .top),
-                                                MusicInfo(
-                                                    controller: controller),
-                                              ],
-                                            );
-                                          },
-                                        ),
-                                      )
-                                    ],
+                                                  });
+                                            },
+                                            child: playerCard(_animation!,
+                                                context, controller),
+                                          ),
+                                          SizedBox(
+                                              height: MediaQuery.of(context)
+                                                  .padding
+                                                  .top),
+                                          MusicInfo(controller: controller),
+                                        ],
+                                      );
+                                    },
                                   ),
-                                ),
-
-                                StreamBuilder<PositionData>(
-                                  stream: _positionDataStream,
-                                  builder: (context, snapshot) {
-                                    final positionData = snapshot.data;
-                                    return SeekBar(
-                                      duration: positionData?.duration ??
-                                          Duration.zero,
-                                      position: positionData?.position ??
-                                          Duration.zero,
-                                      bufferedPosition:
-                                          positionData?.bufferedPosition ??
-                                              Duration.zero,
-                                      onChangeEnd: context
-                                          .watch<AppController>()
-                                          .audioPlayer
-                                          .seek,
-                                    );
-                                  },
-                                ),
-                                // slider
-                                Controls(controller: controller),
+                                )
                               ],
                             ),
-                          ],
-                        ),
-                      );
-                    });
+                          ),
+
+                          StreamBuilder<PositionData>(
+                            stream: _positionDataStream,
+                            builder: (context, snapshot) {
+                              final positionData = snapshot.data;
+                              return SeekBar(
+                                duration:
+                                    positionData?.duration ?? Duration.zero,
+                                position:
+                                    positionData?.position ?? Duration.zero,
+                                bufferedPosition:
+                                    positionData?.bufferedPosition ??
+                                        Duration.zero,
+                                onChangeEnd: context
+                                    .watch<AppController>()
+                                    .audioPlayer
+                                    .seek,
+                              );
+                            },
+                          ),
+                          // slider
+                          Controls(controller: controller),
+                        ],
+                      ),
+                    ],
+                  ),
+                );
               });
         },
       ),

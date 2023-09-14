@@ -8,11 +8,17 @@ class AppThemes {
         brightness: Brightness.light,
         background: Colors.white,
       ),
+      bottomNavigationBarTheme: const BottomNavigationBarThemeData(
+        backgroundColor: Colors.transparent,
+      ),
       scaffoldBackgroundColor: Colors.white
       // searchViewTheme: const SearchViewThemeData(elevation: 0,ba: Color.fromARGB(255, 156, 15, 5))
       );
   static ThemeData darkTheme = ThemeData(
     useMaterial3: true,
+    bottomNavigationBarTheme: const BottomNavigationBarThemeData(
+      backgroundColor: Colors.transparent,
+    ),
     colorScheme: ColorScheme.fromSeed(
       seedColor: const Color.fromARGB(255, 156, 15, 5),
       brightness: Brightness.dark,
@@ -22,6 +28,9 @@ class AppThemes {
   );
   static ThemeData fancyTheme = ThemeData(
     useMaterial3: true,
+    bottomNavigationBarTheme: const BottomNavigationBarThemeData(
+      backgroundColor: Colors.transparent,
+    ),
     colorScheme: ColorScheme.fromSeed(
       seedColor: const Color.fromARGB(255, 156, 15, 5),
       brightness: Brightness.dark,

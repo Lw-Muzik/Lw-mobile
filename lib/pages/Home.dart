@@ -201,15 +201,15 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
                                   ],
                                 ),
                               ),
-                              if (controller.audioPlayer.playing)
-                                Positioned(
-                                  bottom: 0,
-                                  right: 3,
-                                  left: 3,
-                                  child: BottomPlayer(
-                                    controller: controller,
-                                  ),
-                                ),
+                              // if (controller.audioPlayer.playing)
+                              //   Positioned(
+                              //     bottom: 0,
+                              //     right: 3,
+                              //     left: 3,
+                              //     child: BottomPlayer(
+                              //       controller: controller,
+                              //     ),
+                              //   ),
                             ],
                           )
                         : Center(
@@ -219,6 +219,11 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
                         child: CircularProgressIndicator.adaptive(),
                       );
               }),
+          bottomNavigationBar: controller.audioPlayer.playing
+              ? BottomPlayer(
+                  controller: controller,
+                )
+              : null,
         ),
       );
     });

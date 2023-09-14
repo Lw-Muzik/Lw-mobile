@@ -4,6 +4,7 @@ import 'package:eq_app/extensions/index.dart';
 import 'package:eq_app/widgets/HorizontalSlider.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../controllers/AppController.dart';
 
@@ -15,6 +16,32 @@ class AudioFx extends StatefulWidget {
 }
 
 class _AudioFxState extends State<AudioFx> {
+  @override
+  void initState() {
+    super.initState();
+    SharedPreferences.getInstance().then((pref) {
+      setState(() {
+        context.read<AppController>().dspOutGain =
+            pref.getDouble("powerGain") ?? 3.0;
+        context.read<AppController>().dspPowerBass =
+            pref.getDouble("powerBass") ?? 8.0;
+        context.read<AppController>().dspXTreble =
+            pref.getDouble("xTreble") ?? 3.3;
+        context.read<AppController>().dspVolume =
+            pref.getDouble("dspVolume") ?? -6.0;
+        context.read<AppController>().dspXBass =
+            pref.getDouble("xBass") ?? 11.0;
+      });
+
+      // config the system to default
+      Channel.setDSPVolume(pref.getDouble("dspVolume") ?? -6.0);
+      Channel.setDSPTreble(pref.getDouble("xTreble") ?? 3.3);
+      Channel.setDSPPowerBass(pref.getDouble("powerBass") ?? 8.0);
+      Channel.setDSPXBass(pref.getDouble("xBass") ?? 11.0);
+      Channel.setOutGain(pref.getDouble("powerGain") ?? 3.0);
+    });
+  }
+
   int selected = -1;
   final ScrollController _controller = ScrollController();
   @override

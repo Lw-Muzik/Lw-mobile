@@ -1,3 +1,6 @@
+import 'package:provider/provider.dart';
+
+import '../controllers/AppController.dart';
 import '/widgets/EqPresets.dart';
 import 'package:flutter/material.dart';
 
@@ -18,6 +21,26 @@ class _EqViewState extends State<EqView> {
   bool ebass = false;
   List<double> bandValues = [0, 0, 0, 0, 0];
   @override
+  void initState() {
+    super.initState();
+    restoreDefaults();
+  }
+
+  void restoreDefaults() {
+    if (mounted) {
+      setState(() {
+        eq = Provider.of<AppController>(context, listen: false).enableDSP;
+      });
+      Channel.enableEq(
+          Provider.of<AppController>(context, listen: false).enableDSP);
+      setState(() {});
+      Channel.enableDSPEngine(
+          Provider.of<AppController>(context, listen: false).enableDSP);
+      setState(() {});
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(left: 10.0, right: 10.0),
@@ -34,7 +57,10 @@ class _EqViewState extends State<EqView> {
                     subtitle: Text(eq ? "On" : "Off"),
                     value: snapshot.data ?? eq,
                     onChanged: (value) {
-                      setState(() {});
+                      setState(() {
+                        Provider.of<AppController>(context, listen: false)
+                            .enableDSP = value;
+                      });
                       Channel.enableEq(value);
                       setState(() {});
                       Channel.enableDSPEngine(value);

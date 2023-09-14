@@ -1,4 +1,6 @@
+import 'package:eq_app/controllers/AppController.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../Helpers/Channel.dart';
 import '../widgets/RoundSlider.dart';
@@ -17,6 +19,18 @@ class _BassControlState extends State<BassControl> {
   bool eq = false;
   bool ebass = false;
   @override
+  void initState() {
+    super.initState();
+    initEffects();
+  }
+
+  initEffects() {
+    setState(() {
+      ebass = context.read<AppController>().enableEffects;
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Column(
       children: [
@@ -34,6 +48,7 @@ class _BassControlState extends State<BassControl> {
                   onChanged: (value) {
                     setState(() {
                       ebass = !ebass;
+                      context.read<AppController>().enableEffects = ebass;
                     });
                     Channel.enableVirtualizer(value);
                   });
@@ -59,7 +74,7 @@ class _BassControlState extends State<BassControl> {
                         width: 150,
                         height: 150,
                         min: 0,
-                        onChanged: ebass
+                        onChanged: ebass == true
                             ? (strength) {
                                 setState(() {
                                   bass = strength;
@@ -87,7 +102,7 @@ class _BassControlState extends State<BassControl> {
                         width: 150,
                         height: 150,
                         min: 0,
-                        onChanged: ebass
+                        onChanged: ebass == true
                             ? (s) {
                                 setState(() {
                                   stereo = s;

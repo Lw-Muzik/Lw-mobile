@@ -28,8 +28,10 @@ class _GenresState extends State<Genres> {
               (index) => InkWell(
                 onTap: () => Routes.routeTo(
                     GenreSongs(
-                        genreId: snapshot.data![index].id,
-                        genre: snapshot.data![index].genre),
+                      genreId: snapshot.data![index].id,
+                      genre: snapshot.data![index].genre,
+                      songs: snapshot.data![index].numOfSongs,
+                    ),
                     context),
                 child: GridTile(
                   footer: Card(
