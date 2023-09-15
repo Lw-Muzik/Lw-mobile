@@ -1,6 +1,10 @@
 package com.example.eq_app;
 
 
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.media.AudioManager;
 import android.media.audiofx.Visualizer;
 import android.os.Build;
 
@@ -19,9 +23,10 @@ public class MainActivity extends FlutterActivity {
   private static final String CHANNEL = "eq_app";
   private final AudioVisualizer visualizer =  AudioVisualizer.instance;
   private MethodChannel visualizerChannel; // Define the MethodChannel here
- 
+
   @Override
   public void configureFlutterEngine(@NonNull FlutterEngine flutterEngine) {
+
   super.configureFlutterEngine(flutterEngine);
   visualizerChannel =  new MethodChannel(flutterEngine.getDartExecutor().getBinaryMessenger(), CHANNEL);
 
@@ -76,6 +81,8 @@ public class MainActivity extends FlutterActivity {
 
                 case "init":
                     int sessionId = call.argument("sessionId");
+    //                Intent serviceIntent = new Intent(this,EngineService.class);
+    //   startService(serviceIntent);
                     CustomEq.init(sessionId);
                     break;
                     
@@ -325,7 +332,7 @@ public class MainActivity extends FlutterActivity {
                     Map<String, Object> map = call.argument("spks");
                     ArrayList<Integer> speaker = (ArrayList<Integer>) map.get("speakers");
                     ArrayList<Double> l = (ArrayList<Double>) map.get("levels");
-//                   speakers
+                   //  speakers
                     int[] speakers = new int[10];
                     float[] levels = new float[10];
                     for (int x = 0; x < 10; x++) {
@@ -446,5 +453,13 @@ public class MainActivity extends FlutterActivity {
             }
           }
         );
+  }
+  private class HeadphoneService extends BroadcastReceiver {
+      @Override
+      public void onReceive(Context context, Intent intent) {
+          if(intent.getAction() != null && intent.getAction().equals(AudioManager.ACTION_HEADSET_PLUG)){
+
+          }
+      }
   }
 }

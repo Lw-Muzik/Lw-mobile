@@ -215,16 +215,16 @@ class AppController extends ChangeNotifier {
           _audioPlayer.stop();
         } else {
           songId += 1;
-          if (pageController.hasClients) {
-            pageController.animateToPage(
-              songId,
-              duration: const Duration(milliseconds: 1100),
-              curve: Curves.decelerate,
-            );
-            artWorkId = _songs[songId].id;
-            _audioPlayer.setUrl(_songs[songId].data);
-            _audioPlayer.play();
-          }
+          // if (pageController.hasClients) {
+          //   pageController.animateToPage(
+          //     songId,
+          //     duration: const Duration(milliseconds: 1100),
+          //     curve: Curves.decelerate,
+          //   );
+          artWorkId = _songs[songId].id;
+          _audioPlayer.setUrl(_songs[songId].data);
+          _audioPlayer.play();
+          // }
         }
       }
     });
