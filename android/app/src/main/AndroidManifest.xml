@@ -37,16 +37,16 @@
                 <action android:name="android.bluetooth.device.action.ACL_DISCONNECTED"/>
             </intent-filter> -->
         </activity>
-        <service android:name=".EngineService" android:enabled="true" android:exported="true" android:permission="android.permission.FOREGROUND_SERVICE" />
+        <!-- <service android:name=".EngineService" android:enabled="true" android:exported="true" android:permission="android.permission.FOREGROUND_SERVICE" /> -->
         <!-- ADD THIS "SERVICE" element -->
-        <service android:name="com.ryanheise.audioservice.AudioService" android:foregroundServiceType="mediaPlayback" android:exported="true" tools:ignore="Instantiatable">
+        <service android:name="com.ryanheise.audioservice.AudioService" android:foregroundServiceType="mediaPlayback" android:exported="true">
             <intent-filter>
                 <action android:name="android.media.browse.MediaBrowserService" />
             </intent-filter>
         </service>
 
         <!-- ADD THIS "RECEIVER" element -->
-        <receiver android:name="com.ryanheise.audioservice.MediaButtonReceiver" android:exported="true" tools:ignore="Instantiatable">
+        <receiver android:name="com.ryanheise.audioservice.MediaButtonReceiver" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MEDIA_BUTTON" />
             </intent-filter>

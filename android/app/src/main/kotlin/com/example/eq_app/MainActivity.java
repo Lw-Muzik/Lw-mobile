@@ -19,10 +19,10 @@ import java.util.Map;
 import io.flutter.embedding.engine.FlutterEngine;
 import io.flutter.plugin.common.MethodChannel;
 
-class MainActivity extends AudioServiceActivity {
-//    static {
-//       System.loadLibrary("eq_app");
-//    }
+public class MainActivity extends AudioServiceActivity {
+    static {
+       System.loadLibrary("eq_app");
+    }
 
   private static final String CHANNEL = "eq_app";
 

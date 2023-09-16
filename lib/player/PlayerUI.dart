@@ -62,6 +62,8 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
       // appBar: kAppBar,
       body: Consumer<AppController>(
         builder: (context, controller, child) {
+          final PageController _pageController =
+              PageController(initialPage: controller.songId);
           if (controller.songId >= controller.songs.length) {
             ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
               behavior: SnackBarBehavior.floating,
@@ -103,22 +105,23 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
                                 SizedBox(
                                   width: MediaQuery.of(context).size.height,
                                   child: PageView.builder(
-                                    controller: context
-                                        .read<AppController>()
-                                        .pageController,
+                                    controller: _pageController,
                                     // padEnds: false,
                                     itemCount: controller.songs.length,
                                     onPageChanged: (page) {
-                                      if (context
-                                          .read<AppController>()
-                                          .pageController
-                                          .hasClients) {
+                                      if (_pageController.hasClients) {
                                         if (page == controller.songId) {
                                           int x = page + 1;
-                                          controller.songId = x;
-                                          controller.audioPlayer
-                                              .setUrl(controller.songs[x].data);
-                                          controller.audioPlayer.play();
+                                          if (x >= controller.songs.length) {
+                                            x = 0;
+                                          } else {
+                                            controller.songId = x;
+                                            controller.audioPlayer.setUrl(
+                                                controller
+                                                    .songs[controller.songId]
+                                                    .data);
+                                            controller.audioPlayer.play();
+                                          }
                                         } else if (page > controller.songId) {
                                           controller.next();
                                         } else if (page < controller.songId) {

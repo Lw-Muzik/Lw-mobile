@@ -1,0 +1,7 @@
+[
+{
+  "directory": "/Users/malticard/Lw/eq_app/android/app/.cxx/RelWithDebInfo/6i6w3o14/armeabi-v7a",
+  "command": "/Users/malticard/Library/Android/sdk/ndk/23.1.7779620/toolchains/llvm/prebuilt/darwin-x86_64/bin/clang++ --target=armv7-none-linux-androideabi22 --sysroot=/Users/malticard/Library/Android/sdk/ndk/23.1.7779620/toolchains/llvm/prebuilt/darwin-x86_64/sysroot -Deq_app_EXPORTS -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D_FORTIFY_SOURCE=2 -march=armv7-a -mthumb -Wformat -Werror=format-security -fexceptions -frtti -stdlib=libc++ -O2 -g -DNDEBUG -fPIC -o CMakeFiles/eq_app.dir/eq_app.cpp.o -c /Users/malticard/Lw/eq_app/android/app/src/main/cpp/eq_app.cpp",
+  "file": "/Users/malticard/Lw/eq_app/android/app/src/main/cpp/eq_app.cpp"
+}
+]
