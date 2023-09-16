@@ -1,14 +1,17 @@
 package com.example.eq_app;
 
+import android.media.AudioManager;
 import android.media.audiofx.PresetReverb;
+import android.util.Log;
 
 public class ReverbEngine {
     private static PresetReverb reverb;
+    private static String TAG = "ReverbEngine";
 
     public static void initPresetReverb(int sessionId){
         if(reverb == null){
             try{
-                reverb = new PresetReverb(Integer.MAX_VALUE, sessionId);
+                reverb = new PresetReverb(Integer.MAX_VALUE, AudioManager.AUDIO_SESSION_ID_GENERATE);
             }catch (Exception ex){
                 ex.printStackTrace();
             }
@@ -23,26 +26,34 @@ public class ReverbEngine {
     public static void setPreset(int preset){
         if(reverb != null){
             try{
-                switch(preset){
+                ;
+                switch((short) preset){
                     case PresetReverb.PRESET_SMALLROOM:
+                        Log.d(TAG, "setPreset: small room");
                         reverb.setPreset(PresetReverb.PRESET_SMALLROOM);
                         break;
                     case PresetReverb.PRESET_LARGEHALL:
+                        Log.d(TAG, "setPreset: large hall");
                         reverb.setPreset(PresetReverb.PRESET_LARGEHALL);
                         break;
                         case PresetReverb.PRESET_LARGEROOM:
+                        Log.d(TAG, "setPreset: large room");
                         reverb.setPreset(PresetReverb.PRESET_LARGEROOM);
                         break;
                     case PresetReverb.PRESET_MEDIUMROOM:
+                        Log.d(TAG, "setPreset: medium room");
                         reverb.setPreset(PresetReverb.PRESET_MEDIUMROOM);
                         break;
                     case PresetReverb.PRESET_MEDIUMHALL:
+                        Log.d(TAG, "setPreset: medium hall");
                         reverb.setPreset(PresetReverb.PRESET_MEDIUMHALL);
                         break;
                     case PresetReverb.PRESET_PLATE:
+                        Log.d(TAG, "setPreset: plate");
                         reverb.setPreset(PresetReverb.PRESET_PLATE);
                         break;
                     default:
+                        Log.d(TAG, "setPreset: none");
                         reverb.setPreset(PresetReverb.PRESET_NONE);
                         break;
                 }
@@ -50,6 +61,7 @@ public class ReverbEngine {
                 ex.printStackTrace();
             }
         }
+
 
     }
     public static short getPreset(){

@@ -1,5 +1,6 @@
 package com.example.eq_app;
 
+import android.media.AudioManager;
 import android.media.audiofx.Visualizer;
 
 
@@ -18,7 +19,7 @@ public class AudioVisualizer {
 
     public void activate(Visualizer.OnDataCaptureListener listener, int audioSessionId) {
         if (visualizer == null) {
-            visualizer = new Visualizer(audioSessionId);
+            visualizer = new Visualizer(AudioManager.AUDIO_SESSION_ID_GENERATE);
             visualizer.setCaptureSize(Visualizer.getCaptureSizeRange()[1]);
             visualizer.setDataCaptureListener(
                 listener,

@@ -1,5 +1,6 @@
 package com.example.eq_app;
 
+import android.media.AudioManager;
 import android.media.audiofx.Virtualizer;
 
 public class VirtualizedControl {
@@ -7,7 +8,7 @@ public class VirtualizedControl {
     private static final int m = Integer.MAX_VALUE;
     static void initVirtualizer(int sessionId) {
         if(virtualizer == null){
-            virtualizer = new Virtualizer(m, sessionId);
+            virtualizer = new Virtualizer(m, AudioManager.AUDIO_SESSION_ID_GENERATE);
         }
     }
 

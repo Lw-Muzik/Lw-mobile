@@ -1,5 +1,6 @@
 package com.example.eq_app;
 
+import android.media.AudioManager;
 import android.media.audiofx.DynamicsProcessing;
 import android.os.Build;
 import android.util.Log;
@@ -121,7 +122,7 @@ public class DSPEngine {
     public static void initDSPEngine() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             if(dspEngine == null){
-                dspEngine = new DynamicsProcessing(priority,0, engineConfig);
+                dspEngine = new DynamicsProcessing(priority, AudioManager.AUDIO_SESSION_ID_GENERATE, engineConfig);
                 builder.setPreferredFrameDuration(10.0f);
 
                 dspEq = new DynamicsProcessing.Eq(true, true, bandCount);

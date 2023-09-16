@@ -1,7 +1,11 @@
 package com.example.eq_app;
 
+import android.media.AudioManager;
 import android.media.audiofx.Equalizer;
 
+
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 
 import java.util.ArrayList;
 
@@ -11,7 +15,7 @@ public class CustomEq {
 
 	public static void init(int sessionId) {
 		if(equalizer == null){
-			equalizer = new Equalizer(m,0);
+			equalizer = new Equalizer(m, AudioManager.AUDIO_SESSION_ID_GENERATE);
 		}
 	}
 
@@ -36,12 +40,14 @@ public class CustomEq {
 		if (equalizer != null)
 			equalizer.setProperties(new Equalizer.Settings("Equalizer;curPreset=-1;numBands="+bands+";"+bLevel));
 	}
+	@Nullable
 	public static String getSettings() {
 		if (equalizer != null)
 			return equalizer.getProperties().toString();
 		return null;
 	}
 
+	@NonNull
 	public static ArrayList<Integer> getBandLevelRange() {
 		ArrayList<Integer> bandLevels = new ArrayList<>();
 		if(equalizer != null){
@@ -66,6 +72,7 @@ public class CustomEq {
 
 	}
 
+	@NonNull
 	public static ArrayList<Integer> getCenterBandFreqs() {
 		ArrayList<Integer> bands = new ArrayList<>();
 		if(equalizer != null){
@@ -79,6 +86,7 @@ public class CustomEq {
 		return bands;
 	}
 
+	@NonNull
 	public static ArrayList<String> getPresetNames() {
 		ArrayList<String> presets = new ArrayList<>();
 		if(equalizer != null){

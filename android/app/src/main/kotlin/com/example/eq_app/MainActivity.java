@@ -10,17 +10,22 @@ import android.os.Build;
 
 import androidx.annotation.NonNull;
 
+import com.ryanheise.audioservice.AudioServiceActivity;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
-import io.flutter.embedding.android.FlutterActivity;
 import io.flutter.embedding.engine.FlutterEngine;
 import io.flutter.plugin.common.MethodChannel;
 
-public class MainActivity extends FlutterActivity {
+class MainActivity extends AudioServiceActivity {
+//    static {
+//       System.loadLibrary("eq_app");
+//    }
 
   private static final String CHANNEL = "eq_app";
+
   private final AudioVisualizer visualizer =  AudioVisualizer.instance;
   private MethodChannel visualizerChannel; // Define the MethodChannel here
 
@@ -81,8 +86,7 @@ public class MainActivity extends FlutterActivity {
 
                 case "init":
                     int sessionId = call.argument("sessionId");
-    //                Intent serviceIntent = new Intent(this,EngineService.class);
-    //   startService(serviceIntent);
+    
                     CustomEq.init(sessionId);
                     break;
                     
@@ -98,6 +102,7 @@ public class MainActivity extends FlutterActivity {
                     String settings = CustomEq.getSettings();
                     result.success(settings);
                 break;
+                
                 case "getBandLevel":
                     int _b = call.argument("_band");
                     short _bb = (short)_b;
