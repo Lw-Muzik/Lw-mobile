@@ -1,5 +1,5 @@
+import 'package:eq_app/Global/index.dart';
 import 'package:eq_app/Routes/routes.dart';
-import 'package:eq_app/widgets/Body.dart';
 import 'package:flutter/material.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:provider/provider.dart';
@@ -40,14 +40,12 @@ class SearchPage extends SearchDelegate<SongModel> {
         itemCount: songs.length,
         itemBuilder: (context, i) => ListTile(
           onTap: () {
-            controller.songId = (controller.songs
+            int songIndex = (controller.songs
                 .indexWhere((result) => result.title == songs[i].title));
+            controller.songId = songIndex;
+            loadAudioSource(
+                controller.audioHandler, controller.songs[songIndex]);
 
-            controller.audioPlayer.setUrl(controller
-                .songs[controller.songs.indexWhere((result) =>
-                    result.title.toLowerCase() == songs[i].title.toLowerCase())]
-                .data);
-            controller.audioPlayer.play();
             Routes.routeTo(const Player(), context);
           },
           leading: ArtworkWidget(
@@ -85,14 +83,13 @@ class SearchPage extends SearchDelegate<SongModel> {
             songs[i].title,
           ),
           onTap: () {
-            controller.songId = (controller.songs.indexWhere((result) =>
-                result.title.toLowerCase() == songs[i].title.toLowerCase()));
-
-            controller.audioPlayer.setUrl(controller
-                .songs[controller.songs
-                    .indexWhere((result) => result.title == songs[i].title)]
-                .data);
-            controller.audioPlayer.play();
+            // controller.songId = (controller.songs.indexWhere((result) =>
+            //     result.title.toLowerCase() == songs[i].title.toLowerCase()));
+            int songIndex = (controller.songs
+                .indexWhere((result) => result.title == songs[i].title));
+            controller.songId = songIndex;
+            loadAudioSource(
+                controller.audioHandler, controller.songs[songIndex]);
             Routes.routeTo(const Player(), context);
           },
           subtitle: Text(

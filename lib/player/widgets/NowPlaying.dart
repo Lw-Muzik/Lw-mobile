@@ -1,3 +1,4 @@
+import 'package:eq_app/Global/index.dart';
 import 'package:eq_app/controllers/AppController.dart';
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
@@ -18,11 +19,11 @@ class _NowPlayingState extends State<NowPlaying> {
   Widget build(BuildContext context) {
     return SizedBox(
       height: MediaQuery.of(context).size.width,
-      child: StreamBuilder<PlayerState>(
-          stream: widget.controller.audioPlayer.playerStateStream,
-          builder: (context, snapshot) {
-            if (snapshot.hasData) {
-              if (snapshot.data!.playing) {
+      child: StreamBuilder(
+          stream: widget.controller.audioHandler.playingStream,
+          builder: (context, service) {
+            if (service.hasData) {
+              if (service.data!) {
                 if (scrollController.hasClients) {
                   scrollController.position.animateTo(
                       widget.controller.songId.toDouble() * 72,
@@ -66,8 +67,9 @@ class _NowPlayingState extends State<NowPlaying> {
                       setState(() {
                         widget.controller.songId = i;
                       });
-                      widget.controller.audioPlayer.setUrl(songs[i].data);
-                      widget.controller.audioPlayer.play();
+                      loadAudioSource(widget.controller.audioHandler, songs[i]);
+                      // widget.controller.audioPlayer.setUrl(songs[i].data);
+                      // widget.controller.audioPlayer.play();
                     },
                     title: Text(
                       widget.controller.songs[i].title,

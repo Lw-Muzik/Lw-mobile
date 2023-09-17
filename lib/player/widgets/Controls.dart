@@ -8,7 +8,7 @@ import 'package:flutter/material.dart';
 
 class Controls extends StatefulWidget {
   final AppController controller;
-  Controls({super.key, required this.controller});
+  const Controls({super.key, required this.controller});
 
   @override
   State<Controls> createState() => _ControlsState();
@@ -46,7 +46,7 @@ class _ControlsState extends State<Controls> {
                 //   ),
                 // ),
                 StreamBuilder<LoopMode>(
-                  stream: widget.controller.audioPlayer.loopModeStream,
+                  stream: widget.controller.audioHandler.loopModeStream,
                   builder: (context, snapshot) {
                     final loopMode = snapshot.data ?? LoopMode.off;
                     const icons = [
@@ -63,7 +63,7 @@ class _ControlsState extends State<Controls> {
                     return IconButton(
                       icon: icons[index],
                       onPressed: () {
-                        widget.controller.audioPlayer.setLoopMode(cycleModes[
+                        widget.controller.audioHandler.setLoopMode(cycleModes[
                             (cycleModes.indexOf(loopMode) + 1) %
                                 cycleModes.length]);
                       },
@@ -75,7 +75,7 @@ class _ControlsState extends State<Controls> {
                   onPressed: () => widget.controller.prev(),
                   icon: const Icon(Icons.skip_previous, color: Colors.white),
                 ),
-                ControlButtons(widget.controller.audioPlayer),
+                ControlButtons(widget.controller.audioHandler),
                 IconButton(
                   iconSize: 32,
                   onPressed: () => widget.controller.next(),
@@ -83,7 +83,7 @@ class _ControlsState extends State<Controls> {
                 ),
                 StreamBuilder<bool>(
                   stream:
-                      widget.controller.audioPlayer.shuffleModeEnabledStream,
+                      widget.controller.audioHandler.shuffleModeEnabledStream,
                   builder: (context, snapshot) {
                     final shuffleModeEnabled = snapshot.data ?? false;
                     return IconButton(
@@ -98,7 +98,7 @@ class _ControlsState extends State<Controls> {
                         if (enable) {
                           widget.controller.shuffleSongs();
                         } else {}
-                        await widget.controller.audioPlayer
+                        widget.controller.audioHandler
                             .setShuffleModeEnabled(enable);
                       },
                     );

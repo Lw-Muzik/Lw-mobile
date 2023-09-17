@@ -93,37 +93,37 @@ class _PlaylistSongsState extends State<PlaylistSongs> {
         ];
       },
       body: Consumer<AppController>(builder: (context, controller, child) {
-        return Scaffold(
-          backgroundColor: controller.isFancy
-              ? Colors.transparent
-              : Theme.of(context).scaffoldBackgroundColor,
-          body: Stack(
-            children: [
-              StreamBuilder(
-                stream: Stream.fromFuture(OnAudioQuery().queryAudiosFrom(
-                    AudiosFromType.PLAYLIST, widget.playlist_id)),
-                builder: (context, snap) {
-                  return snap.hasData
-                      ? PlaylistSongLists(
-                          songs: snap.data ?? [],
-                          playlist: widget.playlist_id,
-                        )
-                      : const Center(
-                          child: CircularProgressIndicator.adaptive());
-                },
-              ),
-              if (controller.audioPlayer.playing)
-                Positioned(
-                  bottom: 0,
-                  right: 3,
-                  left: 3,
-                  child: BottomPlayer(
-                    controller: controller,
-                  ),
+        return StreamBuilder(
+            stream: controller.audioHandler.playingStream,
+            builder: (context, service) {
+              return Scaffold(
+                backgroundColor: controller.isFancy
+                    ? Colors.transparent
+                    : Theme.of(context).scaffoldBackgroundColor,
+                body: Stack(
+                  children: [
+                    StreamBuilder(
+                      stream: Stream.fromFuture(OnAudioQuery().queryAudiosFrom(
+                          AudiosFromType.PLAYLIST, widget.playlist_id)),
+                      builder: (context, snap) {
+                        return snap.hasData
+                            ? PlaylistSongLists(
+                                songs: snap.data ?? [],
+                                playlist: widget.playlist_id,
+                              )
+                            : const Center(
+                                child: CircularProgressIndicator.adaptive());
+                      },
+                    ),
+                  ],
                 ),
-            ],
-          ),
-        );
+                bottomNavigationBar: service.data ?? false
+                    ? BottomPlayer(
+                        controller: controller,
+                      )
+                    : null,
+              );
+            });
       }),
     );
   }
@@ -188,14 +188,16 @@ class PlaylistSongLists extends StatelessWidget {
                       if (controller.songs.length != songs.length) {
                         controller.songs = songs;
                       }
-                      controller.songId = (controller.songs.indexWhere(
+                      int songIndex = (controller.songs.indexWhere(
                           (result) => result.title == songs[index].title));
-
-                      controller.audioPlayer.setUrl(controller
-                          .songs[controller.songs.indexWhere(
-                              (result) => result.title == songs[index].title)]
-                          .data);
-                      controller.audioPlayer.play();
+                      controller.songId = songIndex;
+                      loadAudioSource(
+                          controller.audioHandler, controller.songs[songIndex]);
+                      // controller.audioPlayer.setUrl(controller
+                      //     .songs[controller.songs.indexWhere(
+                      //         (result) => result.title == songs[index].title)]
+                      //     .data);
+                      // controller.audioPlayer.play();
                       // controller.songs = songs;
                       // controller.songId = index;
 

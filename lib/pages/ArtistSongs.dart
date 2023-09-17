@@ -117,27 +117,31 @@ class _ArtistSongsState extends State<ArtistSongs> {
           ];
         },
         body: Consumer<AppController>(builder: (context, controller, child) {
-          return Scaffold(
-            body: FutureBuilder(
-              future: controller.audioQuery.queryAudiosFrom(
-                  AudiosFromType.ARTIST_ID, widget.artistId ?? 0,
-                  ignoreCase: true),
-              builder: (context, snapshot) {
-                return snapshot.hasData
-                    ? SongLists(songs: snapshot.data ?? [])
-                    : const Center(
-                        child: CircularProgressIndicator.adaptive(),
-                      );
-              },
-            ),
-            floatingActionButtonLocation:
-                FloatingActionButtonLocation.centerDocked,
-            bottomNavigationBar: controller.audioPlayer.playing
-                ? BottomPlayer(
-                    controller: controller,
-                  )
-                : null,
-          );
+          return StreamBuilder(
+              stream: controller.audioHandler.playingStream,
+              builder: (context, service) {
+                return Scaffold(
+                  body: FutureBuilder(
+                    future: controller.audioQuery.queryAudiosFrom(
+                        AudiosFromType.ARTIST_ID, widget.artistId ?? 0,
+                        ignoreCase: true),
+                    builder: (context, snapshot) {
+                      return snapshot.hasData
+                          ? SongLists(songs: snapshot.data ?? [])
+                          : const Center(
+                              child: CircularProgressIndicator.adaptive(),
+                            );
+                    },
+                  ),
+                  floatingActionButtonLocation:
+                      FloatingActionButtonLocation.centerDocked,
+                  bottomNavigationBar: service.data ?? false
+                      ? BottomPlayer(
+                          controller: controller,
+                        )
+                      : null,
+                );
+              });
         }),
       ),
     );
@@ -201,21 +205,14 @@ class SongLists extends StatelessWidget {
                       if (controller.songs.length != songs.length) {
                         controller.songs = songs;
                       }
-                      controller.songId = (controller.songs.indexWhere(
-                          (result) => result.title == songs[index].title));
-
-                      controller.audioPlayer.setUrl(controller
-                          .songs[controller.songs.indexWhere(
-                              (result) => result.title == songs[index].title)]
-                          .data);
-                      controller.audioPlayer.play();
-                      // controller.songs = songs;
-                      // controller.songId = index;
-
-                      // controller.audioPlayer.setUrl(songs[index].data);
+                      int songIndex = controller.songs.indexWhere(
+                          (result) => result.title == songs[index].title);
+                      controller.songId = songIndex;
+                      loadAudioSource(
+                          controller.audioHandler, controller.songs[songIndex]);
+                      // controller.audioPlayer.setAudioSource(
+                      //     AudioSource.uri(Uri.parse(songs[songIndex].data)));
                       // controller.audioPlayer.play();
-                      // Channel.setSessionId(
-                      //     controller.audioPlayer.androidAudioSessionId ?? 0);
                     },
                     // This Widget will query/load image.
                     // You can use/create your own widget/method using [queryArtwork].

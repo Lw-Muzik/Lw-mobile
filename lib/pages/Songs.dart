@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:provider/provider.dart';
 
-import '../Helpers/index.dart';
 import '../controllers/AppController.dart';
 
 class AllSongs extends StatefulWidget {
@@ -61,18 +60,18 @@ class _AllSongsState extends State<AllSongs> {
         if (item.data!.isEmpty) {
           return const Text("Nothing found!");
         }
-        controller.audioPlayer.playerStateStream.listen((event) {
-          if (event.playing) {
-            if (scrollController.hasClients) {
-              // print(scrollController!.offset);
-              // scrollController.animateTo(
-              //   controller.songId.toDouble() * 56,
-              //   duration: const Duration(milliseconds: 900),
-              //   curve: Curves.decelerate,
-              // );
-            }
-          }
-        });
+        // controller.au.playerStateStream.listen((event) {
+        //   if (event.playing) {
+        //     if (scrollController.hasClients) {
+        //       // print(scrollController!.offset);
+        //       // scrollController.animateTo(
+        //       //   controller.songId.toDouble() * 56,
+        //       //   duration: const Duration(milliseconds: 900),
+        //       //   curve: Curves.decelerate,
+        //       // );
+        //     }
+        //   }
+        // });
         // You can use [item.data!] direct or you can create a:
         // List<SongModel> songs = item.data!;
         return Scrollbar(
@@ -113,11 +112,9 @@ class _AllSongsState extends State<AllSongs> {
                     if (controller.songs.length < item.data!.length) {
                       controller.songs = item.data!;
                     }
+                    loadAudioSource(controller.audioHandler, item.data![index]);
 
-                    controller.audioPlayer.setUrl(item.data![index].data);
-                    controller.audioPlayer.play();
-                    Channel.setSessionId(
-                        controller.audioPlayer.androidAudioSessionId ?? 0);
+                    Channel.setSessionId(0);
                   },
                   // This Widget will query/load image.
                   // You can use/create your own widget/method using [queryArtwork].

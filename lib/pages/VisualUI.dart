@@ -53,7 +53,7 @@ class _VisualUIState extends State<VisualUI> {
                             child: const Center(),
                           );
                         },
-                        id: controller.audioPlayer.androidAudioSessionId ?? 0,
+                        id: 0,
                       )
                     : Container(),
               ],

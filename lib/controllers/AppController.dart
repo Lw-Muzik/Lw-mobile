@@ -1,10 +1,15 @@
 import 'dart:math' as math;
 import 'dart:developer';
 
+import 'package:audio_service/audio_service.dart';
+import 'package:eq_app/Global/index.dart';
+import 'package:eq_app/main.dart';
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../Helpers/AudioHandler.dart';
 
 class AppController extends ChangeNotifier {
   List<int> _bandValues = [0, 0, 0, 0, 0];
@@ -12,9 +17,7 @@ class AppController extends ChangeNotifier {
   String _selectedTheme = "light";
   bool _isDark = false;
   bool _playerVisual = false;
-  // Player controller
-  final PageController _pageController = PageController();
-  PageController get pageController => _pageController;
+
   //
   bool _enableEffects = false;
   bool get enableEffects {
@@ -59,42 +62,22 @@ class AppController extends ChangeNotifier {
   }
 
   int get selectSpeaker {
-    //   SharedPreferences.getInstance().asStream().listen((event) {
-    //   _enableDSP = event.getBool("enableDSP") ?? false;
-    //   notifyListeners();
-    // });
     return _selectSpeaker;
   }
 
   double get dspVolume {
-    // SharedPreferences.getInstance().asStream().listen((event) {
-    //   _dspVolume = event.getDouble("dspVolume") ?? -6.0;
-    //   notifyListeners();
-    // });
     return _dspVolume;
   }
 
   double get dspXTreble {
-    // SharedPreferences.getInstance().asStream().listen((event) {
-    //   _dspXTreble = event.getDouble("xTreble") ?? 3.3;
-    //   notifyListeners();
-    // });
     return _dspXTreble;
   }
 
   double get dspPowerBass {
-    // SharedPreferences.getInstance().asStream().listen((event) {
-    //   _dspPowerBass = event.getDouble("powerBass") ?? 8.0;
-    //   notifyListeners();
-    // });
     return _dspPowerBass;
   }
 
   double get dspXBass {
-    // SharedPreferences.getInstance().asStream().listen((event) {
-    //   _dspXBass = event.getDouble("xBass") ?? 11.0;
-    //   notifyListeners();
-    // });
     return _dspXBass;
   }
 
@@ -103,11 +86,6 @@ class AppController extends ChangeNotifier {
   }
 
   double get dspOutGain {
-    // SharedPreferences.getInstance().asStream().listen((event) {
-    //   _dspOutGain = event.getDouble("powerGain") ?? 3.0;
-
-    //   notifyListeners();
-    // });
     return _dspOutGain;
   }
 
@@ -121,6 +99,9 @@ class AppController extends ChangeNotifier {
   }
 
   set selectSpeaker(int dsp) {
+    SharedPreferences.getInstance().asStream().listen((event) {
+      event.setInt("selectedSpeaker", dsp);
+    });
     _selectSpeaker = dsp;
     notifyListeners();
   }
@@ -203,38 +184,26 @@ class AppController extends ChangeNotifier {
   // Main method.
   final OnAudioQuery _audioQuery = OnAudioQuery();
   double _opacity = 0.0;
-  double _blur = 10;
+  double _blur = 40;
+  final AudioPlayer _audioHandler = AudioPlayer();
+  AudioPlayer get audioHandler => _audioHandler;
 
-  final AudioPlayer _audioPlayer = AudioPlayer();
   List<SongModel> _songs = [];
   List<SongModel> _shuffledSongs = [];
   AppController() {
-    _audioPlayer.playerStateStream.listen((event) {
-      if (event.processingState == ProcessingState.completed) {
+    _audioHandler.processingStateStream.listen((event) {
+      if (event == ProcessingState.completed) {
         if (songId >= songs.length - 1) {
-          _audioPlayer.stop();
+          _audioHandler.stop();
         } else {
           songId += 1;
-          // if (pageController.hasClients) {
-          //   pageController.animateToPage(
-          //     songId,
-          //     duration: const Duration(milliseconds: 1100),
-          //     curve: Curves.decelerate,
-          //   );
           artWorkId = _songs[songId].id;
-          _audioPlayer.setUrl(_songs[songId].data);
-          _audioPlayer.play();
-          // }
+          loadAudioSource(audioHandler, _songs[songId]);
         }
       }
     });
   }
   bool get isDark {
-    // SharedPreferences.getInstance().then((value) {
-    //   bool k = value.getBool("isDark") ?? false;
-    //   _isDark = k;
-    //   notifyListeners();
-    // });
     return _isDark;
   }
 
@@ -247,42 +216,22 @@ class AppController extends ChangeNotifier {
   bool get isShuffled => _isShuffled;
 
   int get selectedPreset {
-    // SharedPreferences.getInstance().then((value) {
-    //   int p = value.getInt("selectedPreset") ?? 0;
-    //   _selectedPreset = p;
-    //   notifyListeners();
-    // });
     return _selectedPreset;
   }
 
   bool get playerVisual => _playerVisual;
   double get bgQuality => _bgQuality;
   bool get isFancy {
-    // SharedPreferences.getInstance().then((value) {
-    //   bool f = value.getBool("isFancy") ?? false;
-    //   _isFancy = f;
-    //   notifyListeners();
-    // });
     return _isFancy;
   }
 
   String get selectedTheme {
-    // SharedPreferences.getInstance().then((value) {
-    //   String isD = value.getString("selectedTheme") ?? "light";
-    //   _selectedTheme = isD;
-    //   notifyListeners();
-    // });
     return _selectedTheme;
   }
 
   bool get isVisualInBackground => _isVisualInBackground;
 
   int get songId {
-    // SharedPreferences.getInstance().then((value) {
-    //   int sId = value.getInt("songId") ?? 0;
-    //   _songId = sId;
-    //   notifyListeners();
-    // });
     return _songId;
   }
 
@@ -301,7 +250,7 @@ class AppController extends ChangeNotifier {
   }
 
   List<SongModel> get shuffledSongs => _shuffledSongs;
-  AudioPlayer get audioPlayer => _audioPlayer;
+
   OnAudioQuery get audioQuery => _audioQuery;
 
   set visuals(bool v) {
@@ -348,9 +297,6 @@ class AppController extends ChangeNotifier {
   }
 
   set isFancy(bool fancy) {
-    // SharedPreferences.getInstance().then((value) {
-    //   value.setBool("isFancy", fancy);
-    // });
     _isFancy = fancy;
     notifyListeners();
   }
@@ -389,15 +335,10 @@ class AppController extends ChangeNotifier {
       sample[j] = temp;
     }
     songId = 0;
-    _audioPlayer.setUrl(sample[0].data);
-    _audioPlayer.play();
+    loadAudioSource(audioHandler, sample[0]);
   }
 
   set songId(int id) {
-    // SharedPreferences.getInstance().then((value) {
-    //   value.setInt("songId", id);
-    //   notifyListeners();
-    // });
     _songId = id;
     notifyListeners();
   }
@@ -405,26 +346,24 @@ class AppController extends ChangeNotifier {
   void next() {
     if (songId >= songs.length) {
       songId = 0;
-      _audioPlayer.stop();
+      _audioHandler.stop();
     } else {
       songId += 1;
 
       artWorkId = _songs[songId].id;
-      _audioPlayer.setUrl(_songs[songId].data);
-      _audioPlayer.play();
+      loadAudioSource(audioHandler, songs[songId]);
     }
   }
 
   void prev() {
     if (songId == 0) {
       songId = 0;
-      _audioPlayer.stop();
+      _audioHandler.stop();
     } else {
       songId -= 1;
 
       artWorkId = _songs[songId].id;
-      _audioPlayer.setUrl(_songs[songId].data);
-      _audioPlayer.play();
+      loadAudioSource(audioHandler, songs[songId]);
     }
   }
 }

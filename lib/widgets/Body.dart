@@ -75,27 +75,20 @@ class Body extends StatelessWidget {
               ),
             ),
           if (controller.isVisualInBackground)
-            StreamBuilder(
-                stream: controller.audioPlayer.androidAudioSessionIdStream,
-                builder: (context, session) {
-                  return session.hasData
-                      ? VisualizerWidget(
-                          builder: (context, fft, rate) {
-                            return CustomPaint(
-                              painter: CircularBarVisualizer(
-                                  color: Theme.of(context)
-                                      .primaryColorLight
-                                      .withOpacity(0.1),
-                                  waveData: fft,
-                                  width: MediaQuery.of(context).size.width,
-                                  height: MediaQuery.of(context).size.height),
-                              child: const Center(),
-                            );
-                          },
-                          id: session.data ?? 0,
-                        )
-                      : Container();
-                }),
+            VisualizerWidget(
+              builder: (context, fft, rate) {
+                return CustomPaint(
+                  painter: CircularBarVisualizer(
+                      color:
+                          Theme.of(context).primaryColorLight.withOpacity(0.1),
+                      waveData: fft,
+                      width: MediaQuery.of(context).size.width,
+                      height: MediaQuery.of(context).size.height),
+                  child: const Center(),
+                );
+              },
+              id: 0,
+            ),
           Container(
             decoration: const BoxDecoration(
               backgroundBlendMode: BlendMode.colorBurn,

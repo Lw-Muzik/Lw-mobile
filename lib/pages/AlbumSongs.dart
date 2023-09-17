@@ -2,6 +2,7 @@
 
 import 'dart:ui';
 
+import 'package:audio_service/audio_service.dart';
 import 'package:eq_app/Routes/routes.dart';
 import 'package:eq_app/controllers/AppController.dart';
 import 'package:eq_app/extensions/index.dart';
@@ -96,27 +97,31 @@ class _AlbumSongsState extends State<AlbumSongs> {
           ];
         },
         body: Consumer<AppController>(builder: (context, controller, child) {
-          return Scaffold(
-            // backgroundColor: Colors.transparent,
-            body: FutureBuilder(
-              future: controller.audioQuery.queryAudiosFrom(
-                AudiosFromType.ALBUM_ID,
-                widget.albumId!,
-              ),
-              builder: (context, snapshot) {
-                return snapshot.hasData
-                    ? SongLists(songs: snapshot.data ?? [])
-                    : const Center(
-                        child: CircularProgressIndicator.adaptive(),
-                      );
-              },
-            ),
-            bottomNavigationBar: controller.audioPlayer.playing
-                ? BottomPlayer(
-                    controller: controller,
-                  )
-                : null,
-          );
+          return StreamBuilder(
+              stream: controller.audioHandler.playingStream,
+              builder: (context, service) {
+                return Scaffold(
+                  // backgroundColor: Colors.transparent,
+                  body: FutureBuilder(
+                    future: controller.audioQuery.queryAudiosFrom(
+                      AudiosFromType.ALBUM_ID,
+                      widget.albumId!,
+                    ),
+                    builder: (context, snapshot) {
+                      return snapshot.hasData
+                          ? SongLists(songs: snapshot.data ?? [])
+                          : const Center(
+                              child: CircularProgressIndicator.adaptive(),
+                            );
+                    },
+                  ),
+                  bottomNavigationBar: service.data ?? false
+                      ? BottomPlayer(
+                          controller: controller,
+                        )
+                      : null,
+                );
+              });
         }),
       ),
     );
@@ -165,15 +170,16 @@ class _SongListsState extends State<SongLists> {
                       if (widget.songs.length > controller.songs.length) {
                         controller.songs = widget.songs;
                       }
-                      controller.songId = (controller.songs.indexWhere(
-                          (result) =>
-                              result.title == widget.songs[index].title));
+                      int songIndex = controller.songs.indexWhere((result) =>
+                          result.title == widget.songs[index].title);
+                      controller.songId = songIndex;
 
-                      controller.audioPlayer.setUrl(controller
-                          .songs[controller.songs.indexWhere((result) =>
-                              result.title == widget.songs[index].title)]
-                          .data);
-                      controller.audioPlayer.play();
+                      loadAudioSource(
+                          controller.audioHandler, controller.songs[songIndex]);
+                      // controller.audioPlayer.setUrl(controller
+                      //     .songs[]
+                      //     .data);
+                      // controller.audioPlayer.play();
                       // controller.songs = songs;
                       // controller.songId = index;
 

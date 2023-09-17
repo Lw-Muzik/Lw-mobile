@@ -96,28 +96,33 @@ class _GenreSongsState extends State<GenreSongs> {
           ];
         },
         body: Consumer<AppController>(builder: (context, controller, child) {
-          return Scaffold(
-            backgroundColor:
-                Theme.of(context).scaffoldBackgroundColor.withOpacity(0.8),
-            body: FutureBuilder(
-              future: controller.audioQuery.queryAudiosFrom(
-                AudiosFromType.GENRE_ID,
-                widget.genreId!,
-              ),
-              builder: (context, snapshot) {
-                return snapshot.hasData
-                    ? SongLists(songs: snapshot.data ?? [])
-                    : const Center(
-                        child: CircularProgressIndicator.adaptive(),
-                      );
-              },
-            ),
-            bottomNavigationBar: controller.audioPlayer.playing
-                ? BottomPlayer(
-                    controller: controller,
-                  )
-                : null,
-          );
+          return StreamBuilder(
+              stream: controller.audioHandler.playingStream,
+              builder: (context, service) {
+                return Scaffold(
+                  backgroundColor: Theme.of(context)
+                      .scaffoldBackgroundColor
+                      .withOpacity(0.8),
+                  body: FutureBuilder(
+                    future: controller.audioQuery.queryAudiosFrom(
+                      AudiosFromType.GENRE_ID,
+                      widget.genreId!,
+                    ),
+                    builder: (context, snapshot) {
+                      return snapshot.hasData
+                          ? SongLists(songs: snapshot.data ?? [])
+                          : const Center(
+                              child: CircularProgressIndicator.adaptive(),
+                            );
+                    },
+                  ),
+                  bottomNavigationBar: service.data ?? false
+                      ? BottomPlayer(
+                          controller: controller,
+                        )
+                      : null,
+                );
+              });
         }),
       ),
     );
@@ -165,15 +170,16 @@ class _SongListsState extends State<SongLists> {
                       if (widget.songs.length < controller.songs.length) {
                         controller.songs = widget.songs;
                       }
-                      controller.songId = (controller.songs.indexWhere(
-                          (result) =>
-                              result.title == widget.songs[index].title));
-
-                      controller.audioPlayer.setUrl(controller
-                          .songs[controller.songs.indexWhere((result) =>
-                              result.title == widget.songs[index].title)]
-                          .data);
-                      controller.audioPlayer.play();
+                      int songIndex = (controller.songs.indexWhere((result) =>
+                          result.title == widget.songs[index].title));
+                      controller.songId = songIndex;
+                      loadAudioSource(
+                          controller.audioHandler, controller.songs[songIndex]);
+                      // controller.audioPlayer.setUrl(controller
+                      //     .songs[controller.songs.indexWhere((result) =>
+                      //         result.title == widget.songs[index].title)]
+                      //     .data);
+                      // controller.audioPlayer.play();
                     },
                     // This Widget will query/load image.
                     // You can use/create your own widget/method using [queryArtwork].

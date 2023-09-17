@@ -1,8 +1,10 @@
 // ignore_for_file: constant_identifier_names
 
+import 'dart:convert';
 import 'dart:developer';
 
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 enum PresetReverb {
   SMALL_ROOM,
@@ -322,6 +324,9 @@ class Channel {
       List<dynamic> speakers, List<double> levels) async {
     Map<String, dynamic> dsps = {"speakers": speakers, "levels": levels};
     await channel.invokeMethod("setDSPSpeakers", {"spks": dsps});
+    SharedPreferences.getInstance().asStream().listen((event) {
+      event.setString("dsp_speaker", json.encode(dsps));
+    });
   }
 
   static void disposeDSP() async {

@@ -93,6 +93,16 @@ class SeekBarState extends State<SeekBar> {
             },
           ),
         ),
+        // Positioned(
+        //   right: 16.0,
+        //   bottom: 0.0,
+        //   child: Text(
+        //       RegExp(r'((^0*[1-9]\d*:)?\d{2}:\d{2})\.\d+$')
+        //               .firstMatch("$_remaining")
+        //               ?.group(1) ??
+        //           '$_remaining',
+        //       style: Theme.of(context).textTheme.bodySmall),
+        // ),
         Positioned(
             right: 0.0,
             left: 0.0,
@@ -113,7 +123,7 @@ class SeekBarState extends State<SeekBar> {
                   ),
                   Text(
                     "-${RegExp(r'((^0*[1-9]\d*:)?\d{2}:\d{2})\.\d+$').firstMatch("$_remaining")?.group(1)}",
-                    style: Theme.of(context).textTheme.bodyText2!.apply(
+                    style: Theme.of(context).textTheme.bodyMedium!.apply(
                           color: Colors.white.withOpacity(0.7),
                         ),
                   ),

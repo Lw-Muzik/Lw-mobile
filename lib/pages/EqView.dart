@@ -23,21 +23,6 @@ class _EqViewState extends State<EqView> {
   @override
   void initState() {
     super.initState();
-    restoreDefaults();
-  }
-
-  void restoreDefaults() {
-    if (mounted) {
-      setState(() {
-        eq = Provider.of<AppController>(context, listen: false).enableDSP;
-      });
-      Channel.enableEq(
-          Provider.of<AppController>(context, listen: false).enableDSP);
-      setState(() {});
-      Channel.enableDSPEngine(
-          Provider.of<AppController>(context, listen: false).enableDSP);
-      setState(() {});
-    }
   }
 
   @override

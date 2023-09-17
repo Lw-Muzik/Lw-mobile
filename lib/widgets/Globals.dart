@@ -1,3 +1,4 @@
+import 'package:audio_service/audio_service.dart';
 import 'package:eq_app/Routes/routes.dart';
 import 'package:eq_app/player/PlayerUI.dart';
 import 'package:flutter/material.dart';
@@ -37,8 +38,8 @@ Widget bottomPlayer(AppController controller, BuildContext context) {
             color: Colors.white,
             icon: const Icon(Icons.skip_previous),
           ),
-          StreamBuilder<bool>(
-              stream: controller.audioPlayer.playingStream,
+          StreamBuilder(
+              stream: controller.audioHandler.playingStream,
               builder: (context, snapshot) {
                 bool? p = snapshot.data;
 
@@ -46,8 +47,8 @@ Widget bottomPlayer(AppController controller, BuildContext context) {
                   color: Colors.white,
                   onPressed: () {
                     p == true
-                        ? controller.audioPlayer.pause()
-                        : controller.audioPlayer.play();
+                        ? controller.audioHandler.pause()
+                        : controller.audioHandler.play();
                   },
                   icon: Icon(p == true ? Icons.pause : Icons.play_arrow),
                 );

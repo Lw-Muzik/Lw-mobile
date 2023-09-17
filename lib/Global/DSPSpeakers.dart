@@ -5,6 +5,7 @@ import 'dart:developer';
 
 import 'package:eq_app/controllers/AppController.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../Helpers/Channel.dart';
 import '/models/DSPSpeakerModel.dart';
@@ -29,9 +30,13 @@ class _DSPSpeakerWidgetState extends State<DSPSpeakerWidget> {
           widget.dspScrollController.offset < 1000
               ? widget.controller.selectSpeaker * 50
               : widget.controller.selectSpeaker * 55,
-          duration: const Duration(milliseconds: 800),
+          duration: const Duration(milliseconds: 900),
           curve: Curves.decelerate);
     }
+    SharedPreferences.getInstance().asStream().listen((event) {
+      context.read<AppController>().selectSpeaker =
+          event.getInt("selectedSpeaker") ?? 0;
+    });
     super.initState();
   }
 

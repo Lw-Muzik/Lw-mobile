@@ -99,24 +99,29 @@ class _FolderSongsState extends State<FolderSongs> {
         ];
       },
       body: Consumer<AppController>(builder: (context, controller, child) {
-        return Scaffold(
-          backgroundColor: controller.isFancy
-              ? Colors.transparent
-              : Theme.of(context).scaffoldBackgroundColor,
-          body: StreamBuilder(
-            stream: Stream.fromFuture(Files.queryFromFolder(widget.path)),
-            builder: (context, snap) {
-              return snap.hasData
-                  ? SongLists(songs: snap.data ?? [])
-                  : const Center(child: CircularProgressIndicator.adaptive());
-            },
-          ),
-          bottomNavigationBar: controller.audioPlayer.playing
-              ? BottomPlayer(
-                  controller: controller,
-                )
-              : null,
-        );
+        return StreamBuilder(
+            stream: controller.audioHandler.playingStream,
+            builder: (context, service) {
+              return Scaffold(
+                backgroundColor: controller.isFancy
+                    ? Colors.transparent
+                    : Theme.of(context).scaffoldBackgroundColor,
+                body: StreamBuilder(
+                  stream: Stream.fromFuture(Files.queryFromFolder(widget.path)),
+                  builder: (context, snap) {
+                    return snap.hasData
+                        ? SongLists(songs: snap.data ?? [])
+                        : const Center(
+                            child: CircularProgressIndicator.adaptive());
+                  },
+                ),
+                bottomNavigationBar: service.data ?? false
+                    ? BottomPlayer(
+                        controller: controller,
+                      )
+                    : null,
+              );
+            });
       }),
     );
   }
