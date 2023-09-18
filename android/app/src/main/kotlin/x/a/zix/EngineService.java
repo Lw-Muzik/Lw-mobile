@@ -1,4 +1,4 @@
-package com.example.eq_app;
+package x.a.zix;
 
 import android.app.Notification;
 import android.app.NotificationChannel;

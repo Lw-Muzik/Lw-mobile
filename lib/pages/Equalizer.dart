@@ -29,7 +29,7 @@ class _EqualizerState extends State<Equalizer> with TickerProviderStateMixin {
       // Channel.setSessionId(0);
     }
 
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 1, vsync: this);
   }
 
   @override
@@ -55,8 +55,8 @@ class _EqualizerState extends State<Equalizer> with TickerProviderStateMixin {
             dividerColor: Colors.transparent,
             tabs: const [
               Tab(text: "Equalizer"),
-              Tab(text: "Audio FX"),
-              Tab(text: "Room Effects"),
+              // Tab(text: "Audio FX"),
+              // Tab(text: "Room Effects"),
             ],
           ),
         ),
@@ -64,7 +64,11 @@ class _EqualizerState extends State<Equalizer> with TickerProviderStateMixin {
           child: TabBarView(
             // physics: const NeverScrollableScrollPhysics(),
             controller: _tabController,
-            children: const [EqView(), AudioFx(), RoomEffects()],
+            children: const [
+              EqView(),
+              // AudioFx(),
+              // RoomEffects(),
+            ],
           ),
         ),
       ),
