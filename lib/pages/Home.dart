@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:developer';
 
 import 'package:eq_app/pages/Playlist.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -40,6 +41,13 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
     _tabController = TabController(length: 6, vsync: this);
     SharedPreferences.getInstance().then((pref) {
       setState(() {
+        Provider.of<AppController>(context, listen: false).enableDSP =
+            pref.getBool("enableDSP") ?? false;
+
+        Channel.enableEq(pref.getBool("enableDSP") ?? false);
+
+        Channel.enableDSPEngine(pref.getBool("enableDSP") ?? false);
+
         context.read<AppController>().dspOutGain =
             pref.getDouble("powerGain") ?? 3.0;
         context.read<AppController>().dspPowerBass =
@@ -63,6 +71,7 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
       Channel.setDSPXBass(pref.getDouble("xBass") ?? 11.0);
       Channel.setOutGain(pref.getDouble("powerGain") ?? 3.0);
     });
+    // showChangeLog();
     fetchSongs();
     restoreDefaults();
     // checkAndRequestPermissions();
@@ -74,6 +83,14 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
       }
     });
   }
+
+  // void showChangeLog() {
+  //   showCupertinoModalPopup(
+  //       context: context,
+  //       builder: (context) {
+  //         return Dialog();
+  //       });
+  // }
 
   void fetchSongs() async {
     if (mounted) {

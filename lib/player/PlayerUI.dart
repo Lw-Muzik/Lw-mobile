@@ -125,8 +125,6 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
                                                 controller.songs[x]);
                                           }
                                         } else if (page > controller.songId) {
-                                          log("Page $page");
-
                                           controller.next();
                                         } else if (page < controller.songId) {
                                           controller.prev();

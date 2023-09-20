@@ -1,10 +1,8 @@
 import 'dart:ui';
 
 import 'package:audio_service/audio_service.dart';
-import 'package:eq_app/Helpers/AudioHandler.dart';
 import 'package:eq_app/Helpers/VisualizerWidget.dart';
 import 'package:eq_app/Helpers/index.dart';
-import 'package:eq_app/main.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -131,9 +129,9 @@ Widget playerCard(Animation<double> animation, BuildContext context,
             );
           }),
       Positioned(
-          bottom: -10,
-          left: 0,
-          right: 0,
+          bottom: 10,
+          left: 20,
+          right: 20,
           child: playerControls(controller, context)),
     ],
   );

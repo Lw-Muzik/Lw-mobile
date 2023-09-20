@@ -41,11 +41,10 @@ dependencies:
   sleek_circular_slider: ^2.0.1
   flutter_native_splash: ^2.3.2
   flutter_launcher_icons: ^0.13.1
-  we_slide: ^2.4.0
+
   permission_handler: ^10.4.3
   shared_preferences: ^2.2.1
   flutter_bloc: ^8.1.3
-  audio_service: ^0.18.12
   just_audio_background: ^0.0.1-beta.10
 
 dev_dependencies:

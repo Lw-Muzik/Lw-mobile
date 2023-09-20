@@ -1,7 +1,5 @@
 import 'package:eq_app/Helpers/Channel.dart';
 import 'package:eq_app/controllers/AppController.dart';
-import 'package:eq_app/pages/AudioFx.dart';
-import 'package:eq_app/pages/Room.dart';
 import 'package:eq_app/widgets/Body.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
