@@ -93,6 +93,7 @@ class _MusicInfoState extends State<MusicInfo>
                             .toString(),
                         maxLines: 1,
                         overflow: TextOverflow.visible,
+                        textAlign: TextAlign.center,
                         style: Theme.of(context).textTheme.headlineSmall!.apply(
                               color: Colors.white,
                             ),

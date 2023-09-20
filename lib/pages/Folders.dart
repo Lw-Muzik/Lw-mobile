@@ -1,4 +1,6 @@
+import 'package:animations/animations.dart';
 import 'package:eq_app/Routes/routes.dart';
+
 import 'package:eq_app/pages/FolderSongs.dart';
 import 'package:flutter/material.dart';
 import 'package:on_audio_query/on_audio_query.dart';
@@ -15,8 +17,8 @@ class Folders extends StatefulWidget {
 class _FoldersState extends State<Folders> {
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<List<String>>(
-        stream: Stream.fromFuture(OnAudioQuery.platform.queryAllPath()),
+    return FutureBuilder<List<String>>(
+        future: OnAudioQuery.platform.queryAllPath(),
         builder: (context, snapshot) {
           return GridView.count(
             crossAxisCount: 3,
@@ -24,17 +26,14 @@ class _FoldersState extends State<Folders> {
             mainAxisSpacing: 2,
             children: List.generate(
               snapshot.data?.length ?? 0,
-              (index) => InkWell(
-                onTap: () {
-                  Routes.routeTo(
-                      FolderSongs(path: snapshot.data?[index] ?? ""), context);
-                },
-                child: Container(
-                  margin: const EdgeInsets.all(10),
-                  child: GridTile(
+              (index) => Container(
+                margin: const EdgeInsets.all(10),
+                child: Routes.animateTo(
+                  closedWidget: GridTile(
                     child: folderArtwork(snapshot.data![index],
                         snapshot.data?[index].split("/").last ?? ""),
                   ),
+                  openWidget: FolderSongs(path: snapshot.data?[index] ?? ""),
                 ),
               ),
             ),

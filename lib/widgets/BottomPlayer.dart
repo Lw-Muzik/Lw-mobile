@@ -1,12 +1,10 @@
-import 'dart:typed_data';
-import 'dart:ui';
-
+import 'package:eq_app/Routes/routes.dart';
 import 'package:eq_app/widgets/ArtworkWidget.dart';
 import 'package:eq_app/widgets/Globals.dart';
 import 'package:flutter/material.dart';
-import 'package:on_audio_query/on_audio_query.dart';
 
 import '../controllers/AppController.dart';
+import '../player/PlayerUI.dart';
 
 class BottomPlayer extends StatefulWidget {
   final AppController controller;
@@ -49,15 +47,18 @@ class _BottomPlayerState extends State<BottomPlayer>
 
   @override
   Widget build(BuildContext context) {
-    return ArtworkWidget(
-      useSaved: false,
-      path: widget.controller.songs[widget.controller.songId].data,
-      songId: widget.controller.songs[widget.controller.songId].id,
-      width: MediaQuery.of(context).size.width,
-      height: MediaQuery.of(context).size.width / 5.7,
-      margin: const EdgeInsets.only(left: 10, bottom: 30, right: 10),
-      borderRadius: BorderRadius.circular(50),
-      child: bottomPlayer(widget.controller, context),
+    return Routes.animateTo(
+      closedWidget: ArtworkWidget(
+        useSaved: false,
+        path: widget.controller.songs[widget.controller.songId].data,
+        songId: widget.controller.songs[widget.controller.songId].id,
+        width: MediaQuery.of(context).size.width,
+        height: MediaQuery.of(context).size.width / 5.7,
+        margin: const EdgeInsets.only(left: 10, bottom: 30, right: 10),
+        borderRadius: BorderRadius.circular(50),
+        child: bottomPlayer(widget.controller, context),
+      ),
+      openWidget: const Player(),
     );
   }
 }

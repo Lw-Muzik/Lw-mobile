@@ -16,6 +16,7 @@ import '../controllers/AppController.dart';
 import '../pages/VisualUI.dart';
 import '../player/widgets/NowPlaying.dart';
 import '../player/widgets/PlayerSettings.dart';
+import '../player/widgets/TrackInfo.dart';
 import '../widgets/ArtworkWidget.dart';
 
 SystemUiOverlayStyle overlay = const SystemUiOverlayStyle(
@@ -53,13 +54,13 @@ Widget playerControls(AppController controller, BuildContext context) {
     child: Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        IconButton.filledTonal(
-          color: Colors.white,
+        IconButton(
+          style: IconButton.styleFrom(backgroundColor: Colors.black54),
           onPressed: () => Routes.routeTo(const VisualUI(), context),
           icon: const Icon(Icons.graphic_eq_rounded),
         ),
-        IconButton.filledTonal(
-            color: Colors.white,
+        IconButton(
+            style: IconButton.styleFrom(backgroundColor: Colors.black54),
             onPressed: () {
               showCupertinoModalPopup(
                 barrierColor: Colors.black12,
@@ -79,20 +80,9 @@ Widget playerControls(AppController controller, BuildContext context) {
               );
             },
             icon: const Icon(Icons.playlist_play)),
-        IconButton.filledTonal(
-          onPressed: () => showModalBottomSheet(
-            context: context,
-            builder: (context) {
-              return BottomSheet(
-                onClosing: () {},
-                builder: (context) {
-                  return PlayerSettings(
-                    controller: controller,
-                  );
-                },
-              );
-            },
-          ),
+        IconButton(
+          style: IconButton.styleFrom(backgroundColor: Colors.black54),
+          onPressed: () => showTrackInfo(context, controller),
           color: Colors.white,
           icon: const Icon(Icons.more_vert_rounded),
         )
@@ -302,4 +292,16 @@ void loadAudioSource(AudioPlayer audioHandler, SongModel song) async {
   // player.setUrl(song.data);
 
   player.play();
+}
+
+//  function to show track info
+void showTrackInfo(BuildContext context, AppController controller) {
+  showCupertinoModalPopup(
+      context: context,
+      filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+      builder: (context) {
+        return TrackInfo(
+          controller: controller,
+        );
+      });
 }

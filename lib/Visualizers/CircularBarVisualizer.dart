@@ -34,11 +34,11 @@ class CircularBarVisualizer extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     if (radius == -1) {
-      radius = getHeight() < getWidth() ? getHeight() * 9 : getWidth();
-      radius = (radius * 0.25 / 2);
+      radius = getHeight() < getWidth() ? getHeight() * 40 : getWidth();
+      radius = (radius * 0.85 / 8);
       double circumference = 2 * 3.141 * radius;
       wavePaint.strokeWidth = circumference / 90;
-      wavePaint.style = PaintingStyle.stroke;
+      wavePaint.style = PaintingStyle.fill;
     }
     // canvas.drawCircle(
     //     Offset(getWidth() / 2, getHeight() / 2), radius.toDouble(), wavePaint);
@@ -48,8 +48,8 @@ class CircularBarVisualizer extends CustomPainter {
       }
       double angle = 0;
 
-      for (int i = 0; i < 120; i++, angle += 3) {
-        int x = (i * 6.5).ceil();
+      for (int i = 0; i < 150; i++, angle += 3) {
+        int x = (i * 2.5).ceil();
         int t =
             (((-(waveData[x]).abs() + 125)) * (getHeight() / 4) ~/ 128).abs();
 
@@ -62,12 +62,12 @@ class CircularBarVisualizer extends CustomPainter {
 
         points![i * 4 + 3] =
             getHeight() / 2 + (radius + t) * sin(radians(angle));
-        points![i * 4 + 4] =
-            getHeight() / 2 + (radius + t) * cos(radians(angle));
-        points![i * 4 + 8] =
-            getHeight() / 2 + (radius + t) * cos(radians(angle / 2));
-        points![i * 8 + 16] =
-            getHeight() / 2 + (radius + t) * cos(radians(angle));
+        // points![i * 4 + 4] =
+        //     getHeight() / 2 + (radius + t) * cos(radians(angle));
+        // points![i * 4 + 8] =
+        //     getHeight() / 2 + (radius + t) * cos(radians(angle / 2));
+        // points![i * 8 + 16] =
+        //     getHeight() / 2 + (radius + t) * cos(radians(angle));
       }
 
       canvas.drawRawPoints(PointMode.lines, points!, wavePaint);

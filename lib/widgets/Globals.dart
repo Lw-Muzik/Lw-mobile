@@ -1,6 +1,3 @@
-import 'package:audio_service/audio_service.dart';
-import 'package:eq_app/Routes/routes.dart';
-import 'package:eq_app/player/PlayerUI.dart';
 import 'package:flutter/material.dart';
 
 import '../controllers/AppController.dart';
@@ -8,9 +5,6 @@ import 'ArtworkWidget.dart';
 
 Widget bottomPlayer(AppController controller, BuildContext context) {
   return ListTile(
-    onTap: () {
-      Routes.routeTo(const Player(), context);
-    },
     leading: Transform.rotate(
         angle: 0,
         child: ArtworkWidget(

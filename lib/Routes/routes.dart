@@ -1,3 +1,4 @@
+import 'package:animations/animations.dart';
 import 'package:flutter/material.dart';
 
 import '../pages/Equalizer.dart';
@@ -39,6 +40,19 @@ class Routes {
         ),
       );
     }
+  }
+
+  static Widget animateTo(
+      {required Widget closedWidget, required Widget openWidget}) {
+    return OpenContainer(
+        closedElevation: 0,
+        openElevation: 0,
+        closedColor: Colors.transparent,
+        openColor: Colors.transparent,
+        transitionDuration: const Duration(milliseconds: 1100),
+        transitionType: ContainerTransitionType.fade,
+        closedBuilder: (context, fn) => closedWidget,
+        openBuilder: (context, fn) => openWidget);
   }
 
   static void pop(BuildContext context) {

@@ -123,9 +123,9 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
 
   Future<List<PermissionStatus>> checkPermission() async {
     Map<Permission, PermissionStatus> statuses = await [
-      Permission.microphone,
-      Permission.speech,
+      Permission.audio,
       Permission.storage,
+      Permission.microphone,
     ].request();
     return statuses.values.toList();
   }
@@ -170,11 +170,9 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
                     ),
                     Padding(
                       padding: const EdgeInsets.only(right: 18.0),
-                      child: IconButton(
-                        onPressed: () {
-                          Routes.routeTo(const Equalizer(), context);
-                        },
-                        icon: const Icon(Icons.equalizer),
+                      child: Routes.animateTo(
+                        closedWidget: const Icon(Icons.equalizer),
+                        openWidget: const Equalizer(),
                       ),
                     )
                   ],

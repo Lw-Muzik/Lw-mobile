@@ -38,12 +38,12 @@ class Header extends StatelessWidget {
                 ],
               ),
             ),
-            IconButton(
-              onPressed: () => Routes.routeTo(const Equalizer(), context),
-              icon: const Icon(
+            Routes.animateTo(
+              closedWidget: const Icon(
                 Icons.equalizer_rounded,
                 color: Colors.white,
               ),
+              openWidget: const Equalizer(),
             ),
           ],
         ),

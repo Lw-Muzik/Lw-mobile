@@ -25,15 +25,8 @@ class _AlbumsState extends State<Albums> {
             mainAxisSpacing: 26,
             children: List.generate(
               snapshot.data?.length ?? 0,
-              (index) => InkWell(
-                onTap: () => Routes.routeTo(
-                    AlbumSongs(
-                      albumId: snapshot.data![index].id,
-                      album: snapshot.data![index].album,
-                      songs: snapshot.data![index].numOfSongs,
-                    ),
-                    context),
-                child: GridTile(
+              (index) => Routes.animateTo(
+                closedWidget: GridTile(
                   footer: Card(
                     color: Theme.of(context).cardColor.withOpacity(0.4),
                     child: SizedBox(
@@ -61,6 +54,12 @@ class _AlbumsState extends State<Albums> {
                     other:
                         "${snapshot.data?[index].getMap['album'] ?? 'Unknown'}",
                   ),
+                ),
+                openWidget: AlbumSongs(
+                  albumId: snapshot.data![index].id,
+                  album:
+                      "${snapshot.data?[index].getMap['album'] ?? 'Unknown'}",
+                  songs: snapshot.data![index].numOfSongs,
                 ),
               ),
             ),

@@ -32,39 +32,10 @@ class _PlayerSettingsState extends State<PlayerSettings> {
               ),
             ),
             // controls
-            ExpansionTile(
-              leading: Icon(Icons.phone_android),
-              title: const Text("Player Background"),
-              children: [
-                HorizontalSlider(
-                  title: "Blur",
-                  onChanged: (x) {
-                    control.blur = x;
-                  },
-                  value: control.blur,
-                  max: 500,
-                  min: 0,
-                  dB: "${((control.blur / 500) * 100).toStringAsFixed(1)} %",
-                ),
-              ],
-            ),
+
             ListTile(
               leading: const Icon(Icons.playlist_add),
               title: const Text("Add to playlist"),
-              onTap: () {
-                Routes.pop(context);
-                showModalBottomSheet(
-                    context: context,
-                    builder: (context) {
-                      return BottomSheet(
-                        builder: (context) => PlaylistWidget(
-                          audioId: control.songs[control.songId].id,
-                          song: control.songs[control.songId].title,
-                        ),
-                        onClosing: () {},
-                      );
-                    });
-              },
             )
           ],
         );

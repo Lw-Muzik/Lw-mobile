@@ -11,26 +11,13 @@ import androidx.annotation.RequiresApi;
 public class DSPEngine {
     private static DynamicsProcessing dspEngine;
     private static DynamicsProcessing.Eq dspEq;
-//    private static DynamicsProcessing.Eq tuner;
+    private static DynamicsProcessing.Eq tuner;
     private static final int bandCount = 10;
     private static DynamicsProcessing.Mbc dspMbc;
     static int[] dsp_speakers = {31, 62, 125, 250, 916, 1000, 2000, 4000, 8000, 16000};
     static float[] dsp_gains = {5.8f,1.6f,1.0f,5.0f,5,3,5,8,4,7};
     private static DynamicsProcessing.Limiter dspLimiter;
 
-    /**
-     *
-     *  iArr[0] = 8;
-     *             iArr[1] = 8;
-     *             iArr[2] = 1;
-     *             iArr[3] = 1;
-     *             iArr[4] = 5;
-     *             iArr[5] = 3;
-     *             iArr[6] = 5;
-     *             iArr[7] = 8;
-     *             iArr[8] = 8;
-     *             iArr[9] = 9;
-     */
     private static DynamicsProcessing.MbcBand dspBand;
     public static final int priority = Integer.MAX_VALUE;
     private static final float out_gain = 3.0f;
@@ -64,7 +51,6 @@ public class DSPEngine {
             dspEngine.setPostEqAllChannelsTo(dspEq);
             dspEngine.setMbcAllChannelsTo(dspMbc);
             dspEngine.setLimiterAllChannelsTo(dspLimiter);
-            Log.e("ETA","Speakers set**********");
         }
 
     }

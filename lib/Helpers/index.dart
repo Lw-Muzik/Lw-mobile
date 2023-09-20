@@ -137,14 +137,13 @@ Future<String> fetchArtworkUrl(
     }
   }
   var defaultImg = await rootBundle.load("assets/audio.jpeg");
-  var dirD =  Directory("$tempPath/Default");
-  if(dirD.existsSync() == false){
+  var dirD = Directory("$tempPath/Default");
+  if (dirD.existsSync() == false) {
     await dirD.create();
-    File("${dirD.path}/default.png").writeAsBytesSync(defaultImg.buffer.asUint8List());
+    File("${dirD.path}/default.png")
+        .writeAsBytesSync(defaultImg.buffer.asUint8List());
   }
-  return File(imagePath).existsSync()
-      ? imagePath
-      :"${dirD.path}/default.png";
+  return File(imagePath).existsSync() ? imagePath : "${dirD.path}/default.png";
 }
 
 /// show snackbar message

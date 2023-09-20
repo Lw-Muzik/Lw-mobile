@@ -4,7 +4,9 @@ import 'package:eq_app/widgets/Body.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'AudioFx.dart';
 import 'EqView.dart';
+import 'Room.dart';
 
 class Equalizer extends StatefulWidget {
   const Equalizer({super.key});
@@ -27,7 +29,7 @@ class _EqualizerState extends State<Equalizer> with TickerProviderStateMixin {
       // Channel.setSessionId(0);
     }
 
-    _tabController = TabController(length: 1, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
   }
 
   @override
@@ -53,8 +55,8 @@ class _EqualizerState extends State<Equalizer> with TickerProviderStateMixin {
             dividerColor: Colors.transparent,
             tabs: const [
               Tab(text: "Equalizer"),
-              // Tab(text: "Audio FX"),
-              // Tab(text: "Room Effects"),
+              Tab(text: "Audio FX"),
+              Tab(text: "Room Effects"),
             ],
           ),
         ),
@@ -64,8 +66,8 @@ class _EqualizerState extends State<Equalizer> with TickerProviderStateMixin {
             controller: _tabController,
             children: const [
               EqView(),
-              // AudioFx(),
-              // RoomEffects(),
+              AudioFx(),
+              RoomEffects(),
             ],
           ),
         ),

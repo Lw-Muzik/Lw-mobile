@@ -34,42 +34,43 @@ class _SettingsState extends State<Settings> {
                 ),
                 body: Column(
                   children: [
-                    ExpansionTile(
-                      leading: const Icon(Icons.tonality_rounded),
-                      title: const Text("App Theme"),
-                      children: [
-                        RadioListTile.adaptive(
-                          value: controller.selectedTheme == "light" ? 1 : 0,
-                          groupValue: 1,
-                          onChanged: (theme) {
-                            BlocProvider.of<ThemeController>(context)
-                                .setTheme(1);
-                            controller.selectedTheme = "light";
-                          },
-                          title: const Text("Light Theme"),
-                        ),
-                        RadioListTile.adaptive(
-                          value: controller.selectedTheme == "dark" ? 1 : 0,
-                          groupValue: 1,
-                          onChanged: (theme) {
-                            BlocProvider.of<ThemeController>(context)
-                                .setTheme(1);
-                            controller.selectedTheme = "dark";
-                          },
-                          title: const Text("Dark Theme"),
-                        ),
-                        RadioListTile.adaptive(
-                          value: controller.selectedTheme == "fancy" ? 1 : 0,
-                          groupValue: 1,
-                          onChanged: (theme) {
-                            BlocProvider.of<ThemeController>(context)
-                                .setTheme(1);
-                            controller.selectedTheme = "fancy";
-                          },
-                          title: const Text("Fancy Theme"),
-                        )
-                      ],
-                    ),
+                    // ExpansionTile(
+                    //   leading: const Icon(Icons.tonality_rounded),
+                    //   title: const Text("App Theme"),
+                    //   children: [
+                    //     RadioListTile.adaptive(
+                    //       value: controller.selectedTheme == "light" ? 1 : 0,
+                    //       groupValue: 1,
+                    //       onChanged: (theme) {
+                    //         BlocProvider.of<ThemeController>(context)
+                    //             .setTheme(1);
+                    //         controller.selectedTheme = "light";
+                    //       },
+                    //       title: const Text("Light Theme"),
+                    //     ),
+                    //     RadioListTile.adaptive(
+                    //       value: controller.selectedTheme == "dark" ? 1 : 0,
+                    //       groupValue: 1,
+                    //       onChanged: (theme) {
+                    //         BlocProvider.of<ThemeController>(context)
+                    //             .setTheme(1);
+                    //         controller.selectedTheme = "dark";
+                    //       },
+                    //       title: const Text("Dark Theme"),
+                    //     ),
+                    //     RadioListTile.adaptive(
+                    //       value: controller.selectedTheme == "fancy" ? 1 : 0,
+                    //       groupValue: 1,
+                    //       onChanged: (theme) {
+                    //         BlocProvider.of<ThemeController>(context)
+                    //             .setTheme(1);
+                    //         controller.selectedTheme = "fancy";
+                    //       },
+                    //       title: const Text("Fancy Theme"),
+                    //     )
+                    //   ],
+                    // ),
+                   
                     SwitchListTile.adaptive(
                       value: controller.isFancy,
                       secondary: const Icon(Icons.light_mode),
@@ -79,40 +80,56 @@ class _SettingsState extends State<Settings> {
                       title: const Text("Fancy theme"),
                       onChanged: (x) => controller.isFancy = x,
                     ),
+                    // ExpansionTile(
+                    //   leading: const Icon(
+                    //     Icons.mobile_friendly_rounded,
+                    //   ),
+                    //   title: const Text("Player Background"),
+                    //   children: [
+                    //     ListTile(
+                    //       leading: const Icon(
+                    //         Icons.color_lens,
+                    //         size: 35,
+                    //       ),
+                    //       title: const Text("Background"),
+                    //       subtitle: SizedBox(
+                    //         width: 50,
+                    //         height: 50,
+                    //         child: HorizontalSlider(
+                    //             title: "Quality",
+                    //             onChanged: (x) {
+                    //               controller.bgQuality = x;
+                    //             },
+                    //             value: controller.bgQuality,
+                    //             max: 10,
+                    //             min: 0,
+                    //             dB: "${((controller.bgQuality / 10) * 100).toInt()} %"),
+                    //       ),
+                    //     )
+                    //   ],
+                    // ),
                     ExpansionTile(
-                      leading: const Icon(
-                        Icons.mobile_friendly_rounded,
-                      ),
+                      leading: const Icon(Icons.phone_android),
                       title: const Text("Player Background"),
                       children: [
-                        ListTile(
-                          leading: const Icon(
-                            Icons.color_lens,
-                            size: 35,
-                          ),
-                          title: const Text("Background"),
-                          subtitle: SizedBox(
-                            width: 50,
-                            height: 50,
-                            child: HorizontalSlider(
-                                title: "Quality",
-                                onChanged: (x) {
-                                  controller.bgQuality = x;
-                                },
-                                value: controller.bgQuality,
-                                max: 10,
-                                min: 0,
-                                dB: "${((controller.bgQuality / 10) * 100).toInt()} %"),
-                          ),
-                        )
+                        HorizontalSlider(
+                          title: "Blur",
+                          onChanged: (x) {
+                            controller.blur = x;
+                          },
+                          value: controller.blur,
+                          max: 500,
+                          min: 0,
+                          dB: "${((controller.blur / 500) * 100).toStringAsFixed(1)} %",
+                        ),
                       ],
                     ),
                     ExpansionTile(
                       leading: const Icon(Icons.graphic_eq),
                       title: const Text("Visualizer"),
                       children: [
-                        StreamBuilder<bool>(
-                            stream: Stream.fromFuture(Visualizers.getEnabled()),
+                        FutureBuilder<bool>(
+                            future: Visualizers.getEnabled(),
                             builder: (context, snapshot) {
                               bool? vSwitch = snapshot.data;
                               // if (vSwitch != null) {

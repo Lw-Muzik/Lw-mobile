@@ -52,20 +52,8 @@ class _ArtistsState extends State<Artists> {
                 crossAxisCount: 3, crossAxisSpacing: 4, mainAxisSpacing: 6),
             itemCount: item.data!.length,
             itemBuilder: (context, index) {
-              return InkWell(
-                onTap: () {
-                  Routes.routeTo(
-                      ArtistSongs(
-                        songs: item.data![index].numberOfTracks ?? 0,
-                        albums: item.data![index].numberOfAlbums ?? 0,
-                        artistId: item.data![index].id,
-                        artist:
-                            "${item.data?[index].getMap['artist'] ?? 'Unknown'}",
-                      ),
-                      context,
-                      animate: true);
-                },
-                child: Container(
+              return Routes.animateTo(
+                closedWidget: Container(
                   margin: const EdgeInsets.all(10),
                   child: GridTile(
                     footer: Card(
@@ -95,6 +83,12 @@ class _ArtistsState extends State<Artists> {
                           "${item.data?[index].getMap['artist'] ?? 'Unknown'}",
                     ),
                   ),
+                ),
+                openWidget: ArtistSongs(
+                  songs: item.data![index].numberOfTracks ?? 0,
+                  albums: item.data![index].numberOfAlbums ?? 0,
+                  artistId: item.data![index].id,
+                  artist: "${item.data?[index].getMap['artist'] ?? 'Unknown'}",
                 ),
               );
             },

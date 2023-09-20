@@ -1,6 +1,7 @@
 // ignore_for_file: library_private_types_in_public_api, depend_on_referenced_packages, invalid_use_of_protected_member
 
 import 'dart:developer';
+import 'dart:ui';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:eq_app/Global/index.dart';
@@ -10,6 +11,7 @@ import 'package:eq_app/player/widgets/Controls.dart';
 import 'package:eq_app/player/widgets/Header.dart';
 import 'package:eq_app/player/widgets/MusicInfo.dart';
 import 'package:eq_app/player/widgets/TrackInfo.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:rxdart/rxdart.dart';
 import 'package:eq_app/controllers/AppController.dart';
 import 'package:flutter/material.dart';
@@ -145,20 +147,8 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
                                               //     controller.nowWidget,
                                               //     context);
                                             },
-                                            onLongPress: () {
-                                              showModalBottomSheet(
-                                                  context: context,
-                                                  builder: (context) {
-                                                    return BottomSheet(
-                                                        onClosing: () {},
-                                                        builder: (context) {
-                                                          return TrackInfo(
-                                                            controller:
-                                                                controller,
-                                                          );
-                                                        });
-                                                  });
-                                            },
+                                            onLongPress: () => showTrackInfo(
+                                                context, controller),
                                             child: playerCard(_animation!,
                                                 context, controller),
                                           ),

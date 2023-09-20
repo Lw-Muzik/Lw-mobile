@@ -25,15 +25,8 @@ class _GenresState extends State<Genres> {
             mainAxisSpacing: 26,
             children: List.generate(
               snapshot.data?.length ?? 0,
-              (index) => InkWell(
-                onTap: () => Routes.routeTo(
-                    GenreSongs(
-                      genreId: snapshot.data![index].id,
-                      genre: snapshot.data![index].genre,
-                      songs: snapshot.data![index].numOfSongs,
-                    ),
-                    context),
-                child: GridTile(
+              (index) => Routes.animateTo(
+                closedWidget: GridTile(
                   footer: Card(
                     color: Theme.of(context).cardColor.withOpacity(0.4),
                     child: SizedBox(
@@ -59,6 +52,11 @@ class _GenresState extends State<Genres> {
                     type: ArtworkType.GENRE,
                     other: snapshot.data?[index].genre ?? 'Unknown',
                   ),
+                ),
+                openWidget: GenreSongs(
+                  genreId: snapshot.data![index].id,
+                  genre: snapshot.data![index].genre,
+                  songs: snapshot.data![index].numOfSongs,
                 ),
               ),
             ),

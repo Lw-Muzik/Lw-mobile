@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../Helpers/VisualizerWidget.dart';
+import '../Routes/routes.dart';
 import '../widgets/Body.dart';
 
 class VisualUI extends StatefulWidget {
@@ -24,9 +25,7 @@ class _VisualUIState extends State<VisualUI> {
     Visualizers.setFrameRate(1);
     Visualizers.scaleVisualizer(true);
 
-    Visualizers.getEnabled().asStream().listen((v) {
-      log("Visual $v");
-    });
+    Visualizers.getEnabled().asStream().listen((v) {});
     return Body(
       child: Consumer<AppController>(
         builder: (context, controller, child) {
@@ -38,25 +37,27 @@ class _VisualUIState extends State<VisualUI> {
             backgroundColor: controller.isFancy
                 ? Colors.transparent
                 : Theme.of(context).scaffoldBackgroundColor,
-            body: Column(
-              children: [
-                mounted
-                    ? VisualizerWidget(
-                        builder: (context, fft, x) {
-                          log("fft $x");
-                          return CustomPaint(
-                            painter: CircularBarVisualizer(
-                                color: Colors.white,
-                                waveData: fft,
-                                width: MediaQuery.of(context).size.width,
-                                height: MediaQuery.of(context).size.height),
-                            child: const Center(),
-                          );
-                        },
-                        id: 0,
-                      )
-                    : Container(),
-              ],
+            body: InkWell(
+              onTap:()=>Routes.pop(context),
+              child: Column(
+                children: [
+                  mounted
+                      ? VisualizerWidget(
+                          builder: (context, fft, x) {
+                            return CustomPaint(
+                              painter: CircularBarVisualizer(
+                                  color: Colors.white,
+                                  waveData: fft,
+                                  width: MediaQuery.of(context).size.width,
+                                  height: MediaQuery.of(context).size.height),
+                              child: const Center(),
+                            );
+                          },
+                          id: 0,
+                        )
+                      : Container(),
+                ],
+              ),
             ),
             floatingActionButton:
                 SizedBox(height: 140, child: MusicInfo(controller: controller)),
