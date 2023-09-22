@@ -1,24 +1,20 @@
 // ignore_for_file: library_private_types_in_public_api, depend_on_referenced_packages, invalid_use_of_protected_member
 
-import 'dart:developer';
-import 'dart:ui';
-
 import 'package:audio_service/audio_service.dart';
-import 'package:eq_app/Global/index.dart';
-import 'package:eq_app/Routes/routes.dart';
-import 'package:eq_app/player/PlayerBody.dart';
-import 'package:eq_app/player/widgets/Controls.dart';
-import 'package:eq_app/player/widgets/Header.dart';
-import 'package:eq_app/player/widgets/MusicInfo.dart';
-import 'package:eq_app/player/widgets/TrackInfo.dart';
-import 'package:flutter/cupertino.dart';
+import 'package:permission_handler/permission_handler.dart';
+import '/Global/index.dart';
+import '/Routes/routes.dart';
+import '/player/PlayerBody.dart';
+import '/player/widgets/Controls.dart';
+import '/player/widgets/Header.dart';
+import '/player/widgets/MusicInfo.dart';
 import 'package:rxdart/rxdart.dart';
-import 'package:eq_app/controllers/AppController.dart';
+import '/controllers/AppController.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../Helpers/AudioVisualizer.dart';
-import '../widgets/common.dart';
+import '/Helpers/AudioVisualizer.dart';
+import '/widgets/common.dart';
 
 class Player extends StatefulWidget {
   const Player({super.key});
@@ -34,6 +30,7 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
+    checkPermissionForAudioVisualization();
     _animationController = AnimationController(
       vsync: this,
       value: 0,
@@ -45,12 +42,16 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
     _animationController?.addStatusListener((status) {});
   }
 
-  @override
-  void dispose() {
-    super.dispose();
-    // if (context.read<AppController>().pageController.hasListeners) {
-    //   context.read<AppController>().pageController.
-    // }
+  void checkPermissionForAudioVisualization() {
+    Permission.microphone.request().then((value) {
+      if (value.isGranted) {
+        Visualizers.enableVisual(true);
+        // log("P")
+      } else {
+        // context.read<AppController>().visuals = false;
+        Visualizers.enableVisual(false);
+      }
+    });
   }
 
   Stream<PositionData> get _positionDataStream =>

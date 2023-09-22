@@ -11,7 +11,7 @@ public class ReverbEngine {
     public static void initPresetReverb(int sessionId){
         if(reverb == null){
             try{
-                reverb = new PresetReverb(Integer.MAX_VALUE, AudioManager.AUDIO_SESSION_ID_GENERATE);
+                reverb = new PresetReverb(Integer.MAX_VALUE, sessionId);
             }catch (Exception ex){
                 ex.printStackTrace();
             }

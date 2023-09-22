@@ -40,7 +40,16 @@ class _EqualizerState extends State<Equalizer> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    Channel.setSessionId(0);
+    context
+        .watch<AppController>()
+        .audioHandler
+        .androidAudioSessionIdStream
+        .listen((event) {
+      if (event != null) {
+        Channel.setSessionId(event);
+      }
+    });
+
     return Body(
       child: Scaffold(
         backgroundColor: context.watch<AppController>().isFancy

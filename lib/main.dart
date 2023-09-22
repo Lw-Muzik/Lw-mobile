@@ -1,6 +1,3 @@
-import 'dart:ui';
-
-import 'package:audio_service/audio_service.dart';
 import 'package:eq_app/Routes/routes.dart';
 import 'package:eq_app/Global/index.dart';
 import 'package:eq_app/Themes/AppThemes.dart';
@@ -14,34 +11,23 @@ import 'package:just_audio_background/just_audio_background.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 
-import 'Helpers/AudioHandler.dart';
-
 // late AudioHandler audioPlayerHandler;
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   Map<Permission, PermissionStatus> statuses = await [
-    Permission.microphone,
-    Permission.speech,
+    Permission.manageExternalStorage,
+    Permission.audio,
     Permission.storage,
   ].request();
   await JustAudioBackground.init(
     androidNotificationChannelId: 'com.ryanheise.bg_demo.channel.audio',
     androidNotificationChannelName: 'Audio playback',
-    androidNotificationOngoing: true,
+    // androidNotificationOngoing: true,
+    androidStopForegroundOnPause: false,
+    notificationColor: Colors.transparent,
+    artDownscaleHeight: 200,
+    artDownscaleWidth: 200,
   );
-  // audioPlayerHandler = await AudioService.init(
-  //   builder: () => HypeMuzikiAudioHandler(),
-  //   config: const AudioServiceConfig(
-  //     androidNotificationChannelId: 'com.eq_app.channel.audio',
-  //     androidNotificationChannelName: 'Music playback',
-  //     androidNotificationOngoing: true,
-  //     androidStopForegroundOnPause: true,
-  //     androidNotificationIcon: 'mipmap/ic_launcher',
-  //     // olor: 0xFF2196f3,
-  //     preloadArtwork: true,
-  //     androidShowNotificationBadge: true,
-  //   ),
-  // );
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge, overlays: []);
   SystemChrome.setSystemUIOverlayStyle(overlay);
 

@@ -1,21 +1,16 @@
 import 'dart:math' as math;
-import 'dart:developer';
 
-import 'package:audio_service/audio_service.dart';
 import 'package:eq_app/Global/index.dart';
-import 'package:eq_app/main.dart';
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../Helpers/AudioHandler.dart';
-
 class AppController extends ChangeNotifier {
   List<int> _bandValues = [0, 0, 0, 0, 0];
   // app themes
   String _selectedTheme = "light";
-  bool _isDark = false;
+  final bool _isDark = false;
   bool _playerVisual = false;
 
   //

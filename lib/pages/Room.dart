@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:eq_app/Helpers/Channel.dart';
 import 'package:eq_app/controllers/AppController.dart';
 import 'package:flutter/material.dart';
@@ -121,30 +123,41 @@ class _RoomEffectsState extends State<RoomEffects> {
         SizedBox(
           height: MediaQuery.of(context).size.width,
           child: Card(
-            // decoration: BoxDecoration(color: Theme.of(context).cardColor),
+            clipBehavior: Clip.hardEdge,
+            color: controller.isFancy
+                ? Colors.transparent
+                : Theme.of(context).cardColor,
             margin: const EdgeInsets.only(right: 10, top: 10, left: 10),
-            child: GridView.count(
-              mainAxisSpacing: 10,
-              crossAxisCount: 3,
-              crossAxisSpacing: 10,
-              children: List.generate(
-                p.length,
-                (index) => InkWell(
-                  onTap: () {
-                    controller.selectedRoomPreset = index;
-                    Channel.setReverbPreset(p[index]["value"]);
-                  },
-                  child: Card(
-                    color: controller.selectedRoomPreset == index
-                        ? Theme.of(context).colorScheme.primary
-                        : Theme.of(context).primaryColorLight.withOpacity(0.4),
-                    child: Center(
-                      child: Text(
-                        "${p[index]['name']}",
-                        style: Theme.of(context).textTheme.labelLarge!.apply(
-                            color: controller.selectedRoomPreset == index
-                                ? Colors.black
-                                : Colors.white),
+            child: BackdropFilter(
+              filter: controller.isFancy
+                  ? ImageFilter.blur(sigmaX: 20, sigmaY: 20)
+                  : ImageFilter.blur(sigmaX: 0, sigmaY: 0),
+              child: GridView.count(
+                mainAxisSpacing: 10,
+                crossAxisCount: 3,
+                crossAxisSpacing: 10,
+                children: List.generate(
+                  p.length,
+                  (index) => InkWell(
+                    onTap: () {
+                      controller.selectedRoomPreset = index;
+                      Channel.setReverbPreset(p[index]["value"]);
+                    },
+                    child: Card(
+                      margin: const EdgeInsets.all(10),
+                      color: controller.selectedRoomPreset == index
+                          ? Theme.of(context).colorScheme.primary
+                          : Theme.of(context)
+                              .primaryColorLight
+                              .withOpacity(0.4),
+                      child: Center(
+                        child: Text(
+                          "${p[index]['name']}",
+                          style: Theme.of(context).textTheme.labelLarge!.apply(
+                              color: controller.selectedRoomPreset == index
+                                  ? Colors.black
+                                  : Colors.white),
+                        ),
                       ),
                     ),
                   ),

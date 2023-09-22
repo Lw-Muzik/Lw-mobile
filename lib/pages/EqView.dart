@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:provider/provider.dart';
 
 import '../controllers/AppController.dart';
@@ -56,7 +58,19 @@ class _EqViewState extends State<EqView> {
             const SizedBox(
               height: 4,
             ),
-            const EqualizerControls(),
+            Card(
+              clipBehavior: Clip.hardEdge,
+              color: context.watch<AppController>().isFancy
+                  ? Colors.transparent
+                  : Theme.of(context).cardColor,
+              elevation: 0,
+              margin: const EdgeInsets.only(top: 10, bottom: 10),
+              child: BackdropFilter(
+                  filter: context.watch<AppController>().isFancy
+                      ? ImageFilter.blur(sigmaX: 40, sigmaY: 40)
+                      : ImageFilter.blur(sigmaX: 0, sigmaY: 0),
+                  child: const EqualizerControls()),
+            ),
             Padding(
               padding: const EdgeInsets.all(18.0),
               child: Align(

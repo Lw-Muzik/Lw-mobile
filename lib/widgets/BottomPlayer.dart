@@ -49,7 +49,7 @@ class _BottomPlayerState extends State<BottomPlayer>
   Widget build(BuildContext context) {
     return Routes.animateTo(
       closedWidget: ArtworkWidget(
-        useSaved: false,
+        useSaved: true,
         path: widget.controller.songs[widget.controller.songId].data,
         songId: widget.controller.songs[widget.controller.songId].id,
         width: MediaQuery.of(context).size.width,

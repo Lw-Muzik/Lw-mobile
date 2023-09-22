@@ -125,7 +125,7 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
     Map<Permission, PermissionStatus> statuses = await [
       Permission.audio,
       Permission.storage,
-      Permission.microphone,
+      Permission.manageExternalStorage,
     ].request();
     return statuses.values.toList();
   }

@@ -1,7 +1,6 @@
 // ignore_for_file: non_constant_identifier_names
 
 import 'dart:convert';
-import 'dart:developer';
 
 import 'package:eq_app/controllers/AppController.dart';
 import 'package:provider/provider.dart';
@@ -43,10 +42,8 @@ class _DSPSpeakerWidgetState extends State<DSPSpeakerWidget> {
   @override
   Widget build(BuildContext context) {
     return Consumer<AppController>(builder: (context, controller, x) {
-      return StreamBuilder(
-          stream: Stream.fromFuture(
-            DSPSpeaker.loadSpksFromAssets(),
-          ),
+      return FutureBuilder(
+          future: DSPSpeaker.loadSpksFromAssets(),
           builder: (context, snapshot) {
             List<dynamic> tt = [];
             var st = snapshot.data;
@@ -124,11 +121,15 @@ class _DSPSpeakerWidgetState extends State<DSPSpeakerWidget> {
                           },
                           child: GridTile(
                             child: Card(
+                              margin: const EdgeInsets.all(10),
                               color: widget.controller.selectSpeaker == index
                                   ? Theme.of(context)
-                                      .primaryColorLight
+                                      .colorScheme
+                                      .primary
                                       .withOpacity(0.34)
-                                  : Theme.of(context).primaryColorDark,
+                                  : Theme.of(context)
+                                      .primaryColorLight
+                                      .withOpacity(0.5),
                               child: Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [

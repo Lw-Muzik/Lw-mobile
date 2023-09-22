@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 
@@ -47,21 +49,25 @@ class ArtworkWidget extends StatelessWidget {
                   type: type, other: other, quality: quality),
             ),
             builder: (context, imageSnap) {
-              return Container(
-                margin: margin,
-                width: width,
-                height: height,
-                decoration: BoxDecoration(
-                  borderRadius: borderRadius ?? BorderRadius.circular(10),
-                  image: DecorationImage(
-                    fit: fit,
-                    colorFilter: colorFilter,
-                    image: imageSnap.hasData
-                        ? imageSnap.data!
-                        : const AssetImage("assets/audio.jpeg"),
+              return BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 50, sigmaY: 50),
+                child: Container(
+                  clipBehavior: Clip.hardEdge,
+                  margin: margin,
+                  width: width,
+                  height: height,
+                  decoration: BoxDecoration(
+                    borderRadius: borderRadius ?? BorderRadius.circular(10),
+                    image: DecorationImage(
+                      fit: fit,
+                      colorFilter: colorFilter,
+                      image: imageSnap.hasData
+                          ? imageSnap.data!
+                          : const AssetImage("assets/audio.jpeg"),
+                    ),
                   ),
+                  child: child,
                 ),
-                child: child,
               );
             },
           )

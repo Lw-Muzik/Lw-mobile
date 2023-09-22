@@ -19,52 +19,57 @@ class _EqualizerControlsState extends State<EqualizerControls> {
   @override
   Widget build(BuildContext context) {
     return Consumer<AppController>(builder: (context, eq, state) {
-      return StreamBuilder<List<int>>(
-        stream: Stream.fromFuture(Channel.getBandFreq()),
-        builder: (context, snapshot) {
-          final bands = snapshot.data;
-          return Row(
-            children: [
-              ...List.generate(
-                bands?.length ?? 0,
-                (i) => Expanded(
-                  child: StreamBuilder<int>(
-                      stream: Stream.fromFuture(Channel.getBandLevel(i)),
-                      builder: (context, level) {
-                        int? l = level.data;
-// /
-                        if (l != null) {
-                          l = level.data;
-                        }
-                        eq.bandValues[i] = l ?? 0;
-                        // });
-                        return Column(
-                          children: [
-                            if (l != null) Text("$l dB"),
-                            SizedBox(
-                              width: MediaQuery.of(context).size.width,
-                              height: MediaQuery.of(context).size.height / 3.53,
-                              child: VerticalSlider(
-                                min: -15,
-                                max: 15,
-                                value: level.data?.toDouble() ?? 0,
-                                onChanged: (value) {
-                                  setState(() {
-                                    eq.bandValues[i] = value.toInt();
-                                    Channel.setBandLevel(i, value.toInt());
-                                  });
-                                },
+      return Padding(
+        padding: const EdgeInsets.all(20.0),
+        child: StreamBuilder<List<int>>(
+          stream: Stream.fromFuture(Channel.getBandFreq()),
+          builder: (context, snapshot) {
+            final bands = snapshot.data;
+            return Row(
+              children: [
+                ...List.generate(
+                  bands?.length ?? 0,
+                  (i) => Expanded(
+                    child: StreamBuilder<int>(
+                        stream: Stream.fromFuture(Channel.getBandLevel(i)),
+                        builder: (context, level) {
+                          int? l = level.data;
+                          // /
+                          if (l != null) {
+                            l = level.data;
+                          }
+                          eq.bandValues[i] = l ?? 0;
+                          // });
+                          return Column(
+                            children: [
+                              if (l != null) Text("$l dB"),
+                              SizedBox(
+                                width: MediaQuery.of(context).size.width,
+                                height:
+                                    MediaQuery.of(context).size.height / 3.53,
+                                child: VerticalSlider(
+                                  min: -15,
+                                  max: 15,
+                                  value: level.data?.toDouble() ?? 0,
+                                  onChanged: (value) {
+                                    setState(() {
+                                      eq.bandValues[i] = value.toInt();
+                                      Channel.setBandLevel(i, value.toInt());
+                                    });
+                                  },
+                                ),
                               ),
-                            ),
-                            if (l != null) Text(bands![i].formatBandFrequency),
-                          ],
-                        );
-                      }),
-                ),
-              ).toList(),
-            ],
-          );
-        },
+                              if (l != null)
+                                Text(bands![i].formatBandFrequency),
+                            ],
+                          );
+                        }),
+                  ),
+                ).toList(),
+              ],
+            );
+          },
+        ),
       );
     });
   }

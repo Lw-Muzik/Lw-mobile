@@ -43,13 +43,15 @@ class Routes {
   }
 
   static Widget animateTo(
-      {required Widget closedWidget, required Widget openWidget}) {
+      {required Widget closedWidget,
+      required Widget openWidget,
+      Duration duration = const Duration(milliseconds: 1100)}) {
     return OpenContainer(
         closedElevation: 0,
         openElevation: 0,
         closedColor: Colors.transparent,
         openColor: Colors.transparent,
-        transitionDuration: const Duration(milliseconds: 1100),
+        transitionDuration: duration,
         transitionType: ContainerTransitionType.fade,
         closedBuilder: (context, fn) => closedWidget,
         openBuilder: (context, fn) => openWidget);

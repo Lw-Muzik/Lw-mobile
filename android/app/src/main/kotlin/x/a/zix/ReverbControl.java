@@ -7,7 +7,7 @@ public class ReverbControl {
     private static EnvironmentalReverb environmentalReverb;
     private static final int m = Integer.MAX_VALUE;
     public static void init(int sessionId) {
-        environmentalReverb = new EnvironmentalReverb(m, AudioManager.AUDIO_SESSION_ID_GENERATE);
+        environmentalReverb = new EnvironmentalReverb(m, sessionId);
     }
 
     public static void enable(boolean enable) {

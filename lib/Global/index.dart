@@ -119,10 +119,11 @@ Widget playerCard(Animation<double> animation, BuildContext context,
             );
           }),
       Positioned(
-          bottom: 10,
-          left: 20,
-          right: 20,
-          child: playerControls(controller, context)),
+        bottom: 10,
+        left: 20,
+        right: 20,
+        child: playerControls(controller, context),
+      ),
     ],
   );
 }
@@ -140,8 +141,8 @@ Decoration commonDeration(
 }
 
 Widget folderArtwork(String path, String title) {
-  return StreamBuilder<List<SongModel>>(
-      stream: Stream.fromFuture(Files.queryFromFolder(path)),
+  return FutureBuilder<List<SongModel>>(
+      future: Files.queryFromFolder(path),
       builder: (context, snapshot) {
         var data = snapshot.data;
         return snapshot.hasData
