@@ -7,7 +7,7 @@ import 'package:on_audio_query/on_audio_query.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class AppController with ChangeNotifier {
-  List<int> _bandValues = [0, 0, 0, 0, 0];
+  List<int> bandValues = [0, 0, 0, 0, 0];
   // app themes
   String _selectedTheme = "light";
   final bool _isDark = false;
@@ -227,17 +227,13 @@ class AppController with ChangeNotifier {
     _isVisualInBackground = _prefs?.getBool("isVisualInBackground") ?? false;
     _visuals = _prefs?.getBool("visuals") ?? false;
     _bgQuality = _prefs?.getDouble("bgQuality") ?? 2.0;
+    _blur = _prefs?.getDouble("blur") ?? 40.0;
+    _selectedRoomPreset = _prefs?.getInt("selectedRoomPreset") ?? 0;
     // Load other settings...
   }
 
   bool get isDark {
     return _isDark;
-  }
-
-  List<int> get bandValues => _bandValues;
-  set bandValues(List<int> bandLevels) {
-    _bandValues = bandLevels;
-    // notifyListeners();
   }
 
   bool get isShuffled => _isShuffled;
@@ -269,6 +265,7 @@ class AppController with ChangeNotifier {
 
   int get selectedRoomPreset => _selectedRoomPreset;
   set selectedRoomPreset(int x) {
+    _prefs?.setInt("selectedRoomPreset", x);
     _selectedRoomPreset = x;
     notifyListeners();
   }
@@ -350,6 +347,7 @@ class AppController with ChangeNotifier {
   }
 
   set blur(double bl) {
+    _prefs?.setDouble("blur", bl);
     _blur = bl;
     notifyListeners();
   }

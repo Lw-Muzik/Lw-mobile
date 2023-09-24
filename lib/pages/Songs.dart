@@ -89,7 +89,7 @@ class _AllSongsState extends State<AllSongs> {
                     ),
                     subtitle: Text(item.data![index].artist ?? "No Artist"),
                     trailing: SizedBox(
-                      width: 90,
+                      width: 50,
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                         children: [

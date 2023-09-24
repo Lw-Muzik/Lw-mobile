@@ -1,8 +1,10 @@
 import 'dart:async';
 
+import 'package:eq_app/Helpers/index.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../Helpers/fileloader.dart';
 import '../Routes/routes.dart';
 import '../Shaders/RipplePainter.dart';
 
@@ -36,6 +38,11 @@ class _AssetLoaderState extends State<AssetLoader>
           Future.delayed(const Duration(seconds: 4), () {
             Navigator.pushReplacementNamed(context, Routes.home);
           });
+        } else {
+          fetchMetaData().then((value) {
+            // showMessage(context: context,);
+          });
+          prefs.setBool("artworkLoaded", true);
         }
       });
     });

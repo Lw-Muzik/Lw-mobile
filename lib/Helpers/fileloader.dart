@@ -21,7 +21,7 @@ Future<void> fetchMetaData() async {
   var genres = await OnAudioQuery().queryGenres();
   for (var genre in genres) {
     await fetchArtwork("", genre.id,
-        type: ArtworkType.GENRE, other: genre.getMap['genre'] ?? 'Unknown');
+        type: ArtworkType.GENRE, other: genre.genre);
   }
   // fetch artwork for songs
   var songs = await OnAudioQuery().querySongs();

@@ -13,6 +13,7 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'Helpers/fileloader.dart';
+import 'controllers/PlayerController.dart';
 import 'controllers/PlaylistController.dart';
 
 // late AudioHandler audioPlayerHandler;
@@ -32,7 +33,7 @@ Future<void> main() async {
   );
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge, overlays: []);
   SystemChrome.setSystemUIOverlayStyle(overlay);
-  SystemSound.play(SystemSoundType.alert);
+  // SystemSound.play(SystemSoundType.alert);
   // prevent the app from turning to landscape
   SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
@@ -43,19 +44,15 @@ Future<void> main() async {
   if (!status.isGranted) {
     await Permission.storage.request();
   }
-  // check if artwork is already loaded
-  if (prefs.getBool("artworkLoaded") == null) {
-    // load artwork
-    await fetchMetaData();
-    prefs.setBool("artworkLoaded", true);
-  }
+
   runApp(
-    MultiProvider(
+    MultiBlocProvider(
       providers: [
         ChangeNotifierProvider(
           create: (_) => AppController(),
         ),
         ChangeNotifierProvider(create: (context) => PlaylistController()),
+        ChangeNotifierProvider(create: (context) => PlayerController()),
         BlocProvider(
           create: (context) => BandController(),
         )

@@ -187,7 +187,7 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
                             },
                           ),
                           // slider
-                          Controls(controller: controller),
+                          const Controls(),
                         ],
                       ),
                     ],
