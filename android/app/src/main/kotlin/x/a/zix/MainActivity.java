@@ -9,6 +9,7 @@ import android.media.audiofx.Visualizer;
 import android.os.Build;
 
 import androidx.annotation.NonNull;
+import androidx.core.view.WindowCompat;
 
 import com.ryanheise.audioservice.AudioServiceActivity;
 
@@ -31,6 +32,7 @@ public class MainActivity extends AudioServiceActivity {
 
   @Override
   public void configureFlutterEngine(@NonNull FlutterEngine flutterEngine) {
+      WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
 
   super.configureFlutterEngine(flutterEngine);
   visualizerChannel =  new MethodChannel(flutterEngine.getDartExecutor().getBinaryMessenger(), CHANNEL);
@@ -410,10 +412,10 @@ public class MainActivity extends AudioServiceActivity {
                         DSPEngine.setDSPVolume(((float)dspVolume));
                     }
                     break;
-                case "enableTuner":
-                    boolean enableTuner = call.argument("enableTuner");
+                case "setDspNoiseThreshold":
+                    float noiseThreshold = call.argument("noiseThreshold");
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                        DSPEngine.setTuner(enableTuner);
+                        DSPEngine.setNoiseThreshold(noiseThreshold);
                     }
                     break;
                 case "setTunerBass":

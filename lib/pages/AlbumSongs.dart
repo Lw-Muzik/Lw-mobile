@@ -12,6 +12,7 @@ import 'package:on_audio_query/on_audio_query.dart';
 import 'package:provider/provider.dart';
 
 import '../Global/index.dart';
+import '../Helpers/index.dart';
 import '../widgets/ArtworkWidget.dart';
 import '../widgets/BottomPlayer.dart';
 
@@ -30,22 +31,27 @@ class AlbumSongs extends StatefulWidget {
 }
 
 class _AlbumSongsState extends State<AlbumSongs> {
+  ScrollController _controller = ScrollController();
   @override
   Widget build(BuildContext context) {
     return Body(
       child: NestedScrollView(
+        controller: _controller,
         floatHeaderSlivers: true,
         headerSliverBuilder: (context, x) {
           return [
             SliverAppBar(
-              toolbarHeight: 300,
+              expandedHeight: 300,
               leading: IconButton.filledTonal(
                   onPressed: () => Routes.pop(context),
                   icon: const Icon(Icons.arrow_back)),
-              // floating: true,
-              // snap: true,
+              floating: true,
+              snap: true,
+              pinned: true,
               flexibleSpace: FlexibleSpaceBar(
-                expandedTitleScale: 70,
+                // centerTitle: true,
+                // title: Text("titi ${_controller.position.pixels}"),
+                // expandedTitleScale: 70,
                 background: Stack(
                   children: [
                     headerWidget(
@@ -162,31 +168,25 @@ class _SongListsState extends State<SongLists> {
                     selectedColor: Theme.of(context).primaryColorLight,
                     title: Text(widget.songs[index].title),
                     subtitle: Text(widget.songs[index].artist ?? "No Artist"),
-                    trailing: const Icon(Icons.arrow_forward_rounded),
+                    trailing: Text(
+                      "${formatTime(
+                        Duration(
+                            milliseconds: widget.songs[index].duration ?? 0),
+                      )} | ${widget.songs[index].fileExtension}",
+                    ),
                     onTap: () {
                       setState(() {
                         _selected = index;
                       });
-                      if (widget.songs.length > controller.songs.length) {
-                        controller.songs = widget.songs;
-                      }
+
+                      controller.songs = widget.songs;
+
                       int songIndex = controller.songs.indexWhere((result) =>
                           result.title == widget.songs[index].title);
                       controller.songId = songIndex;
 
                       loadAudioSource(
                           controller.audioHandler, controller.songs[songIndex]);
-                      // controller.audioPlayer.setUrl(controller
-                      //     .songs[]
-                      //     .data);
-                      // controller.audioPlayer.play();
-                      // controller.songs = songs;
-                      // controller.songId = index;
-
-                      // controller.audioPlayer.setUrl(songs[index].data);
-                      // controller.audioPlayer.play();
-                      // Channel.setSessionId(
-                      //     controller.audioPlayer.androidAudioSessionId ?? 0);
                     },
                     // This Widget will query/load image.
                     // You can use/create your own widget/method using [queryArtwork].

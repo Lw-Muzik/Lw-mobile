@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:eq_app/Routes/routes.dart';
 import 'package:eq_app/pages/ArtistSongs.dart';
 import 'package:eq_app/widgets/ArtworkWidget.dart';
@@ -28,123 +30,131 @@ class TrackInfo extends StatelessWidget {
             child: SizedBox(
               height: MediaQuery.of(context).size.width,
               child: Card(
-                color: Colors.grey.shade400!.withOpacity(0.15),
-                child: Column(
-                  children: [
-                    Row(
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.all(18.0),
-                          child: ArtworkWidget(
-                            width: 100,
-                            height: 100,
-                            songId: controller.songId,
-                            path: controller.songs[controller.songId].data,
+                clipBehavior: Clip.hardEdge,
+                color: Colors.transparent,
+                elevation: 0,
+                // color: Colors.grey.shade400!.withOpacity(0.15),
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.all(18.0),
+                            child: ArtworkWidget(
+                              width: 100,
+                              height: 100,
+                              songId: controller.songId,
+                              path: controller.songs[controller.songId].data,
+                            ),
                           ),
+                          SizedBox(
+                            width: MediaQuery.of(context).size.width / 2,
+                            child: RichText(
+                              text: TextSpan(
+                                children: [
+                                  TextSpan(
+                                    text:
+                                        "${controller.songs[controller.songId].title}\n",
+                                    style:
+                                        Theme.of(context).textTheme.titleLarge,
+                                  ),
+                                  TextSpan(
+                                    text: controller
+                                            .songs[controller.songId].artist ??
+                                        "Unknown Artist" + " | \n",
+                                  ),
+                                  TextSpan(
+                                    text: " \t|\t ",
+                                    style:
+                                        Theme.of(context).textTheme.labelLarge,
+                                  ),
+                                  TextSpan(
+                                    text: controller
+                                            .songs[controller.songId].album ??
+                                        "Unknown",
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .labelLarge
+                                        ?.apply(
+                                            color: Theme.of(context)
+                                                .textTheme
+                                                .labelLarge
+                                                ?.color!
+                                                .withOpacity(0.6)),
+                                  )
+                                ],
+                              ),
+                              textWidthBasis: TextWidthBasis.longestLine,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          )
+                        ],
+                      ),
+                      ListTile(
+                        leading: const Icon(Icons.playlist_add),
+                        title: Text(
+                          "Add to Playlist",
+                          style: Theme.of(context).textTheme.bodyLarge,
                         ),
-                        SizedBox(
-                          width: MediaQuery.of(context).size.width / 2,
-                          child: RichText(
-                            text: TextSpan(
-                              children: [
-                                TextSpan(
-                                  text:
-                                      "${controller.songs[controller.songId].title}\n",
-                                  style: Theme.of(context).textTheme.titleLarge,
-                                ),
-                                TextSpan(
-                                  text: controller
+                        onTap: () {
+                          Routes.pop(context);
+                          showModalBottomSheet(
+                              context: context,
+                              builder: (context) {
+                                return BottomSheet(
+                                  backgroundColor: Colors.transparent,
+                                  builder: (context) => PlaylistWidget(
+                                    audioId:
+                                        controller.songs[controller.songId].id,
+                                    song: controller
+                                        .songs[controller.songId].title,
+                                  ),
+                                  onClosing: () {},
+                                );
+                              });
+                        },
+                      ),
+                      ListTile(
+                        leading: const Icon(Icons.person),
+                        onTap: () {
+                          Routes.pop(context);
+                          Routes.routeTo(
+                              ArtistSongs(
+                                  artistId: controller
+                                      .songs[controller.songId].artistId,
+                                  artist: controller
                                           .songs[controller.songId].artist ??
-                                      "Unknown Artist" + " | \n",
-                                ),
-                                TextSpan(
-                                  text: " \t|\t ",
-                                  style: Theme.of(context).textTheme.labelLarge,
-                                ),
-                                TextSpan(
-                                  text: controller
-                                          .songs[controller.songId].album ??
-                                      "Unknown",
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .labelLarge
-                                      ?.apply(
-                                          color: Theme.of(context)
-                                              .textTheme
-                                              .labelLarge
-                                              ?.color!
-                                              .withOpacity(0.6)),
-                                )
-                              ],
-                            ),
-                            textWidthBasis: TextWidthBasis.longestLine,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        )
-                      ],
-                    ),
-                    ListTile(
-                      leading: const Icon(Icons.playlist_add),
-                      title: Text(
-                        "Add to Playlist",
-                        style: Theme.of(context).textTheme.bodyLarge,
+                                      "Unknown Artist",
+                                  songs: 0,
+                                  albums: 0),
+                              context);
+                        },
+                        title: Text(
+                          "Go to Artist",
+                          style: Theme.of(context).textTheme.bodyLarge,
+                        ),
                       ),
-                      onTap: () {
-                        Routes.pop(context);
-                        showModalBottomSheet(
-                            context: context,
-                            builder: (context) {
-                              return BottomSheet(
-                                backgroundColor: Colors.transparent,
-                                builder: (context) => PlaylistWidget(
-                                  audioId:
-                                      controller.songs[controller.songId].id,
-                                  song:
-                                      controller.songs[controller.songId].title,
-                                ),
-                                onClosing: () {},
-                              );
-                            });
-                      },
-                    ),
-                    ListTile(
-                      leading: const Icon(Icons.person),
-                      onTap: () {
-                        Routes.pop(context);
-                        Routes.routeTo(
-                            ArtistSongs(
-                                artistId: controller
-                                    .songs[controller.songId].artistId,
-                                artist: controller
-                                        .songs[controller.songId].artist ??
-                                    "Unknown Artist",
+                      ListTile(
+                        leading: const Icon(Icons.album),
+                        title: const Text("Go to Album"),
+                        onTap: () {
+                          Routes.pop(context);
+                          Routes.routeTo(
+                              AlbumSongs(
+                                albumId:
+                                    controller.songs[controller.songId].albumId,
+                                album:
+                                    controller.songs[controller.songId].album ??
+                                        "Unknown Album",
                                 songs: 0,
-                                albums: 0),
-                            context);
-                      },
-                      title: Text(
-                        "Go to Artist",
-                        style: Theme.of(context).textTheme.bodyLarge,
-                      ),
-                    ),
-                    ListTile(
-                      leading: const Icon(Icons.album),
-                      title: const Text("Go to Album"),
-                      onTap: () {
-                        Routes.pop(context);
-                        Routes.routeTo(
-                            AlbumSongs(
-                              albumId:
-                                  controller.songs[controller.songId].albumId,
-                              album:
-                                  controller.songs[controller.songId].album ??
-                                      "Unknown Album",
-                              songs: 0,
-                            ),
-                            context);
-                      },
-                    )
-                  ],
+                              ),
+                              context);
+                        },
+                      )
+                    ],
+                  ),
                 ),
               ),
             ),

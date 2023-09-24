@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:eq_app/Routes/routes.dart';
 import 'package:eq_app/widgets/ArtworkWidget.dart';
 import 'package:eq_app/widgets/Globals.dart';
@@ -56,7 +58,13 @@ class _BottomPlayerState extends State<BottomPlayer>
         height: MediaQuery.of(context).size.width / 5.7,
         margin: const EdgeInsets.only(left: 10, bottom: 30, right: 10),
         borderRadius: BorderRadius.circular(50),
-        child: bottomPlayer(widget.controller, context),
+        child: ClipRRect(
+          clipBehavior: Clip.hardEdge,
+          borderRadius: BorderRadius.circular(50),
+          child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+              child: bottomPlayer(widget.controller, context)),
+        ),
       ),
       openWidget: const Player(),
     );

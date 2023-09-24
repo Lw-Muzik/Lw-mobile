@@ -15,7 +15,6 @@ import '../Visualizers/MultiwaveVisualizer.dart';
 import '../controllers/AppController.dart';
 import '../pages/VisualUI.dart';
 import '../player/widgets/NowPlaying.dart';
-import '../player/widgets/PlayerSettings.dart';
 import '../player/widgets/TrackInfo.dart';
 import '../widgets/ArtworkWidget.dart';
 
@@ -149,8 +148,8 @@ Widget folderArtwork(String path, String title) {
             ? Stack(
                 children: [
                   ArtworkWidget(
-                    quality: 100,
-                    size: 3000,
+                    quality: 50,
+                    size: 200,
                     useSaved: data!.isNotEmpty,
                     borderRadius: BorderRadius.circular(10),
                     width: MediaQuery.of(context).size.width,
@@ -162,28 +161,30 @@ Widget folderArtwork(String path, String title) {
                   Positioned(
                     right: 0,
                     left: 0,
-                    bottom: 0,
+                    bottom: -10,
                     child: Card(
                       margin: const EdgeInsets.all(10),
-                      color: Theme.of(context).cardColor.withOpacity(0.7),
+                      color:
+                          Theme.of(context).primaryColorDark.withOpacity(0.7),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
                       child: RichText(
                         textAlign: TextAlign.center,
                         text: TextSpan(
                           children: [
                             TextSpan(
                               text: "$title \n",
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .titleMedium!
-                                  .apply(
-                                    color: Colors.white,
-                                  ),
+                              style:
+                                  Theme.of(context).textTheme.labelSmall!.apply(
+                                        color: Colors.white,
+                                      ),
                             ),
                             TextSpan(
                               text: "${data.length} Songs",
                               style: Theme.of(context)
                                   .textTheme
-                                  .bodyLarge!
+                                  .labelSmall!
                                   .apply(
                                     color: Theme.of(context).primaryColorLight,
                                   ),
@@ -285,11 +286,11 @@ void loadAudioSource(AudioPlayer audioHandler, SongModel song) async {
   );
 
   player.setAudioSource(
-      AudioSource.uri(
-        Uri.parse(item.id),
-        tag: item,
-      ),
-      initialPosition: Duration.zero);
+    AudioSource.uri(
+      Uri.parse(item.id),
+      tag: item,
+    ),
+  );
   // player.setUrl(song.data);
 
   player.play();
@@ -298,6 +299,7 @@ void loadAudioSource(AudioPlayer audioHandler, SongModel song) async {
 //  function to show track info
 void showTrackInfo(BuildContext context, AppController controller) {
   showCupertinoModalPopup(
+      barrierColor: Colors.transparent,
       context: context,
       filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
       builder: (context) {

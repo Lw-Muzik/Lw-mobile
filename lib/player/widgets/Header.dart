@@ -38,13 +38,13 @@ class Header extends StatelessWidget {
                 ],
               ),
             ),
-            Routes.animateTo(
-              closedWidget: const Icon(
-                Icons.equalizer_rounded,
-                color: Colors.white,
-              ),
-              openWidget: const Equalizer(),
-            ),
+            InkWell(
+                child: const Icon(
+                  Icons.equalizer_rounded,
+                  color: Colors.white,
+                ),
+                onTap: () =>
+                    Routes.routeTo(const Equalizer(), context, animate: true)),
           ],
         ),
       );

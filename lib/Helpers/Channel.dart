@@ -295,8 +295,9 @@ class Channel {
   static void setChannel2Gain(double v) async {
     //  await channel.invokeMethod("setChannel2Gain", {"ch2Gain": v});
   }
-  static void enableTuner(bool enable) async {
-    await channel.invokeMethod("enableTuner", {"enableTuner": enable});
+  static void setDspNoiseThreshold(double noiseValue) async {
+    await channel
+        .invokeMethod("setDspNoiseThreshold", {"noiseThreshold": noiseValue});
   }
 
   static void setTunerBass(double value) async {

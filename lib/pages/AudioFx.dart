@@ -85,70 +85,83 @@ class _AudioFxState extends State<AudioFx> {
                       : ImageFilter.blur(sigmaX: 0, sigmaY: 0),
                   child: SizedBox(
                     height: 300,
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        HorizontalSlider(
-                          title: "Preamp",
-                          onChanged: (x) {
-                            controller.dspVolume = x;
-                            Channel.setDSPVolume(x);
-                          },
-                          value: controller.dspVolume,
-                          max: 50,
-                          min: -20,
-                          dB: controller.dspVolume.dps,
-                        ),
-                        // Xtreble
-                        HorizontalSlider(
-                          title: "XTreble",
-                          onChanged: (x) {
-                            controller.dspXTreble = x;
-                            Channel.setDSPTreble(x);
-                          },
-                          value: controller.dspXTreble,
-                          max: 20,
-                          min: 0,
-                          dB: controller.dspXTreble.dps,
-                        ),
-                        // power gain slider
-                        HorizontalSlider(
-                          title: "Power Bass",
-                          onChanged: (x) {
-                            controller.dspPowerBass = x;
-                            Channel.setDSPPowerBass(x);
-                          },
-                          value: controller.dspPowerBass,
-                          max: 30,
-                          min: 0,
-                          dB: controller.dspPowerBass.dps,
-                        ),
-                        // Xbass
-                        HorizontalSlider(
-                          title: "XBass",
-                          onChanged: (x) {
-                            controller.dspXBass = x;
-                            Channel.setDSPXBass(x);
-                          },
-                          value: controller.dspXBass,
-                          max: 25,
-                          min: 0,
-                          dB: controller.dspXBass.dps,
-                        ),
+                    child: SingleChildScrollView(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          HorizontalSlider(
+                            title: "Preamp",
+                            onChanged: (x) {
+                              controller.dspVolume = x;
+                              Channel.setDSPVolume(x);
+                            },
+                            value: controller.dspVolume,
+                            max: 20,
+                            min: -20,
+                            dB: controller.dspVolume.dps,
+                          ),
+                          // Xtreble
+                          HorizontalSlider(
+                            title: "XTreble",
+                            onChanged: (x) {
+                              controller.dspXTreble = x;
+                              Channel.setDSPTreble(x);
+                            },
+                            value: controller.dspXTreble,
+                            max: 20,
+                            min: 0,
+                            dB: controller.dspXTreble.dps,
+                          ),
+                          // power gain slider
+                          HorizontalSlider(
+                            title: "Power Bass",
+                            onChanged: (x) {
+                              controller.dspPowerBass = x;
+                              Channel.setDSPPowerBass(x);
+                            },
+                            value: controller.dspPowerBass,
+                            max: 30,
+                            min: 0,
+                            dB: controller.dspPowerBass.dps,
+                          ),
+                          // Xbass
+                          HorizontalSlider(
+                            title: "XBass",
+                            onChanged: (x) {
+                              controller.dspXBass = x;
+                              Channel.setDSPXBass(x);
+                            },
+                            value: controller.dspXBass,
+                            max: 25,
+                            min: 0,
+                            dB: controller.dspXBass.dps,
+                          ),
 
-                        // out gain
-                        HorizontalSlider(
-                          title: "Power Gain",
-                          onChanged: (x) {
-                            controller.dspOutGain = x;
-                            Channel.setOutGain(x);
-                          },
-                          value: controller.dspOutGain,
-                          max: 15,
-                          min: 0,
-                          dB: controller.dspOutGain.dps,
-                        ),
-                      ],
+                          // out gain
+                          HorizontalSlider(
+                            title: "Power Gain",
+                            onChanged: (x) {
+                              controller.dspOutGain = x;
+                              Channel.setOutGain(x);
+                            },
+                            value: controller.dspOutGain,
+                            max: 15,
+                            min: 0,
+                            dB: controller.dspOutGain.dps,
+                          ),
+                          HorizontalSlider(
+                            title: "Noise \nThreshold",
+                            onChanged: (x) {
+                              controller.dspNoise = x;
+                              Channel.setDspNoiseThreshold(x);
+                            },
+                            value: controller.dspNoise,
+                            max: 30,
+                            min: -20,
+                            dB: controller.dspNoise.dps,
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),

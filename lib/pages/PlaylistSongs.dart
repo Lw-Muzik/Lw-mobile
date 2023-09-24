@@ -102,8 +102,8 @@ class _PlaylistSongsState extends State<PlaylistSongs> {
                     : Theme.of(context).scaffoldBackgroundColor,
                 body: Stack(
                   children: [
-                    StreamBuilder(
-                      stream: Stream.fromFuture(OnAudioQuery().queryAudiosFrom(
+                    FutureBuilder(
+                      future: (OnAudioQuery().queryAudiosFrom(
                           AudiosFromType.PLAYLIST, widget.playlist_id)),
                       builder: (context, snap) {
                         return snap.hasData
@@ -183,7 +183,11 @@ class PlaylistSongLists extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    trailing: const Icon(Icons.arrow_forward_rounded),
+                    trailing: Text(
+                      "${formatTime(
+                        Duration(milliseconds: songs[index].duration ?? 0),
+                      )} | ${songs[index].fileExtension}",
+                    ),
                     onTap: () {
                       if (controller.songs.length != songs.length) {
                         controller.songs = songs;
@@ -193,18 +197,6 @@ class PlaylistSongLists extends StatelessWidget {
                       controller.songId = songIndex;
                       loadAudioSource(
                           controller.audioHandler, controller.songs[songIndex]);
-                      // controller.audioPlayer.setUrl(controller
-                      //     .songs[controller.songs.indexWhere(
-                      //         (result) => result.title == songs[index].title)]
-                      //     .data);
-                      // controller.audioPlayer.play();
-                      // controller.songs = songs;
-                      // controller.songId = index;
-
-                      // controller.audioPlayer.setUrl(songs[index].data);
-                      // controller.audioPlayer.play();
-                      // Channel.setSessionId(
-                      //     controller.audioPlayer.androidAudioSessionId ?? 0);
                     },
                     // This Widget will query/load image.
                     // You can use/create your own widget/method using [queryArtwork].

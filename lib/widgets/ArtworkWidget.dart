@@ -34,7 +34,7 @@ class ArtworkWidget extends StatelessWidget {
     this.margin,
     this.colorFilter,
     this.other = "",
-    this.quality = 100,
+    this.quality = 70,
     this.size = 2,
     this.useSaved = true,
     this.blendMode,
@@ -42,67 +42,58 @@ class ArtworkWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return useSaved
-        ? StreamBuilder<ImageProvider>(
-            stream: Stream.fromFuture(
-              fetchArtwork(path, songId,
-                  type: type, other: other, quality: quality),
+    return FutureBuilder<ImageProvider>(
+      future:
+          savedImage(path, songId, type: type, other: other, quality: quality),
+      builder: (context, imageSnap) {
+        return Container(
+          margin: margin,
+          width: width,
+          height: height,
+          decoration: BoxDecoration(
+            borderRadius: borderRadius ?? BorderRadius.circular(10),
+            image: DecorationImage(
+              fit: fit,
+              colorFilter: colorFilter,
+              image: imageSnap.hasData
+                  ? imageSnap.data!
+                  : const AssetImage("assets/audio.jpeg"),
             ),
-            builder: (context, imageSnap) {
-              return BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 50, sigmaY: 50),
-                child: Container(
-                  clipBehavior: Clip.hardEdge,
-                  margin: margin,
-                  width: width,
-                  height: height,
-                  decoration: BoxDecoration(
-                    borderRadius: borderRadius ?? BorderRadius.circular(10),
-                    image: DecorationImage(
-                      fit: fit,
-                      colorFilter: colorFilter,
-                      image: imageSnap.hasData
-                          ? imageSnap.data!
-                          : const AssetImage("assets/audio.jpeg"),
-                    ),
-                  ),
-                  child: child,
-                ),
-              );
-            },
-          )
-        : StreamBuilder(
-            stream: Stream.fromFuture(
-              OnAudioQuery.platform.queryArtwork(
-                songId,
-                type,
-                quality: quality,
-                format: ArtworkFormat.PNG,
-                size: size,
-              ),
-            ),
-            builder: (context, imageSnap) {
-              return Container(
-                margin: margin,
-                width: width,
-                height: height,
-                decoration: BoxDecoration(
-                  borderRadius: borderRadius,
-                  image: DecorationImage(
-                    fit: fit,
-                    colorFilter: colorFilter ??
-                        ColorFilter.mode(
-                            imageSnap.hasData ? Colors.black26 : Colors.black,
-                            BlendMode.darken),
-                    image: imageSnap.hasData
-                        ? MemoryImage(imageSnap.data!)
-                        : const AssetImage("assets/audio.jpeg")
-                            as ImageProvider,
-                  ),
-                ),
-                child: child,
-              );
-            },
-          );
+          ),
+          child: child,
+        );
+      },
+    );
+    // : FutureBuilder(
+    //     future: OnAudioQuery.platform.queryArtwork(
+    //       songId,
+    //       type,
+    //       quality: quality,
+    //       format: ArtworkFormat.JPEG,
+    //       size: size,
+    //     ),
+    //     builder: (context, imageSnap) {
+    //       return Container(
+    //         margin: margin,
+    //         width: width,
+    //         height: height,
+    //         decoration: BoxDecoration(
+    //           borderRadius: borderRadius,
+    //           image: DecorationImage(
+    //             fit: fit,
+    //             colorFilter: colorFilter ??
+    //                 ColorFilter.mode(
+    //                     imageSnap.hasData ? Colors.black26 : Colors.black,
+    //                     BlendMode.darken),
+    //             image: imageSnap.hasData
+    //                 ? MemoryImage(imageSnap.data!)
+    //                 : const AssetImage("assets/audio.jpeg")
+    //                     as ImageProvider,
+    //           ),
+    //         ),
+    //         child: child,
+    //       );
+    //     },
+    //   );
   }
 }

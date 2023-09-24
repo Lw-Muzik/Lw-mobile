@@ -3,12 +3,14 @@ import 'package:flutter/material.dart';
 
 import '../pages/Equalizer.dart';
 import '../pages/Home.dart';
+import '../pages/loader.dart';
 import '../player/PlayerUI.dart';
 
 class Routes {
   static String home = "/";
   static String player = "/player";
   static String equalizer = "/equalizer";
+  static String loader = "/assetLoader";
   static void routeTo(Widget page, BuildContext context,
       {bool animate = false}) {
     if (animate) {
@@ -45,7 +47,7 @@ class Routes {
   static Widget animateTo(
       {required Widget closedWidget,
       required Widget openWidget,
-      Duration duration = const Duration(milliseconds: 1100)}) {
+      Duration duration = const Duration(milliseconds: 700)}) {
     return OpenContainer(
         closedElevation: 0,
         openElevation: 0,
@@ -66,6 +68,7 @@ class Routes {
       player: (context) => const Player(),
       equalizer: (context) => const Equalizer(),
       home: (context) => const Home(),
+      loader: (context) => const AssetLoader(),
     };
   }
 }

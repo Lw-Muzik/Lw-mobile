@@ -70,7 +70,7 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
       // appBar: kAppBar,
       body: Consumer<AppController>(
         builder: (context, controller, child) {
-          final PageController _pageController =
+          final PageController pageController =
               PageController(initialPage: controller.songId);
           if (controller.songId >= controller.songs.length) {
             ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
@@ -112,25 +112,31 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
                                 SizedBox(
                                   width: MediaQuery.of(context).size.height,
                                   child: PageView.builder(
-                                    controller: _pageController,
+                                    controller: pageController,
                                     // padEnds: false,
                                     itemCount: controller.songs.length,
                                     onPageChanged: (page) {
-                                      if (_pageController.hasClients) {
+                                      setState(() {});
+                                      if (pageController.hasClients) {
                                         if (page == controller.songId) {
                                           int x = page + 1;
+                                          setState(() {});
                                           if (x >= controller.songs.length) {
                                             x = 0;
+                                            setState(() {});
                                           } else {
                                             controller.songId = x;
                                             loadAudioSource(
                                                 controller.audioHandler,
                                                 controller.songs[x]);
+                                            setState(() {});
                                           }
                                         } else if (page > controller.songId) {
                                           controller.next();
+                                          setState(() {});
                                         } else if (page < controller.songId) {
                                           controller.prev();
+                                          setState(() {});
                                         }
                                       }
                                     },
@@ -144,9 +150,6 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
                                           InkWell(
                                             onTap: () {
                                               Routes.pop(context);
-                                              // Routes.routeTo(
-                                              //     controller.nowWidget,
-                                              //     context);
                                             },
                                             onLongPress: () => showTrackInfo(
                                                 context, controller),
@@ -179,10 +182,7 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
                                 bufferedPosition:
                                     positionData?.bufferedPosition ??
                                         Duration.zero,
-                                onChangeEnd: context
-                                    .watch<AppController>()
-                                    .audioHandler
-                                    .seek,
+                                onChangeEnd: controller.audioHandler.seek,
                               );
                             },
                           ),

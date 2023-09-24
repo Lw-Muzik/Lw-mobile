@@ -12,6 +12,7 @@ import 'package:flutter/material.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:provider/provider.dart';
 
+import '../Helpers/index.dart';
 import '../player/PlayerUI.dart';
 import '../widgets/ArtworkWidget.dart';
 import '../widgets/BottomPlayer.dart';
@@ -202,11 +203,15 @@ class SongLists extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      trailing: const Icon(Icons.arrow_forward_rounded),
+                      trailing: Text(
+                        "${formatTime(
+                          Duration(milliseconds: songs[index].duration ?? 0),
+                        )} | ${songs[index].fileExtension}",
+                      ),
                       onTap: () {
-                        if (controller.songs.length != songs.length) {
-                          controller.songs = songs;
-                        }
+                        // if (controller.songs.length != songs.length) {
+                        controller.songs = songs;
+                        // }
                         int songIndex = controller.songs.indexWhere(
                             (result) => result.title == songs[index].title);
                         controller.songId = songIndex;

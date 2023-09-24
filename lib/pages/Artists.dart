@@ -75,6 +75,7 @@ class _ArtistsState extends State<Artists> {
                         ),
                       ),
                     ),
+                    // child: Container(),
                     child: ArtworkWidget(
                       borderRadius: BorderRadius.circular(10),
                       songId: item.data![index].id,

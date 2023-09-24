@@ -11,6 +11,7 @@ import 'package:flutter/material.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:provider/provider.dart';
 
+import '../Helpers/index.dart';
 import '../widgets/ArtworkWidget.dart';
 import '../widgets/BottomPlayer.dart';
 
@@ -162,36 +163,29 @@ class _SongListsState extends State<SongLists> {
                     selectedColor: Theme.of(context).primaryColorLight,
                     title: Text(widget.songs[index].title),
                     subtitle: Text(widget.songs[index].artist ?? "No Artist"),
-                    trailing: const Icon(Icons.arrow_forward_rounded),
+                    trailing: Text(
+                      "${formatTime(
+                        Duration(
+                            milliseconds: widget.songs[index].duration ?? 0),
+                      )} | ${widget.songs[index].fileExtension}",
+                    ),
                     onTap: () {
                       setState(() {
                         _selected = index;
                       });
-                      if (widget.songs.length < controller.songs.length) {
-                        controller.songs = widget.songs;
-                      }
+                      controller.songs = widget.songs;
+
                       int songIndex = (controller.songs.indexWhere((result) =>
                           result.title == widget.songs[index].title));
                       controller.songId = songIndex;
                       loadAudioSource(
                           controller.audioHandler, controller.songs[songIndex]);
-                      // controller.audioPlayer.setUrl(controller
-                      //     .songs[controller.songs.indexWhere((result) =>
-                      //         result.title == widget.songs[index].title)]
-                      //     .data);
-                      // controller.audioPlayer.play();
                     },
                     // This Widget will query/load image.
                     // You can use/create your own widget/method using [queryArtwork].
-                    leading: QueryArtworkWidget(
-                      artworkHeight: 60,
-                      artworkWidth: 60,
-                      nullArtworkWidget: ClipRRect(
-                        borderRadius: BorderRadius.circular(60),
-                        child: Image.asset("assets/audio.jpeg"),
-                      ),
-                      controller: controller.audioQuery,
-                      id: widget.songs[index].id,
+                    leading: ArtworkWidget(
+                      songId: widget.songs[index].id,
+                      path: widget.songs[index].data,
                       type: ArtworkType.AUDIO,
                     ),
                   ),

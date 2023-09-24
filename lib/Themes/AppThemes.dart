@@ -1,3 +1,4 @@
+import 'package:eq_app/Global/index.dart';
 import 'package:flutter/material.dart';
 
 class AppThemes {
@@ -30,6 +31,12 @@ class AppThemes {
     useMaterial3: true,
     bottomNavigationBarTheme: const BottomNavigationBarThemeData(
       backgroundColor: Colors.transparent,
+      elevation: 0,
+    ),
+    appBarTheme: AppBarTheme(
+      backgroundColor: Colors.transparent,
+      systemOverlayStyle: overlay,
+      elevation: 0,
     ),
     colorScheme: ColorScheme.fromSeed(
       seedColor: const Color.fromARGB(255, 156, 15, 5),

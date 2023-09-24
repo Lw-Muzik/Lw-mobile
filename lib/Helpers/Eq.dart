@@ -20,7 +20,7 @@ class _EqualizerControlsState extends State<EqualizerControls> {
   Widget build(BuildContext context) {
     return Consumer<AppController>(builder: (context, eq, state) {
       return Padding(
-        padding: const EdgeInsets.all(20.0),
+        padding: const EdgeInsets.all(10.0),
         child: StreamBuilder<List<int>>(
           stream: Stream.fromFuture(Channel.getBandFreq()),
           builder: (context, snapshot) {
@@ -30,8 +30,8 @@ class _EqualizerControlsState extends State<EqualizerControls> {
                 ...List.generate(
                   bands?.length ?? 0,
                   (i) => Expanded(
-                    child: StreamBuilder<int>(
-                        stream: Stream.fromFuture(Channel.getBandLevel(i)),
+                    child: FutureBuilder<int>(
+                        future: Channel.getBandLevel(i),
                         builder: (context, level) {
                           int? l = level.data;
                           // /
@@ -46,7 +46,7 @@ class _EqualizerControlsState extends State<EqualizerControls> {
                               SizedBox(
                                 width: MediaQuery.of(context).size.width,
                                 height:
-                                    MediaQuery.of(context).size.height / 3.53,
+                                    MediaQuery.of(context).size.height / 4.53,
                                 child: VerticalSlider(
                                   min: -15,
                                   max: 15,
@@ -120,59 +120,59 @@ class VerticalSlider extends StatelessWidget {
 }
 
 class ControlButtons extends StatelessWidget {
-  final AudioPlayer player;
-
-  const ControlButtons(this.player, {Key? key}) : super(key: key);
+  const ControlButtons({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        StreamBuilder<PlayerState>(
-          stream: player.playerStateStream,
-          builder: (context, snapshot) {
-            final playerState = snapshot.data;
-            final processingState = playerState?.processingState;
-            final playing = playerState?.playing;
-            if (processingState == ProcessingState.loading ||
-                processingState == ProcessingState.buffering) {
-              return Container(
-                margin: const EdgeInsets.all(8.0),
-                width: 64.0,
-                height: 64.0,
-                child: const CircularProgressIndicator(),
-              );
-            } else if (playing != true) {
-              return MaterialButton(
-                onPressed: player.play,
-                color: Colors.white,
-                textColor: const Color(0xFF0B1220),
-                padding: const EdgeInsets.all(16),
-                shape: const CircleBorder(),
-                elevation: 0.0,
-                child: const Icon(Icons.play_arrow, size: 32),
-              );
-            } else if (processingState != ProcessingState.completed) {
-              return MaterialButton(
-                onPressed: player.pause,
-                color: Colors.white,
-                textColor: const Color(0xFF0B1220),
-                padding: const EdgeInsets.all(16),
-                shape: const CircleBorder(),
-                elevation: 0.0,
-                child: const Icon(Icons.pause, size: 32),
-              );
-            } else {
-              return IconButton(
-                icon: const Icon(Icons.replay),
-                iconSize: 64.0,
-                onPressed: () => player.seek(Duration.zero),
-              );
-            }
-          },
-        ),
-      ],
-    );
+    return Consumer<AppController>(builder: (context, controller, ch) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          StreamBuilder<PlayerState>(
+            stream: controller.audioHandler.playerStateStream,
+            builder: (context, snapshot) {
+              final playerState = snapshot.data;
+              final processingState = playerState?.processingState;
+              final playing = playerState?.playing;
+              if (processingState == ProcessingState.loading ||
+                  processingState == ProcessingState.buffering) {
+                return Container(
+                  margin: const EdgeInsets.all(8.0),
+                  width: 64.0,
+                  height: 64.0,
+                  child: const CircularProgressIndicator(),
+                );
+              } else if (playing != true) {
+                return MaterialButton(
+                  onPressed: controller.audioHandler.play,
+                  color: Colors.white,
+                  textColor: const Color(0xFF0B1220),
+                  padding: const EdgeInsets.all(16),
+                  shape: const CircleBorder(),
+                  elevation: 0.0,
+                  child: const Icon(Icons.play_arrow, size: 32),
+                );
+              } else if (processingState != ProcessingState.completed) {
+                return MaterialButton(
+                  onPressed: controller.audioHandler.pause,
+                  color: Colors.white,
+                  textColor: const Color(0xFF0B1220),
+                  padding: const EdgeInsets.all(16),
+                  shape: const CircleBorder(),
+                  elevation: 0.0,
+                  child: const Icon(Icons.pause, size: 32),
+                );
+              } else {
+                return IconButton(
+                  icon: const Icon(Icons.replay),
+                  iconSize: 64.0,
+                  onPressed: () => controller.audioHandler.seek(Duration.zero),
+                );
+              }
+            },
+          ),
+        ],
+      );
+    });
   }
 }

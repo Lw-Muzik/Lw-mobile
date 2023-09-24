@@ -31,8 +31,8 @@ class _PlayListViewState extends State<PlayListView> {
               }
             });
           }
-          return StreamBuilder(
-              stream: controller.audioQuery.queryPlaylists().asStream(),
+          return FutureBuilder(
+              future: controller.audioQuery.queryPlaylists(),
               builder: (context, sna) {
                 return sna.hasData
                     ? ListView.builder(

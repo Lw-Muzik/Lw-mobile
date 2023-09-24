@@ -32,8 +32,8 @@ class _RoomEffectsState extends State<RoomEffects> {
     var controller = Provider.of<AppController>(context);
     return ListView(
       children: [
-        StreamBuilder<bool>(
-            stream: Stream.fromFuture(Channel.isReverbEnabled()),
+        FutureBuilder<bool>(
+            future: Channel.isReverbEnabled(),
             builder: (context, snapshot) {
               bool? enabled = snapshot.data;
               if (enabled != null) {

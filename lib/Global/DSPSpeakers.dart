@@ -87,8 +87,8 @@ class _DSPSpeakerWidgetState extends State<DSPSpeakerWidget> {
                 id: 0,
               ),
               DSPSpeaker(
-                freq: [31, 62, 125, 250, 916, 1000, 2000, 4000, 8000, 16000],
-                gain: [8, 6, 1, 5, 5, 3, 5, 8, 4, 7],
+                freq: [50, 80, 120, 250, 916, 1000, 2000, 4000, 8000, 16000],
+                gain: [8, 6, -4, 5, 5, 3, 5, 8, 4, 7],
                 name: "Beats by Dr",
                 id: 0,
               ),
@@ -142,9 +142,11 @@ class _DSPSpeakerWidgetState extends State<DSPSpeakerWidget> {
                                     child: Text(
                                       SPEAKERS[index].name,
                                       textAlign: TextAlign.center,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
                                       style: Theme.of(context)
                                           .textTheme
-                                          .labelMedium,
+                                          .labelSmall,
                                     ),
                                   ),
                                 ],

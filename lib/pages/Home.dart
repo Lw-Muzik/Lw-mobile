@@ -37,6 +37,7 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
 
   @override
   void initState() {
+    checkPermission();
     super.initState();
     _tabController = TabController(length: 6, vsync: this);
     SharedPreferences.getInstance().then((pref) {
@@ -72,46 +73,22 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
       Channel.setOutGain(pref.getDouble("powerGain") ?? 3.0);
     });
     // showChangeLog();
-    fetchSongs();
+    // fetchSongs();
     restoreDefaults();
-    // checkAndRequestPermissions();
-    checkPermission().then((value) {
-      for (var element in value) {
-        if (element.isGranted) {
-          fetchSongs();
-        }
-      }
-    });
   }
 
-  // void showChangeLog() {
-  //   showCupertinoModalPopup(
-  //       context: context,
-  //       builder: (context) {
-  //         return Dialog();
-  //       });
-  // }
-
-  void fetchSongs() async {
-    if (mounted) {
-      setState(() {});
-      context.read<AppController>().songs =
-          await context.read<AppController>().audioQuery.querySongs(
-                orderType: OrderType.ASC_OR_SMALLER,
-                uriType: UriType.EXTERNAL,
-                ignoreCase: true,
-              );
-      // ignore: use_build_context_synchronously
-      context.read<AppController>().playlist =
-          await OnAudioQuery.platform.queryPlaylists();
+  void checkPermission() async {
+    var permissionStatus = await Permission.storage.status;
+    if (permissionStatus.isDenied ||
+        permissionStatus.isPermanentlyDenied ||
+        permissionStatus.isRestricted ||
+        permissionStatus.isLimited) {
+      await Permission.storage.request();
     }
   }
 
   void restoreDefaults() {
     if (mounted) {
-      // setState(() {
-      //   eq = Provider.of<AppController>(context, listen: false).enableDSP;
-      // });
       Channel.enableEq(
           Provider.of<AppController>(context, listen: false).enableDSP);
       setState(() {});
@@ -121,145 +98,96 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
     }
   }
 
-  Future<List<PermissionStatus>> checkPermission() async {
-    Map<Permission, PermissionStatus> statuses = await [
-      Permission.audio,
-      Permission.storage,
-      Permission.manageExternalStorage,
-    ].request();
-    return statuses.values.toList();
-  }
-
   bool pPlay = false;
   @override
   Widget build(BuildContext context) {
-    Channel.setSessionId(0);
-
-    // var controller = Provider.of<AppController>(context, listen: true);
-    return Consumer<AppController>(builder: (context, controller, s) {
-      return StreamBuilder(
-          stream: controller.audioHandler.playingStream,
-          builder: (context, service) {
-            return Body(
-              child: Scaffold(
-                backgroundColor: controller.isFancy
-                    ? Colors.transparent
-                    : Theme.of(context).scaffoldBackgroundColor,
-                appBar: AppBar(
-                  forceMaterialTransparency: controller.isFancy,
-                  title: const Text("Hype Muziki"),
-                  actions: [
-                    Padding(
-                      padding: const EdgeInsets.only(right: 18.0),
-                      child: IconButton(
-                        onPressed: () {
-                          showSearch<SongModel>(
-                              context: context, delegate: SearchPage());
-                        },
-                        icon: const Icon(Icons.search),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.only(right: 18.0),
-                      child: IconButton(
-                        onPressed: () {
-                          Routes.routeTo(const Settings(), context);
-                        },
-                        icon: const Icon(Icons.settings),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.only(right: 18.0),
-                      child: Routes.animateTo(
-                        closedWidget: const Icon(Icons.equalizer),
-                        openWidget: const Equalizer(),
-                      ),
-                    )
-                  ],
-                  bottom: TabBar(
-                    isScrollable: true,
-                    controller: _tabController,
-                    tabs: const [
-                      Tab(
-                        child: Text("Folders"),
-                      ),
-                      Tab(
-                        child: Text("Playlists"),
-                      ),
-                      Tab(
-                        child: Text("Artists"),
-                      ),
-                      Tab(
-                        child: Text("Albums"),
-                      ),
-                      Tab(
-                        child: Text("Genres"),
-                      ),
-                      Tab(
-                        child: Text("Songs"),
-                      ),
-                    ],
-                  ),
-                ),
-                body: StreamBuilder(
-                    stream: Stream.fromFuture(checkPermission()),
-                    builder: (context, snapshot) {
-                      var permission = snapshot.data;
-                      return snapshot.hasData
-                          ? permission![0].isGranted ||
-                                  permission[1].isGranted ||
-                                  permission[0].isGranted
-                              ? Stack(
-                                  children: [
-                                    GestureDetector(
-                                      onScaleUpdate: (details) {
-                                        log(details.scale.toString());
-                                      },
-                                      child: TabBarView(
-                                        controller: _tabController,
-                                        children: const [
-                                          Folders(),
-                                          PlayListView(),
-                                          Artists(),
-                                          Albums(),
-                                          Genres(),
-                                          AllSongs(),
-                                        ],
-                                      ),
-                                    ),
-                                    // if (controller.audioPlayer.playing)
-                                    //   Positioned(
-                                    //     bottom: 0,
-                                    //     right: 3,
-                                    //     left: 3,
-                                    //     child: BottomPlayer(
-                                    //       controller: controller,
-                                    //     ),
-                                    //   ),
-                                  ],
-                                )
-                              : Center(
-                                  child: OutlinedButton(
-                                    onPressed: () {
-                                      checkPermission().then((value) {
-                                        setState(() {});
-                                      });
-                                    },
-                                    child: const Text("Request permission"),
-                                  ),
-                                )
-                          : const Center(
-                              child: CircularProgressIndicator.adaptive(),
-                            );
-                    }),
-                bottomNavigationBar: service.data ?? false
-                    ? BottomPlayer(
-                        controller: controller,
-                      )
-                    : null,
+    return Body(
+      child: Scaffold(
+        backgroundColor: context.watch<AppController>().isFancy
+            ? Colors.transparent
+            : Theme.of(context).scaffoldBackgroundColor,
+        appBar: AppBar(
+          forceMaterialTransparency: context.watch<AppController>().isFancy,
+          title: const Text("Hype Muziki"),
+          actions: [
+            Padding(
+              padding: const EdgeInsets.only(right: 18.0),
+              child: IconButton(
+                onPressed: () {
+                  showSearch<SongModel>(
+                      context: context, delegate: SearchPage());
+                },
+                icon: const Icon(Icons.search),
               ),
-            );
-          });
-    });
+            ),
+            Padding(
+              padding: const EdgeInsets.only(right: 18.0),
+              child: IconButton(
+                onPressed: () {
+                  Routes.routeTo(const Settings(), context);
+                },
+                icon: const Icon(Icons.settings),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(right: 18.0),
+              child: Routes.animateTo(
+                closedWidget: const Icon(Icons.equalizer),
+                openWidget: const Equalizer(),
+              ),
+            )
+          ],
+          bottom: TabBar(
+            isScrollable: true,
+            controller: _tabController,
+            tabs: const [
+              Tab(
+                child: Text("Folders"),
+              ),
+              Tab(
+                child: Text("Playlists"),
+              ),
+              Tab(
+                child: Text("Artists"),
+              ),
+              Tab(
+                child: Text("Albums"),
+              ),
+              Tab(
+                child: Text("Genres"),
+              ),
+              Tab(
+                child: Text("Songs"),
+              ),
+            ],
+          ),
+        ),
+        body: Stack(
+          children: [
+            GestureDetector(
+              onScaleUpdate: (details) {
+                log(details.scale.toString());
+              },
+              child: TabBarView(
+                controller: _tabController,
+                children: const [
+                  Folders(),
+                  PlayListView(),
+                  Artists(),
+                  Albums(),
+                  Genres(),
+                  AllSongs(),
+                ],
+              ),
+            ),
+          ],
+        ),
+        bottomNavigationBar: context.watch<AppController>().audioHandler.playing
+            ? BottomPlayer(
+                controller: context.watch<AppController>(),
+              )
+            : null,
+      ),
+    );
   }
 }

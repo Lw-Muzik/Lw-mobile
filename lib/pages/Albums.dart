@@ -1,9 +1,12 @@
-import 'package:eq_app/Routes/routes.dart';
-import 'package:eq_app/extensions/index.dart';
+import 'package:on_audio_query/on_audio_query.dart';
+import 'package:provider/provider.dart';
+
+import '/Routes/routes.dart';
+import '/extensions/index.dart';
 import 'package:eq_app/pages/AlbumSongs.dart';
 import 'package:flutter/material.dart';
-import 'package:on_audio_query/on_audio_query.dart';
 
+import '../controllers/AppController.dart';
 import '../widgets/ArtworkWidget.dart';
 
 class Albums extends StatefulWidget {
@@ -16,8 +19,8 @@ class Albums extends StatefulWidget {
 class _AlbumsState extends State<Albums> {
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<List<AlbumModel>>(
-        stream: Stream.fromFuture(OnAudioQuery.platform.queryAlbums()),
+    return FutureBuilder<List<AlbumModel>>(
+        future: context.read<AppController>().audioQuery.queryAlbums(),
         builder: (context, snapshot) {
           return GridView.count(
             crossAxisCount: 3,

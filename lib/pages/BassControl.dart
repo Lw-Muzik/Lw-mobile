@@ -71,8 +71,8 @@ class _BassControlState extends State<BassControl> {
                             1)), //double.parse(bass.toStringAsFixed(1)),
                         value: bass,
                         max: 20,
-                        width: 150,
-                        height: 150,
+                        width: 120,
+                        height: 120,
                         min: 0,
                         onChanged: ebass == true
                             ? (strength) {
@@ -99,8 +99,8 @@ class _BassControlState extends State<BassControl> {
                             ((stereo / 1000) * 100).toStringAsFixed(1)),
                         value: stereo,
                         max: 1000,
-                        width: 150,
-                        height: 150,
+                        width: 120,
+                        height: 120,
                         min: 0,
                         onChanged: ebass == true
                             ? (s) {
@@ -111,8 +111,8 @@ class _BassControlState extends State<BassControl> {
                               }
                             : (x) {});
                   }),
-              const SizedBox(
-                width: 10,
+              const SizedBox.square(
+                dimension: 10,
               ),
               // StreamBuilder<double>(
               //     stream: Stream.fromFuture(Channel.getTargetGain()),

@@ -30,21 +30,6 @@ class _ControlsState extends State<Controls> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: <Widget>[
-                // IconButton(
-                //   highlightColor: Colors.transparent,
-                //   splashColor: Colors.transparent,
-                //   onPressed: () {
-                //     setState(() {
-                //       isLoop = !isLoop;
-                //     });
-                //     widget.controller.audioPlayer
-                //         .setLoopMode(isLoop ? LoopMode.one : LoopMode.off);
-                //   },
-                //   icon: Icon(
-                //     isLoop ? Icons.repeat_one : Icons.repeat,
-                //     color: Colors.white.withOpacity(isLoop ? 0.9 : 0.4),
-                //   ),
-                // ),
                 StreamBuilder<LoopMode>(
                   stream: widget.controller.audioHandler.loopModeStream,
                   builder: (context, snapshot) {
@@ -75,7 +60,7 @@ class _ControlsState extends State<Controls> {
                   onPressed: () => widget.controller.prev(),
                   icon: const Icon(Icons.skip_previous, color: Colors.white),
                 ),
-                ControlButtons(widget.controller.audioHandler),
+                const ControlButtons(),
                 IconButton(
                   iconSize: 32,
                   onPressed: () => widget.controller.next(),

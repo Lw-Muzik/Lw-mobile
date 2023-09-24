@@ -10,6 +10,11 @@ class Files {
             s.data.split("/")[s.data.split("/").length - 2] ==
             path.split("/").last)
         .toList();
+    // for (var song in filteredSongs) {
+    //   var parser = ID3TagReader.path(song.data);
+    //   var tag = parser.readTagSync();
+    //   print(tag.lyrics);
+    // }
     return filteredSongs;
   }
 }

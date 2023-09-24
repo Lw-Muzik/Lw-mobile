@@ -6,7 +6,7 @@ import 'package:just_audio/just_audio.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-class AppController extends ChangeNotifier {
+class AppController with ChangeNotifier {
   List<int> _bandValues = [0, 0, 0, 0, 0];
   // app themes
   String _selectedTheme = "light";
@@ -18,7 +18,7 @@ class AppController extends ChangeNotifier {
   bool get enableEffects {
     SharedPreferences.getInstance().asStream().listen((event) {
       _enableEffects = event.getBool("enableEffects") ?? false;
-      notifyListeners();
+      // notifyListeners();
     });
     return _enableEffects;
   }
@@ -47,11 +47,12 @@ class AppController extends ChangeNotifier {
   double _dspXBass = 11.0;
   double _dspXBass2 = 13.0;
   double _dspOutGain = 3.0;
+  double _dspNoise = -10.0;
   // DSP getters
   bool get enableDSP {
     SharedPreferences.getInstance().asStream().listen((event) {
       _enableDSP = event.getBool("enableDSP") ?? false;
-      notifyListeners();
+      // notifyListeners();
     });
     return _enableDSP;
   }
@@ -67,6 +68,8 @@ class AppController extends ChangeNotifier {
   double get dspXTreble {
     return _dspXTreble;
   }
+
+  double get dspNoise => _dspNoise;
 
   double get dspPowerBass {
     return _dspPowerBass;
@@ -90,6 +93,11 @@ class AppController extends ChangeNotifier {
       event.setBool("enableDSP", dsp);
     });
     _enableDSP = dsp;
+    notifyListeners();
+  }
+
+  set dspNoise(double noise) {
+    _dspNoise = noise;
     notifyListeners();
   }
 
@@ -151,7 +159,6 @@ class AppController extends ChangeNotifier {
   List<PlaylistModel> get playlist => _playlist;
   set playlist(List<PlaylistModel> _plst) {
     _playlist = _plst;
-    notifyListeners();
   }
 
   bool _dspSpeakerView = false;
@@ -182,10 +189,11 @@ class AppController extends ChangeNotifier {
   double _blur = 40;
   final AudioPlayer _audioHandler = AudioPlayer();
   AudioPlayer get audioHandler => _audioHandler;
-
+  SharedPreferences? _prefs;
   List<SongModel> _songs = [];
   List<SongModel> _shuffledSongs = [];
   AppController() {
+    _initializePrefs();
     _audioHandler.processingStateStream.listen((event) {
       if (event == ProcessingState.completed) {
         if (songId >= songs.length - 1) {
@@ -198,6 +206,30 @@ class AppController extends ChangeNotifier {
       }
     });
   }
+
+  void _initializePrefs() async {
+    _prefs = await SharedPreferences.getInstance();
+    _loadSettings();
+  }
+
+  void _loadSettings() {
+    _enableEffects = _prefs?.getBool("enableEffects") ?? false;
+    _enableDSP = _prefs?.getBool("enableDSP") ?? false;
+    _selectSpeaker = _prefs?.getInt("selectedSpeaker") ?? -1;
+    _dspVolume = _prefs?.getDouble("dspVolume") ?? -6.0;
+    _dspXTreble = _prefs?.getDouble("xTreble") ?? 3.3;
+    _dspPowerBass = _prefs?.getDouble("powerBass") ?? 8.0;
+    _dspXBass = _prefs?.getDouble("xBass") ?? 11.0;
+    _dspOutGain = _prefs?.getDouble("powerGain") ?? 3.0;
+    _selectedPreset = _prefs?.getInt("selectedPreset") ?? 0;
+    _isFancy = _prefs?.getBool("fancyMode") ?? false;
+    _isShuffled = _prefs?.getBool("isShuffled") ?? false;
+    _isVisualInBackground = _prefs?.getBool("isVisualInBackground") ?? false;
+    _visuals = _prefs?.getBool("visuals") ?? false;
+    _bgQuality = _prefs?.getDouble("bgQuality") ?? 2.0;
+    // Load other settings...
+  }
+
   bool get isDark {
     return _isDark;
   }
@@ -205,7 +237,7 @@ class AppController extends ChangeNotifier {
   List<int> get bandValues => _bandValues;
   set bandValues(List<int> bandLevels) {
     _bandValues = bandLevels;
-    notifyListeners();
+    // notifyListeners();
   }
 
   bool get isShuffled => _isShuffled;
@@ -225,6 +257,11 @@ class AppController extends ChangeNotifier {
   }
 
   bool get isVisualInBackground => _isVisualInBackground;
+  set isVisualInBackground(bool b) {
+    _prefs?.setBool("isVisualInBackground", b);
+    _isVisualInBackground = b;
+    notifyListeners();
+  }
 
   int get songId {
     return _songId;
@@ -249,30 +286,30 @@ class AppController extends ChangeNotifier {
   OnAudioQuery get audioQuery => _audioQuery;
 
   set visuals(bool v) {
+    _prefs?.setBool("visuals", v);
     _visuals = v;
     notifyListeners();
   }
 
   set isShuffled(bool sh) {
+    _prefs?.setBool("isShuffled", sh);
     _isShuffled = sh;
     notifyListeners();
   }
 
   set selectedTheme(String t) {
-    SharedPreferences.getInstance().then((value) {
-      value.setString("selectedTheme", t);
-    });
+    _prefs?.setString("selectedTheme", t);
+
     _selectedTheme = t;
     notifyListeners();
   }
 
 // ========================
   set selectedPreset(int pr) {
-    SharedPreferences.getInstance().then((value) {
-      value.setInt("selectedPreset", pr);
-      _selectedPreset = pr;
-      notifyListeners();
-    });
+    _prefs?.setInt("selectedPreset", pr);
+
+    _selectedPreset = pr;
+    notifyListeners();
   }
 
   set playerVisual(bool pV) {
@@ -282,16 +319,13 @@ class AppController extends ChangeNotifier {
 
   /// adjusting player's background
   set bgQuality(double q) {
+    _prefs?.setDouble("bgQuality", q);
     _bgQuality = q;
     notifyListeners();
   }
 
-  set isVisualInBackground(bool b) {
-    _isVisualInBackground = b;
-    notifyListeners();
-  }
-
   set isFancy(bool fancy) {
+    _prefs?.setBool("fancyMode", fancy);
     _isFancy = fancy;
     notifyListeners();
   }

@@ -1,10 +1,11 @@
 // ignore_for_file: depend_on_referenced_packages
 
 import 'dart:io';
-import 'dart:typed_data';
+// import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:id3tag/id3tag.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -13,34 +14,62 @@ import '../controllers/AppController.dart';
 
 String tempPath = "";
 
-Future<ImageProvider<Object>> fetchArtwork(
+Future<void> fetchArtwork(
   String path,
   int id, {
   ArtworkType type = ArtworkType.AUDIO,
   String other = "",
-  int quality = 100,
-  int size = 2000,
+  int quality = 70,
+  int size = 200,
 }) async {
+  String tempPath = "";
+
   var tempDir = await getTemporaryDirectory();
-  String imagePath = "";
   tempPath = tempDir.path;
-  //
-  var albumPath = Directory("$tempPath/Albums");
-  if (albumPath.existsSync() == false) {
-    await albumPath.create();
-  }
-  //
-  var artistPath = Directory("$tempPath/Artists");
-  if (artistPath.existsSync() == false) {
-    await artistPath.create();
+  // }
+
+  String imagePath = "";
+
+  Future<Directory> createDirectory(Directory dir) async {
+    if (!dir.existsSync()) {
+      return await dir.create(recursive: true);
+    }
+    return dir;
   }
 
-  //
-  var genrePath = Directory("$tempPath/Genres");
-  if (genrePath.existsSync() == false) {
-    await genrePath.create();
+  String getArtworkImagePath() {
+    if (path.isEmpty && other.isNotEmpty) {
+      return "$tempPath/${other.replaceAll(RegExp(r'[ /|:]'), '_')}.png";
+    } else {
+      return "$tempPath/${path.split('/').last.split('.').first}.png";
+    }
+  }
+// function to fetch saveImage Urls
+
+  Future<void> saveArtworkImage(String imgPath, String original) async {
+    if (!File(imgPath).existsSync()) {
+      if (type == ArtworkType.ALBUM ||
+          type == ArtworkType.ARTIST ||
+          type == ArtworkType.GENRE) {
+        var artworkData = await OnAudioQuery()
+            .queryArtwork(id, type, quality: quality, size: 500);
+        if (artworkData != null && artworkData.isNotEmpty) {
+          await File(imgPath).writeAsBytes(artworkData);
+        }
+      } else if (type == ArtworkType.AUDIO) {
+        var parser = ID3TagReader.path(original);
+        var tag = await parser.readTag();
+        var artworkData = tag.pictures;
+        if (tempPath.isNotEmpty && artworkData.isNotEmpty) {
+          await File(imgPath).writeAsBytes(artworkData.first.imageData);
+        }
+      }
+    }
   }
 
+  Directory albumPath = await createDirectory(Directory("$tempPath/Albums"));
+  Directory artistPath = await createDirectory(Directory("$tempPath/Artists"));
+  Directory genrePath = await createDirectory(Directory("$tempPath/Genres"));
   if (path.isEmpty && other != "Unknown") {
     if (type == ArtworkType.ALBUM) {
       imagePath =
@@ -53,24 +82,48 @@ Future<ImageProvider<Object>> fetchArtwork(
           "${genrePath.path}/${other.replaceFirst(' ', '_').replaceFirst('/', '_')}.png";
     }
   } else {
-    imagePath = "$tempPath/${path.split("/").last.split(".").first}.png";
+    imagePath = getArtworkImagePath();
   }
-  if (File(imagePath).existsSync() == false) {
-    //  fetch artwork from songs
-    Uint8List? artworkData = await OnAudioQuery.platform.queryArtwork(
-      id,
-      type,
-      quality: quality,
-      size: size,
-      format: ArtworkFormat.PNG,
-    );
+  await saveArtworkImage(imagePath, path);
+}
 
-    if (tempPath.isNotEmpty && artworkData != null && artworkData.isNotEmpty) {
-      // check if metadata is not null and path of the artwork exists
+Future<ImageProvider<Object>> savedImage(
+  String path,
+  int id, {
+  ArtworkType type = ArtworkType.AUDIO,
+  String other = "",
+  int quality = 70,
+  int size = 200,
+}) async {
+  String tempPath = "";
+  String imagePath = "";
 
-      File(imagePath).writeAsBytesSync(artworkData);
+  var tempDir = await getTemporaryDirectory();
+  tempPath = tempDir.path;
+
+  String getArtworkImagePath() {
+    if (path.isEmpty && other.isNotEmpty) {
+      return "$tempPath/${other.replaceAll(RegExp(r'[ /|:]'), '_')}.png";
+    } else {
+      return "$tempPath/${path.split('/').last.split('.').first}.png";
     }
   }
+
+  if (path.isEmpty && other != "Unknown") {
+    if (type == ArtworkType.ALBUM) {
+      imagePath =
+          "$tempPath/Albums/${other.replaceFirst(' ', '_').replaceFirst('/', '_')}.png";
+    } else if (type == ArtworkType.ARTIST) {
+      imagePath =
+          "$tempPath/Artists/${other.replaceFirst(' ', '_').replaceFirst('/', '_')}.png";
+    } else if (type == ArtworkType.GENRE) {
+      imagePath =
+          "$tempPath/Genres/${other.replaceFirst(' ', '_').replaceFirst('/', '_')}.png";
+    }
+  } else {
+    imagePath = getArtworkImagePath();
+  }
+
   return File(imagePath).existsSync()
       ? FileImage(
           File(imagePath),
@@ -78,71 +131,36 @@ Future<ImageProvider<Object>> fetchArtwork(
       : const AssetImage("assets/audio.jpeg") as ImageProvider;
 }
 
+// function to fetch saved artwork to work on the notification
 Future<String> fetchArtworkUrl(
   String path,
   int id, {
   ArtworkType type = ArtworkType.AUDIO,
   String other = "",
-  int quality = 100,
-  int size = 2000,
+  int quality = 90,
+  int size = 400,
 }) async {
-  var tempDir = await getTemporaryDirectory();
+  final tempDir = await getTemporaryDirectory();
+  final tempPath = tempDir.path;
   String imagePath = "";
-  tempPath = tempDir.path;
-  //
-  var albumPath = Directory("$tempPath/Albums");
-  if (albumPath.existsSync() == false) {
-    await albumPath.create();
-  }
-  //
-  var artistPath = Directory("$tempPath/Artists");
-  if (artistPath.existsSync() == false) {
-    await artistPath.create();
-  }
 
-  //
-  var genrePath = Directory("$tempPath/Genres");
-  if (genrePath.existsSync() == false) {
-    await genrePath.create();
-  }
-
-  if (path.isEmpty && other != "Unknown") {
-    if (type == ArtworkType.ALBUM) {
-      imagePath =
-          "${albumPath.path}/${other.replaceFirst(' ', '_').replaceFirst('/', '_')}.png";
-    } else if (type == ArtworkType.ARTIST) {
-      imagePath =
-          "${artistPath.path}/${other.replaceFirst(' ', '_').replaceFirst('/', '_')}.png";
-    } else if (type == ArtworkType.GENRE) {
-      imagePath =
-          "${genrePath.path}/${other.replaceFirst(' ', '_').replaceFirst('/', '_')}.png";
-    }
-  } else {
-    imagePath = "$tempPath/${path.split("/").last.split(".").first}.png";
-  }
-  if (File(imagePath).existsSync() == false) {
-    //  fetch artwork from songs
-    Uint8List? artworkData = await OnAudioQuery.platform.queryArtwork(
-      id,
-      type,
-      quality: quality,
-      size: size,
-      format: ArtworkFormat.PNG,
-    );
-
-    if (tempPath.isNotEmpty && artworkData != null && artworkData.isNotEmpty) {
-      // check if metadata is not null and path of the artwork exists
-
-      File(imagePath).writeAsBytesSync(artworkData);
+  getArtworkImagePath() {
+    if (path.isEmpty && other.isNotEmpty && other != "Unknown") {
+      return "$tempPath/${other.replaceAll(RegExp(r'[ /]'), '_')}.png";
+    } else {
+      return "$tempPath/${path.split('/').last.split('.').first}.png";
     }
   }
-  var defaultImg = await rootBundle.load("assets/audio.jpeg");
-  var dirD = Directory("$tempPath/Default");
-  if (dirD.existsSync() == false) {
-    await dirD.create();
-    File("${dirD.path}/default.png")
-        .writeAsBytesSync(defaultImg.buffer.asUint8List());
+
+  imagePath = getArtworkImagePath();
+  final dirD = Directory("$tempPath/Default");
+  if (!dirD.existsSync()) {
+    await dirD.create(recursive: true);
+    final defaultImg = await rootBundle.load("assets/audio.jpeg");
+    await File("${dirD.path}/default.png")
+        .writeAsBytes(defaultImg.buffer.asUint8List());
   }
+
   return File(imagePath).existsSync() ? imagePath : "${dirD.path}/default.png";
 }
 
@@ -165,11 +183,12 @@ void showMessage(
       backgroundColor: type == 'info'
           ? Theme.of(context).colorScheme.primary
           : type == 'warning'
-              ? const Color.fromARGB(255, 255, 155, 73)!.withOpacity(opacity)
+              ? const Color.fromARGB(255, 255, 155, 73).withOpacity(opacity)
               : type == 'danger'
-                  ? const Color.fromARGB(255, 247, 68, 68)!.withOpacity(opacity)
+                  ? const Color.fromARGB(255, 247, 68, 68).withOpacity(opacity)
                   : type == 'success'
-                      ? Color.fromARGB(255, 20, 238, 31).withOpacity(opacity)
+                      ? const Color.fromARGB(255, 20, 238, 31)
+                          .withOpacity(opacity)
                       : Colors.grey[600]!.withOpacity(opacity),
       duration: Duration(seconds: duration),
     ),
@@ -269,4 +288,8 @@ void showDeletePlaylist(AppController controller, String playlist,
           ],
         );
       });
+}
+
+String formatTime(Duration time) {
+  return "${RegExp(r'((^0*[1-9]\d*:)?\d{2}:\d{2})\.\d+$').firstMatch("$time")?.group(1)}";
 }

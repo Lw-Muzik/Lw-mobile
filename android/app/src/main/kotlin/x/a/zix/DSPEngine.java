@@ -151,11 +151,13 @@ public class DSPEngine {
 
         }
     }
-    public static void setTuner(boolean enable){
-        if(dspEq != null){
-//            .setEnabled(enable);
+    public static void setNoiseThreshold(float noiseThreshold){
+        if(dspBand != null){
+            dspBand.setNoiseGateThreshold(noiseThreshold);
         }
     }
+
+
 //    enable the DSP Engine
     public static void enableEngine(boolean enable) {
 

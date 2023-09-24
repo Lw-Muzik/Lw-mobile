@@ -42,9 +42,8 @@ class _FolderSongsState extends State<FolderSongs> {
               centerTitle: true,
               background: Stack(
                 children: [
-                  StreamBuilder<List<SongModel>>(
-                      stream:
-                          Stream.fromFuture(Files.queryFromFolder(widget.path)),
+                  FutureBuilder<List<SongModel>>(
+                      future: Files.queryFromFolder(widget.path),
                       builder: (context, snapshot) {
                         return snapshot.hasData
                             ? Consumer<AppController>(
@@ -106,8 +105,8 @@ class _FolderSongsState extends State<FolderSongs> {
                 backgroundColor: controller.isFancy
                     ? Colors.transparent
                     : Theme.of(context).scaffoldBackgroundColor,
-                body: StreamBuilder(
-                  stream: Stream.fromFuture(Files.queryFromFolder(widget.path)),
+                body: FutureBuilder(
+                  future: Files.queryFromFolder(widget.path),
                   builder: (context, snap) {
                     return snap.hasData
                         ? SongLists(songs: snap.data ?? [])

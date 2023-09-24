@@ -17,9 +17,15 @@ class SearchPage extends SearchDelegate<SongModel> {
       IconButton(
         onPressed: () => query = "",
         icon: const Icon(Icons.close),
-      )
+      ),
     ];
   }
+
+  // Widget buildFlexibleSpace(context) {
+  //   return Row(
+  //     children: [Chip(label: Text("All Songs"))],
+  //   );
+  // }
 
   @override
   Widget? buildLeading(BuildContext context) {
