@@ -10,6 +10,7 @@ import 'package:flutter/material.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:provider/provider.dart';
 
+import '../Helpers/AudioHandler.dart';
 import '../controllers/AppController.dart';
 import '../widgets/ArtworkWidget.dart';
 import '../widgets/BottomPlayer.dart';
@@ -94,7 +95,7 @@ class _PlaylistSongsState extends State<PlaylistSongs> {
       },
       body: Consumer<AppController>(builder: (context, controller, child) {
         return StreamBuilder(
-            stream: controller.audioHandler.playingStream,
+            stream: context.read<AudioHandler>().player.playingStream,
             builder: (context, service) {
               return Scaffold(
                 backgroundColor: controller.isFancy
@@ -196,7 +197,7 @@ class PlaylistSongLists extends StatelessWidget {
                           (result) => result.title == songs[index].title));
                       controller.songId = songIndex;
                       loadAudioSource(
-                          controller.audioHandler, controller.songs[songIndex]);
+                          controller.handler, controller.songs[songIndex]);
                     },
                     // This Widget will query/load image.
                     // You can use/create your own widget/method using [queryArtwork].

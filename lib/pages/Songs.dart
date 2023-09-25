@@ -1,11 +1,10 @@
 import 'package:eq_app/Global/index.dart';
-import 'package:eq_app/Helpers/Channel.dart';
 import 'package:eq_app/widgets/ArtworkWidget.dart';
 import 'package:flutter/material.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:provider/provider.dart';
 
-import '../Helpers/index.dart';
+import '../Helpers/AudioHandler.dart';
 import '../controllers/AppController.dart';
 
 class AllSongs extends StatefulWidget {
@@ -24,8 +23,9 @@ class _AllSongsState extends State<AllSongs> {
 
   @override
   void dispose() {
-    super.dispose();
+    context.read<AppController>().dispose();
     scrollController.dispose();
+    super.dispose();
   }
 
   @override
@@ -95,7 +95,7 @@ class _AllSongsState extends State<AllSongs> {
                         children: [
                           Icon(
                             controller.songId == index &&
-                                    controller.audioHandler.playing
+                                    context.read<AudioHandler>().player.playing
                                 ? Icons.pause_circle_filled
                                 : Icons.play_circle_fill,
                             color: Colors.white,
@@ -111,8 +111,7 @@ class _AllSongsState extends State<AllSongs> {
                       if (controller.songs.length < item.data!.length) {
                         controller.songs = item.data!;
                       }
-                      loadAudioSource(
-                          controller.audioHandler, item.data![index]);
+                      loadAudioSource(controller.handler, item.data![index]);
                     },
                     leading: ArtworkWidget(
                         path: item.data![index].data,

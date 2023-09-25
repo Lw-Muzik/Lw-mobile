@@ -9,9 +9,9 @@ import '../../controllers/AppController.dart';
 import '../../pages/AlbumSongs.dart';
 import '../../widgets/PlayListWidget.dart';
 
-class TrackInfo extends StatelessWidget {
+class TrackInfoWidget extends StatelessWidget {
   final AppController controller;
-  const TrackInfo({
+  const TrackInfoWidget({
     super.key,
     required this.controller,
   });

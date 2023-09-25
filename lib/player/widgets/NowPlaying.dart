@@ -1,8 +1,9 @@
 import 'package:eq_app/Global/index.dart';
 import 'package:eq_app/controllers/AppController.dart';
 import 'package:flutter/material.dart';
-import 'package:just_audio/just_audio.dart';
+
 import 'package:on_audio_query/on_audio_query.dart';
+import 'package:provider/provider.dart';
 
 class NowPlaying extends StatefulWidget {
   final AppController controller;
@@ -16,11 +17,17 @@ class _NowPlayingState extends State<NowPlaying> {
   ScrollController scrollController = ScrollController();
 
   @override
+  void dispose() {
+    context.read<AppController>().dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return SizedBox(
       height: MediaQuery.of(context).size.width,
       child: StreamBuilder(
-          stream: widget.controller.audioHandler.playingStream,
+          stream: widget.controller.handler.player.playingStream,
           builder: (context, service) {
             if (service.hasData) {
               if (service.data!) {
@@ -67,7 +74,7 @@ class _NowPlayingState extends State<NowPlaying> {
                       setState(() {
                         widget.controller.songId = i;
                       });
-                      loadAudioSource(widget.controller.audioHandler, songs[i]);
+                      loadAudioSource(widget.controller.handler, songs[i]);
                       // widget.controller.audioPlayer.setUrl(songs[i].data);
                       // widget.controller.audioPlayer.play();
                     },

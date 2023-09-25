@@ -6,6 +6,8 @@ import 'package:just_audio/just_audio.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../Helpers/AudioHandler.dart';
+
 class AppController with ChangeNotifier {
   List<int> bandValues = [0, 0, 0, 0, 0];
   // app themes
@@ -31,6 +33,8 @@ class AppController with ChangeNotifier {
     notifyListeners();
   }
 
+  final AudioHandler _handler = AudioHandler();
+  AudioHandler get handler => _handler;
   int _selectedRoomPreset = -1;
   /*
      private static final float out_gain = 0.0f;
@@ -155,11 +159,6 @@ class AppController with ChangeNotifier {
   }
 
   //----------- end of dsp initialization --------------------------------
-  List<PlaylistModel> _playlist = [];
-  List<PlaylistModel> get playlist => _playlist;
-  set playlist(List<PlaylistModel> _plst) {
-    _playlist = _plst;
-  }
 
   bool _dspSpeakerView = false;
   bool get dspSpeakerView => _dspSpeakerView;
@@ -187,21 +186,21 @@ class AppController with ChangeNotifier {
   final OnAudioQuery _audioQuery = OnAudioQuery();
   double _opacity = 0.0;
   double _blur = 40;
-  final AudioPlayer _audioHandler = AudioPlayer();
-  AudioPlayer get audioHandler => _audioHandler;
+
   SharedPreferences? _prefs;
   List<SongModel> _songs = [];
   List<SongModel> _shuffledSongs = [];
   AppController() {
     _initializePrefs();
-    _audioHandler.processingStateStream.listen((event) {
+
+    handler.player.processingStateStream.listen((event) {
       if (event == ProcessingState.completed) {
         if (songId >= songs.length - 1) {
-          _audioHandler.stop();
+          handler.player.stop();
         } else {
           songId += 1;
           artWorkId = _songs[songId].id;
-          loadAudioSource(audioHandler, _songs[songId]);
+          loadAudioSource(handler, _songs[songId]);
         }
       }
     });
@@ -362,7 +361,7 @@ class AppController with ChangeNotifier {
       sample[j] = temp;
     }
     songId = 0;
-    loadAudioSource(audioHandler, sample[0]);
+    loadAudioSource(handler, sample[0]);
   }
 
   set songId(int id) {
@@ -373,24 +372,24 @@ class AppController with ChangeNotifier {
   void next() {
     if (songId >= songs.length) {
       songId = 0;
-      _audioHandler.stop();
+      AudioHandler().player.stop();
     } else {
       songId += 1;
 
       artWorkId = _songs[songId].id;
-      loadAudioSource(audioHandler, songs[songId]);
+      loadAudioSource(handler, songs[songId]);
     }
   }
 
   void prev() {
     if (songId == 0) {
       songId = 0;
-      _audioHandler.stop();
+      AudioHandler().player.stop();
     } else {
       songId -= 1;
 
       artWorkId = _songs[songId].id;
-      loadAudioSource(audioHandler, songs[songId]);
+      loadAudioSource(handler, songs[songId]);
     }
   }
 }

@@ -81,9 +81,9 @@ class _EqViewState extends State<EqView> {
                 ),
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.only(left: 18.0, right: 18.0),
-              child: const EqPresets(),
+            const Padding(
+              padding: EdgeInsets.only(left: 18.0, right: 18.0),
+              child: EqPresets(),
             ),
             const SizedBox(
               height: 4,

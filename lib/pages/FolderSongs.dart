@@ -99,7 +99,7 @@ class _FolderSongsState extends State<FolderSongs> {
       },
       body: Consumer<AppController>(builder: (context, controller, child) {
         return StreamBuilder(
-            stream: controller.audioHandler.playingStream,
+            stream: controller.handler.player.playingStream,
             builder: (context, service) {
               return Scaffold(
                 backgroundColor: controller.isFancy

@@ -29,7 +29,7 @@ class PlaylistController with ChangeNotifier {
         ),
       ),
     );
-    controller.audioHandler.setAudioSource(playlist);
-    controller.audioHandler.play();
+    // controller.audioHandler.setAudioSource(playlist);
+    // controller.audioHandler.play();
   }
 }

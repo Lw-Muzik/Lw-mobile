@@ -1,3 +1,4 @@
+import 'package:eq_app/Helpers/AudioHandler.dart';
 import 'package:eq_app/Routes/routes.dart';
 import 'package:eq_app/Global/index.dart';
 import 'package:eq_app/Themes/AppThemes.dart';
@@ -10,16 +11,23 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:just_audio_background/just_audio_background.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:wiredash/wiredash.dart';
 
-import 'Helpers/fileloader.dart';
 import 'controllers/PlayerController.dart';
 import 'controllers/PlaylistController.dart';
 
 // late AudioHandler audioPlayerHandler;
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  SharedPreferences prefs = await SharedPreferences.getInstance();
+  await [
+    Permission.storage,
+    Permission.audio,
+    // Permission.microphone,
+  ].request();
+  // var status = await Permission.storage.status;
+  // if (status.isGranted) {
+
+  // }
 
   await JustAudioBackground.init(
     androidNotificationIcon: "mipmap/launcher_icon",
@@ -40,11 +48,8 @@ Future<void> main() async {
     DeviceOrientation.portraitDown,
   ]);
 // request for permission to read audio files
-  var status = await Permission.storage.status;
-  if (!status.isGranted) {
-    await Permission.storage.request();
-  }
-
+  // SharedPreferences prefs = await SharedPreferences.getInstance();
+  // prefs.clear();
   runApp(
     MultiBlocProvider(
       providers: [
@@ -52,17 +57,24 @@ Future<void> main() async {
           create: (_) => AppController(),
         ),
         ChangeNotifierProvider(create: (context) => PlaylistController()),
+        ChangeNotifierProvider(create: (context) => AudioHandler()),
         ChangeNotifierProvider(create: (context) => PlayerController()),
         BlocProvider(
           create: (context) => BandController(),
         )
       ],
-      child: MaterialApp(
-        theme: AppThemes.fancyTheme,
-        initialRoute: prefs.getBool("artworkLoaded") == true
-            ? Routes.home
-            : Routes.loader,
-        routes: Routes.routes(),
+      child: Wiredash(
+        projectId: "hype-muzik-q8wp9st",
+        secret: "UB-v1DeJeOBqg3yxM5lOqEhoSsjrq-HM",
+        options: const WiredashOptionsData(
+          
+          locale: Locale('en'),
+        ),
+        child: MaterialApp(
+          theme: AppThemes.fancyTheme,
+          initialRoute: Routes.loader,
+          routes: Routes.routes(),
+        ),
       ),
     ),
   );

@@ -1,14 +1,15 @@
 import 'dart:ui';
-
-import 'package:audio_service/audio_service.dart';
 import 'package:eq_app/Helpers/VisualizerWidget.dart';
 import 'package:eq_app/Helpers/index.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:just_audio_background/just_audio_background.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 
+import '../Helpers/AudioHandler.dart';
 import '../Helpers/Files.dart';
 import '../Routes/routes.dart';
 import '../Visualizers/MultiwaveVisualizer.dart';
@@ -131,7 +132,7 @@ Decoration commonDeration(
     AppController controller, int listIndex, BuildContext context) {
   return BoxDecoration(
     borderRadius: BorderRadius.circular(10),
-    color: controller.songId == listIndex && controller.audioHandler.playing
+    color: controller.songId == listIndex && controller.handler.player.playing
         ? Theme.of(context).brightness == Brightness.light
             ? Theme.of(context).primaryColor.withOpacity(0.41)
             : Theme.of(context).colorScheme.primary.withOpacity(0.31)
@@ -245,9 +246,8 @@ Widget headerWidget(AppController controller, BuildContext context,
                 controller.songs.clear();
                 controller.songs = s;
                 controller.songId = 0;
-                // controller.audioHandler.setUrl(s[0].data);
-                // controller.audioHandler.play();
-                loadAudioSource(controller.audioHandler, s[0]);
+
+                loadAudioSource(controller.handler, s[0]);
               }
             },
             child: Card(
@@ -273,9 +273,9 @@ Widget headerWidget(AppController controller, BuildContext context,
   );
 }
 
-void loadAudioSource(AudioPlayer audioHandler, SongModel song) async {
+void loadAudioSource(AudioHandler handler, SongModel song) async {
   String image = await fetchArtworkUrl(song.data, song.id);
-  final player = audioHandler;
+
   MediaItem item = MediaItem(
     id: song.data,
     album: song.album,
@@ -285,7 +285,7 @@ void loadAudioSource(AudioPlayer audioHandler, SongModel song) async {
     artUri: Uri.file(image),
   );
 
-  player.setAudioSource(
+  handler.player.setAudioSource(
     AudioSource.uri(
       Uri.parse(item.id),
       tag: item,
@@ -293,7 +293,7 @@ void loadAudioSource(AudioPlayer audioHandler, SongModel song) async {
   );
   // player.setUrl(song.data);
 
-  player.play();
+  handler.player.play();
 }
 
 //  function to show track info
@@ -303,7 +303,7 @@ void showTrackInfo(BuildContext context, AppController controller) {
       context: context,
       filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
       builder: (context) {
-        return TrackInfo(
+        return TrackInfoWidget(
           controller: controller,
         );
       });

@@ -49,8 +49,7 @@ class SearchPage extends SearchDelegate<SongModel> {
             int songIndex = (controller.songs
                 .indexWhere((result) => result.title == songs[i].title));
             controller.songId = songIndex;
-            loadAudioSource(
-                controller.audioHandler, controller.songs[songIndex]);
+            loadAudioSource(controller.handler, controller.songs[songIndex]);
 
             Routes.routeTo(const Player(), context);
           },
@@ -94,8 +93,7 @@ class SearchPage extends SearchDelegate<SongModel> {
             int songIndex = (controller.songs
                 .indexWhere((result) => result.title == songs[i].title));
             controller.songId = songIndex;
-            loadAudioSource(
-                controller.audioHandler, controller.songs[songIndex]);
+            loadAudioSource(controller.handler, controller.songs[songIndex]);
             Routes.routeTo(const Player(), context);
           },
           subtitle: Text(

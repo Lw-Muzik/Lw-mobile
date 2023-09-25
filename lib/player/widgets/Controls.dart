@@ -4,6 +4,7 @@ import 'package:eq_app/controllers/AppController.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:provider/provider.dart';
 
+import '../../Helpers/AudioHandler.dart';
 import '../../Helpers/Eq.dart';
 import 'package:flutter/material.dart';
 
@@ -32,7 +33,7 @@ class _ControlsState extends State<Controls> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: <Widget>[
                   StreamBuilder<LoopMode>(
-                    stream: controller.audioHandler.loopModeStream,
+                    stream: controller.handler.player.loopModeStream,
                     builder: (context, snapshot) {
                       final loopMode = snapshot.data ?? LoopMode.off;
                       const icons = [
@@ -49,7 +50,7 @@ class _ControlsState extends State<Controls> {
                       return IconButton(
                         icon: icons[index],
                         onPressed: () {
-                          controller.audioHandler.setLoopMode(cycleModes[
+                          controller.handler.player.setLoopMode(cycleModes[
                               (cycleModes.indexOf(loopMode) + 1) %
                                   cycleModes.length]);
                         },
@@ -68,7 +69,10 @@ class _ControlsState extends State<Controls> {
                     icon: const Icon(Icons.skip_next, color: Colors.white),
                   ),
                   StreamBuilder<bool>(
-                    stream: controller.audioHandler.shuffleModeEnabledStream,
+                    stream: context
+                        .read<AudioHandler>()
+                        .player
+                        .shuffleModeEnabledStream,
                     builder: (context, snapshot) {
                       final shuffleModeEnabled = snapshot.data ?? false;
                       return IconButton(
@@ -83,7 +87,10 @@ class _ControlsState extends State<Controls> {
                           if (enable) {
                             controller.shuffleSongs();
                           } else {}
-                          controller.audioHandler.setShuffleModeEnabled(enable);
+                          context
+                              .read<AudioHandler>()
+                              .player
+                              .setShuffleModeEnabled(enable);
                         },
                       );
                     },

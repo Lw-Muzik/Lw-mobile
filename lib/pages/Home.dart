@@ -1,12 +1,15 @@
 import 'dart:convert';
 import 'dart:developer';
+import 'dart:ui';
 
 import 'package:eq_app/controllers/PlayerController.dart';
 import 'package:eq_app/pages/Playlist.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
 
+import '../Helpers/AudioHandler.dart';
 import '/Routes/routes.dart';
 import '/pages/Albums.dart';
 import '/pages/Equalizer.dart';
@@ -34,13 +37,15 @@ class Home extends StatefulWidget {
 
 class _HomeState extends State<Home> with TickerProviderStateMixin {
   TabController? _tabController;
-  // Indicate if application has permission to the library.
 
+  // Indicate if application has permission to the library.
+  GlobalKey keyButton = GlobalKey();
   @override
   void initState() {
     checkPermission();
     super.initState();
     _tabController = TabController(length: 6, vsync: this);
+
     SharedPreferences.getInstance().then((pref) {
       setState(() {
         Provider.of<AppController>(context, listen: false).enableDSP =
@@ -73,9 +78,6 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
       Channel.setDSPXBass(pref.getDouble("xBass") ?? 11.0);
       Channel.setOutGain(pref.getDouble("powerGain") ?? 3.0);
     });
-    // showChangeLog();
-    // fetchSongs();
-    restoreDefaults();
   }
 
   void checkPermission() async {
@@ -103,92 +105,100 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     return Body(
-      child: Scaffold(
-        backgroundColor: context.watch<AppController>().isFancy
-            ? Colors.transparent
-            : Theme.of(context).scaffoldBackgroundColor,
-        appBar: AppBar(
-          forceMaterialTransparency: context.watch<AppController>().isFancy,
-          title: const Text("Hype Muziki"),
-          actions: [
-            Padding(
-              padding: const EdgeInsets.only(right: 18.0),
-              child: IconButton(
-                onPressed: () {
-                  showSearch<SongModel>(
-                      context: context, delegate: SearchPage());
-                },
-                icon: const Icon(Icons.search),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.only(right: 18.0),
-              child: IconButton(
-                onPressed: () {
-                  Routes.routeTo(const Settings(), context);
-                },
-                icon: const Icon(Icons.settings),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.only(right: 18.0),
-              child: Routes.animateTo(
-                closedWidget: const Icon(Icons.equalizer),
-                openWidget: const Equalizer(),
-              ),
-            )
-          ],
-          bottom: TabBar(
-            isScrollable: true,
-            controller: _tabController,
-            tabs: const [
-              Tab(
-                child: Text("Folders"),
-              ),
-              Tab(
-                child: Text("Playlists"),
-              ),
-              Tab(
-                child: Text("Artists"),
-              ),
-              Tab(
-                child: Text("Albums"),
-              ),
-              Tab(
-                child: Text("Genres"),
-              ),
-              Tab(
-                child: Text("Songs"),
-              ),
-            ],
-          ),
-        ),
-        body: Stack(
-          children: [
-            GestureDetector(
-              onScaleUpdate: (details) {
-                log(details.scale.toString());
-              },
-              child: TabBarView(
-                controller: _tabController,
-                children: const [
-                  Folders(),
-                  PlayListView(),
-                  Artists(),
-                  Albums(),
-                  Genres(),
-                  AllSongs(),
-                ],
-              ),
-            ),
-          ],
-        ),
-        bottomNavigationBar: context.watch<AppController>().audioHandler.playing
-            ? BottomPlayer(
-                controller: context.watch<AppController>(),
-              )
-            : null,
-      ),
+      child: Consumer<AppController>(builder: (context, controller, c) {
+        return StreamBuilder<bool>(
+            stream: controller.handler.player.playingStream,
+            builder: (context, playStream) {
+              return Scaffold(
+                backgroundColor: context.watch<AppController>().isFancy
+                    ? Colors.transparent
+                    : Theme.of(context).scaffoldBackgroundColor,
+                appBar: AppBar(
+                  forceMaterialTransparency:
+                      context.watch<AppController>().isFancy,
+                  title: const Text("Hype Muziki"),
+                  actions: [
+                    Padding(
+                      padding: const EdgeInsets.only(right: 18.0),
+                      child: IconButton(
+                        onPressed: () {
+                          showSearch<SongModel>(
+                              context: context, delegate: SearchPage());
+                        },
+                        icon: const Icon(Icons.search),
+                      ),
+                    ),
+                    Padding(
+                      key: keyButton,
+                      padding: const EdgeInsets.only(right: 18.0),
+                      child: IconButton(
+                        onPressed: () {
+                          Routes.routeTo(const Settings(), context);
+                        },
+                        icon: const Icon(Icons.settings),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.only(right: 18.0),
+                      child: Routes.animateTo(
+                        closedWidget: const Icon(Icons.equalizer),
+                        openWidget: const Equalizer(),
+                      ),
+                    )
+                  ],
+                  bottom: TabBar(
+                    isScrollable: true,
+                    controller: _tabController,
+                    tabs: const [
+                      Tab(
+                        child: Text("Folders"),
+                      ),
+                      Tab(
+                        child: Text("Playlists"),
+                      ),
+                      Tab(
+                        child: Text("Artists"),
+                      ),
+                      Tab(
+                        child: Text("Albums"),
+                      ),
+                      Tab(
+                        child: Text("Genres"),
+                      ),
+                      Tab(
+                        child: Text("Songs"),
+                      ),
+                    ],
+                  ),
+                ),
+                body: Stack(
+                  children: [
+                    GestureDetector(
+                      onScaleUpdate: (details) {
+                        log(details.scale.toString());
+                      },
+                      child: TabBarView(
+                        controller: _tabController,
+                        children: const [
+                          Folders(),
+                          PlayListView(),
+                          Artists(),
+                          Albums(),
+                          Genres(),
+                          AllSongs(),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                bottomNavigationBar: playStream.data ?? false
+                    ? BottomPlayer(
+                        controller: controller,
+                      )
+                    : null,
+              );
+            });
+      }),
     );
   }
 }

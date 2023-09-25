@@ -10,8 +10,10 @@
         "MUZIKI",
         "prefs",
         "Reorderable",
+        "rescan",
         "vsync",
         "Westone",
+        "Wiredash",
         "xtreble"
     ],
     "java.configuration.updateBuildConfiguration": "interactive"

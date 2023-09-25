@@ -7,6 +7,7 @@ import 'package:just_audio/just_audio.dart';
 import 'package:provider/provider.dart';
 
 import '../controllers/AppController.dart';
+import 'AudioHandler.dart';
 
 class EqualizerControls extends StatefulWidget {
   const EqualizerControls({Key? key}) : super(key: key);
@@ -119,9 +120,14 @@ class VerticalSlider extends StatelessWidget {
   }
 }
 
-class ControlButtons extends StatelessWidget {
+class ControlButtons extends StatefulWidget {
   const ControlButtons({Key? key}) : super(key: key);
 
+  @override
+  State<ControlButtons> createState() => _ControlButtonsState();
+}
+
+class _ControlButtonsState extends State<ControlButtons> {
   @override
   Widget build(BuildContext context) {
     return Consumer<AppController>(builder: (context, controller, ch) {
@@ -129,7 +135,7 @@ class ControlButtons extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           StreamBuilder<PlayerState>(
-            stream: controller.audioHandler.playerStateStream,
+            stream: controller.handler.player.playerStateStream,
             builder: (context, snapshot) {
               final playerState = snapshot.data;
               final processingState = playerState?.processingState;
@@ -144,7 +150,7 @@ class ControlButtons extends StatelessWidget {
                 );
               } else if (playing != true) {
                 return MaterialButton(
-                  onPressed: controller.audioHandler.play,
+                  onPressed: controller.handler.player.play,
                   color: Colors.white,
                   textColor: const Color(0xFF0B1220),
                   padding: const EdgeInsets.all(16),
@@ -154,7 +160,7 @@ class ControlButtons extends StatelessWidget {
                 );
               } else if (processingState != ProcessingState.completed) {
                 return MaterialButton(
-                  onPressed: controller.audioHandler.pause,
+                  onPressed: controller.handler.player.pause,
                   color: Colors.white,
                   textColor: const Color(0xFF0B1220),
                   padding: const EdgeInsets.all(16),
@@ -166,7 +172,8 @@ class ControlButtons extends StatelessWidget {
                 return IconButton(
                   icon: const Icon(Icons.replay),
                   iconSize: 64.0,
-                  onPressed: () => controller.audioHandler.seek(Duration.zero),
+                  onPressed: () =>
+                      controller.handler.player.seek(Duration.zero),
                 );
               }
             },

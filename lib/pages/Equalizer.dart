@@ -4,6 +4,7 @@ import 'package:eq_app/widgets/Body.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../Helpers/AudioHandler.dart';
 import 'AudioFx.dart';
 import 'EqView.dart';
 import 'Room.dart';
@@ -42,7 +43,8 @@ class _EqualizerState extends State<Equalizer> with TickerProviderStateMixin {
   Widget build(BuildContext context) {
     context
         .watch<AppController>()
-        .audioHandler
+        .handler
+        .player
         .androidAudioSessionIdStream
         .listen((event) {
       if (event != null) {

@@ -2,7 +2,6 @@
 
 import 'dart:ui';
 
-import 'package:audio_service/audio_service.dart';
 import 'package:eq_app/Routes/routes.dart';
 import 'package:eq_app/controllers/AppController.dart';
 import 'package:eq_app/extensions/index.dart';
@@ -12,6 +11,7 @@ import 'package:on_audio_query/on_audio_query.dart';
 import 'package:provider/provider.dart';
 
 import '../Global/index.dart';
+import '../Helpers/AudioHandler.dart';
 import '../Helpers/index.dart';
 import '../widgets/ArtworkWidget.dart';
 import '../widgets/BottomPlayer.dart';
@@ -104,7 +104,7 @@ class _AlbumSongsState extends State<AlbumSongs> {
         },
         body: Consumer<AppController>(builder: (context, controller, child) {
           return StreamBuilder(
-              stream: controller.audioHandler.playingStream,
+              stream: context.read<AudioHandler>().player.playingStream,
               builder: (context, service) {
                 return Scaffold(
                   // backgroundColor: Colors.transparent,
@@ -143,6 +143,12 @@ class SongLists extends StatefulWidget {
 }
 
 class _SongListsState extends State<SongLists> {
+  @override
+  void dispose() {
+    context.read<AppController>().dispose();
+    super.dispose();
+  }
+
   int _selected = -1;
   @override
   Widget build(BuildContext context) {
@@ -186,7 +192,7 @@ class _SongListsState extends State<SongLists> {
                       controller.songId = songIndex;
 
                       loadAudioSource(
-                          controller.audioHandler, controller.songs[songIndex]);
+                          controller.handler, controller.songs[songIndex]);
                     },
                     // This Widget will query/load image.
                     // You can use/create your own widget/method using [queryArtwork].

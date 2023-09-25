@@ -1,7 +1,8 @@
 import 'dart:async';
 
-import 'package:eq_app/Helpers/index.dart';
+import 'package:eq_app/controllers/PlayerController.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../Helpers/fileloader.dart';
@@ -21,7 +22,7 @@ class _AssetLoaderState extends State<AssetLoader>
   @override
   void initState() {
     super.initState();
-
+    permission();
     _ripples = List.generate(
       7,
       (i) => Ripple(
@@ -29,21 +30,15 @@ class _AssetLoaderState extends State<AssetLoader>
       ),
     );
     _startAnimations();
-    Timer.periodic(const Duration(seconds: 1), (timer) {
-      // check if artwork is loaded
-      SharedPreferences.getInstance().then((prefs) {
-        if (prefs.getBool("artworkLoaded") != null &&
-            prefs.getBool("artworkLoaded") == true) {
-          timer.cancel();
-          Future.delayed(const Duration(seconds: 4), () {
-            Navigator.pushReplacementNamed(context, Routes.home);
-          });
-        } else {
-          fetchMetaData().then((value) {
-            // showMessage(context: context,);
-          });
-          prefs.setBool("artworkLoaded", true);
-        }
+  }
+
+  void permission() async {
+    SharedPreferences.getInstance().then((prefs) async {
+      await fetchMetaData(context).then((value) {
+        prefs.setBool("artworkLoaded", true);
+      });
+      Future.delayed(const Duration(seconds: 4), () {
+        Navigator.pushReplacementNamed(context, Routes.home);
       });
     });
   }
@@ -98,12 +93,28 @@ class _AssetLoaderState extends State<AssetLoader>
             dimension: MediaQuery.of(context).size.width / 2,
           ),
           Text(
-            "Loading assets, please wait...",
+            "Scanning",
             style: Theme.of(context)
                 .textTheme
                 .titleLarge!
                 .apply(color: Colors.black),
           ),
+          Text(
+            Provider.of<PlayerController>(context, listen: false).textHeader,
+            maxLines: 1,
+            style: Theme.of(context)
+                .textTheme
+                .titleMedium!
+                .copyWith(color: Colors.black, fontWeight: FontWeight.bold),
+          ),
+          Text(
+            Provider.of<PlayerController>(context, listen: false).text,
+            maxLines: 1,
+            style: Theme.of(context)
+                .textTheme
+                .titleMedium!
+                .copyWith(color: Colors.black, fontWeight: FontWeight.bold),
+          )
         ],
       ),
     );

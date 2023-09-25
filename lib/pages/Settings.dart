@@ -1,4 +1,7 @@
+import 'dart:io';
+
 import 'package:eq_app/Helpers/AudioVisualizer.dart';
+import 'package:eq_app/Routes/routes.dart';
 import 'package:eq_app/controllers/AppController.dart';
 import 'package:eq_app/controllers/ThemeController.dart';
 import 'package:eq_app/widgets/Body.dart';
@@ -6,7 +9,9 @@ import 'package:eq_app/widgets/HorizontalSlider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:provider/provider.dart';
+import 'package:wiredash/wiredash.dart';
 
+import '../Helpers/AudioHandler.dart';
 import '../widgets/BottomPlayer.dart';
 
 class Settings extends StatefulWidget {
@@ -21,7 +26,7 @@ class _SettingsState extends State<Settings> {
   Widget build(BuildContext context) {
     return Consumer<AppController>(builder: (context, controller, child) {
       return StreamBuilder(
-          stream: controller.audioHandler.playingStream,
+          stream: context.read<AudioHandler>().player.playingStream,
           builder: (context, service) {
             return Body(
               child: Scaffold(
@@ -34,6 +39,13 @@ class _SettingsState extends State<Settings> {
                 ),
                 body: Column(
                   children: [
+                    ListTile(
+                      leading: const Icon(Icons.my_library_music_rounded),
+                      title: const Text("Library"),
+                      subtitle: const Text(
+                          "Tap to rescan assets incase of missing files"),
+                      onTap: () => Navigator.pushNamed(context, Routes.loader),
+                    ),
                     // ExpansionTile(
                     //   leading: const Icon(Icons.tonality_rounded),
                     //   title: const Text("App Theme"),
@@ -70,7 +82,7 @@ class _SettingsState extends State<Settings> {
                     //     )
                     //   ],
                     // ),
-                   
+
                     SwitchListTile.adaptive(
                       value: controller.isFancy,
                       secondary: const Icon(Icons.light_mode),
@@ -175,6 +187,22 @@ class _SettingsState extends State<Settings> {
                           ),
                         )
                       ],
+                    ),
+                    ListTile(
+                      title: const Text("Report a bug"),
+                      leading: const Icon(Icons.bug_report_rounded),
+                      onTap: () =>
+                          Wiredash.of(context).show(inheritMaterialTheme: true),
+                    ),
+                    const ListTile(
+                      leading: Icon(Icons.info_rounded),
+                      title: Text("About Hype Music"),
+                      subtitle: Text("All you need to know about Hype Muzik"),
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.exit_to_app),
+                      title: const Text("Exit"),
+                      onTap: () => exit(0),
                     )
                   ],
                 ),

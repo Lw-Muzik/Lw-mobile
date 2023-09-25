@@ -1,7 +1,9 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
+import '../Helpers/AudioHandler.dart';
 import '../controllers/AppController.dart';
 import 'ArtworkWidget.dart';
 
@@ -39,7 +41,7 @@ Widget bottomPlayer(AppController controller, BuildContext context) {
               icon: const Icon(Icons.skip_previous),
             ),
             StreamBuilder(
-                stream: controller.audioHandler.playingStream,
+                stream: controller.handler.player.playingStream,
                 builder: (context, snapshot) {
                   bool? p = snapshot.data;
 
@@ -47,8 +49,8 @@ Widget bottomPlayer(AppController controller, BuildContext context) {
                     color: Colors.white,
                     onPressed: () {
                       p == true
-                          ? controller.audioHandler.pause()
-                          : controller.audioHandler.play();
+                          ? controller.handler.player.pause()
+                          : controller.handler.player.play();
                     },
                     icon: Icon(p == true ? Icons.pause : Icons.play_arrow),
                   );

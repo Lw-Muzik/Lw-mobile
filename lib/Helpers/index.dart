@@ -123,7 +123,7 @@ Future<ImageProvider<Object>> savedImage(
   } else {
     imagePath = getArtworkImagePath();
   }
-
+  Future.delayed(const Duration(seconds: 1));
   return File(imagePath).existsSync()
       ? FileImage(
           File(imagePath),

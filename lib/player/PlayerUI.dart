@@ -1,7 +1,6 @@
 // ignore_for_file: library_private_types_in_public_api, depend_on_referenced_packages, invalid_use_of_protected_member
-
-import 'package:audio_service/audio_service.dart';
 import 'package:permission_handler/permission_handler.dart';
+
 import '/Global/index.dart';
 import '/Routes/routes.dart';
 import '/player/PlayerBody.dart';
@@ -56,9 +55,9 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
 
   Stream<PositionData> get _positionDataStream =>
       Rx.combineLatest3<Duration, Duration, Duration?, PositionData>(
-          context.watch<AppController>().audioHandler.positionStream,
-          context.watch<AppController>().audioHandler.bufferedPositionStream,
-          context.watch<AppController>().audioHandler.durationStream,
+          context.watch<AppController>().handler.player.positionStream,
+          context.watch<AppController>().handler.player.bufferedPositionStream,
+          context.watch<AppController>().handler.player.durationStream,
           (position, bufferedPosition, duration) => PositionData(
               position, bufferedPosition, duration ?? Duration.zero));
 
@@ -83,7 +82,7 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
             // Visualizers.scaleVisualizer(!controller.visuals);
           }
           return StreamBuilder(
-              stream: controller.audioHandler.playingStream,
+              stream: controller.handler.player.playingStream,
               builder: (context, snapshot) {
                 bool? result = snapshot.data;
                 if (result != null && result) {
@@ -126,8 +125,7 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
                                             setState(() {});
                                           } else {
                                             controller.songId = x;
-                                            loadAudioSource(
-                                                controller.audioHandler,
+                                            loadAudioSource(controller.handler,
                                                 controller.songs[x]);
                                             setState(() {});
                                           }
@@ -182,7 +180,7 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
                                 bufferedPosition:
                                     positionData?.bufferedPosition ??
                                         Duration.zero,
-                                onChangeEnd: controller.audioHandler.seek,
+                                onChangeEnd: controller.handler.player.seek,
                               );
                             },
                           ),
@@ -198,11 +196,4 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
       ),
     );
   }
-}
-
-class MediaState {
-  final MediaItem? mediaItem;
-  final Duration position;
-
-  MediaState(this.mediaItem, this.position);
 }
