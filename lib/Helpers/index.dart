@@ -57,11 +57,13 @@ Future<void> fetchArtwork(
           await File(imgPath).writeAsBytes(artworkData);
         }
       } else if (type == ArtworkType.AUDIO) {
-        var parser = ID3TagReader.path(original);
-        var tag = await parser.readTag();
-        var artworkData = tag.pictures;
-        if (tempPath.isNotEmpty && artworkData.isNotEmpty) {
-          await File(imgPath).writeAsBytes(artworkData.first.imageData);
+        if (File(original).existsSync()) {
+          var parser = ID3TagReader.path(original);
+          var tag = await parser.readTag();
+          var artworkData = tag.pictures;
+          if (tempPath.isNotEmpty && artworkData.isNotEmpty) {
+            await File(imgPath).writeAsBytes(artworkData.first.imageData);
+          }
         }
       }
     }

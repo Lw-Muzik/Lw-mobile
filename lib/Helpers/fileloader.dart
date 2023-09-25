@@ -41,7 +41,7 @@ Future<String> fetchMetaData(BuildContext context) async {
           // Add the artist's ID to the set of processed IDs
           processedFileIds.add(artist.id.toString());
 
-          await Future.delayed(const Duration(milliseconds: 90));
+          // await Future.delayed(const Duration(milliseconds: 90));
         }
       }
     }
@@ -61,7 +61,6 @@ Future<String> fetchMetaData(BuildContext context) async {
           query = "${album.getMap['album'] ?? 'Unknown'}";
           controller.text = query;
           processedFileIds.add(album.id.toString());
-          await Future.delayed(const Duration(milliseconds: 90));
         }
       }
     }
@@ -73,7 +72,6 @@ Future<String> fetchMetaData(BuildContext context) async {
       controller.textHeader = "Working on genres";
       for (var genre in genres) {
         if (!processedFileIds.contains(genre.id.toString())) {
-          await Future.delayed(const Duration(milliseconds: 80));
           await fetchArtwork("", genre.id,
               type: ArtworkType.GENRE, other: genre.genre);
           query = genre.genre;
@@ -95,7 +93,6 @@ Future<String> fetchMetaData(BuildContext context) async {
           query = song.title;
           controller.text = query;
           processedFileIds.add(song.id.toString());
-          await Future.delayed(const Duration(milliseconds: 50));
         }
       }
     }
