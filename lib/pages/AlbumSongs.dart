@@ -10,11 +10,10 @@ import 'package:flutter/material.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:provider/provider.dart';
 
-import '../Global/index.dart';
-import '../Helpers/AudioHandler.dart';
-import '../Helpers/index.dart';
-import '../widgets/ArtworkWidget.dart';
-import '../widgets/BottomPlayer.dart';
+import '/Global/index.dart';
+import '/Helpers/index.dart';
+import '/widgets/ArtworkWidget.dart';
+import '/widgets/BottomPlayer.dart';
 
 class AlbumSongs extends StatefulWidget {
   final int? albumId;
@@ -31,7 +30,7 @@ class AlbumSongs extends StatefulWidget {
 }
 
 class _AlbumSongsState extends State<AlbumSongs> {
-  ScrollController _controller = ScrollController();
+  final ScrollController _controller = ScrollController();
   @override
   Widget build(BuildContext context) {
     return Body(
@@ -104,12 +103,12 @@ class _AlbumSongsState extends State<AlbumSongs> {
         },
         body: Consumer<AppController>(builder: (context, controller, child) {
           return StreamBuilder(
-              stream: context.read<AudioHandler>().player.playingStream,
+              stream: controller.handler.player.playingStream,
               builder: (context, service) {
                 return Scaffold(
                   // backgroundColor: Colors.transparent,
                   body: FutureBuilder(
-                    future: controller.audioQuery.queryAudiosFrom(
+                    future: OnAudioQuery.platform.queryAudiosFrom(
                       AudiosFromType.ALBUM_ID,
                       widget.albumId!,
                     ),

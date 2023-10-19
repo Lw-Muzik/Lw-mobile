@@ -2,10 +2,9 @@ import 'package:eq_app/Routes/routes.dart';
 
 import 'package:eq_app/pages/FolderSongs.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:on_audio_query/on_audio_query.dart';
 
 import '../Global/index.dart';
-import '../controllers/AppController.dart';
 
 class Folders extends StatefulWidget {
   const Folders({super.key});
@@ -18,7 +17,7 @@ class _FoldersState extends State<Folders> {
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<List<String>>(
-        future: context.read<AppController>().audioQuery.queryAllPath(),
+        future: OnAudioQuery.platform.queryAllPath(),
         builder: (context, snapshot) {
           return GridView.count(
             crossAxisCount: 3,

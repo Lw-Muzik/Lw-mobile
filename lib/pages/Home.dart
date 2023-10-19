@@ -1,15 +1,10 @@
 import 'dart:convert';
 import 'dart:developer';
-import 'dart:ui';
 
-import 'package:eq_app/controllers/PlayerController.dart';
 import 'package:eq_app/pages/Playlist.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
 
-import '../Helpers/AudioHandler.dart';
 import '/Routes/routes.dart';
 import '/pages/Albums.dart';
 import '/pages/Equalizer.dart';
@@ -110,12 +105,11 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
             stream: controller.handler.player.playingStream,
             builder: (context, playStream) {
               return Scaffold(
-                backgroundColor: context.watch<AppController>().isFancy
+                backgroundColor: controller.isFancy
                     ? Colors.transparent
                     : Theme.of(context).scaffoldBackgroundColor,
                 appBar: AppBar(
-                  forceMaterialTransparency:
-                      context.watch<AppController>().isFancy,
+                  forceMaterialTransparency: controller.isFancy,
                   title: const Text("Hype Muziki"),
                   actions: [
                     Padding(

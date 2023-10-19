@@ -57,7 +57,7 @@ Future<void> fetchArtwork(
           await File(imgPath).writeAsBytes(artworkData);
         }
       } else if (type == ArtworkType.AUDIO) {
-        if (File(original).existsSync()) {
+        if (File(original).existsSync() == true) {
           var parser = ID3TagReader.path(original);
           var tag = await parser.readTag();
           var artworkData = tag.pictures;
@@ -86,7 +86,9 @@ Future<void> fetchArtwork(
   } else {
     imagePath = getArtworkImagePath();
   }
-  await saveArtworkImage(imagePath, path);
+  if (File(path).existsSync() == true) {
+    await saveArtworkImage(imagePath, path);
+  }
 }
 
 Future<ImageProvider<Object>> savedImage(
@@ -146,7 +148,7 @@ Future<String> fetchArtworkUrl(
   final tempPath = tempDir.path;
   String imagePath = "";
 
-  getArtworkImagePath() {
+  String getArtworkImagePath() {
     if (path.isEmpty && other.isNotEmpty && other != "Unknown") {
       return "$tempPath/${other.replaceAll(RegExp(r'[ /]'), '_')}.png";
     } else {

@@ -23,7 +23,7 @@ class _PlayListViewState extends State<PlayListView> {
       children: [
         Consumer<AppController>(builder: (context, controller, p) {
           if (mounted) {
-            controller.audioQuery.queryPlaylists().asStream().listen((event) {
+            OnAudioQuery.platform.queryPlaylists().asStream().listen((event) {
               if (mounted) {
                 setState(() {
                   _playlist = event;

@@ -5,7 +5,6 @@ import 'package:eq_app/Helpers/index.dart';
 import 'package:eq_app/Routes/routes.dart';
 
 import 'package:eq_app/extensions/index.dart';
-import 'package:eq_app/pages/ArtistSongs.dart';
 import 'package:flutter/material.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:provider/provider.dart';

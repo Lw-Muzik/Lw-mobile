@@ -1,6 +1,7 @@
 // function to load artwork from songs, albums, artists, and genres using ArtworkType
 // ignore_for_file: use_build_context_synchronously
 
+import 'dart:convert';
 import 'dart:developer';
 
 import 'package:eq_app/Helpers/index.dart';
@@ -17,12 +18,24 @@ Future<String> fetchMetaData(BuildContext context) async {
   // Maintain a set to keep track of processed file IDs
   Set<String> processedFileIds = <String>{};
   List<String>? processedFiles = prefs.getStringList("processedFileIds");
-  if (processedFiles == null) {
-    log("empty");
-    // processedFileIds = processedFiles!.toSet();
+  String? allSongs = prefs.getString("allSongs");
+  String? genresModel = prefs.getString("genres");
+  String? albumsModel = prefs.getString("albums");
+  String? artistsModel = prefs.getString("artist");
+  // required arrays
+  // List<SongModel> songs = json.decode(allSongs);
+  if (processedFiles == null &&
+      allSongs == null &&
+      genresModel == null &&
+      albumsModel == null &&
+      artistsModel == null) {
+    prefs.setString("allSongs", json.encode([]));
+    prefs.setString("genres", json.encode([]));
+    prefs.setString("albums", json.encode([]));
+    prefs.setString("artists", json.encode([]));
     prefs.setStringList("processedFileIds", processedFileIds.toList());
   } else {
-    processedFileIds = processedFiles.toSet();
+    processedFileIds = processedFiles!.toSet();
   }
   Future<void> processArtists() async {
     var artists = await OnAudioQuery().queryArtists();
@@ -30,7 +43,13 @@ Future<String> fetchMetaData(BuildContext context) async {
       controller.textHeader = "Working on artists";
       for (var artist in artists) {
         // Check if the artist's ID is in the set of processed IDs
-        if (!processedFileIds.contains(artist.id.toString())) {
+        if (!processedFileIds.contains(artist.id.toString()) &&
+            artistsModel != null) {
+          List<dynamic> artistModel = json.decode(artistsModel);
+          artistModel.add(artist.getMap);
+          // save captured albums
+          prefs.setString("artists", json.encode(artistModel));
+          log("Done loading artists");
           // save artwork
           await fetchArtwork("", artist.id,
               type: ArtworkType.ARTIST,
@@ -53,7 +72,12 @@ Future<String> fetchMetaData(BuildContext context) async {
       controller.textHeader = "Working on albums";
       await Future.delayed(const Duration(seconds: 1));
       for (var album in albums) {
-        if (!processedFileIds.contains(album.id.toString())) {
+        if (!processedFileIds.contains(album.id.toString()) &&
+            albumsModel != null) {
+          List<dynamic> albumModel = json.decode(albumsModel);
+          albumModel.add(album.getMap);
+          // save captured albums
+          prefs.setString("albums", json.encode(albumModel));
           // save artwork
           await fetchArtwork("", album.id,
               type: ArtworkType.ALBUM,
@@ -72,6 +96,11 @@ Future<String> fetchMetaData(BuildContext context) async {
       controller.textHeader = "Working on genres";
       for (var genre in genres) {
         if (!processedFileIds.contains(genre.id.toString())) {
+          List<dynamic> genreModel = json.decode(genresModel ?? "[]");
+          genreModel.add(genre.getMap);
+          // save captured genres
+          prefs.setString("genres", json.encode(genreModel));
+          // save artwork
           await fetchArtwork("", genre.id,
               type: ArtworkType.GENRE, other: genre.genre);
           query = genre.genre;
@@ -88,6 +117,10 @@ Future<String> fetchMetaData(BuildContext context) async {
       controller.textHeader = "Working on songs";
       for (var song in songs) {
         if (!processedFileIds.contains(song.id.toString())) {
+          List<dynamic> songModel = json.decode(allSongs!);
+          songModel.add(song.getMap);
+          // save captured songs
+          prefs.setString("allSongs", json.encode(songModel));
           // save artwork
           await fetchArtwork(song.data, song.id, type: ArtworkType.AUDIO);
           query = song.title;

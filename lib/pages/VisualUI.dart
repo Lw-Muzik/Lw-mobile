@@ -1,4 +1,3 @@
-import 'dart:developer';
 
 import 'package:eq_app/Helpers/AudioVisualizer.dart';
 import 'package:eq_app/Visualizers/CircularBarVisualizer.dart';

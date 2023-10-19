@@ -38,7 +38,7 @@ class _AudioFxState extends State<AudioFx> {
                     ? Colors.transparent
                     : Theme.of(context).cardColor,
                 clipBehavior: Clip.hardEdge,
-                elevation: 0,
+                 elevation: controller.isFancy ? 0 : 2,
                 margin: const EdgeInsets.only(top: 10, bottom: 10),
                 child: BackdropFilter(
                   filter: controller.isFancy
@@ -73,6 +73,7 @@ class _AudioFxState extends State<AudioFx> {
                   ),
                 ),
               ),
+        
               Card(
                 elevation: controller.isFancy ? 0 : 2,
                 clipBehavior: Clip.hardEdge,
@@ -149,17 +150,7 @@ class _AudioFxState extends State<AudioFx> {
                             min: 0,
                             dB: controller.dspOutGain.dps,
                           ),
-                          HorizontalSlider(
-                            title: "Noise \nThreshold",
-                            onChanged: (x) {
-                              controller.dspNoise = x;
-                              Channel.setDspNoiseThreshold(x);
-                            },
-                            value: controller.dspNoise,
-                            max: 30,
-                            min: -20,
-                            dB: controller.dspNoise.dps,
-                          ),
+                          
                         ],
                       ),
                     ),

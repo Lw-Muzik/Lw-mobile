@@ -121,11 +121,11 @@ class _ArtistSongsState extends State<ArtistSongs> {
         },
         body: Consumer<AppController>(builder: (context, controller, child) {
           return StreamBuilder(
-              stream: context.watch<AudioHandler>().player.playingStream,
+              stream: controller.handler.player.playingStream,
               builder: (context, service) {
                 return Scaffold(
                   body: FutureBuilder(
-                    future: controller.audioQuery.queryAudiosFrom(
+                    future: OnAudioQuery.platform.queryAudiosFrom(
                         AudiosFromType.ARTIST_ID, widget.artistId ?? 0,
                         ignoreCase: true),
                     builder: (context, snapshot) {

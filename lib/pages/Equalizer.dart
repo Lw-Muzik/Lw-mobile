@@ -1,5 +1,6 @@
 import 'package:eq_app/Helpers/Channel.dart';
 import 'package:eq_app/controllers/AppController.dart';
+import 'package:eq_app/pages/Compressor.dart';
 import 'package:eq_app/widgets/Body.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -30,7 +31,7 @@ class _EqualizerState extends State<Equalizer> with TickerProviderStateMixin {
       // Channel.setSessionId(0);
     }
 
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
   }
 
   @override
@@ -67,7 +68,7 @@ class _EqualizerState extends State<Equalizer> with TickerProviderStateMixin {
             tabs: const [
               Tab(text: "Equalizer"),
               Tab(text: "Audio FX"),
-              // Tab(text: "Room Effects"),
+              Tab(text: "Compressor"),
             ],
           ),
         ),
@@ -78,6 +79,7 @@ class _EqualizerState extends State<Equalizer> with TickerProviderStateMixin {
             children: const [
               EqView(),
               AudioFx(),
+              CompressorView()
               // RoomEffects(),
             ],
           ),

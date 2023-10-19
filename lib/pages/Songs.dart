@@ -33,7 +33,7 @@ class _AllSongsState extends State<AllSongs> {
     return Consumer<AppController>(builder: (context, controller, ch) {
       return FutureBuilder<List<SongModel>>(
         // Default values:
-        future: controller.audioQuery.querySongs(
+        future: OnAudioQuery.platform.querySongs(
           orderType: OrderType.ASC_OR_SMALLER,
           uriType: UriType.EXTERNAL,
           ignoreCase: true,

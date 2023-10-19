@@ -49,6 +49,8 @@ public class DSPEngine {
             }
             dspEngine.setPreEqAllChannelsTo(dspEq);
             dspEngine.setPostEqAllChannelsTo(dspEq);
+//            dspEngine.setPreEqAllChannelsTo(tuner);
+//            dspEngine.setPostEqAllChannelsTo(tuner);
             dspEngine.setMbcAllChannelsTo(dspMbc);
             dspEngine.setLimiterAllChannelsTo(dspLimiter);
         }
@@ -112,7 +114,7 @@ public class DSPEngine {
                 builder.setPreferredFrameDuration(10.0f);
 
                 dspEq = new DynamicsProcessing.Eq(true, true, bandCount);
-//                tuner = new DynamicsProcessing.Eq(true, true, 1);
+//                tuner = new DynamicsProcessing.Eq(true, true, 2);
 
                 dspMbc = new DynamicsProcessing.Mbc(true, true, bandCount);
                 //   Engine configuration
@@ -124,7 +126,8 @@ public class DSPEngine {
                 assignBandGains();
                 // initialize dsp defaults
                 dspEngine.setInputGainAllChannelsTo(dsp_volume);
-                tunerConfig(0.0f);
+                tunerConfig(0.0f,0);
+                tunerConfig(0.0f,1);
                 dspBandConfig(0, dsp_xBass);
                 dspBandConfig(1, dsp_powerBass);
                 dspBandConfig(2, dsp_xBass2);
@@ -132,8 +135,11 @@ public class DSPEngine {
                 dspBandConfig(9, dsp_treble);
             }
 
-            dspEq.getBand(4).setCutoffFrequency(tunerBassFreq);
+            dspEq.getBand(4).setCutoffFrequency(500);
             setDspSpeakers(dsp_speakers, dsp_gains);
+// set tuner frequencies
+//tuner.getBand(0).setCutoffFrequency(50);
+//tuner.getBand(1).setCutoffFrequency(450);
          // assign frequencies to the bands
                 for (int b = 0; b < bandCount; b++) {
                     try {
@@ -146,6 +152,8 @@ public class DSPEngine {
             //    assign configurations globally
             dspEngine.setPreEqAllChannelsTo(dspEq);
             dspEngine.setPostEqAllChannelsTo(dspEq);
+//            dspEngine.setPreEqAllChannelsTo(tuner);
+//            dspEngine.setPostEqAllChannelsTo(tuner);
             dspEngine.setMbcAllChannelsTo(dspMbc);
             dspEngine.setLimiterAllChannelsTo(dspLimiter);
 
@@ -165,17 +173,18 @@ public class DSPEngine {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 dspEngine.setEnabled(enable);
                 dspEq.setEnabled(enable);
+//                tuner.setEnabled(enable);
                 dspMbc.setEnabled(enable);
                 dspLimiter.setEnabled(enable);
           }
         }
     }
-    private static void tunerConfig(float gain){
-        if(Build.VERSION.SDK_INT >= 28 && dspEngine != null && dspEq != null){
+    private static void tunerConfig(float gain,int band){
+        if(Build.VERSION.SDK_INT >= 28 && dspEngine != null && tuner != null){
             try {
-               dspEq.getBand(4).setGain(gain);
-                dspEngine.setPreEqBandAllChannelsTo(4, dspEq.getBand(4));
-                dspEngine.setPostEqBandAllChannelsTo(4, dspEq.getBand(4));
+               tuner.getBand(band).setGain(gain);
+                dspEngine.setPreEqBandAllChannelsTo(band, tuner.getBand(band));
+                dspEngine.setPostEqBandAllChannelsTo(band, tuner.getBand(band));
             } catch (Exception e2) {
                 Log.e("TAGF", "setBandGain_Exception2!");
                 e2.printStackTrace();
@@ -201,33 +210,59 @@ public class DSPEngine {
                 }
         }
     }
+
+//    ------------------ setting dsp compressor- --------------------------
     public static void setOutGain(float gain) {
         initDSPEngine();
-        if(dspEngine != null){
+        if(dspEngine != null) {
             initDSPEngine();
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                try{
+                try {
                     dspLimiter.setPostGain(gain);
 //                    dspBandConfig(4,gain);
-                } catch(Exception ex){
+                } catch (Exception ex) {
                     ex.printStackTrace();
                 }
 
             }
         }
-
-
     }
 
     public static float getGainValue(){
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && dspEngine != null ) {
             initDSPEngine();
             return dspLimiter.getPostGain();
-//            return dspEq.getBand(4).getGain();
         }
         return 0.0f;
     }
-//    set Gain for all channels
+//    function for audio threshold
+    public static void setAudioThreshold(float threshold){
+        initDSPEngine();
+        if(dspEngine != null){
+            dspLimiter.setThreshold(threshold);
+        }
+    }
+
+    public static void setRelease(float knee){
+        initDSPEngine();
+        if(dspEngine != null){
+            dspLimiter.setReleaseTime(knee);
+        }
+    }
+    public static void setAttackTime(float knee){
+        initDSPEngine();
+        if(dspEngine != null){
+            dspLimiter.setAttackTime(knee);
+        }
+    }
+    public static void setAudioRatio(float ratio){
+        if(dspEngine != null){
+            dspLimiter.setRatio(ratio);
+        }
+    }
+//    --------------- end of compresseor settings ----------------------------
+
+    //  --------------- dsp power settings -----------------------
     public static void setDSPPowerBass(float gain){
         if(dspEngine != null){
             initDSPEngine();
@@ -276,10 +311,35 @@ public class DSPEngine {
 
         }
     }
-    public static void adjustTunerBass(float gain){
+
+//    tunner setting
+    public static void setFrequencyForBassTuner(float bass){
+        initDSPEngine();
+        if(dspEngine != null){
+            tuner.getBand(0).setCutoffFrequency(bass);
+        }
+    }
+
+    public static void setFrequencyTrebleForTuner(float treble){
+        initDSPEngine();
+        if(dspEngine != null){
+            tuner.getBand(1).setCutoffFrequency(treble);
+        }
+    }
+    public static void setBassTone(float bass){
+        initDSPEngine();
+        if(dspEngine != null) {
+//           tunerConfig(bass,0);
+        }
+    }
+
+    public static void adjustTunerVocal(float gain){
         if(dspEq != null){
-            tunerConfig(gain);
+            dspBandConfig(4,gain);
         }
 
     }
+
 }
+
+//

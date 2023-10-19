@@ -2,10 +2,8 @@ import 'package:eq_app/Routes/routes.dart';
 import 'package:eq_app/extensions/index.dart';
 import 'package:eq_app/pages/GenreSongs.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 
-import '../controllers/AppController.dart';
 import '../widgets/ArtworkWidget.dart';
 
 class Genres extends StatefulWidget {
@@ -19,7 +17,7 @@ class _GenresState extends State<Genres> {
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<List<GenreModel>>(
-        future: context.read<AppController>().audioQuery.queryGenres(),
+        future: OnAudioQuery.platform.queryGenres(),
         builder: (context, snapshot) {
           return GridView.count(
             crossAxisCount: 3,

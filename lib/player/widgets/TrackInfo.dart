@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import '../../controllers/AppController.dart';
 import '../../pages/AlbumSongs.dart';
 import '../../widgets/PlayListWidget.dart';
+import 'ArtworkFetch.dart';
 
 class TrackInfoWidget extends StatelessWidget {
   final AppController controller;
@@ -151,6 +152,31 @@ class TrackInfoWidget extends StatelessWidget {
                                 songs: 0,
                               ),
                               context);
+                        },
+                      ),
+                      ListTile(
+                        leading: const Icon(Icons.image),
+                        title: const Text("Artwork"),
+                        onTap: () {
+                          Routes.pop(context);
+                          showModalBottomSheet(
+                              backgroundColor: Colors.transparent,
+                              context: context,
+                              builder: (context) {
+                                return BottomSheet(
+                                  backgroundColor: Colors.transparent,
+                                  builder: (context) => ArtworkFetch(
+                                    path: controller
+                                        .songs[controller.songId].data,
+                                    title: controller
+                                        .songs[controller.songId].title,
+                                    artist: controller
+                                            .songs[controller.songId].artist ??
+                                        "",
+                                  ),
+                                  onClosing: () {},
+                                );
+                              });
                         },
                       )
                     ],

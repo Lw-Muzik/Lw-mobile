@@ -1,6 +1,5 @@
 package x.a.zix;
 
-import android.media.AudioManager;
 import android.media.audiofx.Visualizer;
 
 
@@ -19,8 +18,10 @@ public class AudioVisualizer {
 
     public void activate(Visualizer.OnDataCaptureListener listener, int audioSessionId) {
         if (visualizer == null) {
-            visualizer = new Visualizer(AudioManager.AUDIO_SESSION_ID_GENERATE);
+            visualizer = new Visualizer(0);
+//            visualizer.setEnabled(true);
             visualizer.setCaptureSize(Visualizer.getCaptureSizeRange()[1]);
+//            visualizer.setScalingMode(isScalingModeNormalized ? Visualizer.SCALING_MODE_NORMALIZED : Visualizer.SCALING_MODE_AS_PLAYED);
             visualizer.setDataCaptureListener(
                 listener,
                 Visualizer.getMaxCaptureRate() / 2,

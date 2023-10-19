@@ -7,6 +7,7 @@ import android.content.Intent;
 import android.media.AudioManager;
 import android.media.audiofx.Visualizer;
 import android.os.Build;
+import android.os.Bundle;
 
 import androidx.annotation.NonNull;
 import androidx.core.view.WindowCompat;
@@ -29,14 +30,15 @@ public class MainActivity extends AudioServiceActivity {
 
   private final AudioVisualizer visualizer =  AudioVisualizer.instance;
   private MethodChannel visualizerChannel; // Define the MethodChannel here
-
+    @Override
+    protected void onCreate(Bundle savedInstance) {
+        super.onCreate(savedInstance);
+        WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
+    }
   @Override
   public void configureFlutterEngine(@NonNull FlutterEngine flutterEngine) {
-      WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
-
   super.configureFlutterEngine(flutterEngine);
   visualizerChannel =  new MethodChannel(flutterEngine.getDartExecutor().getBinaryMessenger(), CHANNEL);
-
      visualizerChannel.setMethodCallHandler(
           (call, result) -> {
             switch (call.method) {
@@ -68,7 +70,7 @@ public class MainActivity extends AudioServiceActivity {
 
                 case "enableVisual":
                     boolean enable = call.argument("enableVisual");
-                    visualizer.enableVisual(enable);
+                    visualizer.enableVisual(true);
                     break;
 
                 case "getEnabled":
@@ -189,8 +191,6 @@ public class MainActivity extends AudioServiceActivity {
                         int strengthBB = call.argument("strength");
                         BassEq.setStrength(strengthBB);
                         break;
-
-
 //                        loudnessEnhancer
                 case "initLoudnessEnhancer":
                         int sessionIdL = call.argument("sessionId");
@@ -376,7 +376,6 @@ public class MainActivity extends AudioServiceActivity {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                         lGain = DSPEngine.getGainValue();
                         result.success(lGain);
-                        
                     }
                     result.success(lGain);
                     break;
@@ -413,15 +412,16 @@ public class MainActivity extends AudioServiceActivity {
                     }
                     break;
                 case "setDspNoiseThreshold":
-                    float noiseThreshold = call.argument("noiseThreshold");
+                    double noiseThreshold = call.argument("noiseThreshold");
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                        DSPEngine.setNoiseThreshold(noiseThreshold);
+                        DSPEngine.setNoiseThreshold((float) noiseThreshold);
                     }
                     break;
+//            settings for tuner
                 case "setTunerBass":
                     double tBass = call.argument("tunerBass");
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                        DSPEngine.adjustTunerBass((float)tBass);
+                        DSPEngine.setBassTone((float)tBass);
                     }
                     break;
                 case"setCutOffFreq":
@@ -430,11 +430,50 @@ public class MainActivity extends AudioServiceActivity {
                         DSPEngine.setCutOffFrequencyForTunerBass(tBasFreq);
                     }
                     break;
+                case "setTrebleFreq":
+                    double tTrebleFreq = call.argument("trebleFreq");
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                        DSPEngine.setFrequencyTrebleForTuner((float)tTrebleFreq);
+                    }
+                    break;
+                case "setTunerVocal":
+                    double tVocal = call.argument("tunerVocal");
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                        DSPEngine.adjustTunerVocal((float)tVocal);
+                    }
+                    break;
+//                    compressor settings
+                case"setThreshold":
+                    double dspThreshold = call.argument("dspThreshold");
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                        DSPEngine.setAudioThreshold((float)dspThreshold);
+                    }
+                    break;
+                case "setReleaseTime":
+                    double releaseTime = call.argument("releaseTime");
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                        DSPEngine.setRelease((float)releaseTime);
+                    }
+                    break;
+                case "setAttackTime":
+                    double attackTime = call.argument("attackTime");
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                        DSPEngine.setAttackTime((float)attackTime);
+                    }
+                    break;
+                case "setRatio":
+                    double ratio = call.argument("ratio");
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                        DSPEngine.setAudioRatio((float)ratio);
+                    }
+                    break;
+//                    end of compressor settings
                 case "disposeDSP":
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                         DSPEngine.dispose();
                     }
                     break;
+
                 case "initPresetReverb":
                     int audioId = call.argument("priorityId");
                     ReverbEngine.initPresetReverb(audioId);

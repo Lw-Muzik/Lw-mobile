@@ -73,7 +73,7 @@ class _AssetLoaderState extends State<AssetLoader>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFDDBF3E),
+      backgroundColor: Color.fromARGB(255, 0, 0, 0),
       body: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.center,
@@ -82,10 +82,13 @@ class _AssetLoaderState extends State<AssetLoader>
             child: CustomPaint(
               size: const Size(150, 150),
               painter: RipplePainter(_ripples),
-              child: Image.asset(
-                "assets/icon.png",
-                width: 220,
-                height: 220,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(100),
+                child: Image.asset(
+                  "assets/audio.jpeg",
+                  width: 150,
+                  height: 150,
+                ),
               ),
             ),
           ),
@@ -105,7 +108,7 @@ class _AssetLoaderState extends State<AssetLoader>
             style: Theme.of(context)
                 .textTheme
                 .titleMedium!
-                .copyWith(color: Colors.black, fontWeight: FontWeight.bold),
+                .copyWith(color: Colors.white, fontWeight: FontWeight.bold),
           ),
           Text(
             Provider.of<PlayerController>(context, listen: false).text,
@@ -113,7 +116,7 @@ class _AssetLoaderState extends State<AssetLoader>
             style: Theme.of(context)
                 .textTheme
                 .titleMedium!
-                .copyWith(color: Colors.black, fontWeight: FontWeight.bold),
+                .copyWith(color: Colors.white, fontWeight: FontWeight.bold),
           )
         ],
       ),

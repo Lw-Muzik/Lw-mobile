@@ -321,6 +321,24 @@ class Channel {
     await channel.invokeMethod("setDSPXTreble", {"trebleGain": treble});
   }
 
+  // ----------- dsp compressor ------------------
+
+  static void setDSPThreshold(double threshold) async {
+    await channel.invokeMethod("setThreshold", {"dspThreshold": threshold});
+  }
+
+  static void setRatio(double ratio) async {
+    await channel.invokeMethod("setRatio", {"ratio": ratio});
+  }
+
+  static void setAttackTime(double attackTime) async {
+    await channel.invokeMethod("setAttackTime", {"attackTime": attackTime});
+  }
+static void setReleaseTime(double release) async {
+  await channel.invokeMethod("setReleaseTime",{"releaseTime":release});
+}
+  // -------------- end of compressor settings ---------------------
+
   static void setDSPSpeakers(
       List<dynamic> speakers, List<double> levels) async {
     Map<String, dynamic> dsps = {"speakers": speakers, "levels": levels};

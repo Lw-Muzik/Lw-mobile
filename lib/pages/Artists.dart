@@ -14,8 +14,6 @@ class Artists extends StatefulWidget {
 }
 
 class _ArtistsState extends State<Artists> {
-  final OnAudioQuery _audioQuery = OnAudioQuery();
-
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -23,7 +21,7 @@ class _ArtistsState extends State<Artists> {
       padding: const EdgeInsets.all(10),
       child: FutureBuilder<List<ArtistModel>>(
         // Default values:
-        future: _audioQuery.queryArtists(
+        future: OnAudioQuery.platform.queryArtists(
           sortType: null,
           orderType: OrderType.ASC_OR_SMALLER,
           uriType: UriType.EXTERNAL,

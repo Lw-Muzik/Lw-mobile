@@ -52,6 +52,14 @@ class AppController with ChangeNotifier {
   double _dspXBass2 = 13.0;
   double _dspOutGain = 3.0;
   double _dspNoise = -10.0;
+  // DSP COMPRESSOR
+  double _threshold = -2.0;
+  double _ratio = 10.0;
+  double _attackTime = 1;
+  double _releaseTime = 60;
+  // bass freq
+  double _bassFreq = 50;
+  double _vocalFreq = 450;
   // DSP getters
   bool get enableDSP {
     SharedPreferences.getInstance().asStream().listen((event) {
@@ -91,6 +99,50 @@ class AppController with ChangeNotifier {
     return _dspOutGain;
   }
 
+// compressor
+  double get threshold => _threshold;
+  double get attackTime => _attackTime;
+  double get ratio => _ratio;
+  double get releaseTime => _releaseTime;
+  double get bassFreq => _bassFreq;
+  double get vocalFreq => _vocalFreq;
+  // compressor setters
+  set threshold(double threshold) {
+    _prefs?.setDouble("threshold", threshold);
+    _threshold = threshold;
+    notifyListeners();
+  }
+
+  set attackTime(double attackTime) {
+    _prefs?.setDouble("attackTime", attackTime);
+    _attackTime = attackTime;
+    notifyListeners();
+  }
+
+  set ratio(double ratio) {
+    _prefs?.setDouble("ratio", ratio);
+    _ratio = ratio;
+    notifyListeners();
+  }
+
+  set releaseTime(double r) {
+    _prefs?.setDouble("releaseTime", r);
+    _releaseTime = r;
+    notifyListeners();
+  }
+
+  set bassFreq(double freq) {
+    _prefs?.setDouble("bassFreq", freq);
+    _bassFreq = freq;
+    notifyListeners();
+  }
+
+  set vocalFreq(double freq) {
+    _prefs?.setDouble("vocalFreq", freq);
+    _vocalFreq = freq;
+    notifyListeners();
+  }
+
   // DSP setters
   set enableDSP(bool dsp) {
     SharedPreferences.getInstance().asStream().listen((event) {
@@ -101,6 +153,7 @@ class AppController with ChangeNotifier {
   }
 
   set dspNoise(double noise) {
+    _prefs?.setDouble("dspNoise", noise);
     _dspNoise = noise;
     notifyListeners();
   }
@@ -228,6 +281,14 @@ class AppController with ChangeNotifier {
     _bgQuality = _prefs?.getDouble("bgQuality") ?? 2.0;
     _blur = _prefs?.getDouble("blur") ?? 40.0;
     _selectedRoomPreset = _prefs?.getInt("selectedRoomPreset") ?? 0;
+    // compressors
+    _threshold = _prefs?.getDouble("threshold") ?? -2.0;
+    _ratio = _prefs?.getDouble("ratio") ?? 10.0;
+    _attackTime = _prefs?.getDouble("attackTime") ?? 1.0;
+    _bassFreq = _prefs?.getDouble("releaseTime") ?? 60.0;
+    _bassFreq = _prefs?.getDouble("bassFreq") ?? 50.0;
+    _vocalFreq = _prefs?.getDouble("vocalFreq") ?? 450.0;
+    _dspNoise = _prefs?.getDouble("DSPNoise") ?? 0.0;
     // Load other settings...
   }
 

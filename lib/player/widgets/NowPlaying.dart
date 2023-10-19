@@ -18,7 +18,7 @@ class _NowPlayingState extends State<NowPlaying> {
 
   @override
   void dispose() {
-    context.read<AppController>().dispose();
+    // context.read<AppController>().dispose();
     super.dispose();
   }
 

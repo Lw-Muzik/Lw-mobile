@@ -11,10 +11,9 @@ import 'package:flutter/material.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:provider/provider.dart';
 
-import '../Helpers/AudioHandler.dart';
-import '../Helpers/index.dart';
-import '../widgets/ArtworkWidget.dart';
-import '../widgets/BottomPlayer.dart';
+import '/Helpers/index.dart';
+import '/widgets/ArtworkWidget.dart';
+import '/widgets/BottomPlayer.dart';
 
 class GenreSongs extends StatefulWidget {
   final int? genreId;
@@ -99,14 +98,14 @@ class _GenreSongsState extends State<GenreSongs> {
         },
         body: Consumer<AppController>(builder: (context, controller, child) {
           return StreamBuilder(
-              stream: context.read<AudioHandler>().player.playingStream,
+              stream: controller.handler.player.playingStream,
               builder: (context, service) {
                 return Scaffold(
                   backgroundColor: Theme.of(context)
                       .scaffoldBackgroundColor
                       .withOpacity(0.8),
                   body: FutureBuilder(
-                    future: controller.audioQuery.queryAudiosFrom(
+                    future: OnAudioQuery.platform.queryAudiosFrom(
                       AudiosFromType.GENRE_ID,
                       widget.genreId!,
                     ),
