@@ -96,9 +96,42 @@ class _CompressorViewState extends State<CompressorView> {
                             Channel.setDspNoiseThreshold(x);
                           },
                           value: controller.dspNoise,
+                          max: 50,
+                          min: -100,
+                          dB: controller.dspNoise.dps,
+                        ),
+                        HorizontalSlider(
+                          title: "Knee Width",
+                          onChanged: (x) {
+                            controller.kneeWidth = x;
+                            Channel.setDspKneeWidth(x);
+                          },
+                          value: controller.kneeWidth,
+                          max: 15,
+                          min: 0,
+                          dB: controller.kneeWidth.dps,
+                        ),
+                        HorizontalSlider(
+                          title: "Ratio Expander",
+                          onChanged: (x) {
+                            controller.expandRatio = x;
+                            Channel.setDspExpandRatio(x);
+                          },
+                          value: controller.expandRatio,
+                          max: 50,
+                          min: -100,
+                          dB: controller.expandRatio.dps,
+                        ),
+                        HorizontalSlider(
+                          title: "Pre Gain",
+                          onChanged: (x) {
+                            controller.preGain = x;
+                            Channel.setPreGain(x);
+                          },
+                          value: controller.dspNoise,
                           max: 30,
                           min: -20,
-                          dB: controller.dspNoise.dps,
+                          dB: controller.preGain.dps,
                         ),
                       ],
                     ),
@@ -126,12 +159,20 @@ class _CompressorViewState extends State<CompressorView> {
                       controller.releaseTime = 60.0;
                       controller.ratio = 10.0;
                       controller.dspNoise = 0.0;
+                      controller.expandRatio = 15.0;
+                      controller.preGain = 20.0;
+                      controller.kneeWidth = 0.4;
+
                       // config the system to default
                       Channel.setDSPThreshold(controller.threshold);
                       Channel.setAttackTime(controller.attackTime);
                       Channel.setReleaseTime(controller.releaseTime);
                       Channel.setRatio(controller.ratio);
                       Channel.setDspNoiseThreshold(controller.dspNoise);
+                      Channel.setDspExpandRatio(controller.expandRatio);
+                      Channel.setPreGain(controller.preGain);
+                      Channel.setDspKneeWidth(controller.kneeWidth);
+
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
                           content: const Text("Restored to defaults"),

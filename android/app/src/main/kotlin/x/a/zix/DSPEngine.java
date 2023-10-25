@@ -260,6 +260,27 @@ public class DSPEngine {
             dspLimiter.setRatio(ratio);
         }
     }
+
+    public static void setKneeWidth(float knee){
+        initDSPEngine();
+        if(dspEngine != null){
+            dspBand.setKneeWidth(knee);
+        }
+    }
+//    function to adjust pre gain
+    public static void setPreGain(float gain){
+        initDSPEngine();
+        if(dspEngine != null){
+            dspBand.setPreGain(gain);
+        }
+    }
+//    setExpanderRatio
+    public static void setExpanderRatio(float ratio){
+        initDSPEngine();
+        if(dspEngine != null){
+            dspBand.setRatio(ratio);
+        }
+    }
 //    --------------- end of compresseor settings ----------------------------
 
     //  --------------- dsp power settings -----------------------

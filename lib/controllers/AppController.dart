@@ -57,6 +57,9 @@ class AppController with ChangeNotifier {
   double _ratio = 10.0;
   double _attackTime = 1;
   double _releaseTime = 60;
+  double _kneeWidth = 0.40;
+  double _expandRatio = 15.0;
+  double _preGain = 20;
   // bass freq
   double _bassFreq = 50;
   double _vocalFreq = 450;
@@ -103,6 +106,9 @@ class AppController with ChangeNotifier {
   double get threshold => _threshold;
   double get attackTime => _attackTime;
   double get ratio => _ratio;
+  double get preGain => _preGain;
+  double get kneeWidth => _kneeWidth;
+  double get expandRatio => _expandRatio;
   double get releaseTime => _releaseTime;
   double get bassFreq => _bassFreq;
   double get vocalFreq => _vocalFreq;
@@ -116,6 +122,24 @@ class AppController with ChangeNotifier {
   set attackTime(double attackTime) {
     _prefs?.setDouble("attackTime", attackTime);
     _attackTime = attackTime;
+    notifyListeners();
+  }
+
+  set preGain(double gain) {
+    _prefs?.setDouble("preGain", gain);
+    _preGain = gain;
+    notifyListeners();
+  }
+
+  set kneeWidth(double width) {
+    _prefs?.setDouble("kneeWidth", width);
+    _kneeWidth = width;
+    notifyListeners();
+  }
+
+  set expandRatio(double ratio) {
+    _prefs?.setDouble("expandRatio", ratio);
+    _expandRatio = ratio;
     notifyListeners();
   }
 
@@ -288,7 +312,10 @@ class AppController with ChangeNotifier {
     _bassFreq = _prefs?.getDouble("releaseTime") ?? 60.0;
     _bassFreq = _prefs?.getDouble("bassFreq") ?? 50.0;
     _vocalFreq = _prefs?.getDouble("vocalFreq") ?? 450.0;
-    _dspNoise = _prefs?.getDouble("DSPNoise") ?? 0.0;
+    _dspNoise = _prefs?.getDouble("dspNoise") ?? 0.0;
+    _expandRatio = _prefs?.getDouble("expandRatio") ?? 15.0;
+    _preGain = _prefs?.getDouble("preGain") ?? 20.0;
+    _kneeWidth = _prefs?.getDouble("kneeWidth") ?? 0.4;
     // Load other settings...
   }
 

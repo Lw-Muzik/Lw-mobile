@@ -3,11 +3,11 @@ package x.a.zix;
 import android.media.audiofx.BassBoost;
 
 public class BassEq {
-    public static int m = Integer.MAX_VALUE;
+     static final int m = Integer.MAX_VALUE;
     private static BassBoost bassBoost;
 
     public static void init(int sessionId) {
-        bassBoost = new BassBoost(m, 0);
+        bassBoost = new BassBoost(m, sessionId);
     }
 
     public static void enable(boolean enable) {
@@ -17,7 +17,7 @@ public class BassEq {
     }
 
     public static boolean isEnabled() {
-        return bassBoost != null ? bassBoost.getEnabled():false;
+        return bassBoost != null && bassBoost.getEnabled();
 
     }
 

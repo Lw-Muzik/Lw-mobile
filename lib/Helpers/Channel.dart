@@ -334,9 +334,23 @@ class Channel {
   static void setAttackTime(double attackTime) async {
     await channel.invokeMethod("setAttackTime", {"attackTime": attackTime});
   }
-static void setReleaseTime(double release) async {
-  await channel.invokeMethod("setReleaseTime",{"releaseTime":release});
-}
+
+  static void setReleaseTime(double release) async {
+    await channel.invokeMethod("setReleaseTime", {"releaseTime": release});
+  }
+
+  static void setDspKneeWidth(double release) async {
+    await channel.invokeMethod("kneeWidth", {"kneeWidth": release});
+  }
+
+  static void setPreGain(double release) async {
+    await channel.invokeMethod("setPreGain", {"preGain": release});
+  }
+
+  static void setDspExpandRatio(double release) async {
+    await channel.invokeMethod("expandRatio", {"expandRatio": release});
+  }
+
   // -------------- end of compressor settings ---------------------
 
   static void setDSPSpeakers(

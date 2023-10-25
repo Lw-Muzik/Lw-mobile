@@ -34,6 +34,7 @@ public class MainActivity extends AudioServiceActivity {
     protected void onCreate(Bundle savedInstance) {
         super.onCreate(savedInstance);
         WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
+       new HeadphoneService();
     }
   @Override
   public void configureFlutterEngine(@NonNull FlutterEngine flutterEngine) {
@@ -142,8 +143,8 @@ public class MainActivity extends AudioServiceActivity {
 
 //                        virtualizer
                 case "initVirtualizer":
-                        int sessionIdV = call.argument("sessionId");
-                        VirtualizedControl.initVirtualizer(sessionIdV);
+
+                        VirtualizedControl.initVirtualizer(AudioManager.AUDIO_SESSION_ID_GENERATE);
                     break;
 
                 case "enableVirtualizer":
@@ -170,8 +171,8 @@ public class MainActivity extends AudioServiceActivity {
 
         //     bassboost
                 case "initBassBoost":
-                        int sessionIdB = call.argument("sessionId");
-                        BassEq.init(sessionIdB);
+
+                        BassEq.init(AudioManager.AUDIO_SESSION_ID_GENERATE);
                     break;
 
                 case "enableBassBoost":
@@ -442,7 +443,7 @@ public class MainActivity extends AudioServiceActivity {
                         DSPEngine.adjustTunerVocal((float)tVocal);
                     }
                     break;
-//                    compressor settings
+//  --------------------------    compressor settings
                 case"setThreshold":
                     double dspThreshold = call.argument("dspThreshold");
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
@@ -467,7 +468,25 @@ public class MainActivity extends AudioServiceActivity {
                         DSPEngine.setAudioRatio((float)ratio);
                     }
                     break;
-//                    end of compressor settings
+                case "setPreGain":
+                    double preGain = call.argument("preGain");
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                        DSPEngine.setPreGain((float)preGain);
+                    }
+                    break;
+                case "expandRatio":
+                    double expandRatio = call.argument("expandRatio");
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                        DSPEngine.setExpanderRatio((float)expandRatio);
+                    }
+                    break;
+                case "kneeWidth":
+                    double kneeWidth = call.argument("kneeWidth");
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                        DSPEngine.setKneeWidth((float)kneeWidth);
+                    }
+                    break;
+//  ------------------------end of compressor settings
                 case "disposeDSP":
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                         DSPEngine.dispose();
@@ -500,7 +519,7 @@ public class MainActivity extends AudioServiceActivity {
           }
         );
   }
-  private class HeadphoneService extends BroadcastReceiver {
+  private static class HeadphoneService extends BroadcastReceiver {
       @Override
       public void onReceive(Context context, Intent intent) {
           if(intent.getAction() != null && intent.getAction().equals(AudioManager.ACTION_HEADSET_PLUG)){
