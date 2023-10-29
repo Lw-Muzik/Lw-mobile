@@ -117,7 +117,7 @@ Future<String> fetchMetaData(BuildContext context) async {
       controller.textHeader = "Working on songs";
       for (var song in songs) {
         if (!processedFileIds.contains(song.id.toString())) {
-          List<dynamic> songModel = json.decode(allSongs!);
+          List<dynamic> songModel = json.decode(allSongs ?? "[]");
           songModel.add(song.getMap);
           // save captured songs
           prefs.setString("allSongs", json.encode(songModel));

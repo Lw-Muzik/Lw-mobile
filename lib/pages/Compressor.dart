@@ -38,102 +38,104 @@ class _CompressorViewState extends State<CompressorView> {
                     ? Colors.transparent
                     : Theme.of(context).cardColor,
                 child: SizedBox(
-                  height: 300,
+                  height: MediaQuery.of(context).size.height / 1.8,
                   child: BackdropFilter(
                     filter: controller.isFancy
                         ? ImageFilter.blur(sigmaX: 20, sigmaY: 20)
                         : ImageFilter.blur(sigmaX: 0, sigmaY: 0),
-                    child: Column(
-                      children: [
-                        HorizontalSlider(
-                          title: "Threshold",
-                          onChanged: (threshold) {
-                            controller.threshold = threshold;
-                            Channel.setDSPThreshold(threshold);
-                          },
-                          value: controller.threshold,
-                          max: 0,
-                          min: -50,
-                          dB: "${controller.threshold.toStringAsFixed(2)} dB",
-                        ),
-                        HorizontalSlider(
-                          title: "Attack",
-                          onChanged: (attack) {
-                            controller.attackTime = attack;
-                            Channel.setAttackTime(attack);
-                          },
-                          value: controller.attackTime,
-                          max: 100,
-                          min: -40,
-                          dB: "${controller.attackTime.toStringAsFixed(2)} ms",
-                        ),
-                        HorizontalSlider(
-                          title: "Ratio",
-                          onChanged: (ratio) {
-                            controller.ratio = ratio;
-                            Channel.setRatio(controller.ratio);
-                          },
-                          value: controller.ratio,
-                          max: 100,
-                          min: -20,
-                          dB: controller.ratio.dps,
-                        ),
-                        HorizontalSlider(
-                          title: "Release\n Time",
-                          onChanged: (releaseTime) {
-                            controller.releaseTime = releaseTime;
-                            Channel.setReleaseTime(controller.releaseTime);
-                          },
-                          value: controller.releaseTime,
-                          max: 150,
-                          min: -20,
-                          dB: "${controller.releaseTime.toStringAsFixed(2)} dB",
-                        ),
-                        HorizontalSlider(
-                          title: "Noise \nThreshold",
-                          onChanged: (x) {
-                            controller.dspNoise = x;
-                            Channel.setDspNoiseThreshold(x);
-                          },
-                          value: controller.dspNoise,
-                          max: 50,
-                          min: -100,
-                          dB: controller.dspNoise.dps,
-                        ),
-                        HorizontalSlider(
-                          title: "Knee Width",
-                          onChanged: (x) {
-                            controller.kneeWidth = x;
-                            Channel.setDspKneeWidth(x);
-                          },
-                          value: controller.kneeWidth,
-                          max: 15,
-                          min: 0,
-                          dB: controller.kneeWidth.dps,
-                        ),
-                        HorizontalSlider(
-                          title: "Ratio Expander",
-                          onChanged: (x) {
-                            controller.expandRatio = x;
-                            Channel.setDspExpandRatio(x);
-                          },
-                          value: controller.expandRatio,
-                          max: 50,
-                          min: -100,
-                          dB: controller.expandRatio.dps,
-                        ),
-                        HorizontalSlider(
-                          title: "Pre Gain",
-                          onChanged: (x) {
-                            controller.preGain = x;
-                            Channel.setPreGain(x);
-                          },
-                          value: controller.dspNoise,
-                          max: 30,
-                          min: -20,
-                          dB: controller.preGain.dps,
-                        ),
-                      ],
+                    child: SingleChildScrollView(
+                      child: Column(
+                        children: [
+                          HorizontalSlider(
+                            title: "Threshold",
+                            onChanged: (threshold) {
+                              controller.threshold = threshold;
+                              Channel.setDSPThreshold(threshold);
+                            },
+                            value: controller.threshold,
+                            max: 0,
+                            min: -50,
+                            dB: "${controller.threshold.toStringAsFixed(2)} dB",
+                          ),
+                          HorizontalSlider(
+                            title: "Attack",
+                            onChanged: (attack) {
+                              controller.attackTime = attack;
+                              Channel.setAttackTime(attack);
+                            },
+                            value: controller.attackTime,
+                            max: 100,
+                            min: -40,
+                            dB: "${controller.attackTime.toStringAsFixed(2)} ms",
+                          ),
+                          HorizontalSlider(
+                            title: "Ratio",
+                            onChanged: (ratio) {
+                              controller.ratio = ratio;
+                              Channel.setRatio(controller.ratio);
+                            },
+                            value: controller.ratio,
+                            max: 100,
+                            min: -20,
+                            dB: controller.ratio.dps,
+                          ),
+                          HorizontalSlider(
+                            title: "Release\n Time",
+                            onChanged: (releaseTime) {
+                              controller.releaseTime = releaseTime;
+                              Channel.setReleaseTime(controller.releaseTime);
+                            },
+                            value: controller.releaseTime,
+                            max: 150,
+                            min: -20,
+                            dB: "${controller.releaseTime.toStringAsFixed(2)} dB",
+                          ),
+                          HorizontalSlider(
+                            title: "Noise \nThreshold",
+                            onChanged: (x) {
+                              controller.dspNoise = x;
+                              Channel.setDspNoiseThreshold(x);
+                            },
+                            value: controller.dspNoise,
+                            max: 50,
+                            min: -100,
+                            dB: controller.dspNoise.dps,
+                          ),
+                          HorizontalSlider(
+                            title: "Knee Width",
+                            onChanged: (x) {
+                              controller.kneeWidth = x;
+                              Channel.setDspKneeWidth(x);
+                            },
+                            value: controller.kneeWidth,
+                            max: 15,
+                            min: 0,
+                            dB: controller.kneeWidth.dps,
+                          ),
+                          HorizontalSlider(
+                            title: "Ratio\n Expander",
+                            onChanged: (x) {
+                              controller.expandRatio = x;
+                              Channel.setDspExpandRatio(x);
+                            },
+                            value: controller.expandRatio,
+                            max: 50,
+                            min: -100,
+                            dB: controller.expandRatio.dps,
+                          ),
+                          HorizontalSlider(
+                            title: "Pre Gain",
+                            onChanged: (x) {
+                              controller.preGain = x;
+                              Channel.setPreGain(x);
+                            },
+                            value: controller.dspNoise,
+                            max: 30,
+                            min: -20,
+                            dB: controller.preGain.dps,
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
