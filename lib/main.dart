@@ -4,6 +4,8 @@ import 'package:eq_app/Global/index.dart';
 import 'package:eq_app/Themes/AppThemes.dart';
 import 'package:eq_app/controllers/AppController.dart';
 import 'package:eq_app/controllers/BandController.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
+import 'package:flutter/foundation.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -12,13 +14,25 @@ import 'package:just_audio_background/just_audio_background.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import 'package:wiredash/wiredash.dart';
+import 'package:firebase_core/firebase_core.dart';
 
 import 'controllers/PlayerController.dart';
 import 'controllers/PlaylistController.dart';
+import 'firebase_options.dart';
 
-// late AudioHandler audioPlayerHandler;
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+  FlutterError.onError = (errorDetails) {
+    FirebaseCrashlytics.instance.recordFlutterFatalError(errorDetails);
+  };
+  // Pass all uncaught asynchronous errors that aren't handled by the Flutter framework to Crashlytics
+  PlatformDispatcher.instance.onError = (error, stack) {
+    FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+    return true;
+  };
   await [
     Permission.storage,
     Permission.audio,
@@ -47,7 +61,7 @@ Future<void> main() async {
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
   ]);
-// request for permission to read audio files
+  // request for permission to read audio files
   // SharedPreferences prefs = await SharedPreferences.getInstance();
   // prefs.clear();
   runApp(
@@ -67,7 +81,6 @@ Future<void> main() async {
         projectId: "hype-muzik-q8wp9st",
         secret: "UB-v1DeJeOBqg3yxM5lOqEhoSsjrq-HM",
         options: const WiredashOptionsData(
-          
           locale: Locale('en'),
         ),
         child: MaterialApp(

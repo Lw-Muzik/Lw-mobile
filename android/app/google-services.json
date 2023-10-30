@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "618382337035",
+    "project_id": "hype-muzik",
+    "storage_bucket": "hype-muzik.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:618382337035:android:281cf52691c9ad7a02d30e",
+        "android_client_info": {
+          "package_name": "x.a.zix"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDHcsmb7ik8VwYtpT61ufIrsQKwD_udHgg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -50,6 +50,9 @@ dependencies:
   wiredash: ^1.7.4
   tutorial_coach_mark: ^1.2.9
   http: ^1.1.0
+  firebase_analytics: ^10.6.2
+  firebase_crashlytics: ^3.4.2
+  firebase_core: ^2.20.0
 
 dev_dependencies:
   flutter_test:
@@ -83,7 +86,7 @@ flutter_launcher_icons:
   image_path: "assets/icon.png"
   min_sdk_android: 21 # android min sdk min:16, default 21
 flutter_native_splash:
-  color: "#DDBF3E"
+  color: "#000000"
   #background_image: "assets/background.png"
   image: assets/icon.png
 

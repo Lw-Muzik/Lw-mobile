@@ -22,7 +22,7 @@ class _AssetLoaderState extends State<AssetLoader>
   @override
   void initState() {
     super.initState();
-    permission();
+
     _ripples = List.generate(
       7,
       (i) => Ripple(
@@ -30,15 +30,16 @@ class _AssetLoaderState extends State<AssetLoader>
       ),
     );
     _startAnimations();
+    permission();
   }
 
   void permission() async {
     SharedPreferences.getInstance().then((prefs) async {
       await fetchMetaData(context).then((value) {
         prefs.setBool("artworkLoaded", true);
-      });
-      Future.delayed(const Duration(seconds: 4), () {
-        Navigator.pushReplacementNamed(context, Routes.home);
+        Future.delayed(const Duration(seconds: 3), () {
+          Navigator.popAndPushNamed(context, Routes.home);
+        });
       });
     });
   }
@@ -73,7 +74,7 @@ class _AssetLoaderState extends State<AssetLoader>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Color.fromARGB(255, 0, 0, 0),
+      backgroundColor: const Color.fromARGB(255, 0, 0, 0),
       body: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.center,

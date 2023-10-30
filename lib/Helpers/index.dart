@@ -1,5 +1,6 @@
 // ignore_for_file: depend_on_referenced_packages
 
+import 'dart:developer';
 import 'dart:io';
 // import 'dart:math';
 
@@ -86,6 +87,7 @@ Future<void> fetchArtwork(
   } else {
     imagePath = getArtworkImagePath();
   }
+  log(imagePath);
   if (File(path).existsSync() == true) {
     await saveArtworkImage(imagePath, path);
   }

@@ -18,6 +18,7 @@
     <uses-permission android:name="android.permission.INTERNET"/>
 
     <application android:name="${applicationName}" android:icon="@mipmap/launcher_icon" android:label="Hype Muzik" tools:ignore="ExtraText">
+        <meta-data android:name="google_analytics_automatic_screen_reporting_enabled" android:value="true" />
         <activity android:name=".MainActivity" android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode" android:exported="true" android:hardwareAccelerated="true" android:launchMode="singleTop" android:theme="@style/LaunchTheme" android:windowSoftInputMode="adjustResize">
             <!-- Specifies an Android theme to apply to this Activity as soon as
                  the Android process has started. This theme is visible to the user
@@ -37,7 +38,7 @@
                 <action android:name="android.bluetooth.device.action.ACL_DISCONNECTED"/>
             </intent-filter>
         </activity>
-         <service android:name=".EngineService" android:enabled="true" android:exported="true" android:permission="android.permission.FOREGROUND_SERVICE" />
+        <service android:name=".EngineService" android:enabled="true" android:exported="true" android:permission="android.permission.FOREGROUND_SERVICE" />
         <!-- ADD THIS "SERVICE" element -->
         <service android:name="com.ryanheise.audioservice.AudioService" android:foregroundServiceType="mediaPlayback" android:exported="true">
             <intent-filter>

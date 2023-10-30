@@ -10,7 +10,7 @@ import '../widgets/ArtworkWidget.dart';
 
 class SearchPage extends SearchDelegate<SongModel> {
   @override
-  String get searchFieldLabel => "Search Songs";
+  String get searchFieldLabel => "Search by title , artist , album , genre";
   @override
   List<Widget>? buildActions(BuildContext context) {
     return [
@@ -40,14 +40,20 @@ class SearchPage extends SearchDelegate<SongModel> {
     return Consumer<AppController>(builder: (context, controller, child) {
       var songs = controller.songs
           .where((element) =>
-              element.title.toLowerCase().contains(query.toLowerCase()))
+              element.title.toLowerCase().contains(query.toLowerCase()) ||
+              element.artist!.toLowerCase().contains(query.toLowerCase()) ||
+              element.album!.toLowerCase().contains(query.toLowerCase()) ||
+              element.genre!.toLowerCase().contains(query.toLowerCase()))
           .toList();
       return ListView.builder(
         itemCount: songs.length,
         itemBuilder: (context, i) => ListTile(
           onTap: () {
-            int songIndex = (controller.songs
-                .indexWhere((result) => result.title == songs[i].title));
+            int songIndex = (controller.songs.indexWhere((result) =>
+                result.title == songs[i].title ||
+                result.artist == songs[i].artist ||
+                result.album == songs[i].album ||
+                result.genre == songs[i].genre));
             controller.songId = songIndex;
             loadAudioSource(controller.handler, controller.songs[songIndex]);
 
@@ -74,7 +80,10 @@ class SearchPage extends SearchDelegate<SongModel> {
     return Consumer<AppController>(builder: (context, controller, child) {
       var songs = controller.songs
           .where((element) =>
-              element.title.toLowerCase().contains(query.toLowerCase()))
+              element.title.toLowerCase().contains(query.toLowerCase()) ||
+              element.artist!.toLowerCase().contains(query.toLowerCase()) ||
+              element.album!.toLowerCase().contains(query.toLowerCase()) ||
+              element.genre!.toLowerCase().contains(query.toLowerCase()))
           .toList();
       return ListView.builder(
         itemCount: songs.length,
@@ -88,10 +97,11 @@ class SearchPage extends SearchDelegate<SongModel> {
             songs[i].title,
           ),
           onTap: () {
-            // controller.songId = (controller.songs.indexWhere((result) =>
-            //     result.title.toLowerCase() == songs[i].title.toLowerCase()));
-            int songIndex = (controller.songs
-                .indexWhere((result) => result.title == songs[i].title));
+            int songIndex = (controller.songs.indexWhere((result) =>
+                result.title == songs[i].title ||
+                result.artist == songs[i].artist ||
+                result.album == songs[i].album ||
+                result.genre == songs[i].genre));
             controller.songId = songIndex;
             loadAudioSource(controller.handler, controller.songs[songIndex]);
             Routes.routeTo(const Player(), context);

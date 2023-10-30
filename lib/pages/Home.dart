@@ -1,3 +1,5 @@
+// ignore_for_file: unnecessary_null_comparison
+
 import 'dart:convert';
 import 'dart:developer';
 
@@ -101,97 +103,90 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
   Widget build(BuildContext context) {
     return Body(
       child: Consumer<AppController>(builder: (context, controller, c) {
-        return StreamBuilder<bool>(
-            stream: controller.handler.player.playingStream,
-            builder: (context, playStream) {
-              return Scaffold(
-                backgroundColor: controller.isFancy
-                    ? Colors.transparent
-                    : Theme.of(context).scaffoldBackgroundColor,
-                appBar: AppBar(
-                  forceMaterialTransparency: controller.isFancy,
-                  title: const Text("Hype Muziki"),
-                  actions: [
-                    Padding(
-                      padding: const EdgeInsets.only(right: 18.0),
-                      child: IconButton(
-                        onPressed: () {
-                          showSearch<SongModel>(
-                              context: context, delegate: SearchPage());
-                        },
-                        icon: const Icon(Icons.search),
-                      ),
-                    ),
-                    Padding(
-                      key: keyButton,
-                      padding: const EdgeInsets.only(right: 18.0),
-                      child: IconButton(
-                        onPressed: () {
-                          Routes.routeTo(const Settings(), context);
-                        },
-                        icon: const Icon(Icons.settings),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.only(right: 18.0),
-                      child: Routes.animateTo(
-                        closedWidget: const Icon(Icons.equalizer),
-                        openWidget: const Equalizer(),
-                      ),
-                    )
-                  ],
-                  bottom: TabBar(
-                    isScrollable: true,
-                    controller: _tabController,
-                    tabs: const [
-                      Tab(
-                        child: Text("Folders"),
-                      ),
-                      Tab(
-                        child: Text("Playlists"),
-                      ),
-                      Tab(
-                        child: Text("Artists"),
-                      ),
-                      Tab(
-                        child: Text("Albums"),
-                      ),
-                      Tab(
-                        child: Text("Genres"),
-                      ),
-                      Tab(
-                        child: Text("Songs"),
-                      ),
-                    ],
-                  ),
+        return Scaffold(
+          backgroundColor: controller.isFancy
+              ? Colors.transparent
+              : Theme.of(context).scaffoldBackgroundColor,
+          appBar: AppBar(
+            forceMaterialTransparency: controller.isFancy,
+            title: const Text("Hype Muziki"),
+            actions: [
+              Padding(
+                padding: const EdgeInsets.only(right: 18.0),
+                child: IconButton(
+                  onPressed: () {
+                    showSearch<SongModel>(
+                        context: context, delegate: SearchPage());
+                  },
+                  icon: const Icon(Icons.search),
                 ),
-                body: Stack(
-                  children: [
-                    GestureDetector(
-                      onScaleUpdate: (details) {
-                        log(details.scale.toString());
-                      },
-                      child: TabBarView(
-                        controller: _tabController,
-                        children: const [
-                          Folders(),
-                          PlayListView(),
-                          Artists(),
-                          Albums(),
-                          Genres(),
-                          AllSongs(),
-                        ],
-                      ),
-                    ),
-                  ],
+              ),
+              Padding(
+                key: keyButton,
+                padding: const EdgeInsets.only(right: 18.0),
+                child: IconButton(
+                  onPressed: () {
+                    Routes.routeTo(const Settings(), context);
+                  },
+                  icon: const Icon(Icons.settings),
                 ),
-                bottomNavigationBar: playStream.data ?? false
-                    ? BottomPlayer(
-                        controller: controller,
-                      )
-                    : null,
-              );
-            });
+              ),
+              Padding(
+                padding: const EdgeInsets.only(right: 18.0),
+                child: IconButton(
+                  onPressed: () {
+                    Routes.routeTo(const Equalizer(), context);
+                  },
+                  icon: const Icon(Icons.equalizer),
+                ),
+              )
+            ],
+            bottom: TabBar(
+              isScrollable: true,
+              controller: _tabController,
+              tabs: const [
+                Tab(
+                  child: Text("Folders"),
+                ),
+                Tab(
+                  child: Text("Playlists"),
+                ),
+                Tab(
+                  child: Text("Artists"),
+                ),
+                Tab(
+                  child: Text("Albums"),
+                ),
+                Tab(
+                  child: Text("Genres"),
+                ),
+                Tab(
+                  child: Text("Songs"),
+                ),
+              ],
+            ),
+          ),
+          body: Stack(
+            children: [
+              TabBarView(
+                controller: _tabController,
+                children: const [
+                  Folders(),
+                  PlayListView(),
+                  Artists(),
+                  Albums(),
+                  Genres(),
+                  AllSongs(),
+                ],
+              ),
+            ],
+          ),
+          bottomNavigationBar: controller.handler.player.playing
+              ? BottomPlayer(
+                  controller: controller,
+                )
+              : null,
+        );
       }),
     );
   }

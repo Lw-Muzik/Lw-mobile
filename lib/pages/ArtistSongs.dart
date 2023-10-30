@@ -12,7 +12,6 @@ import 'package:flutter/material.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:provider/provider.dart';
 
-import '../Helpers/AudioHandler.dart';
 import '../Helpers/index.dart';
 import '../player/PlayerUI.dart';
 import '../widgets/ArtworkWidget.dart';

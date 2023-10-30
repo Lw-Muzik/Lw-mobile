@@ -57,28 +57,28 @@ class _CompressorViewState extends State<CompressorView> {
                             min: -50,
                             dB: "${controller.threshold.toStringAsFixed(2)} dB",
                           ),
-                          HorizontalSlider(
-                            title: "Attack",
-                            onChanged: (attack) {
-                              controller.attackTime = attack;
-                              Channel.setAttackTime(attack);
-                            },
-                            value: controller.attackTime,
-                            max: 100,
-                            min: -40,
-                            dB: "${controller.attackTime.toStringAsFixed(2)} ms",
-                          ),
-                          HorizontalSlider(
-                            title: "Ratio",
-                            onChanged: (ratio) {
-                              controller.ratio = ratio;
-                              Channel.setRatio(controller.ratio);
-                            },
-                            value: controller.ratio,
-                            max: 100,
-                            min: -20,
-                            dB: controller.ratio.dps,
-                          ),
+                          // HorizontalSlider(
+                          //   title: "Attack",
+                          //   onChanged: (attack) {
+                          //     controller.attackTime = attack;
+                          //     Channel.setAttackTime(attack);
+                          //   },
+                          //   value: controller.attackTime,
+                          //   max: 100,
+                          //   min: -40,
+                          //   dB: "${controller.attackTime.toStringAsFixed(2)} ms",
+                          // ),
+                          // HorizontalSlider(
+                          //   title: "Ratio",
+                          //   onChanged: (ratio) {
+                          //     controller.ratio = ratio;
+                          //     Channel.setRatio(controller.ratio);
+                          //   },
+                          //   value: controller.ratio,
+                          //   max: 100,
+                          //   min: -20,
+                          //   dB: controller.ratio.dps,
+                          // ),
                           HorizontalSlider(
                             title: "Release\n Time",
                             onChanged: (releaseTime) {
@@ -112,24 +112,24 @@ class _CompressorViewState extends State<CompressorView> {
                             min: 0,
                             dB: controller.kneeWidth.dps,
                           ),
-                          HorizontalSlider(
-                            title: "Ratio\n Expander",
-                            onChanged: (x) {
-                              controller.expandRatio = x;
-                              Channel.setDspExpandRatio(x);
-                            },
-                            value: controller.expandRatio,
-                            max: 50,
-                            min: -100,
-                            dB: controller.expandRatio.dps,
-                          ),
+                          // HorizontalSlider(
+                          //   title: "Ratio\n Expander",
+                          //   onChanged: (x) {
+                          //     controller.expandRatio = x;
+                          //     Channel.setDspExpandRatio(x);
+                          //   },
+                          //   value: controller.expandRatio,
+                          //   max: 50,
+                          //   min: -100,
+                          //   dB: controller.expandRatio.dps,
+                          // ),
                           HorizontalSlider(
                             title: "Pre Gain",
                             onChanged: (x) {
                               controller.preGain = x;
                               Channel.setPreGain(x);
                             },
-                            value: controller.dspNoise,
+                            value: controller.preGain,
                             max: 30,
                             min: -20,
                             dB: controller.preGain.dps,

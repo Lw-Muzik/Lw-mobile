@@ -23,7 +23,6 @@ class _AllSongsState extends State<AllSongs> {
 
   @override
   void dispose() {
-    context.read<AppController>().dispose();
     scrollController.dispose();
     super.dispose();
   }
@@ -88,19 +87,19 @@ class _AllSongsState extends State<AllSongs> {
                       style: Theme.of(context).textTheme.bodyLarge,
                     ),
                     subtitle: Text(item.data![index].artist ?? "No Artist"),
-                    trailing: SizedBox(
+                    trailing: const SizedBox(
                       width: 50,
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                         children: [
-                          Icon(
-                            controller.songId == index &&
-                                    context.read<AudioHandler>().player.playing
-                                ? Icons.pause_circle_filled
-                                : Icons.play_circle_fill,
-                            color: Colors.white,
-                          ),
-                          const Icon(Icons.more_vert, color: Colors.white)
+                          // Icon(
+                          //   controller.songId == index &&
+                          //           controller.handler.player.playing
+                          //       ? Icons.pause_circle_filled
+                          //       : Icons.play_circle_fill,
+                          //   color: Colors.white,
+                          // ),
+                          // const Icon(Icons.more_vert, color: Colors.white)
                         ],
                       ),
                     ),

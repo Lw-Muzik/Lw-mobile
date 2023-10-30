@@ -14,6 +14,7 @@ class Artists extends StatefulWidget {
 }
 
 class _ArtistsState extends State<Artists> {
+  // ArtistModel z = ArtistModel(_info)
   @override
   Widget build(BuildContext context) {
     return Container(

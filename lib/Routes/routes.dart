@@ -12,8 +12,8 @@ class Routes {
   static String equalizer = "/equalizer";
   static String loader = "/assetLoader";
   static void routeTo(Widget page, BuildContext context,
-      {bool animate = false}) {
-    if (animate) {
+      {bool animate = true}) {
+    if (!animate) {
       Navigator.of(context).push(
         MaterialPageRoute(
             builder: (context) {
@@ -24,8 +24,8 @@ class Routes {
     } else {
       Navigator.of(context).push(
         PageRouteBuilder(
-          transitionDuration: const Duration(milliseconds: 600),
-          reverseTransitionDuration: const Duration(milliseconds: 600),
+          transitionDuration: const Duration(milliseconds: 500),
+          reverseTransitionDuration: const Duration(milliseconds: 500),
           pageBuilder: (context, animation, secondaryAnimation) {
             return DualTransitionBuilder(
               animation: animation,
@@ -47,7 +47,7 @@ class Routes {
   static Widget animateTo(
       {required Widget closedWidget,
       required Widget openWidget,
-      Duration duration = const Duration(milliseconds: 700)}) {
+      Duration duration = const Duration(milliseconds: 500)}) {
     return OpenContainer(
         closedElevation: 0,
         openElevation: 0,

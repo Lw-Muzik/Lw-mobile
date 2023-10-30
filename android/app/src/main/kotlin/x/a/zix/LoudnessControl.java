@@ -17,7 +17,6 @@ public class LoudnessControl {
                 loudnessEnhancer.setEnabled(false);
             }
         }
-           
     }
 
     public static boolean isEnabled() {

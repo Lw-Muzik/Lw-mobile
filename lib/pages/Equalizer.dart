@@ -1,14 +1,12 @@
-import 'package:eq_app/Helpers/Channel.dart';
-import 'package:eq_app/controllers/AppController.dart';
-import 'package:eq_app/pages/Compressor.dart';
-import 'package:eq_app/widgets/Body.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-
-import '../Helpers/AudioHandler.dart';
+// custom files
+import '/Helpers/Channel.dart';
+import '/controllers/AppController.dart';
+import '/pages/Compressor.dart';
+import '/widgets/Body.dart';
 import 'AudioFx.dart';
 import 'EqView.dart';
-import 'Room.dart';
 
 class Equalizer extends StatefulWidget {
   const Equalizer({super.key});

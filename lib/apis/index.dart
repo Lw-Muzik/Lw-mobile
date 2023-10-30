@@ -1,3 +1,5 @@
+// ignore_for_file: use_build_context_synchronously
+
 import 'dart:io';
 
 import 'package:eq_app/Helpers/index.dart';
@@ -17,15 +19,16 @@ class Apis {
     return artworkModelFromJson(res.body);
   }
 
-  static void downloadArtwork(String url, String path,BuildContext context) async {
+  static void downloadArtwork(
+      String url, String path, BuildContext context) async {
     var res = await Client().readBytes(Uri.parse(url));
     var tempDir = await getTemporaryDirectory();
     String tempPath = tempDir.path;
     String image = "$tempPath/${path.split('/').last.split('.').first}.png";
-    if(File(image).existsSync() == true){
-      File(image).deleteSync();
+    if (File(image).existsSync() == true) {
+      File(image).deleteSync(recursive: true);
     }
     await File(image).writeAsBytes(res);
-  showMessage(context: context,type: "success",msg: "Artwork Downloaded");
+    showMessage(context: context, type: "success", msg: "Artwork Downloaded");
   }
 }
