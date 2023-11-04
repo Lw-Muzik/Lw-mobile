@@ -27,12 +27,28 @@ class _FoldersState extends State<Folders> {
               snapshot.data?.length ?? 0,
               (index) => Container(
                 margin: const EdgeInsets.all(10),
-                child: Routes.animateTo(
-                  closedWidget: GridTile(
-                    child: folderArtwork(snapshot.data![index],
-                        snapshot.data?[index].split("/").last ?? ""),
+                child: InkWell(
+                  onLongPress: () {
+                    showModalBottomSheet(
+                        context: context,
+                        builder: (context) {
+                          return BottomSheet(
+                              onClosing: () {},
+                              builder: (context) {
+                                return Container(
+                                  padding: EdgeInsets.all(20),
+                                  child: const Text("Delete this folder"),
+                                );
+                              });
+                        });
+                  },
+                  child: Routes.animateTo(
+                    closedWidget: GridTile(
+                      child: folderArtwork(snapshot.data![index],
+                          snapshot.data?[index].split("/").last ?? ""),
+                    ),
+                    openWidget: FolderSongs(path: snapshot.data?[index] ?? ""),
                   ),
-                  openWidget: FolderSongs(path: snapshot.data?[index] ?? ""),
                 ),
               ),
             ),

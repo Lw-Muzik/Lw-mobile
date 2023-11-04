@@ -71,11 +71,13 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
         builder: (context, controller, child) {
           final PageController pageController =
               PageController(initialPage: controller.songId);
-          if (controller.songId >= controller.songs.length) {
-            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-              behavior: SnackBarBehavior.floating,
-              content: Text("Playlist ended"),
-            ));
+          if (controller.songId >= (controller.songs.length - 1)) {
+            controller.handler.player.stop();
+
+            // ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            //   behavior: SnackBarBehavior.floating,
+            //   content: Text("Playlist ended"),
+            // ));
           }
           if (controller.visuals) {
             Visualizers.enableVisual(true);

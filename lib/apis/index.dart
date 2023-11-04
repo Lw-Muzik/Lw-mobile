@@ -2,10 +2,12 @@
 
 import 'dart:io';
 
+import 'package:audiotags/audiotags.dart';
 import 'package:eq_app/Helpers/index.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart';
 import 'package:path_provider/path_provider.dart';
+import '../Routes/routes.dart';
 import '../models/ArtworkModel.dart';
 import 'dart:developer';
 
@@ -29,6 +31,20 @@ class Apis {
       File(image).deleteSync(recursive: true);
     }
     await File(image).writeAsBytes(res);
+    // AudioTags.write(
+    //   path,
+    //   Tag(
+    //     pictures: [
+    //       Picture(
+    //         bytes: res,
+    //         pictureType: PictureType.coverFront,
+    //         mimeType: MimeType.jpeg,
+    //       ),
+    //     ],
+    //   ),
+    // ).then((value) {
     showMessage(context: context, type: "success", msg: "Artwork Downloaded");
+    Routes.pop(context);
+    // });
   }
 }

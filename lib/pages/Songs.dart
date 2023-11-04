@@ -3,6 +3,7 @@ import 'package:eq_app/widgets/ArtworkWidget.dart';
 import 'package:flutter/material.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../Helpers/AudioHandler.dart';
 import '../controllers/AppController.dart';
@@ -29,6 +30,9 @@ class _AllSongsState extends State<AllSongs> {
 
   @override
   Widget build(BuildContext context) {
+    // SharedPreferences.getInstance().asStream().listen((event) {
+    //   // print(event.get("allSongs"));
+    // });
     return Consumer<AppController>(builder: (context, controller, ch) {
       return FutureBuilder<List<SongModel>>(
         // Default values:

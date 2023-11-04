@@ -3,8 +3,8 @@
 
 import 'dart:convert';
 
-import 'package:eq_app/Helpers/index.dart';
-import 'package:eq_app/controllers/PlayerController.dart';
+import '/Helpers/index.dart';
+import '/controllers/PlayerController.dart';
 import 'package:flutter/material.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:provider/provider.dart';
@@ -39,6 +39,7 @@ Future<String> fetchMetaData(BuildContext context) async {
   Future<void> processArtists() async {
     var artists = await OnAudioQuery().queryArtists();
     if (artists.isNotEmpty) {
+      List<dynamic> artistModel = json.decode(artistsModel ?? "[]");
       controller.textHeader = "Working on artists";
       for (var artist in artists) {
         // Check if the artist's ID is in the set of processed IDs
@@ -52,7 +53,7 @@ Future<String> fetchMetaData(BuildContext context) async {
 
           // Add the artist's ID to the set of processed IDs
           processedFileIds.add(artist.id.toString());
-          List<dynamic> artistModel = json.decode(artistsModel ?? "[]");
+
           artistModel.add(artist.getMap);
           // save captured albums
           prefs.setString("artists", json.encode(artistModel));
@@ -69,6 +70,7 @@ Future<String> fetchMetaData(BuildContext context) async {
       controller.textHeader = "Working on albums";
       await Future.delayed(const Duration(seconds: 1));
       for (var album in albums) {
+        List<dynamic> albumModel = json.decode(albumsModel ?? "[]");
         if (!processedFileIds.contains(album.id.toString())) {
           // save artwork
           await fetchArtwork("", album.id,
@@ -77,7 +79,7 @@ Future<String> fetchMetaData(BuildContext context) async {
           query = "${album.getMap['album'] ?? 'Unknown'}";
           controller.text = query;
           processedFileIds.add(album.id.toString());
-          List<dynamic> albumModel = json.decode(albumsModel ?? "[]");
+
           albumModel.add(album.getMap);
           // save captured albums
           prefs.setString("albums", json.encode(albumModel));
@@ -91,6 +93,7 @@ Future<String> fetchMetaData(BuildContext context) async {
     if (genres.isNotEmpty) {
       controller.textHeader = "Working on genres";
       for (var genre in genres) {
+        List<dynamic> genreModel = json.decode(genresModel ?? "[]");
         if (!processedFileIds.contains(genre.id.toString())) {
           // save artwork
           await fetchArtwork("", genre.id,
@@ -98,7 +101,7 @@ Future<String> fetchMetaData(BuildContext context) async {
           query = genre.genre;
           controller.text = query;
           processedFileIds.add(genre.id.toString());
-          List<dynamic> genreModel = json.decode(genresModel ?? "[]");
+
           genreModel.add(genre.getMap);
           // save captured genres
           prefs.setString("genres", json.encode(genreModel));
@@ -110,10 +113,10 @@ Future<String> fetchMetaData(BuildContext context) async {
   Future<void> processSongs() async {
     var songs = await OnAudioQuery().querySongs();
     if (songs.isNotEmpty) {
+      List<dynamic> songModel = json.decode(allSongs ?? "[]");
       controller.textHeader = "Working on songs";
       for (var song in songs) {
         if (!processedFileIds.contains(song.id.toString())) {
-          List<dynamic> songModel = json.decode(allSongs ?? "[]");
           songModel.add(song.getMap);
           // save captured songs
           prefs.setString("allSongs", json.encode(songModel));

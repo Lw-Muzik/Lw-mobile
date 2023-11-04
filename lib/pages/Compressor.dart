@@ -57,28 +57,28 @@ class _CompressorViewState extends State<CompressorView> {
                             min: -50,
                             dB: "${controller.threshold.toStringAsFixed(2)} dB",
                           ),
-                          // HorizontalSlider(
-                          //   title: "Attack",
-                          //   onChanged: (attack) {
-                          //     controller.attackTime = attack;
-                          //     Channel.setAttackTime(attack);
-                          //   },
-                          //   value: controller.attackTime,
-                          //   max: 100,
-                          //   min: -40,
-                          //   dB: "${controller.attackTime.toStringAsFixed(2)} ms",
-                          // ),
-                          // HorizontalSlider(
-                          //   title: "Ratio",
-                          //   onChanged: (ratio) {
-                          //     controller.ratio = ratio;
-                          //     Channel.setRatio(controller.ratio);
-                          //   },
-                          //   value: controller.ratio,
-                          //   max: 100,
-                          //   min: -20,
-                          //   dB: controller.ratio.dps,
-                          // ),
+                          HorizontalSlider(
+                            title: "Attack",
+                            onChanged: (attack) {
+                              controller.attackTime = attack;
+                              Channel.setAttackTime(attack);
+                            },
+                            value: controller.attackTime,
+                            max: 100,
+                            min: -100,
+                            dB: "${controller.attackTime.toStringAsFixed(2)} dB",
+                          ),
+                          HorizontalSlider(
+                            title: "Ratio",
+                            onChanged: (ratio) {
+                              controller.ratio = ratio;
+                              Channel.setRatio(controller.ratio);
+                            },
+                            value: controller.ratio,
+                            max: 100,
+                            min: -100,
+                            dB: controller.ratio.dps,
+                          ),
                           HorizontalSlider(
                             title: "Release\n Time",
                             onChanged: (releaseTime) {
@@ -87,8 +87,8 @@ class _CompressorViewState extends State<CompressorView> {
                             },
                             value: controller.releaseTime,
                             max: 150,
-                            min: -20,
-                            dB: "${controller.releaseTime.toStringAsFixed(2)} dB",
+                            min: -150,
+                            dB: "${controller.releaseTime.toStringAsFixed(2)} ms",
                           ),
                           HorizontalSlider(
                             title: "Noise \nThreshold",
@@ -97,7 +97,7 @@ class _CompressorViewState extends State<CompressorView> {
                               Channel.setDspNoiseThreshold(x);
                             },
                             value: controller.dspNoise,
-                            max: 50,
+                            max: 100,
                             min: -100,
                             dB: controller.dspNoise.dps,
                           ),
@@ -108,21 +108,21 @@ class _CompressorViewState extends State<CompressorView> {
                               Channel.setDspKneeWidth(x);
                             },
                             value: controller.kneeWidth,
-                            max: 15,
+                            max: 100,
                             min: 0,
                             dB: controller.kneeWidth.dps,
                           ),
-                          // HorizontalSlider(
-                          //   title: "Ratio\n Expander",
-                          //   onChanged: (x) {
-                          //     controller.expandRatio = x;
-                          //     Channel.setDspExpandRatio(x);
-                          //   },
-                          //   value: controller.expandRatio,
-                          //   max: 50,
-                          //   min: -100,
-                          //   dB: controller.expandRatio.dps,
-                          // ),
+                          HorizontalSlider(
+                            title: "Ratio\n Expander",
+                            onChanged: (x) {
+                              controller.expandRatio = x;
+                              Channel.setDspExpandRatio(x);
+                            },
+                            value: controller.expandRatio,
+                            max: 90,
+                            min: -100,
+                            dB: controller.expandRatio.dps,
+                          ),
                           HorizontalSlider(
                             title: "Pre Gain",
                             onChanged: (x) {
@@ -130,8 +130,8 @@ class _CompressorViewState extends State<CompressorView> {
                               Channel.setPreGain(x);
                             },
                             value: controller.preGain,
-                            max: 30,
-                            min: -20,
+                            max: 50,
+                            min: -50,
                             dB: controller.preGain.dps,
                           ),
                         ],

@@ -144,7 +144,6 @@ class SongLists extends StatefulWidget {
 class _SongListsState extends State<SongLists> {
   @override
   void dispose() {
-    context.read<AppController>().dispose();
     super.dispose();
   }
 

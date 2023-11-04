@@ -32,8 +32,10 @@ Future<void> fetchArtwork(
   String imagePath = "";
 
   Future<Directory> createDirectory(Directory dir) async {
-    if (!dir.existsSync()) {
-      return await dir.create(recursive: true);
+    // log("${dir.path}  exist ${dir.existsSync()}");
+    if (dir.existsSync() == false) {
+      dir.createSync();
+      return dir;
     }
     return dir;
   }
@@ -55,6 +57,7 @@ Future<void> fetchArtwork(
         var artworkData = await OnAudioQuery()
             .queryArtwork(id, type, quality: quality, size: 500);
         if (artworkData != null && artworkData.isNotEmpty) {
+          // log("Saving $imgPath");
           await File(imgPath).writeAsBytes(artworkData);
         }
       } else if (type == ArtworkType.AUDIO) {
@@ -63,6 +66,7 @@ Future<void> fetchArtwork(
           var tag = await parser.readTag();
           var artworkData = tag.pictures;
           if (tempPath.isNotEmpty && artworkData.isNotEmpty) {
+            // log("Saving song artwork $imgPath");
             await File(imgPath).writeAsBytes(artworkData.first.imageData);
           }
         }
@@ -73,6 +77,11 @@ Future<void> fetchArtwork(
   Directory albumPath = await createDirectory(Directory("$tempPath/Albums"));
   Directory artistPath = await createDirectory(Directory("$tempPath/Artists"));
   Directory genrePath = await createDirectory(Directory("$tempPath/Genres"));
+  // check if all custom directories exist
+  // log("Albums ${albumPath.existsSync()}");
+  // log("Genres ${genrePath.existsSync()}");
+  // log("Artists ${artistPath.existsSync()}");
+
   if (path.isEmpty && other != "Unknown") {
     if (type == ArtworkType.ALBUM) {
       imagePath =
@@ -87,10 +96,10 @@ Future<void> fetchArtwork(
   } else {
     imagePath = getArtworkImagePath();
   }
-  log(imagePath);
-  if (File(path).existsSync() == true) {
-    await saveArtworkImage(imagePath, path);
-  }
+
+  // if (File(path).existsSync() == true) {
+  await saveArtworkImage(imagePath, path);
+  // }
 }
 
 Future<ImageProvider<Object>> savedImage(
@@ -129,6 +138,7 @@ Future<ImageProvider<Object>> savedImage(
   } else {
     imagePath = getArtworkImagePath();
   }
+  // log(File(imagePath).existsSync().toString());
   Future.delayed(const Duration(seconds: 1));
   return File(imagePath).existsSync()
       ? FileImage(

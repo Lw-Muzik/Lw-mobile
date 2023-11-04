@@ -1,4 +1,5 @@
 import 'dart:async';
+// import 'dart:developer';
 
 import 'package:eq_app/controllers/PlayerController.dart';
 import 'package:flutter/material.dart';
@@ -33,12 +34,20 @@ class _AssetLoaderState extends State<AssetLoader>
     permission();
   }
 
+  int page = 0;
   void permission() async {
     SharedPreferences.getInstance().then((prefs) async {
       await fetchMetaData(context).then((value) {
         prefs.setBool("artworkLoaded", true);
+
         Future.delayed(const Duration(seconds: 3), () {
-          Navigator.popAndPushNamed(context, Routes.home);
+          if (page == 0) {
+            setState(() {
+              page = 1;
+            });
+            Navigator.pushReplacementNamed(context, Routes.home);
+            Routes.pop(context);
+          }
         });
       });
     });
@@ -101,7 +110,7 @@ class _AssetLoaderState extends State<AssetLoader>
             style: Theme.of(context)
                 .textTheme
                 .titleLarge!
-                .apply(color: Colors.black),
+                .apply(color: Colors.white),
           ),
           Text(
             Provider.of<PlayerController>(context, listen: false).textHeader,

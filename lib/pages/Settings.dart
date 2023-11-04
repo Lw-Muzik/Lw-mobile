@@ -1,18 +1,18 @@
 import 'dart:io';
 
-import 'package:eq_app/Helpers/AudioVisualizer.dart';
-import 'package:eq_app/Routes/routes.dart';
-import 'package:eq_app/controllers/AppController.dart';
-import 'package:eq_app/controllers/ThemeController.dart';
-import 'package:eq_app/widgets/Body.dart';
-import 'package:eq_app/widgets/HorizontalSlider.dart';
+import '/Helpers/AudioVisualizer.dart';
+import '/Routes/routes.dart';
+import '/controllers/AppController.dart';
+import '/widgets/Body.dart';
+import '/widgets/HorizontalSlider.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
+// import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:provider/provider.dart';
 import 'package:wiredash/wiredash.dart';
-
-import '../Helpers/AudioHandler.dart';
-import '../widgets/BottomPlayer.dart';
+//
+import '/Helpers/AudioHandler.dart';
+import '/widgets/BottomPlayer.dart';
+//
 
 class Settings extends StatefulWidget {
   const Settings({super.key});
@@ -143,7 +143,7 @@ class _SettingsState extends State<Settings> {
                         FutureBuilder<bool>(
                             future: Visualizers.getEnabled(),
                             builder: (context, snapshot) {
-                              bool? vSwitch = snapshot.data;
+                              // bool? vSwitch = snapshot.data;
                               // if (vSwitch != null) {
                               //   controller.visuals = vSwitch;
                               // }

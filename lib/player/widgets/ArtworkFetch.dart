@@ -22,7 +22,7 @@ class _ArtworkFetchState extends State<ArtworkFetch> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: EdgeInsets.all(15),
+      padding: const EdgeInsets.all(15),
       clipBehavior: Clip.hardEdge,
       decoration: const BoxDecoration(
           // color: Colors.grey.shade400.withOpacity(0.15),
@@ -44,12 +44,12 @@ class _ArtworkFetchState extends State<ArtworkFetch> {
                         child: Image.network(snap.data!.results[i].url,
                             width: 100, height: 100, fit: BoxFit.cover,
                             errorBuilder: (context, error, stackTrace) {
-                          return Icon(Icons.image_not_supported_outlined);
+                          return const Icon(Icons.image_not_supported_outlined);
                         }),
                       ),
                     ),
                   )
-                : Center(
+                : const Center(
                     child: CircularProgressIndicator(),
                   );
           },
