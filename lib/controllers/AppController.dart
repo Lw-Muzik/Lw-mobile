@@ -45,6 +45,7 @@ class AppController with ChangeNotifier {
   // DSP settings
   bool _enableDSP = false;
   int _selectSpeaker = -1;
+  String _spkName = "BEATS BY DRE";
   double _dspVolume = -6.0;
   double _dspXTreble = 3.3;
   double _dspPowerBass = 8.0;
@@ -72,6 +73,7 @@ class AppController with ChangeNotifier {
     return _enableDSP;
   }
 
+  String get spkName => _spkName;
   int get selectSpeaker {
     return _selectSpeaker;
   }
@@ -116,6 +118,12 @@ class AppController with ChangeNotifier {
   set threshold(double threshold) {
     _prefs?.setDouble("threshold", threshold);
     _threshold = threshold;
+    notifyListeners();
+  }
+
+  set spkName(String name) {
+    _prefs?.setString("spkName", name);
+    _spkName = name;
     notifyListeners();
   }
 
@@ -317,6 +325,7 @@ class AppController with ChangeNotifier {
     _preGain = _prefs?.getDouble("preGain") ?? 20.0;
     _kneeWidth = _prefs?.getDouble("kneeWidth") ?? 0.4;
     // Load other settings...
+    _spkName = _prefs?.getString("spkName") ?? "BEATS BY DRE";
   }
 
   bool get isDark {

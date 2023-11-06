@@ -53,11 +53,11 @@ class SearchPage extends SearchDelegate<SongModel> {
             int songIndex = (controller.songs.indexWhere((result) =>
                 result.title == songs[i].title ||
                 result.artist == songs[i].artist ||
-                result.album == songs[i].album ||
-                result.genre == songs[i].genre));
+                result.album == songs[i].album));
             controller.songId = songIndex;
             loadAudioSource(controller.handler, controller.songs[songIndex]);
             Routes.routeTo(const Player(), context);
+            debugPrint("Song Index: $songIndex");
           },
           leading: ArtworkWidget(
             songId: songs[i].id,
@@ -99,8 +99,7 @@ class SearchPage extends SearchDelegate<SongModel> {
             int songIndex = (controller.songs.indexWhere((result) =>
                 result.title == songs[i].title ||
                 result.artist == songs[i].artist ||
-                result.album == songs[i].album ||
-                result.genre == songs[i].genre));
+                result.album == songs[i].album));
             controller.songId = songIndex;
             loadAudioSource(controller.handler, controller.songs[songIndex]);
             Routes.routeTo(const Player(), context);

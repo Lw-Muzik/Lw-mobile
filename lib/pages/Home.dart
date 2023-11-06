@@ -22,6 +22,7 @@ import '../Helpers/Channel.dart';
 import '../controllers/AppController.dart';
 import '../widgets/BottomPlayer.dart';
 import 'Artists.dart';
+import 'Recents.dart';
 import 'Settings.dart';
 import 'Songs.dart';
 
@@ -109,7 +110,7 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
               : Theme.of(context).scaffoldBackgroundColor,
           appBar: AppBar(
             forceMaterialTransparency: controller.isFancy,
-            title: const Text("Hype Muziki"),
+            title: const Text("Hype Muzik"),
             actions: [
               Padding(
                 padding: const EdgeInsets.only(right: 18.0),
@@ -148,6 +149,9 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
                 Tab(
                   child: Text("Folders"),
                 ),
+                // Tab(
+                //   child: Text("Recently Added"),
+                // ),
                 Tab(
                   child: Text("Playlists"),
                 ),
@@ -172,6 +176,7 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
                 controller: _tabController,
                 children: const [
                   Folders(),
+                  // Recents(),
                   PlayListView(),
                   Artists(),
                   Albums(),

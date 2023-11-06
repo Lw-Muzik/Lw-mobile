@@ -9,7 +9,6 @@ import 'package:http/http.dart';
 import 'package:path_provider/path_provider.dart';
 import '../Routes/routes.dart';
 import '../models/ArtworkModel.dart';
-import 'dart:developer';
 
 class Apis {
   static String devUrl = "http://15.237.71.190:5054";
@@ -22,7 +21,10 @@ class Apis {
   }
 
   static void downloadArtwork(
-      String url, String path, BuildContext context) async {
+    String url,
+    String path,
+    BuildContext context,
+  ) async {
     var res = await Client().readBytes(Uri.parse(url));
     var tempDir = await getTemporaryDirectory();
     String tempPath = tempDir.path;

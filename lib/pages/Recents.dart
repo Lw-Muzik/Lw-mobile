@@ -1,34 +1,22 @@
-import '/Helpers/Files.dart';
 import 'package:flutter/material.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 
+import '../Helpers/Files.dart';
 import 'ArtistSongs.dart';
 
-class AllSongs extends StatefulWidget {
-  const AllSongs({super.key});
+class Recents extends StatefulWidget {
+  const Recents({super.key});
 
   @override
-  State<AllSongs> createState() => _AllSongsState();
+  State<Recents> createState() => _RecentsState();
 }
 
-class _AllSongsState extends State<AllSongs> {
-  ScrollController scrollController = ScrollController();
-  @override
-  void initState() {
-    super.initState();
-  }
-
-  @override
-  void dispose() {
-    scrollController.dispose();
-    super.dispose();
-  }
-
+class _RecentsState extends State<Recents> {
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<List<SongModel>>(
       // Default values:
-      future: Files.fetchAllSongs(),
+      future: Files.fetchMostRecentlyPlayed(),
 
       builder: (context, snap) {
         return snap.hasData

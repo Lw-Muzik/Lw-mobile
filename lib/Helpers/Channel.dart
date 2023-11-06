@@ -26,6 +26,10 @@ class Channel {
     await channel.invokeMethod("release");
   }
 
+  static void showNativeMessage(String message) async {
+    await channel.invokeMethod("showNativeMessage", {"message": message});
+  }
+
   static Future<List<Map<String, dynamic>>> getPreset() async {
     List<String> p =
         (await channel.invokeMethod("getPresetNames")).cast<String>();
@@ -417,6 +421,10 @@ class Channel {
 
   static Future<int> getReverbPreset() async {
     return await channel.invokeMethod("getReverbPreset");
+  }
+
+  static void deleteManager(String path) async {
+    await channel.invokeMethod("deleteManager", {"filePath": path});
   }
 
   static void setSessionId(int sessionId) async {

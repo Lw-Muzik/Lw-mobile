@@ -67,7 +67,7 @@ Widget playerControls(AppController controller, BuildContext context) {
                 context: context,
                 builder: (context) {
                   return BottomSheet(
-                    backgroundColor: Colors.black26,
+                    backgroundColor: Colors.black38,
                     onClosing: () {},
                     builder: (context) {
                       return NowPlaying(
@@ -118,7 +118,7 @@ Widget playerCard(Animation<double> animation, BuildContext context,
             );
           }),
       Positioned(
-        bottom: 10,
+        bottom: 0,
         left: 20,
         right: 20,
         child: playerControls(controller, context),

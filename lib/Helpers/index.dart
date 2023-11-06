@@ -12,6 +12,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../Routes/routes.dart';
 import '../controllers/AppController.dart';
+import '../player/widgets/DeleteWindow.dart';
 
 String tempPath = "";
 
@@ -308,4 +309,23 @@ void showDeletePlaylist(AppController controller, String playlist,
 
 String formatTime(Duration time) {
   return "${RegExp(r'((^0*[1-9]\d*:)?\d{2}:\d{2})\.\d+$').firstMatch("$time")?.group(1)}";
+}
+
+// method to invoke the delete window
+void showDeleteWindow(String type, String path, BuildContext context) {
+  showModalBottomSheet(
+      showDragHandle: true,
+      // backgroundColor: Colors.transparent,
+      context: context,
+      builder: (context) {
+        return BottomSheet(
+            // backgroundColor: Colors.transparent,
+            onClosing: () {},
+            builder: (context) {
+              return DeleteWindow(
+                type: type,
+                folder: path,
+              );
+            });
+      });
 }

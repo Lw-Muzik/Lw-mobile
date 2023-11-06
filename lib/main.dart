@@ -37,7 +37,7 @@ Future<void> main() async {
   await [
     Permission.storage,
     Permission.audio,
-    // Permission.microphone,
+    // Permission.manageExternalStorage,
   ].request();
 
   await JustAudioBackground.init(

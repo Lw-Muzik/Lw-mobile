@@ -7,6 +7,7 @@ import 'package:eq_app/widgets/HorizontalSlider.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../Routes/routes.dart';
 import '../controllers/AppController.dart';
 
 class AudioFx extends StatefulWidget {
@@ -33,47 +34,24 @@ class _AudioFxState extends State<AudioFx> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Card(
-                color: controller.isFancy
-                    ? Colors.transparent
-                    : Theme.of(context).cardColor,
-                clipBehavior: Clip.hardEdge,
-                 elevation: controller.isFancy ? 0 : 2,
-                margin: const EdgeInsets.only(top: 10, bottom: 10),
-                child: BackdropFilter(
-                  filter: controller.isFancy
-                      ? ImageFilter.blur(sigmaX: 60, sigmaY: 60)
-                      : ImageFilter.blur(sigmaX: 0, sigmaY: 0),
-                  child: ListTile(
-                    title: const Text("Restore to default"),
-                    leading: const Icon(Icons.restore),
-                    trailing: const Icon(Icons.open_in_new),
-                    onTap: () {
-                      controller.dspOutGain = 3.0;
-                      controller.dspPowerBass = 8.0;
-                      controller.dspXTreble = 3.0;
-                      controller.dspVolume = -6.0;
-                      controller.dspXBass = 11.0;
-                      // config the system to default
-                      Channel.setDSPVolume(controller.dspVolume);
-                      Channel.setDSPTreble(controller.dspXTreble);
-                      Channel.setDSPPowerBass(controller.dspPowerBass);
-                      Channel.setDSPXBass(controller.dspXBass);
-                      Channel.setOutGain(controller.dspOutGain);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: const Text("Restored to defaults"),
-                          behavior: SnackBarBehavior.floating,
-                          duration: const Duration(milliseconds: 1800),
-                          backgroundColor:
-                              Theme.of(context).colorScheme.primary,
-                        ),
-                      );
-                    },
+              SizedBox(
+                height: 50,
+                child: Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text("AUDIOFX TUNE",
+                          style: Theme.of(context).textTheme.titleMedium),
+                      const SizedBox()
+                    ],
                   ),
                 ),
               ),
-        
+
+              const SizedBox.square(
+                dimension: 20,
+              ),
               Card(
                 elevation: controller.isFancy ? 0 : 2,
                 clipBehavior: Clip.hardEdge,
@@ -85,11 +63,14 @@ class _AudioFxState extends State<AudioFx> {
                       ? ImageFilter.blur(sigmaX: 20, sigmaY: 20)
                       : ImageFilter.blur(sigmaX: 0, sigmaY: 0),
                   child: SizedBox(
-                    height: 300,
+                    height: MediaQuery.of(context).size.width / 1.2,
                     child: SingleChildScrollView(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
+                          const SizedBox.square(
+                            dimension: 20,
+                          ),
                           HorizontalSlider(
                             title: "Preamp",
                             onChanged: (x) {
@@ -150,7 +131,6 @@ class _AudioFxState extends State<AudioFx> {
                             min: 0,
                             dB: controller.dspOutGain.dps,
                           ),
-                          
                         ],
                       ),
                     ),
@@ -159,50 +139,80 @@ class _AudioFxState extends State<AudioFx> {
               ),
 
               // const Divider(),
-              Center(
+              SizedBox(
+                height: 50,
                 child: Padding(
                   padding: const EdgeInsets.all(8.0),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        "DSP Speakers",
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
-                      IconButton(
-                          onPressed: () {
-                            controller.dspSpeakerView =
-                                !controller.dspSpeakerView;
-                          },
-                          icon: Icon(controller.dspSpeakerView
-                              ? Icons.grid_view_rounded
-                              : Icons
-                                  .list_rounded)) //const Icon(Icons.grid_view_rounded))
+                      Text("DSP SPEAKERS",
+                          style: Theme.of(context).textTheme.titleMedium),
+                      const SizedBox()
                     ],
                   ),
                 ),
               ),
-              SizedBox(
-                height: 300,
-                child: Card(
-                  color: controller.isFancy
-                      ? Colors.transparent
-                      : Theme.of(context).cardColor,
-                  clipBehavior: Clip.hardEdge,
-                  child: BackdropFilter(
-                    filter: controller.isFancy
-                        ? ImageFilter.blur(sigmaX: 20, sigmaY: 20)
-                        : ImageFilter.blur(sigmaX: 0, sigmaY: 0),
-                    child: Scrollbar(
-                        trackVisibility: true,
-                        controller: _controller,
-                        child: DSPSpeakerWidget(
+
+              Card(
+                color: controller.isFancy
+                    ? Colors.transparent
+                    : Theme.of(context).cardColor,
+                clipBehavior: Clip.hardEdge,
+                child: BackdropFilter(
+                  filter: controller.isFancy
+                      ? ImageFilter.blur(sigmaX: 20, sigmaY: 20)
+                      : ImageFilter.blur(sigmaX: 0, sigmaY: 0),
+                  child: Padding(
+                    padding: const EdgeInsets.all(5.0),
+                    child: Routes.animateTo(
+                      closedWidget: ListTile(
+                        title: Text(controller.spkName),
+                        leading: const Icon(Icons.speaker),
+                        trailing: const Icon(Icons.open_in_new),
+                      ),
+                      openWidget: DSPSpeakerWidget(
                           controller: controller,
-                          dspScrollController: _controller,
-                        )),
+                          dspScrollController: _controller),
+                    ),
                   ),
                 ),
-              )
+              ),
+              const SizedBox.square(
+                dimension: 20,
+              ),
+              Card(
+                color: controller.isFancy
+                    ? Colors.transparent
+                    : Theme.of(context).cardColor,
+                clipBehavior: Clip.hardEdge,
+                elevation: controller.isFancy ? 0 : 2,
+                margin: const EdgeInsets.only(top: 10, bottom: 10),
+                child: BackdropFilter(
+                  filter: controller.isFancy
+                      ? ImageFilter.blur(sigmaX: 60, sigmaY: 60)
+                      : ImageFilter.blur(sigmaX: 0, sigmaY: 0),
+                  child: ListTile(
+                    title: const Text("Restore to default"),
+                    leading: const Icon(Icons.restore),
+                    trailing: const Icon(Icons.open_in_new),
+                    onTap: () {
+                      controller.dspOutGain = 3.0;
+                      controller.dspPowerBass = 8.0;
+                      controller.dspXTreble = 3.0;
+                      controller.dspVolume = -6.0;
+                      controller.dspXBass = 11.0;
+                      // config the system to default
+                      Channel.setDSPVolume(controller.dspVolume);
+                      Channel.setDSPTreble(controller.dspXTreble);
+                      Channel.setDSPPowerBass(controller.dspPowerBass);
+                      Channel.setDSPXBass(controller.dspXBass);
+                      Channel.setOutGain(controller.dspOutGain);
+                      Channel.showNativeMessage("Restored to defaults");
+                    },
+                  ),
+                ),
+              ),
             ],
           ),
         ),

@@ -11,6 +11,7 @@ import 'package:flutter/material.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:provider/provider.dart';
 
+import '../player/PlayerUI.dart';
 import '/Helpers/index.dart';
 import '/widgets/ArtworkWidget.dart';
 import '/widgets/BottomPlayer.dart';
@@ -180,6 +181,7 @@ class _SongListsState extends State<SongLists> {
                       controller.songId = songIndex;
                       loadAudioSource(
                           controller.handler, controller.songs[songIndex]);
+                      Routes.routeTo(const Player(), context);
                     },
                     // This Widget will query/load image.
                     // You can use/create your own widget/method using [queryArtwork].

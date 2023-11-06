@@ -1,3 +1,4 @@
+import 'package:eq_app/Helpers/index.dart';
 import 'package:eq_app/Routes/routes.dart';
 
 import 'package:eq_app/pages/FolderSongs.dart';
@@ -5,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 
 import '../Global/index.dart';
+import '../player/widgets/DeleteWindow.dart';
 
 class Folders extends StatefulWidget {
   const Folders({super.key});
@@ -29,18 +31,7 @@ class _FoldersState extends State<Folders> {
                 margin: const EdgeInsets.all(10),
                 child: InkWell(
                   onLongPress: () {
-                    showModalBottomSheet(
-                        context: context,
-                        builder: (context) {
-                          return BottomSheet(
-                              onClosing: () {},
-                              builder: (context) {
-                                return Container(
-                                  padding: EdgeInsets.all(20),
-                                  child: const Text("Delete this folder"),
-                                );
-                              });
-                        });
+                    showDeleteWindow("folder", snapshot.data![index], context);
                   },
                   child: Routes.animateTo(
                     closedWidget: GridTile(

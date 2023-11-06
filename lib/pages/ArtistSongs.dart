@@ -169,63 +169,70 @@ class SongLists extends StatelessWidget {
               return Consumer<AppController>(
                   builder: (context, controller, ch) {
                 return Routes.animateTo(
-                  closedWidget: Container(
-                    margin: const EdgeInsets.only(left: 10, right: 10),
-                    decoration: commonDeration(controller, index, context),
-                    child: ListTile(
-                      selected: controller.songId == index,
-                      onLongPress: () {
-                        // showModalBottomSheet(context: context, builder: builder)
-                        showModalBottomSheet(
-                            context: context,
-                            builder: (context) {
-                              return BottomSheet(
-                                  onClosing: () {},
-                                  builder: (context) {
-                                    return PlaylistWidget(
-                                      audioId: controller.songs[index].id,
-                                      song: controller.songs[index].title,
-                                    );
-                                  });
-                            });
-                      },
-                      selectedTileColor:
-                          Theme.of(context).primaryColor.withOpacity(0.1),
-                      selectedColor: Theme.of(context).primaryColorLight,
-                      title: Text(
-                        songs[index].title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodyMedium!,
-                      ),
-                      subtitle: Text(
-                        songs[index].artist ?? "No Artist",
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      trailing: Text(
-                        "${formatTime(
-                          Duration(milliseconds: songs[index].duration ?? 0),
-                        )} | ${songs[index].fileExtension}",
-                      ),
-                      onTap: () {
-                        // if (controller.songs.length != songs.length) {
-                        controller.songs = songs;
-                        // }
-                        int songIndex = controller.songs.indexWhere(
-                            (result) => result.title == songs[index].title);
-                        controller.songId = songIndex;
-                        loadAudioSource(
-                            controller.handler, controller.songs[songIndex]);
-                      },
-                      // This Widget will query/load image.
-                      // You can use/create your own widget/method using [queryArtwork].
-                      leading: ArtworkWidget(
-                        height: 60,
-                        width: 60,
-                        songId: songs[index].id,
-                        path: songs[index].data,
-                        type: ArtworkType.AUDIO,
+                  closedWidget: InkWell(
+                    // onLongPress: () {
+                    //   // showDeleteWindow(
+                    //   //     "Song", controller.songs[index].data, context);
+                    // },
+                    child: Container(
+                      margin: const EdgeInsets.only(left: 10, right: 10),
+                      decoration: commonDeration(controller, index, context),
+                      child: ListTile(
+                        selected: controller.songId == index,
+                        onLongPress: () {
+                          // showModalBottomSheet(context: context, builder: builder)
+                          showModalBottomSheet(
+                              context: context,
+                              builder: (context) {
+                                return BottomSheet(
+                                    onClosing: () {},
+                                    builder: (context) {
+                                      return PlaylistWidget(
+                                        audioId: controller.songs[index].id,
+                                        song: controller.songs[index].title,
+                                      );
+                                    });
+                              });
+                        },
+                        selectedTileColor:
+                            Theme.of(context).primaryColor.withOpacity(0.1),
+                        selectedColor: Theme.of(context).primaryColorLight,
+                        title: Text(
+                          songs[index].title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodyMedium!,
+                        ),
+                        subtitle: Text(
+                          songs[index].artist ?? "No Artist",
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        trailing: Text(
+                          "${formatTime(
+                            Duration(milliseconds: songs[index].duration ?? 0),
+                          )} | ${songs[index].fileExtension}",
+                        ),
+                        onTap: () {
+                          // if (controller.songs.length != songs.length) {
+                          controller.songs = songs;
+                          // }
+                          int songIndex = controller.songs.indexWhere(
+                              (result) => result.title == songs[index].title);
+                          controller.songId = songIndex;
+                          loadAudioSource(
+                              controller.handler, controller.songs[songIndex]);
+                          Routes.routeTo(const Player(), context);
+                        },
+                        // This Widget will query/load image.
+                        // You can use/create your own widget/method using [queryArtwork].
+                        leading: ArtworkWidget(
+                          height: 60,
+                          width: 60,
+                          songId: songs[index].id,
+                          path: songs[index].data,
+                          type: ArtworkType.AUDIO,
+                        ),
                       ),
                     ),
                   ),

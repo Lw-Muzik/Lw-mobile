@@ -1,6 +1,7 @@
 // ignore_for_file: library_private_types_in_public_api, depend_on_referenced_packages, invalid_use_of_protected_member
 import 'package:permission_handler/permission_handler.dart';
 
+import '../Helpers/Channel.dart';
 import '/Global/index.dart';
 import '/Routes/routes.dart';
 import '/player/PlayerBody.dart';
@@ -62,6 +63,11 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
               position, bufferedPosition, duration ?? Duration.zero));
 
   /// A stream reporting the combined state of the current media item and its
+  @override
+  void dispose() {
+    _animationController?.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -72,12 +78,7 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
           final PageController pageController =
               PageController(initialPage: controller.songId);
           if (controller.songId >= (controller.songs.length - 1)) {
-            controller.handler.player.stop();
-
-            // ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            //   behavior: SnackBarBehavior.floating,
-            //   content: Text("Playlist ended"),
-            // ));
+            Channel.showNativeMessage("Songs playlist ended.");
           }
           if (controller.visuals) {
             Visualizers.enableVisual(true);

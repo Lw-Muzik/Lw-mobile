@@ -1,6 +1,7 @@
 package x.a.zix;
 
 
+import android.annotation.SuppressLint;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -8,12 +9,14 @@ import android.media.AudioManager;
 import android.media.audiofx.Visualizer;
 import android.os.Build;
 import android.os.Bundle;
+import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.core.view.WindowCompat;
 
 import com.ryanheise.audioservice.AudioServiceActivity;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
@@ -22,9 +25,9 @@ import io.flutter.embedding.engine.FlutterEngine;
 import io.flutter.plugin.common.MethodChannel;
 
 public class MainActivity extends AudioServiceActivity {
-    static {
-       System.loadLibrary("eq_app");
-    }
+    // static {
+    //    System.loadLibrary("eq_app");
+    // }
 
   private static final String CHANNEL = "eq_app";
 
@@ -36,6 +39,7 @@ public class MainActivity extends AudioServiceActivity {
         WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
        new HeadphoneService();
     }
+  @SuppressLint("NewApi")
   @Override
   public void configureFlutterEngine(@NonNull FlutterEngine flutterEngine) {
   super.configureFlutterEngine(flutterEngine);
@@ -47,8 +51,9 @@ public class MainActivity extends AudioServiceActivity {
                 if (visualizer.isActive()) {
                     return;
                 }
-                int sessionID = call.argument("sessionID");
+
                     visualizer.activate(new Visualizer.OnDataCaptureListener() {
+                        @SuppressLint("NewApi")
                         @Override
                         public void onWaveFormDataCapture(Visualizer visualizer, byte[] waveform, int samplingRate) {
                             Map<String, Object> args = new HashMap<>();
@@ -66,12 +71,12 @@ public class MainActivity extends AudioServiceActivity {
                             args.put("fft", sharedFft);
                             visualizerChannel.invokeMethod("onFftVisualization", args);
                         }
-                    }, sessionID);
+                    });
                     break;
 
                 case "enableVisual":
-                    boolean enable = call.argument("enableVisual");
-                    visualizer.enableVisual(true);
+                    boolean enable = Boolean.TRUE.equals(call.argument("enableVisual"));
+                    visualizer.enableVisual(enable);
                     break;
 
                 case "getEnabled":
@@ -80,7 +85,7 @@ public class MainActivity extends AudioServiceActivity {
                     break;
 
                 case "setScalingMode":
-                    boolean scale = call.argument("scale");
+                    boolean scale =  Boolean.TRUE.equals(call.argument("scale"));
                     visualizer.setScalingMode(scale);
                     break;
 
@@ -511,6 +516,25 @@ public class MainActivity extends AudioServiceActivity {
                     short g = ReverbEngine.getPreset();
                     result.success(((short)g));
                     break;
+                    case "deleteManager":
+                    String operation = call.argument("filePath");
+                        assert operation != null;
+                        File f = new File(operation);
+                        if (f.exists() && f.isDirectory()) {
+                // Use a recursive method to delete the folder and its contents
+                if (DeleteManager.deleteFolder(f)) {
+                    showMessage(String.format("%s deleted successfully.", operation.split("/")[operation.split("/").length - 1]));
+                } else {
+                    showMessage("Failed to delete the folder.");
+                }
+                    } else {
+                       showMessage("Folder does not exist or is not a directory.");
+                    }
+                break;
+                case "showNativeMessage":
+                String message = call.argument("message");
+                showMessage(message);
+                break;
 
                 default:
                 result.notImplemented();
@@ -519,12 +543,35 @@ public class MainActivity extends AudioServiceActivity {
           }
         );
   }
-  private static class HeadphoneService extends BroadcastReceiver {
-      @Override
-      public void onReceive(Context context, Intent intent) {
-          if(intent.getAction() != null && intent.getAction().equals(AudioManager.ACTION_HEADSET_PLUG)){
-
-          }
-      }
+  protected void showMessage(String message) {
+    Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
   }
+    private class HeadphoneService extends BroadcastReceiver {
+        private static final long DOUBLE_CLICK_TIME_THRESHOLD = 500; // Time threshold for a double click in milliseconds
+        private long lastClickTime = 0;
+
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if (intent.getAction() != null && intent.getAction().equals(AudioManager.ACTION_HEADSET_PLUG)) {
+                long currentTime = System.currentTimeMillis();
+
+                // Check for a double click by comparing the time between two clicks
+                if (currentTime - lastClickTime < DOUBLE_CLICK_TIME_THRESHOLD) {
+                    // Double click detected, perform your action here (e.g., play the next track)
+                    playNextTrack();
+                }
+
+                lastClickTime = currentTime;
+            }
+        }
+
+        private void playNextTrack() {
+            // Add your logic to play the next track here
+            Toast.makeText(getApplicationContext(), "Playing next track", Toast.LENGTH_SHORT).show();
+            // Implement the code to start playing the next track, e.g., with a media player or your audio playback logic.
+        }
+    }
+
+
+
 }

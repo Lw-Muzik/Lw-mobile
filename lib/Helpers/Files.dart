@@ -10,11 +10,28 @@ class Files {
             s.data.split("/")[s.data.split("/").length - 2] ==
             path.split("/").last)
         .toList();
-    // for (var song in filteredSongs) {
-    //   var parser = ID3TagReader.path(song.data);
-    //   var tag = parser.readTagSync();
-    //   print(tag.lyrics);
-    // }
+
     return filteredSongs;
+  }
+
+  // function fetch most recent songs added
+  static Future<List<SongModel>> fetchMostRecentlyPlayed() async {
+    List<SongModel> recents = [];
+    var songs = await OnAudioQuery().querySongs(
+        sortType: SongSortType.DATE_ADDED,
+        orderType: OrderType.DESC_OR_GREATER,
+        uriType: UriType.INTERNAL);
+    // Sort the music files by modification time in descending order to get the most recent ones
+    // songs.sort((a, b) => b.statSync().modified.compareTo(a.statSync().modified));
+    recents = songs.where((element) => true).toList();
+    return recents;
+  }
+
+  // function to fetch all songs
+  static Future<List<SongModel>> fetchAllSongs() async {
+    List<SongModel> allSongs = [];
+    var s = await OnAudioQuery().querySongs();
+    allSongs = s.where((element) => true).toList();
+    return allSongs;
   }
 }
