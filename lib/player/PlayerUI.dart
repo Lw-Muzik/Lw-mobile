@@ -102,94 +102,110 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
                     children: [
                       if (controller.playerVisual && result != null)
                         playerVisual(controller),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: <Widget>[
-                          SizedBox(height: MediaQuery.of(context).padding.top),
-                          const Header(),
-                          SizedBox(
-                            height: MediaQuery.of(context).size.height - 280,
-                            child: Stack(
-                              children: <Widget>[
-                                SizedBox(
-                                  width: MediaQuery.of(context).size.height,
-                                  child: PageView.builder(
-                                    controller: pageController,
-                                    // padEnds: false,
-                                    itemCount: controller.songs.length,
-                                    onPageChanged: (page) {
-                                      setState(() {});
-                                      if (pageController.hasClients) {
-                                        if (page == controller.songId) {
-                                          int x = page + 1;
+                      FittedBox(
+                        child: SizedBox(
+                          height: MediaQuery.of(context).size.height,
+                          width: MediaQuery.of(context).size.width,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: <Widget>[
+                              SizedBox(
+                                  height: MediaQuery.of(context).padding.top),
+                              const Header(),
+                              SizedBox(
+                                height:
+                                    MediaQuery.of(context).size.height - 280,
+                                child: Stack(
+                                  children: <Widget>[
+                                    SizedBox(
+                                      // width: MediaQuery.of(context).size.width,
+                                      // height: MediaQuery.of(context).size.width,
+                                      child: PageView.builder(
+                                        controller: pageController,
+                                        // padEnds: false,
+                                        itemCount: controller.songs.length,
+                                        onPageChanged: (page) {
                                           setState(() {});
-                                          if (x >= controller.songs.length) {
-                                            x = 0;
-                                            setState(() {});
-                                          } else {
-                                            controller.songId = x;
-                                            loadAudioSource(controller.handler,
-                                                controller.songs[x]);
-                                            setState(() {});
+                                          if (pageController.hasClients) {
+                                            if (page == controller.songId) {
+                                              int x = page + 1;
+                                              setState(() {});
+                                              if (x >=
+                                                  controller.songs.length) {
+                                                x = 0;
+                                                setState(() {});
+                                              } else {
+                                                controller.songId = x;
+                                                loadAudioSource(
+                                                    controller.handler,
+                                                    controller.songs[x]);
+                                                setState(() {});
+                                              }
+                                            } else if (page >
+                                                controller.songId) {
+                                              controller.next();
+                                              setState(() {});
+                                            } else if (page <
+                                                controller.songId) {
+                                              controller.prev();
+                                              setState(() {});
+                                            }
                                           }
-                                        } else if (page > controller.songId) {
-                                          controller.next();
-                                          setState(() {});
-                                        } else if (page < controller.songId) {
-                                          controller.prev();
-                                          setState(() {});
-                                        }
-                                      }
-                                    },
-                                    itemBuilder:
-                                        (BuildContext context, int index) {
-                                      return Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.stretch,
-                                        children: <Widget>[
-                                          // Header2
-                                          InkWell(
-                                            onTap: () {
-                                              Routes.pop(context);
-                                            },
-                                            onLongPress: () => showTrackInfo(
-                                                context, controller),
-                                            child: playerCard(_animation!,
-                                                context, controller),
-                                          ),
-                                          SizedBox(
-                                              height: MediaQuery.of(context)
-                                                  .padding
-                                                  .top),
-                                          MusicInfo(controller: controller),
-                                        ],
+                                        },
+                                        itemBuilder:
+                                            (BuildContext context, int index) {
+                                          return Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.stretch,
+                                            children: <Widget>[
+                                              // Header2
+                                              InkWell(
+                                                onTap: () {
+                                                  Routes.pop(context);
+                                                },
+                                                onLongPress: () =>
+                                                    showTrackInfo(
+                                                        context, controller),
+                                                child: playerCard(_animation!,
+                                                    context, controller),
+                                              ),
+                                              MusicInfo(controller: controller),
+                                            ],
+                                          );
+                                        },
+                                      ),
+                                    )
+                                  ],
+                                ),
+                              ),
+
+                              FittedBox(
+                                child: SizedBox(
+                                  width: MediaQuery.of(context).size.width,
+                                  child: StreamBuilder<PositionData>(
+                                    stream: _positionDataStream,
+                                    builder: (context, snapshot) {
+                                      final positionData = snapshot.data;
+                                      return SeekBar(
+                                        duration: positionData?.duration ??
+                                            Duration.zero,
+                                        position: positionData?.position ??
+                                            Duration.zero,
+                                        bufferedPosition:
+                                            positionData?.bufferedPosition ??
+                                                Duration.zero,
+                                        onChangeEnd:
+                                            controller.handler.player.seek,
                                       );
                                     },
                                   ),
-                                )
-                              ],
-                            ),
+                                ),
+                              ),
+                              // slider
+                              const Controls(),
+                            ],
                           ),
-
-                          StreamBuilder<PositionData>(
-                            stream: _positionDataStream,
-                            builder: (context, snapshot) {
-                              final positionData = snapshot.data;
-                              return SeekBar(
-                                duration:
-                                    positionData?.duration ?? Duration.zero,
-                                position:
-                                    positionData?.position ?? Duration.zero,
-                                bufferedPosition:
-                                    positionData?.bufferedPosition ??
-                                        Duration.zero,
-                                onChangeEnd: controller.handler.player.seek,
-                              );
-                            },
-                          ),
-                          // slider
-                          const Controls(),
-                        ],
+                        ),
                       ),
                     ],
                   ),

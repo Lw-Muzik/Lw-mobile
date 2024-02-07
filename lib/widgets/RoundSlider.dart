@@ -24,44 +24,46 @@ class RoundSlider extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: width,
-      height: height,
-      child: SleekCircularSlider(
-          innerWidget: (percentage) => Stack(
-                // mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Center(
-                    child: Text("${percentage.toStringAsFixed(1)} dB",
-                        style: Theme.of(context).textTheme.bodyLarge),
-                  ),
-                  Positioned(
-                      bottom: -5,
-                      right: 0,
-                      left: 0,
-                      child: Center(
-                        child: Text(title,
-                            style: Theme.of(context).textTheme.titleMedium),
-                      )),
-                ],
+    return FittedBox(
+      child: SizedBox(
+        width: width,
+        height: height,
+        child: SleekCircularSlider(
+            innerWidget: (percentage) => Stack(
+                  // mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Center(
+                      child: Text("${percentage.toStringAsFixed(1)} dB",
+                          style: Theme.of(context).textTheme.bodyLarge),
+                    ),
+                    Positioned(
+                        bottom: -5,
+                        right: 0,
+                        left: 0,
+                        child: Center(
+                          child: Text(title,
+                              style: Theme.of(context).textTheme.titleMedium),
+                        )),
+                  ],
+                ),
+            initialValue: value,
+            min: min,
+            max: max,
+            appearance: CircularSliderAppearance(
+              customWidths: CustomSliderWidths(
+                  progressBarWidth: 20,
+                  handlerSize: 8,
+                  trackWidth: 20,
+                  shadowWidth: 0),
+              customColors: CustomSliderColors(
+                dotColor: Theme.of(context).colorScheme.primary,
+                trackColor:
+                    Theme.of(context).colorScheme.primary.withOpacity(0.2),
+                progressBarColor: Theme.of(context).colorScheme.primary,
               ),
-          initialValue: value,
-          min: min,
-          max: max,
-          appearance: CircularSliderAppearance(
-            customWidths: CustomSliderWidths(
-                progressBarWidth: 20,
-                handlerSize: 8,
-                trackWidth: 20,
-                shadowWidth: 0),
-            customColors: CustomSliderColors(
-              dotColor: Theme.of(context).colorScheme.primary,
-              trackColor:
-                  Theme.of(context).colorScheme.primary.withOpacity(0.2),
-              progressBarColor: Theme.of(context).colorScheme.primary,
             ),
-          ),
-          onChange: onChanged),
+            onChange: onChanged),
+      ),
     );
   }
 }

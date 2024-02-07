@@ -1,6 +1,7 @@
 // ignore_for_file: unnecessary_null_comparison
 
 import 'dart:convert';
+import 'dart:io';
 import 'dart:developer';
 
 import 'package:eq_app/pages/Playlist.dart';
@@ -22,7 +23,7 @@ import '../Helpers/Channel.dart';
 import '../controllers/AppController.dart';
 import '../widgets/BottomPlayer.dart';
 import 'Artists.dart';
-import 'Recents.dart';
+// import 'Recents.dart';
 import 'Settings.dart';
 import 'Songs.dart';
 
@@ -43,39 +44,40 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
     checkPermission();
     super.initState();
     _tabController = TabController(length: 6, vsync: this);
+    if (Platform.isAndroid) {
+      SharedPreferences.getInstance().then((pref) {
+        setState(() {
+          Provider.of<AppController>(context, listen: false).enableDSP =
+              pref.getBool("enableDSP") ?? false;
 
-    SharedPreferences.getInstance().then((pref) {
-      setState(() {
-        Provider.of<AppController>(context, listen: false).enableDSP =
-            pref.getBool("enableDSP") ?? false;
+          Channel.enableEq(pref.getBool("enableDSP") ?? false);
 
-        Channel.enableEq(pref.getBool("enableDSP") ?? false);
+          Channel.enableDSPEngine(pref.getBool("enableDSP") ?? false);
 
-        Channel.enableDSPEngine(pref.getBool("enableDSP") ?? false);
-
-        context.read<AppController>().dspOutGain =
-            pref.getDouble("powerGain") ?? 3.0;
-        context.read<AppController>().dspPowerBass =
-            pref.getDouble("powerBass") ?? 8.0;
-        context.read<AppController>().dspXTreble =
-            pref.getDouble("xTreble") ?? 3.3;
-        context.read<AppController>().dspVolume =
-            pref.getDouble("dspVolume") ?? -6.0;
-        context.read<AppController>().dspXBass =
-            pref.getDouble("xBass") ?? 11.0;
+          context.read<AppController>().dspOutGain =
+              pref.getDouble("powerGain") ?? 3.0;
+          context.read<AppController>().dspPowerBass =
+              pref.getDouble("powerBass") ?? 8.0;
+          context.read<AppController>().dspXTreble =
+              pref.getDouble("xTreble") ?? 3.3;
+          context.read<AppController>().dspVolume =
+              pref.getDouble("dspVolume") ?? -6.0;
+          context.read<AppController>().dspXBass =
+              pref.getDouble("xBass") ?? 11.0;
+        });
+        String? stored = pref.getString("dsp_speakers");
+        if (stored != null) {
+          var dsp = json.decode(stored);
+          // config the system to default
+          Channel.setDSPSpeakers(dsp['speakers'], dsp['levels']);
+        }
+        Channel.setDSPVolume(pref.getDouble("dspVolume") ?? -6.0);
+        Channel.setDSPTreble(pref.getDouble("xTreble") ?? 3.3);
+        Channel.setDSPPowerBass(pref.getDouble("powerBass") ?? 8.0);
+        Channel.setDSPXBass(pref.getDouble("xBass") ?? 11.0);
+        Channel.setOutGain(pref.getDouble("powerGain") ?? 3.0);
       });
-      String? stored = pref.getString("dsp_speakers");
-      if (stored != null) {
-        var dsp = json.decode(stored);
-        // config the system to default
-        Channel.setDSPSpeakers(dsp['speakers'], dsp['levels']);
-      }
-      Channel.setDSPVolume(pref.getDouble("dspVolume") ?? -6.0);
-      Channel.setDSPTreble(pref.getDouble("xTreble") ?? 3.3);
-      Channel.setDSPPowerBass(pref.getDouble("powerBass") ?? 8.0);
-      Channel.setDSPXBass(pref.getDouble("xBass") ?? 11.0);
-      Channel.setOutGain(pref.getDouble("powerGain") ?? 3.0);
-    });
+    }
   }
 
   void checkPermission() async {
@@ -85,6 +87,8 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
         permissionStatus.isRestricted ||
         permissionStatus.isLimited) {
       await Permission.storage.request();
+      await Permission.audio.request();
+      await Permission.accessMediaLocation.request();
     }
   }
 

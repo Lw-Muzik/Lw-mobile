@@ -15,7 +15,7 @@ public class VirtualizedControl {
     public static void enable(boolean enable) {
         if (virtualizer != null) {
             virtualizer.setEnabled(enable);
-//            virtualizer.forceVirtualizationMode(Virtualizer.VIRTUALIZATION_MODE_BINAURAL); // VIRTUALIZATION_MODE_TRANSAURAL => 3, VIRTUALIZATION_MODE_BINAURAL => 2
+           virtualizer.forceVirtualizationMode(Virtualizer.VIRTUALIZATION_MODE_TRANSAURAL); // VIRTUALIZATION_MODE_TRANSAURAL => 3, VIRTUALIZATION_MODE_BINAURAL => 2
         }
     }
     public static boolean getVirtualEnabled(){

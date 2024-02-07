@@ -99,19 +99,21 @@ Widget playerCard(Animation<double> animation, BuildContext context,
           builder: (context, child) {
             return Transform.scale(
               scale: animation.value,
-              child: Padding(
-                padding: const EdgeInsets.only(
-                    right: 28.0, top: 10, bottom: 0, left: 28),
-                child: SizedBox(
-                  height: MediaQuery.of(context).size.width,
-                  width: MediaQuery.of(context).size.width,
-                  child: ArtworkWidget(
-                    quality: 100,
-                    borderRadius: BorderRadius.circular(15),
-                    size: 1000,
-                    songId: controller.songs[controller.songId].id,
-                    type: ArtworkType.AUDIO,
-                    path: controller.songs[controller.songId].data,
+              child: FittedBox(
+                child: Padding(
+                  padding: const EdgeInsets.only(
+                      right: 28.0, top: 10, bottom: 0, left: 28),
+                  child: SizedBox(
+                    height: MediaQuery.of(context).size.width,
+                    width: MediaQuery.of(context).size.width,
+                    child: ArtworkWidget(
+                      quality: 100,
+                      borderRadius: BorderRadius.circular(15),
+                      size: 1000,
+                      songId: controller.songs[controller.songId].id,
+                      type: ArtworkType.AUDIO,
+                      path: controller.songs[controller.songId].data,
+                    ),
                   ),
                 ),
               ),

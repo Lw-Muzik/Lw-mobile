@@ -13,7 +13,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:just_audio_background/just_audio_background.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+// import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wiredash/wiredash.dart';
 import 'package:firebase_core/firebase_core.dart';
 
@@ -35,6 +35,7 @@ Future<void> main() async {
     return true;
   };
   await [
+    Permission.mediaLibrary,
     Permission.storage,
     Permission.audio,
     // Permission.manageExternalStorage,

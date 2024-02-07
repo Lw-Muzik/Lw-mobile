@@ -1,13 +1,12 @@
 import 'dart:math';
 
-import 'package:eq_app/Helpers/Channel.dart';
-import 'package:eq_app/extensions/index.dart';
+import '/Helpers/Channel.dart';
+import '/extensions/index.dart';
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:provider/provider.dart';
 
 import '../controllers/AppController.dart';
-import 'AudioHandler.dart';
 
 class EqualizerControls extends StatefulWidget {
   const EqualizerControls({Key? key}) : super(key: key);

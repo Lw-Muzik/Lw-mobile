@@ -11,6 +11,7 @@ class Routes {
   static String player = "/player";
   static String equalizer = "/equalizer";
   static String loader = "/assetLoader";
+
   static void routeTo(Widget page, BuildContext context,
       {bool animate = true}) {
     if (!animate) {

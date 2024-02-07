@@ -11,7 +11,7 @@ public class ReverbEngine {
     public static void initPresetReverb(int sessionId){
         if(reverb == null){
             try{
-                reverb = new PresetReverb(Integer.MAX_VALUE, sessionId);
+                reverb = new PresetReverb(Integer.MAX_VALUE, AudioManager.AUDIO_SESSION_ID_GENERATE);
             }catch (Exception ex){
                 ex.printStackTrace();
             }
@@ -19,42 +19,50 @@ public class ReverbEngine {
     }
     public static int enablePresetReverb(boolean enable){
         if(reverb != null){
-          return  reverb.setEnabled(enable);
+        initPresetReverb(AudioManager.AUDIO_SESSION_ID_GENERATE);
+          return reverb.setEnabled(enable);
         }
         return -1;
     }
     public static void setPreset(int preset){
         if(reverb != null){
+            initPresetReverb(AudioManager.AUDIO_SESSION_ID_GENERATE);
             try{
                 ;
                 switch((short) preset){
                     case PresetReverb.PRESET_SMALLROOM:
-                        Log.d(TAG, "setPreset: small room");
                         reverb.setPreset(PresetReverb.PRESET_SMALLROOM);
+                        Log.d(TAG, "setPreset: small room");
                         break;
+
                     case PresetReverb.PRESET_LARGEHALL:
-                        Log.d(TAG, "setPreset: large hall");
                         reverb.setPreset(PresetReverb.PRESET_LARGEHALL);
+                        Log.d(TAG, "setPreset: large hall");
                         break;
+
                         case PresetReverb.PRESET_LARGEROOM:
-                        Log.d(TAG, "setPreset: large room");
                         reverb.setPreset(PresetReverb.PRESET_LARGEROOM);
+                        Log.d(TAG, "setPreset: large room");
                         break;
+
                     case PresetReverb.PRESET_MEDIUMROOM:
-                        Log.d(TAG, "setPreset: medium room");
                         reverb.setPreset(PresetReverb.PRESET_MEDIUMROOM);
+                        Log.d(TAG, "setPreset: medium room");
                         break;
+
                     case PresetReverb.PRESET_MEDIUMHALL:
-                        Log.d(TAG, "setPreset: medium hall");
                         reverb.setPreset(PresetReverb.PRESET_MEDIUMHALL);
+                        Log.d(TAG, "setPreset: medium hall");
                         break;
+
                     case PresetReverb.PRESET_PLATE:
-                        Log.d(TAG, "setPreset: plate");
                         reverb.setPreset(PresetReverb.PRESET_PLATE);
+                        Log.d(TAG, "setPreset: plate");
                         break;
+                        
                     default:
-                        Log.d(TAG, "setPreset: none");
                         reverb.setPreset(PresetReverb.PRESET_NONE);
+                        Log.d(TAG, "setPreset: none");
                         break;
                 }
             } catch (Exception ex){

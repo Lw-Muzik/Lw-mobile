@@ -2,7 +2,6 @@
 
 import 'dart:io';
 
-import 'package:audiotags/audiotags.dart';
 import 'package:eq_app/Helpers/index.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart';

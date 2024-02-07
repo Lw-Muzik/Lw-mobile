@@ -57,73 +57,68 @@ class _MusicInfoState extends State<MusicInfo>
       padding: const EdgeInsets.symmetric(horizontal: 30.0, vertical: 30),
       child: Row(
         children: <Widget>[
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                //-_titleAnimation!.value
-                AnimatedBuilder(
-                  builder: (context, child) {
-                    if (_titleScrollController.hasClients) {
-                      _titleScrollController.jumpTo(widget
-                                  .controller
-                                  .songs[widget.controller.songId]
-                                  .title
-                                  .length >
-                              32
-                          ? _titleAnimation!.value
-                          : 0);
-                      (widget.controller.songs[widget.controller.songId].title
-                          .length);
-                      _artistScrollController.jumpTo(widget
-                                  .controller
-                                  .songs[widget.controller.songId]
-                                  .artist!
-                                  .length >
-                              32
-                          ? _titleAnimation!.value
-                          : 0);
-                    }
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              //-_titleAnimation!.value
+              AnimatedBuilder(
+                builder: (context, child) {
+                  if (_titleScrollController.hasClients) {
+                    _titleScrollController.jumpTo(widget.controller
+                                .songs[widget.controller.songId].title.length >
+                            32
+                        ? _titleAnimation!.value
+                        : 0);
+                    (widget.controller.songs[widget.controller.songId].title
+                        .length);
+                    _artistScrollController.jumpTo(widget
+                                .controller
+                                .songs[widget.controller.songId]
+                                .artist!
+                                .length >
+                            32
+                        ? _titleAnimation!.value
+                        : 0);
+                  }
 
+                  return SingleChildScrollView(
+                    controller: _titleScrollController,
+                    scrollDirection: Axis.horizontal,
+                    child: Text(
+                      widget.controller.songs[widget.controller.songId].title
+                          .toString(),
+                      maxLines: 1,
+                      overflow: TextOverflow.visible,
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.headlineSmall!.apply(
+                            color: Colors.white,
+                          ),
+                    ),
+                  );
+                },
+                animation: _titleAnimation!,
+              ),
+              const SizedBox(height: 5),
+              AnimatedBuilder(
+                  animation: _titleAnimation!,
+                  builder: (context, child) {
                     return SingleChildScrollView(
-                      controller: _titleScrollController,
                       scrollDirection: Axis.horizontal,
+                      controller: _artistScrollController,
                       child: Text(
-                        widget.controller.songs[widget.controller.songId].title
-                            .toString(),
+                        widget.controller.songs[widget.controller.songId]
+                                .artist ??
+                            "Unknown artist",
                         maxLines: 1,
                         overflow: TextOverflow.visible,
-                        textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.headlineSmall!.apply(
-                              color: Colors.white,
-                            ),
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleMedium!
+                            .apply(color: Colors.white.withOpacity(0.5)),
                       ),
                     );
-                  },
-                  animation: _titleAnimation!,
-                ),
-                const SizedBox(height: 5),
-                AnimatedBuilder(
-                    animation: _titleAnimation!,
-                    builder: (context, child) {
-                      return SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        controller: _artistScrollController,
-                        child: Text(
-                          widget.controller.songs[widget.controller.songId]
-                                  .artist ??
-                              "Unknown artist",
-                          maxLines: 1,
-                          overflow: TextOverflow.visible,
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleMedium!
-                              .apply(color: Colors.white.withOpacity(0.5)),
-                        ),
-                      );
-                    }),
-              ],
-            ),
+                  }),
+            ],
           ),
         ],
       ),

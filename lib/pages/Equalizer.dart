@@ -7,6 +7,7 @@ import '/pages/Compressor.dart';
 import '/widgets/Body.dart';
 import 'AudioFx.dart';
 import 'EqView.dart';
+import 'Room.dart';
 
 class Equalizer extends StatefulWidget {
   const Equalizer({super.key});
@@ -29,7 +30,7 @@ class _EqualizerState extends State<Equalizer> with TickerProviderStateMixin {
       // Channel.setSessionId(0);
     }
 
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
   }
 
   @override
@@ -60,13 +61,14 @@ class _EqualizerState extends State<Equalizer> with TickerProviderStateMixin {
           forceMaterialTransparency: context.watch<AppController>().isFancy,
           title: const Text("Sound Effects"),
           bottom: TabBar(
-            // isScrollable: true,
+            isScrollable: true,
             controller: _tabController,
             dividerColor: Colors.transparent,
             tabs: const [
               Tab(text: "Equalizer"),
               Tab(text: "Audio FX"),
               Tab(text: "Compressor"),
+              Tab(text: "Roon Effects"),
             ],
           ),
         ),
@@ -77,8 +79,8 @@ class _EqualizerState extends State<Equalizer> with TickerProviderStateMixin {
             children: const [
               EqView(),
               AudioFx(),
-              CompressorView()
-              // RoomEffects(),
+              CompressorView(),
+              RoomEffects(),
             ],
           ),
         ),

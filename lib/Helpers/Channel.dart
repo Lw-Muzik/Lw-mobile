@@ -76,23 +76,17 @@ class Channel {
     await channel.invokeMethod("enableEq", {"enable": enabled});
   }
 
-  /// initializing bass boost
-  @Deprecated("nolonger used")
-  static void _initBassBoost(int sessionId) async {
-    await channel.invokeMethod("initBassBoost", {"sessionId": sessionId});
-  }
-
-  @Deprecated("nolonger used")
+  // @Deprecated("nolonger used")
   static void enableBass(bool enable) async {
     await channel.invokeMethod("enableBassBoost", {"enableBass": enable});
   }
 
-  @Deprecated("nolonger used")
+  // @Deprecated("nolonger used")
   static Future<bool> isBassEnabled() async {
     return (await channel.invokeMethod("isBassEnabled"));
   }
 
-  @Deprecated("nolonger used")
+  // @Deprecated("nolonger used")
   static Future<int> getBassStrength() async {
     return await channel.invokeMethod("bassBoostStrength");
   }
@@ -127,28 +121,25 @@ class Channel {
     return (await channel.invokeMethod("virtualizerStrength"));
   }
 
-  /// Loudness
-  @Deprecated("nolonger used")
-  static void _initLoudnessEnhancer(int sessionId) async {
-    await channel
-        .invokeMethod("initLoudnessEnhancer", {"sessionId": sessionId});
-  }
-
-  @Deprecated("nolonger used")
+/// initalizing loaudness enhancer
+static void _initLoudnessEnhancer(int sessionId) async {
+  await channel.invokeMethod("initLoudnessEnhancer",{"sessionId":sessionId});
+}
+  // @Deprecated("nolonger used")
   static void enableLoudnessEnhancer(bool enable) async {
     await channel
         .invokeMethod("enableLoudnessEnhancer", {"enableLoud": enable});
   }
 
   /// Sets the target gain
-  @Deprecated("nolonger used")
+  // @Deprecated("nolonger used")
   static void setTargetGain(int strength) async {
     await channel
         .invokeMethod("setLoudnessEnhancerStrength", {"strength": strength});
   }
 
   /// retrieves the target gain value
-  @Deprecated("nolonger used")
+  /// @Deprecated("nolonger used")
   static Future<double> getTargetGain() async {
     return (await channel.invokeMethod("loudnessEnhancerStrength"));
   }
@@ -312,10 +303,9 @@ class Channel {
     await channel.invokeMethod("setDSPXBass", {"xBass": bass});
   }
 
-  static void setDSPXBass2(double gain2) async {
-    log("XBass2 $gain2");
-    await channel.invokeMethod("setExtraBass", {"extraBass": gain2});
-  }
+  // static void setDSPXBass2(double gain2) async {
+  //   await channel.invokeMethod("setExtraBass", {"extraBass": gain2});
+  // }
 
   static void setDSPPowerBass(double bass) async {
     await channel.invokeMethod("setDSPPowerBass", {"powerBass": bass});
@@ -432,6 +422,7 @@ class Channel {
     _initReverb(sessionId);
     _initDSPEngine(sessionId);
     _initPresetReverb(sessionId);
+    _initLoudnessEnhancer(sessionId);
     await channel.invokeMethod("init", {"sessionId": sessionId});
   }
 }

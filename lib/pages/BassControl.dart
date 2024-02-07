@@ -48,9 +48,10 @@ class _BassControlState extends State<BassControl> {
                   onChanged: (value) {
                     setState(() {
                       ebass = !ebass;
-                      context.read<AppController>().enableEffects = ebass;
+                      context.watch<AppController>().enableEffects = ebass;
                     });
                     Channel.enableVirtualizer(value);
+                    Channel.enableLoudnessEnhancer(value);
                   });
             }),
         Padding(
@@ -58,31 +59,32 @@ class _BassControlState extends State<BassControl> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              StreamBuilder<double>(
-                  stream: Stream.fromFuture(Channel.getVocalLevel()),
-                  builder: (context, strength) {
-                    double? b = strength.data;
-                    if (b != null) {
-                      bass = b;
-                    }
-                    return RoundSlider(
-                        title: "Vocal Boost",
-                        dB: double.parse(((bass / 20) * 100).toStringAsFixed(
-                            1)), //double.parse(bass.toStringAsFixed(1)),
-                        value: bass,
-                        max: 20,
-                        width: 120,
-                        height: 120,
-                        min: 0,
-                        onChanged: ebass == true
-                            ? (strength) {
-                                setState(() {
-                                  bass = strength;
-                                });
-                                Channel.setTunerBass(strength);
-                              }
-                            : (x) {});
-                  }),
+              // StreamBuilder<double>(
+              //     stream: Stream.fromFuture(Channel.getTargetGain()),
+              //     builder: (context, strength) {
+              //       double? b = strength.data;
+              //       if (b != null) {
+              //         bass = b;
+              //       }
+              //       return RoundSlider(
+              //           title: "Vocal Boost",
+              //           dB: double.parse(((bass / 20) * 100).toStringAsFixed(
+              //               1)), //double.parse(bass.toStringAsFixed(1)),
+              //           value: bass,
+              //           max: 20,
+              //           width: 120,
+              //           height: 120,
+              //           min: 0,
+              //           onChanged: ebass == true
+              //               ? (strength) {
+              //                   setState(() {
+              //                     bass = strength;
+              //                   });
+              //                   Channel.setTargetGain(strength.toInt());
+              //                 }
+              //               : (x) {});
+              //     }),
+
               const SizedBox(
                 width: 10,
               ),
@@ -114,28 +116,28 @@ class _BassControlState extends State<BassControl> {
               const SizedBox.square(
                 dimension: 10,
               ),
-              // StreamBuilder<double>(
-              //     stream: Stream.fromFuture(Channel.getTargetGain()),
-              //     builder: (context, gain) {
-              //       double? g = gain.data;
-              //       if (g != null) {
-              //         tGain = g;
-              //       }
-              //       return RoundSlider(
-              //           title: "Vocal boost",
-              //           dB: double.parse(bass.toStringAsFixed(1)),
-              //           value: tGain,
-              //           max: 1000,
-              //           width: 120,
-              //           height: 120,
-              //           min: 0,
-              //           onChanged: (s) {
-              //             setState(() {
-              //               tGain = s;
-              //             });
-              //             Channel.setTargetGain(s.toInt());
-              //           });
-              //     }),
+              StreamBuilder<double>(
+                  stream: Stream.fromFuture(Channel.getTargetGain()),
+                  builder: (context, gain) {
+                    double? g = gain.data;
+                    if (g != null) {
+                      tGain = g;
+                    }
+                    return RoundSlider(
+                        title: "Vocal boost",
+                        dB: double.parse(bass.toStringAsFixed(1)),
+                        value: tGain,
+                        max: 1000,
+                        width: 120,
+                        height: 120,
+                        min: 0,
+                        onChanged: (s) {
+                          setState(() {
+                            tGain = s;
+                          });
+                          Channel.setTargetGain(s.toInt());
+                        });
+                  }),
             ],
           ),
         ),

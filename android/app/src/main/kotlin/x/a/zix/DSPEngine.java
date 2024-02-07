@@ -14,7 +14,7 @@ public class DSPEngine {
     private static DynamicsProcessing.Eq tuner;
     private static final int bandCount = 10;
     private static DynamicsProcessing.Mbc dspMbc;
-    static int[] dsp_speakers = {31, 62, 125, 250, 916, 1000, 2000, 4000, 8000, 16000};
+    static int[] dsp_speakers = {31, 62, 100, 250, 916, 1000, 2000, 4000, 8000, 16000};
     static float[] dsp_gains = {5.8f,1.6f,1.0f,5.0f,5,3,5,8,4,7};
     private static DynamicsProcessing.Limiter dspLimiter;
 
@@ -29,7 +29,7 @@ public class DSPEngine {
     static int audioSessionId = 0;
     static int tunerBassFreq = 916;
 
-  private static final DynamicsProcessing.Config.Builder builder =  new DynamicsProcessing.Config.Builder(0, 2, true, bandCount, true, bandCount, true, bandCount, true);
+  private static final DynamicsProcessing.Config.Builder builder =  new DynamicsProcessing.Config.Builder(0, 4, true, bandCount, true, bandCount, true, bandCount, true);
 
    private static final DynamicsProcessing.Config engineConfig  = builder.build();
     
@@ -37,7 +37,6 @@ public class DSPEngine {
     public static void setDspSpeakers(int[] speakers, float[] gains){
         dsp_speakers = speakers;
         dsp_gains = gains;
-
         if(dspEngine != null && dspEq != null){
             for (int b = 0; b < bandCount; b++) {
                 try {
