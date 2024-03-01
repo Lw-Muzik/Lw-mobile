@@ -14,7 +14,7 @@ public class DSPEngine {
     private static DynamicsProcessing.Eq tuner;
     private static final int bandCount = 10;
     private static DynamicsProcessing.Mbc dspMbc;
-    static int[] dsp_speakers = {31, 62, 100, 250, 916, 1000, 2000, 4000, 8000, 16000};
+    static int[] dsp_speakers = {28, 62, 100, 250, 916, 1000, 2000, 4000, 8000, 16000};
     static float[] dsp_gains = {5.8f,1.6f,1.0f,5.0f,5,3,5,8,4,7};
     private static DynamicsProcessing.Limiter dspLimiter;
 

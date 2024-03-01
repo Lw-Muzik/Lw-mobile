@@ -47,7 +47,7 @@ dependencies:
   just_audio_background: ^0.0.1-beta.10
   animations: ^2.0.8
   id3tag: ^0.2.0
-  wiredash: ^1.7.4
+  wiredash: ^2.0.0
   tutorial_coach_mark: ^1.2.9
   http: ^1.1.0
   firebase_analytics: ^10.6.2

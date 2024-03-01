@@ -19,7 +19,7 @@ public class AudioVisualizer {
         if (visualizer == null) {
             visualizer = new Visualizer(AudioManager.AUDIO_SESSION_ID_GENERATE);
             visualizer.setEnabled(true);
-            visualizer.setMeasurementMode(Visualizer.MEASUREMENT_MODE_PEAK_RMS);
+            // visualizer.setMeasurementMode(Visualizer.MEASUREMENT_MODE_PEAK_RMS);
             visualizer.setScalingMode(Visualizer.SCALING_MODE_NORMALIZED);
             visualizer.setCaptureSize(Visualizer.getCaptureSizeRange()[0]);
             visualizer.setDataCaptureListener(
