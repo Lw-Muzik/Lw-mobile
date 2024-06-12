@@ -14,8 +14,8 @@ public class DSPEngine {
     private static DynamicsProcessing.Eq tuner;
     private static final int bandCount = 10;
     private static DynamicsProcessing.Mbc dspMbc;
-    static int[] dsp_speakers = {28, 62, 100, 250, 916, 1000, 2000, 4000, 8000, 16000};
-    static float[] dsp_gains = {5.8f,1.6f,1.0f,5.0f,5,3,5,8,4,7};
+    static int[] dsp_speakers = {31, 62, 120, 450, 916, 1000, 2000, 4000, 8000, 16000};
+    static float[] dsp_gains = {5.8f,3.6f,3.0f,5.0f,5,3,5,8,4,7};
     private static DynamicsProcessing.Limiter dspLimiter;
 
     private static DynamicsProcessing.MbcBand dspBand;
@@ -78,10 +78,10 @@ public class DSPEngine {
             dspBand.setRatio(8.0f);
             dspBand.setKneeWidth(0.4f);
             dspBand.setThreshold(0.0f);
-            dspBand.setNoiseGateThreshold(-90.0f);
+            dspBand.setNoiseGateThreshold(-95.0f);
             dspBand.setExpanderRatio(15.0f);
             dspBand.setPreGain(20.0f);
-            dspBand.setPostGain(-4.0f);
+            dspBand.setPostGain(-10.0f);
             dspBand.setEnabled(true);
         }
 
@@ -101,7 +101,7 @@ public class DSPEngine {
             dspBand.setNoiseGateThreshold(-30.0f);
             dspBand.setExpanderRatio(15.0f);
             dspBand.setPreGain(20.0f);
-            dspBand.setPostGain(0.0f);
+            dspBand.setPostGain(10.0f);
         }
         dspBand.setEnabled(true);
     }
