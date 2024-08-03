@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../../controllers/AppController.dart';
+import '../../widgets/ArtworkWidget.dart';
+import '/controllers/AppController.dart';
 
 class MusicInfo extends StatefulWidget {
   final AppController controller;
@@ -57,9 +58,18 @@ class _MusicInfoState extends State<MusicInfo>
       padding: const EdgeInsets.symmetric(horizontal: 30.0, vertical: 30),
       child: Row(
         children: <Widget>[
+          // ArtworkWidget(
+          //   width: 100,
+          //   height: 150,
+          //   songId: widget.controller.songId,
+          //   path: widget.controller.songs[widget.controller.songId].data,
+          // ),
+          const SizedBox(width: 20),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.end,
             children: <Widget>[
+              // widget.controller.artWorkId
               //-_titleAnimation!.value
               AnimatedBuilder(
                 builder: (context, child) {

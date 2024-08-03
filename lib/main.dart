@@ -45,9 +45,9 @@ Future<void> main() async {
     androidNotificationIcon: "mipmap/launcher_icon",
     androidNotificationChannelId: 'com.ryanheise.bg_demo.channel.audio',
     androidNotificationChannelName: 'Audio playback',
-    // androidNotificationOngoing: true,
+    androidNotificationOngoing: true,
     preloadArtwork: true,
-    androidStopForegroundOnPause: false,
+    androidStopForegroundOnPause: true,
     artDownscaleHeight: 200,
     artDownscaleWidth: 200,
   );

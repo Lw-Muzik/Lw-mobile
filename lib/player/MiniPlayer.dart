@@ -3,7 +3,7 @@
 import 'package:flutter/material.dart';
 
 class MiniPlayer extends StatefulWidget {
-  MiniPlayer({Key? key, required this.onTap}) : super(key: key);
+  const MiniPlayer({super.key, required this.onTap});
   final Function onTap;
   @override
   _MiniPlayerState createState() => _MiniPlayerState();

@@ -14,17 +14,18 @@ public class DSPEngine {
     private static DynamicsProcessing.Eq tuner;
     private static final int bandCount = 10;
     private static DynamicsProcessing.Mbc dspMbc;
-    static int[] dsp_speakers = {31, 62, 120, 450, 916, 1000, 2000, 4000, 8000, 16000};
+   static int[] dsp_speakers = {32, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 16000};
     static float[] dsp_gains = {5.8f,3.6f,3.0f,5.0f,5,3,5,8,4,7};
     private static DynamicsProcessing.Limiter dspLimiter;
 
     private static DynamicsProcessing.MbcBand dspBand;
     public static final int priority = Integer.MAX_VALUE;
-    private static final float out_gain = 3.0f;
+    private static final float out_gain = 2.0f;
     private static final float dsp_volume = -6.0f;
-    private static final float dsp_powerBass = 8.0f;
-    private static final float dsp_xBass = 11.0f;
-    private static final float dsp_xBass2 = 10.0f;
+//    private static final float dsp_powerBass = 8.0f;
+    private static final float dsp_powerBass = 6.0f;
+    private static final float dsp_xBass = 8.0f;
+    private static final float dsp_xBass2 = 7.0f;
     private static final float dsp_treble = 3.3f;
     static int audioSessionId = 0;
     static int tunerBassFreq = 916;
@@ -73,12 +74,19 @@ public class DSPEngine {
         for(int x = 0; x< 10; x++){
             DynamicsProcessing.MbcBand band  = dspMbc.getBand(x);
             dspBand = band;
-            band.setAttackTime(10.0f);
-            dspBand.setReleaseTime(100.0f);
-            dspBand.setRatio(8.0f);
-            dspBand.setKneeWidth(0.4f);
-            dspBand.setThreshold(0.0f);
-            dspBand.setNoiseGateThreshold(-95.0f);
+
+            band.setAttackTime(5.0f);
+            dspBand.setReleaseTime(50.0f);
+            dspBand.setRatio(4.0f);
+            dspBand.setKneeWidth(1.0f);
+            dspBand.setThreshold(-10.0f);
+
+            // band.setAttackTime(10.0f);
+            // dspBand.setReleaseTime(100.0f);
+            // dspBand.setRatio(8.0f);
+            // dspBand.setKneeWidth(0.4f);
+            // dspBand.setThreshold(0.0f);
+            dspBand.setNoiseGateThreshold(-60.0f);
             dspBand.setExpanderRatio(15.0f);
             dspBand.setPreGain(20.0f);
             dspBand.setPostGain(-10.0f);
@@ -93,12 +101,12 @@ public class DSPEngine {
         for (int i = 0; i < 1; i++) {
             DynamicsProcessing.MbcBand band = dspMbc.getBand(i);
             dspBand = band;
-            band.setAttackTime(10.0f);
-            dspBand.setReleaseTime(100.0f);
-            dspBand.setRatio(8.0f);
-            dspBand.setKneeWidth(0.4f);
-            dspBand.setThreshold(0.0f);
-            dspBand.setNoiseGateThreshold(-30.0f);
+            band.setAttackTime(5.0f);
+            dspBand.setReleaseTime(50.0f);
+            dspBand.setRatio(4.0f);
+            dspBand.setKneeWidth(1.0f);
+            dspBand.setThreshold(-10.0f);
+            dspBand.setNoiseGateThreshold(-60.0f);
             dspBand.setExpanderRatio(15.0f);
             dspBand.setPreGain(20.0f);
             dspBand.setPostGain(10.0f);
@@ -117,7 +125,7 @@ public class DSPEngine {
 
                 dspMbc = new DynamicsProcessing.Mbc(true, true, bandCount);
                 //   Engine configuration
-                dspLimiter = new DynamicsProcessing.Limiter(true, true, 7, 1.0f, 60.0f, 10.0f, -2.0f, out_gain);
+               dspLimiter = new DynamicsProcessing.Limiter(true, true, 5, 0.5f, 50.0f, 5.0f, -1.0f, out_gain);// new DynamicsProcessing.Limiter(true, true, 7, 1.0f, 60.0f, 10.0f, -2.0f, out_gain);
                 //  default chanel gain
                 presetOne();
                 c();

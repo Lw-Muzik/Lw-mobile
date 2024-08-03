@@ -1,7 +1,7 @@
 import 'dart:async';
 // import 'dart:developer';
 
-import 'package:eq_app/controllers/PlayerController.dart';
+import '/controllers/PlayerController.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -59,7 +59,9 @@ class _AssetLoaderState extends State<AssetLoader>
       duration:
           const Duration(milliseconds: 2000), // Adjust the duration as needed.
     )..addListener(() {
-        setState(() {});
+        if (mounted) {
+          setState(() {});
+        }
       });
   }
 
@@ -72,13 +74,13 @@ class _AssetLoaderState extends State<AssetLoader>
     }
   }
 
-  @override
-  void dispose() {
-    for (var ripple in _ripples) {
-      ripple.controller.dispose();
-    }
-    super.dispose();
-  }
+  // @override
+  // void dispose() {
+  //   // for (var ripple in _ripples) {
+  //   //   ripple.controller.dispose();
+  //   // }
+  //   super.dispose();
+  // }
 
   @override
   Widget build(BuildContext context) {

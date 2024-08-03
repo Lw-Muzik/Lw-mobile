@@ -1,8 +1,9 @@
+import 'dart:developer';
 
-import 'package:eq_app/Helpers/AudioVisualizer.dart';
-import 'package:eq_app/Visualizers/CircularBarVisualizer.dart';
-import 'package:eq_app/controllers/AppController.dart';
-import 'package:eq_app/player/widgets/MusicInfo.dart';
+import '/Helpers/AudioVisualizer.dart';
+import '/Visualizers/CircularBarVisualizer.dart';
+import '/controllers/AppController.dart';
+import '/player/widgets/MusicInfo.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -37,12 +38,13 @@ class _VisualUIState extends State<VisualUI> {
                 ? Colors.transparent
                 : Theme.of(context).scaffoldBackgroundColor,
             body: InkWell(
-              onTap:()=>Routes.pop(context),
+              onTap: () => Routes.pop(context),
               child: Column(
                 children: [
                   mounted
                       ? VisualizerWidget(
                           builder: (context, fft, x) {
+                            log(fft.toString());
                             return CustomPaint(
                               painter: CircularBarVisualizer(
                                   color: Colors.white,
@@ -58,8 +60,11 @@ class _VisualUIState extends State<VisualUI> {
                 ],
               ),
             ),
-            floatingActionButton:
-                SizedBox(height: 140, child: MusicInfo(controller: controller)),
+            floatingActionButton: SizedBox(
+              height: 150,
+              width: double.infinity,
+              child: MusicInfo(controller: controller),
+            ),
           );
         },
       ),

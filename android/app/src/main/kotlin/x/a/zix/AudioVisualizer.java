@@ -17,18 +17,25 @@ public class AudioVisualizer {
     @SuppressLint("NewApi")
     public void activate(Visualizer.OnDataCaptureListener listener) {
         if (visualizer == null) {
-            visualizer = new Visualizer(AudioManager.AUDIO_SESSION_ID_GENERATE);
-            visualizer.setEnabled(true);
-            // visualizer.setMeasurementMode(Visualizer.MEASUREMENT_MODE_PEAK_RMS);
-            // visualizer.setScalingMode(Visualizer.SCALING_MODE_NORMALIZED);
-            visualizer.setCaptureSize(Visualizer.getCaptureSizeRange()[0]);
-            visualizer.setDataCaptureListener(
-                listener,
-                Visualizer.getMaxCaptureRate() / 2,
-                true,
-                false
-            );
-       
+            try {
+                int audioSessionId = AudioManager.AUDIO_SESSION_ID_GENERATE;
+                visualizer = new Visualizer(audioSessionId);
+                visualizer.setCaptureSize(Visualizer.getCaptureSizeRange()[1]); // Use maximum capture size
+                
+                visualizer.setDataCaptureListener(
+                    listener,
+                    Visualizer.getMaxCaptureRate(),
+                    true,  // Enable waveform capture
+                    true   // Enable FFT capture
+                );
+                if(visualizer != null){
+                    visualizer.setEnabled(true);
+                }
+
+                isActive = true;
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
         }
     }
 
@@ -40,14 +47,18 @@ public class AudioVisualizer {
     }
 
     @SuppressLint("NewApi")
-    public int getAudioFreq(byte[] b) {
-        return visualizer.getFft(b);
+    public void getAudioData(byte[] waveform, byte[] fft) {
+        if (visualizer != null) {
+            visualizer.getWaveForm(waveform);
+            visualizer.getFft(fft);
+        }
     }
 
     @SuppressLint("NewApi")
     public void enableVisual(boolean enable) {
         if (visualizer != null) {
             visualizer.setEnabled(enable);
+            isActive = enable;
         }
     }
 
@@ -59,12 +70,12 @@ public class AudioVisualizer {
     @SuppressLint("NewApi")
     public void deactivate() {
         if (visualizer != null) {
+            visualizer.setEnabled(false);
             visualizer.release();
             visualizer = null;
             isActive = false;
         }
     }
-
     public void setFrameRate(int frameRate) {
         // You can use this method to control the animation speed
         // Adjust the frameRate parameter to control the speed (e.g., 60 FPS)
