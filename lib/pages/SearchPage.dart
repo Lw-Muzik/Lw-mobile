@@ -10,105 +10,75 @@ import '../widgets/ArtworkWidget.dart';
 
 class SearchPage extends SearchDelegate<SongModel> {
   @override
-  String get searchFieldLabel => "Search by title , artist , album ";
-  @override
-  List<Widget>? buildActions(BuildContext context) {
-    return [
-      IconButton(
-        onPressed: () => query = "",
-        icon: const Icon(Icons.close),
-      ),
-    ];
-  }
-
-  // Widget buildFlexibleSpace(context) {
-  //   return Row(
-  //     children: [Chip(label: Text("All Songs"))],
-  //   );
-  // }
+  String get searchFieldLabel => "Search by title, artist, album";
 
   @override
-  Widget? buildLeading(BuildContext context) {
-    return InkWell(
-      child: const Icon(Icons.arrow_back_ios_new),
-      onTap: () => Routes.pop(context),
-    );
-  }
+  List<Widget>? buildActions(BuildContext context) => [
+        IconButton(
+          onPressed: () => query = "",
+          icon: const Icon(Icons.close),
+        ),
+      ];
+
+  @override
+  Widget? buildLeading(BuildContext context) => InkWell(
+        child: const Icon(Icons.arrow_back_ios_new),
+        onTap: () => Routes.pop(context),
+      );
 
   @override
   Widget buildResults(BuildContext context) {
-    return Consumer<AppController>(builder: (context, controller, child) {
-      var songs = controller.songs
-          .where(
-            (element) =>
-                element.title.toLowerCase().contains(query.toLowerCase()) ||
-                element.artist!.toLowerCase().contains(query.toLowerCase()) ||
-                element.album!.toLowerCase().contains(query.toLowerCase()),
-          )
-          .toList();
-      return ListView.builder(
-        itemCount: songs.length,
-        itemBuilder: (context, i) => ListTile(
-          onTap: () {
-            int songIndex = (controller.songs.indexWhere((result) =>
-                result.title == songs[i].title ||
-                result.artist == songs[i].artist ||
-                result.album == songs[i].album));
-            controller.songId = songIndex;
-            loadAudioSource(controller.handler, controller.songs[songIndex]);
-            Routes.routeTo(const Player(), context);
-            debugPrint("Song Index: $songIndex");
-          },
-          leading: ArtworkWidget(
-            songId: songs[i].id,
-            type: ArtworkType.AUDIO,
-            path: songs[i].data,
-          ),
-          title: Text(
-            songs[i].title,
-          ),
-          subtitle: Text(
-            songs[i].artist ?? "Unknown artist",
-          ),
-        ),
-      );
-    });
+    return _buildSongList(context, query);
   }
 
   @override
   Widget buildSuggestions(BuildContext context) {
-    return Consumer<AppController>(builder: (context, controller, child) {
-      var songs = controller.songs
-          .where((element) =>
-              element.title.toLowerCase().contains(query.toLowerCase()) ||
-              element.artist!.toLowerCase().contains(query.toLowerCase()) ||
-              element.album!.toLowerCase().contains(query.toLowerCase()))
-          .toList();
-      return ListView.builder(
-        itemCount: songs.length,
-        itemBuilder: (context, i) => ListTile(
+    return _buildSongList(context, query);
+  }
+
+  Widget _buildSongList(BuildContext context, String query) {
+    final controller = Provider.of<AppController>(context, listen: false);
+    final songs = _filterSongs(controller, query);
+
+    if (songs.isEmpty) {
+      return const Center(child: Text("No songs found"));
+    }
+
+    return ListView.builder(
+      itemCount: songs.length,
+      itemBuilder: (context, i) {
+        return ListTile(
+          onTap: () => _playSong(context, controller, songs[i]),
           leading: ArtworkWidget(
             songId: songs[i].id,
             type: ArtworkType.AUDIO,
             path: songs[i].data,
           ),
-          title: Text(
-            songs[i].title,
-          ),
-          onTap: () {
-            int songIndex = (controller.songs.indexWhere((result) =>
-                result.title == songs[i].title ||
-                result.artist == songs[i].artist ||
-                result.album == songs[i].album));
-            controller.songId = songIndex;
-            loadAudioSource(controller.handler, controller.songs[songIndex]);
-            Routes.routeTo(const Player(), context);
-          },
-          subtitle: Text(
-            songs[i].artist ?? "Unknown artist",
-          ),
-        ),
-      );
-    });
+          title: Text(songs[i].title),
+          subtitle: Text(songs[i].artist ?? "Unknown artist"),
+        );
+      },
+    );
+  }
+
+  List<SongModel> _filterSongs(AppController controller, String query) {
+    if (query.isEmpty) return controller.songs;
+
+    final lowerQuery = query.toLowerCase();
+    return controller.songs.where((song) {
+      return song.title.toLowerCase().contains(lowerQuery) ||
+          (song.artist?.toLowerCase().contains(lowerQuery) ?? false) ||
+          (song.album?.toLowerCase().contains(lowerQuery) ?? false);
+    }).toList();
+  }
+
+  void _playSong(
+      BuildContext context, AppController controller, SongModel song) {
+    final songIndex = controller.songs.indexOf(song);
+    if (songIndex != -1) {
+      controller.songId = songIndex;
+      loadAudioSource(controller.handler, controller.songs[songIndex]);
+      Routes.routeTo(const Player(), context);
+    }
   }
 }

@@ -16,33 +16,20 @@ class Equalizer extends StatefulWidget {
   State<Equalizer> createState() => _EqualizerState();
 }
 
-List<int> bandLevel = [-10, 10];
-String? preset;
-
 class _EqualizerState extends State<Equalizer> with TickerProviderStateMixin {
-  bool eq = false;
-  TabController? _tabController;
-  List<double> bandValues = [0, 0, 0, 0, 0];
+  late final TabController _tabController;
+  final List<double> bandValues = [0, 0, 0, 0, 0];
+  static const List<int> bandLevel = [-10, 10];
+  String? preset;
+
   @override
   void initState() {
     super.initState();
-    if (mounted) {
-      // Channel.setSessionId(0);
-    }
-
     _tabController = TabController(length: 4, vsync: this);
-  }
 
-  @override
-  void dispose() {
-    _tabController!.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
+    // Setting up listener for android audio session ID.
     context
-        .watch<AppController>()
+        .read<AppController>()
         .handler
         .player
         .androidAudioSessionIdStream
@@ -51,40 +38,55 @@ class _EqualizerState extends State<Equalizer> with TickerProviderStateMixin {
         Channel.setSessionId(event);
       }
     });
+  }
 
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final appController = context.watch<AppController>();
     return Body(
       child: Scaffold(
-        backgroundColor: context.watch<AppController>().isFancy
+        backgroundColor: appController.isFancy
             ? Colors.transparent
             : Theme.of(context).scaffoldBackgroundColor,
         appBar: AppBar(
-          forceMaterialTransparency: context.watch<AppController>().isFancy,
+          forceMaterialTransparency: appController.isFancy,
           title: const Text("Sound Effects"),
-          bottom: TabBar(
-            isScrollable: true,
-            controller: _tabController,
-            dividerColor: Colors.transparent,
-            tabs: const [
-              Tab(text: "Equalizer"),
-              Tab(text: "Audio FX"),
-              Tab(text: "Compressor"),
-              Tab(text: "Roon Effects"),
-            ],
-          ),
+          bottom: _buildTabBar(),
         ),
-        body: Center(
-          child: TabBarView(
-            // physics: const NeverScrollableScrollPhysics(),
-            controller: _tabController,
-            children: const [
-              EqView(),
-              AudioFx(),
-              CompressorView(),
-              RoomEffects(),
-            ],
-          ),
-        ),
+        body: _buildTabBarView(),
       ),
+    );
+  }
+
+  TabBar _buildTabBar() {
+    return TabBar(
+      isScrollable: true,
+      controller: _tabController,
+      dividerColor: Colors.transparent,
+      tabs: const [
+        Tab(text: "Equalizer"),
+        Tab(text: "Audio FX"),
+        Tab(text: "Compressor"),
+        Tab(text: "Room Effects"),
+      ],
+    );
+  }
+
+  Widget _buildTabBarView() {
+    return TabBarView(
+      controller: _tabController,
+      children: const [
+        EqView(),
+        AudioFx(),
+        CompressorView(),
+        RoomEffects(),
+      ],
     );
   }
 }

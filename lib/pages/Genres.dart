@@ -17,15 +17,28 @@ class _GenresState extends State<Genres> {
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<List<GenreModel>>(
-        future: OnAudioQuery.platform.queryGenres(),
-        builder: (context, snapshot) {
-          return GridView.count(
-            crossAxisCount: 3,
-            crossAxisSpacing: 26,
-            mainAxisSpacing: 26,
-            children: List.generate(
-              snapshot.data?.length ?? 0,
-              (index) => Routes.animateTo(
+      future: OnAudioQuery.platform.queryGenres(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        } else if (snapshot.hasError) {
+          return const Center(child: Text("Error loading genres"));
+        } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+          return const Center(child: Text("No genres found"));
+        }
+
+        return Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: GridView.builder(
+            itemCount: snapshot.data!.length,
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 3,
+              crossAxisSpacing: 20,
+              mainAxisSpacing: 20,
+            ),
+            itemBuilder: (context, index) {
+              final genre = snapshot.data![index];
+              return Routes.animateTo(
                 closedWidget: GridTile(
                   footer: Card(
                     color: Theme.of(context).cardColor.withOpacity(0.4),
@@ -35,32 +48,36 @@ class _GenresState extends State<Genres> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Text(
-                            snapshot.data?[index].genre ?? 'Unknown',
+                            genre.genre,
                             overflow: TextOverflow.ellipsis,
                             style: Theme.of(context).textTheme.labelMedium,
                           ),
-                          Text(snapshot.data![index].numOfSongs.nSongs,
-                              textAlign: TextAlign.center,
-                              style: Theme.of(context).textTheme.titleSmall),
+                          Text(
+                            genre.numOfSongs.nSongs,
+                            textAlign: TextAlign.center,
+                            style: Theme.of(context).textTheme.titleSmall,
+                          ),
                         ],
                       ),
                     ),
                   ),
                   child: ArtworkWidget(
                     borderRadius: BorderRadius.circular(10),
-                    songId: snapshot.data![index].id,
+                    songId: genre.id,
                     type: ArtworkType.GENRE,
-                    other: snapshot.data?[index].genre ?? 'Unknown',
+                    other: genre.genre,
                   ),
                 ),
                 openWidget: GenreSongs(
-                  genreId: snapshot.data![index].id,
-                  genre: snapshot.data![index].genre,
-                  songs: snapshot.data![index].numOfSongs,
+                  genreId: genre.id,
+                  genre: genre.genre,
+                  songs: genre.numOfSongs,
                 ),
-              ),
-            ),
-          );
-        });
+              );
+            },
+          ),
+        );
+      },
+    );
   }
 }

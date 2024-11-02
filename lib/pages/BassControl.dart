@@ -18,6 +18,7 @@ class _BassControlState extends State<BassControl> {
   double tGain = 0;
   bool eq = false;
   bool ebass = false;
+
   @override
   void initState() {
     super.initState();
@@ -25,123 +26,98 @@ class _BassControlState extends State<BassControl> {
   }
 
   initEffects() {
-    setState(() {
-      ebass = context.read<AppController>().enableEffects;
-    });
+    ebass = context.read<AppController>().enableEffects;
   }
 
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
-        StreamBuilder<bool>(
-            stream: Stream.fromFuture(Channel.getVirtualizerEnabled()),
-            builder: (context, snapshot) {
-              bool? enabled = snapshot.data;
-              if (enabled != null) {
-                ebass = enabled;
-              }
-              return SwitchListTile.adaptive(
-                  title: const Text("Effects"),
-                  subtitle: Text(ebass ? "enabled" : "disabled"),
-                  value: ebass,
-                  onChanged: (value) {
-                    setState(() {
-                      ebass = !ebass;
-                      context.watch<AppController>().enableEffects = ebass;
-                    });
-                    Channel.enableVirtualizer(value);
-                    Channel.enableLoudnessEnhancer(value);
-                  });
-            }),
+        _buildEffectsSwitch(),
         Padding(
           padding: const EdgeInsets.all(8.0),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              // StreamBuilder<double>(
-              //     stream: Stream.fromFuture(Channel.getTargetGain()),
-              //     builder: (context, strength) {
-              //       double? b = strength.data;
-              //       if (b != null) {
-              //         bass = b;
-              //       }
-              //       return RoundSlider(
-              //           title: "Vocal Boost",
-              //           dB: double.parse(((bass / 20) * 100).toStringAsFixed(
-              //               1)), //double.parse(bass.toStringAsFixed(1)),
-              //           value: bass,
-              //           max: 20,
-              //           width: 120,
-              //           height: 120,
-              //           min: 0,
-              //           onChanged: ebass == true
-              //               ? (strength) {
-              //                   setState(() {
-              //                     bass = strength;
-              //                   });
-              //                   Channel.setTargetGain(strength.toInt());
-              //                 }
-              //               : (x) {});
-              //     }),
-
-              const SizedBox(
-                width: 10,
+              const SizedBox(width: 10),
+              _buildSlider(
+                title: "Virtualizer",
+                stream: Stream.fromFuture(Channel.getVirtualizerStrength()),
+                value: stereo,
+                max: 1000,
+                onChanged: (value) {
+                  stereo = value;
+                  Channel.setVirtualizerStrength(value.toInt());
+                },
               ),
-              StreamBuilder<int>(
-                  stream: Stream.fromFuture(Channel.getVirtualizerStrength()),
-                  builder: (context, virtualizer) {
-                    int? v = virtualizer.data;
-                    if (v != null) {
-                      stereo = v.toDouble();
-                    }
-                    return RoundSlider(
-                        title: "Virtualizer",
-                        dB: double.parse(
-                            ((stereo / 1000) * 100).toStringAsFixed(1)),
-                        value: stereo,
-                        max: 1000,
-                        width: 120,
-                        height: 120,
-                        min: 0,
-                        onChanged: ebass == true
-                            ? (s) {
-                                setState(() {
-                                  stereo = s;
-                                });
-                                Channel.setVirtualizerStrength(s.toInt());
-                              }
-                            : (x) {});
-                  }),
-              const SizedBox.square(
-                dimension: 10,
+              const SizedBox.square(dimension: 10),
+              _buildSlider(
+                title: "Vocal Boost",
+                stream: Stream.fromFuture(Channel.getTargetGain()),
+                value: tGain,
+                max: 1000,
+                onChanged: (value) {
+                  tGain = value;
+                  Channel.setTargetGain(value.toInt());
+                },
               ),
-              StreamBuilder<double>(
-                  stream: Stream.fromFuture(Channel.getTargetGain()),
-                  builder: (context, gain) {
-                    double? g = gain.data;
-                    if (g != null) {
-                      tGain = g;
-                    }
-                    return RoundSlider(
-                        title: "Vocal boost",
-                        dB: double.parse(bass.toStringAsFixed(1)),
-                        value: tGain,
-                        max: 1000,
-                        width: 120,
-                        height: 120,
-                        min: 0,
-                        onChanged: (s) {
-                          setState(() {
-                            tGain = s;
-                          });
-                          Channel.setTargetGain(s.toInt());
-                        });
-                  }),
             ],
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildEffectsSwitch() {
+    return StreamBuilder<bool>(
+      stream: Stream.fromFuture(Channel.getVirtualizerEnabled()),
+      builder: (context, snapshot) {
+        ebass = snapshot.data ?? ebass;
+        return SwitchListTile.adaptive(
+          title: const Text("Effects"),
+          subtitle: Text(ebass ? "enabled" : "disabled"),
+          value: ebass,
+          onChanged: (value) {
+            setState(() {
+              ebass = value;
+              context.read<AppController>().enableEffects = ebass;
+            });
+            Channel.enableVirtualizer(value);
+            Channel.enableLoudnessEnhancer(value);
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildSlider({
+    required String title,
+    required Stream<dynamic> stream,
+    required double value,
+    required double max,
+    required ValueChanged<double> onChanged,
+  }) {
+    return StreamBuilder<dynamic>(
+      stream: stream,
+      builder: (context, snapshot) {
+        double sliderValue = snapshot.data?.toDouble() ?? value;
+        return RoundSlider(
+          title: title,
+          dB: double.parse((sliderValue / max * 100).toStringAsFixed(1)),
+          value: sliderValue,
+          max: max,
+          width: 120,
+          height: 120,
+          min: 0,
+          onChanged: ebass
+              ? (value) {
+                  setState(() {
+                    onChanged(value);
+                  });
+                }
+              : (x) {},
+        );
+      },
     );
   }
 }

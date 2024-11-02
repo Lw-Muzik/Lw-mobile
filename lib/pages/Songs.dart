@@ -1,7 +1,7 @@
-import '/Helpers/Files.dart';
 import 'package:flutter/material.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 
+import '/Helpers/Files.dart';
 import 'ArtistSongs.dart';
 
 class AllSongs extends StatefulWidget {
@@ -12,11 +12,7 @@ class AllSongs extends StatefulWidget {
 }
 
 class _AllSongsState extends State<AllSongs> {
-  ScrollController scrollController = ScrollController();
-  @override
-  void initState() {
-    super.initState();
-  }
+  final ScrollController scrollController = ScrollController();
 
   @override
   void dispose() {
@@ -27,13 +23,27 @@ class _AllSongsState extends State<AllSongs> {
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<List<SongModel>>(
-      // Default values:
       future: Files.fetchAllSongs(),
-
       builder: (context, snap) {
-        return snap.hasData
-            ? SongLists(songs: snap.data ?? [])
-            : const Center(child: CircularProgressIndicator.adaptive());
+        if (snap.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator.adaptive());
+        } else if (snap.hasError) {
+          return Center(
+            child: Text(
+              "Failed to load songs. Please try again.",
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+          );
+        } else if (snap.hasData && snap.data!.isNotEmpty) {
+          return SongLists(songs: snap.data!);
+        } else {
+          return Center(
+            child: Text(
+              "No songs available.",
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+          );
+        }
       },
     );
   }
