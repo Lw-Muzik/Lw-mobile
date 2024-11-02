@@ -2,7 +2,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:rxdart/rxdart.dart';
-
+import 'package:swipable_stack/swipable_stack.dart';
 import '../Helpers/Channel.dart';
 import '../Helpers/AudioVisualizer.dart';
 import '../Global/index.dart';
@@ -24,16 +24,12 @@ class Player extends StatefulWidget {
 class _PlayerState extends State<Player> with TickerProviderStateMixin {
   late final AnimationController _animationController;
   late final Animation<double> _animation;
-  late final PageController _pageController;
 
   @override
   void initState() {
     super.initState();
     _initializeAnimation();
     _checkPermissionForAudioVisualization();
-    _pageController = PageController(
-      initialPage: context.read<AppController>().songId,
-    );
   }
 
   void _initializeAnimation() {
@@ -68,26 +64,16 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
     );
   }
 
-  void _handlePageChange(int page, AppController controller) {
-    if (!_pageController.hasClients) return;
-
-    if (page == controller.songId) {
-      _handleSamePageChange(page, controller);
-    } else if (page > controller.songId) {
-      controller.next();
-    } else if (page < controller.songId) {
+  void _handlePageChange(
+      int index, AppController controller, SwipeDirection direction) {
+    if (direction == SwipeDirection.right) {
       controller.prev();
+    } else if (direction == SwipeDirection.left) {
+      controller.next();
     }
-    setState(() {});
-  }
-
-  void _handleSamePageChange(int page, AppController controller) {
-    int nextPage = page + 1;
-    if (nextPage >= controller.songs.length) {
-      nextPage = 0;
-    }
-    controller.songId = nextPage;
-    loadAudioSource(controller.handler, controller.songs[nextPage]);
+    setState(() {
+      loadAudioSource(controller.handler, controller.songs[controller.songId]);
+    });
   }
 
   Widget _buildPlayerContent(AppController controller, bool? isPlaying) {
@@ -121,7 +107,7 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
           children: [
             SizedBox(height: MediaQuery.of(context).padding.top),
             const Header(),
-            _buildPageView(controller),
+            _buildSwipeableStack(controller),
             _buildSeekBar(),
             const Controls(),
           ],
@@ -130,21 +116,24 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildPageView(AppController controller) {
+  Widget _buildSwipeableStack(AppController controller) {
     final size = MediaQuery.of(context).size;
 
     return SizedBox(
       height: size.height - 280,
-      child: PageView.builder(
-        controller: _pageController,
+      child: SwipableStack(
         itemCount: controller.songs.length,
-        onPageChanged: (page) => _handlePageChange(page, controller),
-        itemBuilder: (context, index) => _buildPageViewItem(controller),
+        onSwipeCompleted: (index, direction) {
+          _handlePageChange(index, controller, direction);
+        },
+        builder: (context, constraints) {
+          return _buildPageViewItem(controller, constraints.index);
+        },
       ),
     );
   }
 
-  Widget _buildPageViewItem(AppController controller) {
+  Widget _buildPageViewItem(AppController controller, int index) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -204,7 +193,6 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
   @override
   void dispose() {
     _animationController.dispose();
-    _pageController.dispose();
     super.dispose();
   }
 }
