@@ -1,7 +1,5 @@
 import 'dart:async';
-// import 'dart:developer';
 
-import '/controllers/PlayerController.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -9,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../Helpers/fileloader.dart';
 import '../Routes/routes.dart';
 import '../Shaders/RipplePainter.dart';
+import '/controllers/PlayerController.dart';
 
 class AssetLoader extends StatefulWidget {
   const AssetLoader({super.key});
@@ -19,119 +18,141 @@ class AssetLoader extends StatefulWidget {
 
 class _AssetLoaderState extends State<AssetLoader>
     with TickerProviderStateMixin {
-  List<Ripple> _ripples = [];
+  static const int _rippleCount = 7;
+  static const Duration _animationDuration = Duration(milliseconds: 2000);
+  static const Duration _loadingDelay = Duration(seconds: 3);
+
+  late final List<Ripple> _ripples;
+  bool _isNavigating = false;
+
   @override
   void initState() {
     super.initState();
+    _initializeRipples();
+    _loadAssets();
+  }
 
+  void _initializeRipples() {
     _ripples = List.generate(
-      7,
+      _rippleCount,
       (i) => Ripple(
-        controller: _createAnimationController(),
+        controller: AnimationController(
+          vsync: this,
+          duration: _animationDuration,
+        )..addListener(() {
+            // Only call setState if the animation actually needs to update the UI
+            if (mounted && i == 0) {
+              setState(() {});
+            }
+          }),
       ),
     );
-    _startAnimations();
-    permission();
+
+    _startRippleAnimations();
   }
 
-  int page = 0;
-  void permission() async {
-    SharedPreferences.getInstance().then((prefs) async {
-      await fetchMetaData(context).then((value) {
-        prefs.setBool("artworkLoaded", true);
-
-        Future.delayed(const Duration(seconds: 3), () {
-          if (page == 0) {
-            setState(() {
-              page = 1;
-            });
-            Navigator.pushReplacementNamed(context, Routes.home);
-            Routes.pop(context);
-          }
-        });
-      });
-    });
-  }
-
-  AnimationController _createAnimationController() {
-    return AnimationController(
-      vsync: this,
-      duration:
-          const Duration(milliseconds: 2000), // Adjust the duration as needed.
-    )..addListener(() {
-        if (mounted) {
-          setState(() {});
-        }
-      });
-  }
-
-  void _startAnimations() {
+  void _startRippleAnimations() {
     for (int i = 0; i < _ripples.length; i++) {
-      final ripple = _ripples[i];
       Future.delayed(Duration(seconds: i), () {
-        ripple.controller.repeat();
+        if (mounted) {
+          _ripples[i].controller.repeat();
+        }
       });
     }
   }
 
-  // @override
-  // void dispose() {
-  //   // for (var ripple in _ripples) {
-  //   //   ripple.controller.dispose();
-  //   // }
-  //   super.dispose();
-  // }
+  Future<void> _loadAssets() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await fetchMetaData(context);
+      await prefs.setBool("artworkLoaded", true);
+
+      Future.delayed(_loadingDelay, () {
+        if (mounted && !_isNavigating) {
+          _isNavigating = true;
+          Navigator.pushReplacementNamed(context, Routes.home);
+          Routes.pop(context);
+        }
+      });
+    } catch (e) {
+      // Handle error appropriately
+      debugPrint('Error loading assets: $e');
+    }
+  }
+
+  @override
+  void dispose() {
+    for (var ripple in _ripples) {
+      ripple.controller.dispose();
+    }
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color.fromARGB(255, 0, 0, 0),
-      body: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Center(
-            child: CustomPaint(
-              size: const Size(150, 150),
-              painter: RipplePainter(_ripples),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(100),
-                child: Image.asset(
-                  "assets/audio.jpeg",
-                  width: 150,
-                  height: 150,
-                ),
-              ),
-            ),
-          ),
-          SizedBox.square(
-            dimension: MediaQuery.of(context).size.width / 2,
-          ),
-          Text(
-            "Scanning",
-            style: Theme.of(context)
-                .textTheme
-                .titleLarge!
-                .apply(color: Colors.white),
-          ),
-          Text(
-            Provider.of<PlayerController>(context, listen: false).textHeader,
-            maxLines: 1,
-            style: Theme.of(context)
-                .textTheme
-                .titleMedium!
-                .copyWith(color: Colors.white, fontWeight: FontWeight.bold),
-          ),
-          Text(
-            Provider.of<PlayerController>(context, listen: false).text,
-            maxLines: 1,
-            style: Theme.of(context)
-                .textTheme
-                .titleMedium!
-                .copyWith(color: Colors.white, fontWeight: FontWeight.bold),
-          )
-        ],
+      backgroundColor: Colors.black,
+      body: Consumer<PlayerController>(
+        builder: (context, playerController, _) => Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            _buildRippleImage(),
+            SizedBox(height: MediaQuery.of(context).size.width / 2),
+            _buildTextSection(context, playerController),
+          ],
+        ),
       ),
+    );
+  }
+
+  Widget _buildRippleImage() {
+    return Center(
+      child: CustomPaint(
+        size: const Size(150, 150),
+        painter: RipplePainter(_ripples),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(100),
+          child: Image.asset(
+            "assets/audio.jpeg",
+            width: 150,
+            height: 150,
+            fit: BoxFit.cover,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTextSection(BuildContext context, PlayerController controller) {
+    final textTheme = Theme.of(context).textTheme;
+    const textStyle = TextStyle(
+      color: Colors.white,
+      fontWeight: FontWeight.bold,
+    );
+
+    return Column(
+      children: [
+        Text(
+          "Scanning",
+          style: textTheme.titleLarge?.apply(color: Colors.white),
+        ),
+        Text(
+          controller.textHeader,
+          maxLines: 1,
+          style: textTheme.titleMedium?.copyWith(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        Text(
+          controller.text,
+          maxLines: 1,
+          style: textTheme.titleMedium?.copyWith(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -139,5 +160,5 @@ class _AssetLoaderState extends State<AssetLoader>
 class Ripple {
   final AnimationController controller;
 
-  Ripple({required this.controller});
+  const Ripple({required this.controller});
 }

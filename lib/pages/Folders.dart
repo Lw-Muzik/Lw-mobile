@@ -1,12 +1,11 @@
-import 'package:eq_app/Helpers/index.dart';
-import 'package:eq_app/Routes/routes.dart';
+import '/Helpers/index.dart';
+import '/Routes/routes.dart';
 
-import 'package:eq_app/pages/FolderSongs.dart';
+import '/pages/FolderSongs.dart';
 import 'package:flutter/material.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 
 import '../Global/index.dart';
-import '../player/widgets/DeleteWindow.dart';
 
 class Folders extends StatefulWidget {
   const Folders({super.key});

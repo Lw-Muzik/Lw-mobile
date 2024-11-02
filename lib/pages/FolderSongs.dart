@@ -1,12 +1,12 @@
 import 'package:eq_app/Global/index.dart';
 import 'package:eq_app/Helpers/Files.dart';
-import 'package:eq_app/pages/ArtistSongs.dart';
 import 'package:flutter/material.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:provider/provider.dart';
 
 import '../controllers/AppController.dart';
 import '../widgets/BottomPlayer.dart';
+import 'ArtistSongs.dart';
 
 class FolderSongs extends StatefulWidget {
   final String path;
@@ -17,111 +17,138 @@ class FolderSongs extends StatefulWidget {
 }
 
 class _FolderSongsState extends State<FolderSongs> {
-  int songs = 0;
+  late Future<List<SongModel>> _songsFuture;
+  int _songCount = 0;
+
   @override
   void initState() {
     super.initState();
-    Files.queryFromFolder(widget.path).then((value) {
-      setState(() {
-        songs = value.length;
-      });
+    _initializeSongs();
+  }
+
+  void _initializeSongs() {
+    _songsFuture = Files.queryFromFolder(widget.path);
+    _songsFuture.then((songs) {
+      if (mounted) {
+        setState(() => _songCount = songs.length);
+      }
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    return NestedScrollView(
-      headerSliverBuilder: (context, h) {
-        return [
-          SliverAppBar(
-            forceMaterialTransparency: context.watch<AppController>().isFancy,
-            expandedHeight: 400,
-            shadowColor: Colors.transparent,
-            elevation: 0,
-            flexibleSpace: FlexibleSpaceBar(
-              centerTitle: true,
-              background: Stack(
-                children: [
-                  FutureBuilder<List<SongModel>>(
-                      future: Files.queryFromFolder(widget.path),
-                      builder: (context, snapshot) {
-                        return snapshot.hasData
-                            ? Consumer<AppController>(
-                                builder: (context, controller, child) {
-                                return headerWidget(controller, context,
-                                    data: snapshot.data!);
-                              })
-                            : Container();
-                      }),
-                  Positioned(
-                    bottom: 45,
-                    left: 10,
-                    child: RichText(
-                      text: TextSpan(
-                        children: [
-                          TextSpan(
-                            text: "${widget.path.split("/").last}\n",
-                            style: Theme.of(context).textTheme.displayMedium,
-                          ),
-                          TextSpan(
-                            text: "$songs",
-                            style: Theme.of(context)
-                                .textTheme
-                                .headlineLarge!
-                                .copyWith(fontWeight: FontWeight.w300),
-                          ),
-                          TextSpan(
-                            text: songs == 1
-                                ? " Available Track\n"
-                                : " Available Tracks\n",
-                            style: Theme.of(context)
-                                .textTheme
-                                .headlineSmall!
-                                .copyWith(fontWeight: FontWeight.w300),
-                          ),
-                          TextSpan(
-                            text: widget.path,
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleSmall!
-                                .copyWith(fontWeight: FontWeight.w600),
-                          ),
-                        ],
-                      ),
-                    ),
-                  )
-                ],
-              ),
-              // title: ,
+    return Consumer<AppController>(
+      builder: (context, appController, _) => NestedScrollView(
+        headerSliverBuilder: (context, _) => [
+          _buildSliverAppBar(context, appController),
+        ],
+        body: _buildBody(appController),
+      ),
+    );
+  }
+
+  SliverAppBar _buildSliverAppBar(
+      BuildContext context, AppController appController) {
+    return SliverAppBar(
+      forceMaterialTransparency: appController.isFancy,
+      expandedHeight: 400,
+      shadowColor: Colors.transparent,
+      elevation: 0,
+      flexibleSpace: FlexibleSpaceBar(
+        centerTitle: true,
+        background: _buildFlexibleSpaceBackground(context),
+      ),
+    );
+  }
+
+  Widget _buildFlexibleSpaceBackground(BuildContext context) {
+    return Stack(
+      children: [
+        FutureBuilder<List<SongModel>>(
+          future: _songsFuture,
+          builder: (context, snapshot) {
+            if (!snapshot.hasData) return const SizedBox.shrink();
+
+            return Consumer<AppController>(
+              builder: (context, controller, _) =>
+                  headerWidget(controller, context, data: snapshot.data!),
+            );
+          },
+        ),
+        Positioned(
+          bottom: 45,
+          left: 10,
+          child: _buildFolderInfo(context),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFolderInfo(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final folderName = widget.path.split("/").last;
+
+    return RichText(
+      text: TextSpan(
+        children: [
+          TextSpan(
+            text: "$folderName\n",
+            style: textTheme.displayMedium,
+          ),
+          TextSpan(
+            text: "$_songCount",
+            style: textTheme.headlineLarge?.copyWith(
+              fontWeight: FontWeight.w300,
             ),
-          )
-        ];
+          ),
+          TextSpan(
+            text:
+                _songCount == 1 ? " Available Track\n" : " Available Tracks\n",
+            style: textTheme.headlineSmall?.copyWith(
+              fontWeight: FontWeight.w300,
+            ),
+          ),
+          TextSpan(
+            text: widget.path,
+            style: textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBody(AppController controller) {
+    return StreamBuilder<bool>(
+      stream: controller.handler.player.playingStream,
+      builder: (context, snapshot) {
+        final isPlaying = snapshot.data ?? false;
+
+        return Scaffold(
+          backgroundColor: controller.isFancy
+              ? Colors.transparent
+              : Theme.of(context).scaffoldBackgroundColor,
+          body: _buildSongList(),
+          bottomNavigationBar:
+              isPlaying ? BottomPlayer(controller: controller) : null,
+        );
       },
-      body: Consumer<AppController>(builder: (context, controller, child) {
-        return StreamBuilder(
-            stream: controller.handler.player.playingStream,
-            builder: (context, service) {
-              return Scaffold(
-                backgroundColor: controller.isFancy
-                    ? Colors.transparent
-                    : Theme.of(context).scaffoldBackgroundColor,
-                body: FutureBuilder(
-                  future: Files.queryFromFolder(widget.path),
-                  builder: (context, snap) {
-                    return snap.hasData
-                        ? SongLists(songs: snap.data ?? [])
-                        : const Center(
-                            child: CircularProgressIndicator.adaptive());
-                  },
-                ),
-                bottomNavigationBar: service.data ?? false
-                    ? BottomPlayer(
-                        controller: controller,
-                      )
-                    : null,
-              );
-            });
-      }),
+    );
+  }
+
+  Widget _buildSongList() {
+    return FutureBuilder<List<SongModel>>(
+      future: _songsFuture,
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const Center(
+            child: CircularProgressIndicator.adaptive(),
+          );
+        }
+
+        return SongLists(songs: snapshot.data!);
+      },
     );
   }
 }

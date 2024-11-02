@@ -55,7 +55,7 @@ class Routes {
         closedColor: Colors.transparent,
         openColor: Colors.transparent,
         transitionDuration: duration,
-        transitionType: ContainerTransitionType.fade,
+        transitionType: ContainerTransitionType.fadeThrough,
         closedBuilder: (context, fn) => closedWidget,
         openBuilder: (context, fn) => openWidget);
   }

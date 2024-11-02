@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
-
-import '../../widgets/ArtworkWidget.dart';
 import '/controllers/AppController.dart';
 
 class MusicInfo extends StatefulWidget {
   final AppController controller;
-  const MusicInfo({super.key, required this.controller});
+
+  const MusicInfo({
+    super.key,
+    required this.controller,
+  });
 
   @override
   State<MusicInfo> createState() => _MusicInfoState();
@@ -13,13 +15,22 @@ class MusicInfo extends StatefulWidget {
 
 class _MusicInfoState extends State<MusicInfo>
     with SingleTickerProviderStateMixin {
-  AnimationController? _titleController;
-  Animation<double>? _titleAnimation;
+  static const double _longTextThreshold = 32;
+  static const double _maxScrollOffset = 400;
+  static const double _defaultScrollOffset = 220;
+
+  late final AnimationController _titleController;
+  late Animation<double> _titleAnimation;
   final ScrollController _titleScrollController = ScrollController();
   final ScrollController _artistScrollController = ScrollController();
+
   @override
   void initState() {
     super.initState();
+    _initializeAnimationController();
+  }
+
+  void _initializeAnimationController() {
     _titleController = AnimationController(
       vsync: this,
       value: 0,
@@ -28,110 +39,95 @@ class _MusicInfoState extends State<MusicInfo>
     )..repeat(reverse: true);
   }
 
-  @override
-  void dispose() {
-    _titleController?.dispose();
-    _titleScrollController.dispose();
-    _artistScrollController.dispose();
-    super.dispose();
+  void _updateAnimation() {
+    final currentSong = widget.controller.songs[widget.controller.songId];
+    final needsLongScroll =
+        currentSong.title.length > 70 || (currentSong.artist?.length ?? 0) > 70;
+
+    _titleAnimation = Tween<double>(
+      begin: -10,
+      end: needsLongScroll ? _maxScrollOffset : _defaultScrollOffset,
+    ).animate(_titleController);
+  }
+
+  void _handleScroll(ScrollController controller, String text) {
+    if (controller.hasClients) {
+      final offset =
+          text.length > _longTextThreshold ? _titleAnimation.value : 0.0;
+      controller.jumpTo(offset);
+    }
+  }
+
+  Widget _buildScrollingText({
+    required String text,
+    required ScrollController controller,
+    required TextStyle style,
+    String? fallbackText,
+  }) {
+    return AnimatedBuilder(
+      animation: _titleAnimation,
+      builder: (context, child) {
+        _handleScroll(controller, text);
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          controller: controller,
+          child: Text(
+            text.isNotEmpty ? text : fallbackText ?? '',
+            maxLines: 1,
+            overflow: TextOverflow.visible,
+            style: style,
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildMusicDetails() {
+    final currentSong = widget.controller.songs[widget.controller.songId];
+    final textTheme = Theme.of(context).textTheme;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisAlignment: MainAxisAlignment.end,
+      children: [
+        _buildScrollingText(
+          text: currentSong.title,
+          controller: _titleScrollController,
+          style: textTheme.headlineSmall!.apply(color: Colors.white),
+        ),
+        const SizedBox(height: 5),
+        _buildScrollingText(
+          text: currentSong.artist ?? '',
+          controller: _artistScrollController,
+          style: textTheme.titleMedium!.apply(
+            color: Colors.white.withOpacity(0.5),
+          ),
+          fallbackText: 'Unknown artist',
+        ),
+      ],
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    _titleAnimation = Tween<double>(
-      begin: -10,
-      end: widget.controller.songs[widget.controller.songId].title.length >
-                  70 ||
-              widget.controller.songs[widget.controller.songId].artist!.length >
-                  70
-          ? 400
-          : 220,
-    ).animate(_titleController!);
-    // if (widget.controller.songs[widget.controller.songId].title.length < 32 ||
-    //     widget.controller.songs[widget.controller.songId].artist!.length < 32) {
-    //   _titleController?.stop();
-    // } else {
-    //   _titleController?.repeat(reverse: true);
-    // }
-    return // Music info
-        Padding(
+    _updateAnimation();
+
+    return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 30.0, vertical: 30),
       child: Row(
-        children: <Widget>[
-          // ArtworkWidget(
-          //   width: 100,
-          //   height: 150,
-          //   songId: widget.controller.songId,
-          //   path: widget.controller.songs[widget.controller.songId].data,
-          // ),
+        children: [
           const SizedBox(width: 20),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: <Widget>[
-              // widget.controller.artWorkId
-              //-_titleAnimation!.value
-              AnimatedBuilder(
-                builder: (context, child) {
-                  if (_titleScrollController.hasClients) {
-                    _titleScrollController.jumpTo(widget.controller
-                                .songs[widget.controller.songId].title.length >
-                            32
-                        ? _titleAnimation!.value
-                        : 0);
-                    (widget.controller.songs[widget.controller.songId].title
-                        .length);
-                    _artistScrollController.jumpTo(widget
-                                .controller
-                                .songs[widget.controller.songId]
-                                .artist!
-                                .length >
-                            32
-                        ? _titleAnimation!.value
-                        : 0);
-                  }
-
-                  return SingleChildScrollView(
-                    controller: _titleScrollController,
-                    scrollDirection: Axis.horizontal,
-                    child: Text(
-                      widget.controller.songs[widget.controller.songId].title
-                          .toString(),
-                      maxLines: 1,
-                      overflow: TextOverflow.visible,
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.headlineSmall!.apply(
-                            color: Colors.white,
-                          ),
-                    ),
-                  );
-                },
-                animation: _titleAnimation!,
-              ),
-              const SizedBox(height: 5),
-              AnimatedBuilder(
-                  animation: _titleAnimation!,
-                  builder: (context, child) {
-                    return SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      controller: _artistScrollController,
-                      child: Text(
-                        widget.controller.songs[widget.controller.songId]
-                                .artist ??
-                            "Unknown artist",
-                        maxLines: 1,
-                        overflow: TextOverflow.visible,
-                        style: Theme.of(context)
-                            .textTheme
-                            .titleMedium!
-                            .apply(color: Colors.white.withOpacity(0.5)),
-                      ),
-                    );
-                  }),
-            ],
-          ),
+          _buildMusicDetails(),
         ],
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _titleScrollController.dispose();
+    _artistScrollController.dispose();
+    super.dispose();
   }
 }

@@ -51,7 +51,6 @@ public class MainActivity extends AudioServiceActivity {
                 if (visualizer.isActive()) {
                     return;
                 }
-
                     visualizer.activate(new Visualizer.OnDataCaptureListener() {
                         @SuppressLint("NewApi")
                         @Override
