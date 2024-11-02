@@ -19,7 +19,7 @@ class WaveVisualizer extends StatefulWidget {
     required this.audioData,
     required this.width,
     required this.height,
-    this.selector = "sphere",
+    this.selector = "circular",
   });
 
   @override

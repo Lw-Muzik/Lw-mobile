@@ -1,12 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-
-import '../Visualizers/fabric_visualizer.dart';
-import '../Visualizers/plasma_visualiser.dart';
-import '../Visualizers/ripple_visualizer.dart';
-import '../Visualizers/sea-visualizer.dart';
-import '../Visualizers/spectrum-visualiser.dart';
-import '../Visualizers/sphere_visualizer.dart';
 import '../Visualizers/wave-visualizer.dart';
 import '/controllers/AppController.dart';
 import '/Helpers/AudioVisualizer.dart';
@@ -26,7 +19,7 @@ class _VisualUIState extends State<VisualUI>
     with SingleTickerProviderStateMixin {
   static const double musicInfoHeight = 150.0;
   late AnimationController _controller;
-  String _selectedVisual = 'sphere';
+  String _selectedVisual = 'circular';
   bool _isSelectorVisible = false;
   bool _isControlsVisible = false;
   double _sensitivity = 1.0;
@@ -34,29 +27,13 @@ class _VisualUIState extends State<VisualUI>
   Color _visualColor = Colors.white;
 
   final Map<String, Map<String, dynamic>> _visualizers = {
-    'sphere': {
-      'name': 'Sphere',
-      'icon': Icons.radio_button_unchecked,
-      'description': 'Reactive 3D sphere visualization',
+    'circular': {
+      'name': 'Circular Bars',
+      'icon': Icons.circle_outlined,
+      'description': 'Circular bars effect',
       'hasSpeed': true,
       'hasSensitivity': true,
       'hasColor': true,
-    },
-    'flower': {
-      'name': 'Plasma',
-      'icon': Icons.blur_circular,
-      'description': 'Flowing plasma effect',
-      'hasSpeed': true,
-      'hasSensitivity': false,
-      'hasColor': true,
-    },
-    'fabric': {
-      'name': 'Fabric',
-      'icon': Icons.waves,
-      'description': 'Flowing fabric simulation',
-      'hasSpeed': true,
-      'hasSensitivity': true,
-      'hasColor': false,
     },
     'bars': {
       'name': 'Spectrum',
@@ -82,13 +59,29 @@ class _VisualUIState extends State<VisualUI>
       'hasSensitivity': true,
       'hasColor': true,
     },
-    'circular': {
-      'name': 'Circular Bars',
-      'icon': Icons.circle_outlined,
-      'description': 'Circular bars effect',
+    'sphere': {
+      'name': 'Sphere',
+      'icon': Icons.radio_button_unchecked,
+      'description': 'Reactive 3D sphere visualization',
       'hasSpeed': true,
       'hasSensitivity': true,
       'hasColor': true,
+    },
+    'flower': {
+      'name': 'Plasma',
+      'icon': Icons.blur_circular,
+      'description': 'Flowing plasma effect',
+      'hasSpeed': true,
+      'hasSensitivity': false,
+      'hasColor': true,
+    },
+    'fabric': {
+      'name': 'Fabric',
+      'icon': Icons.waves,
+      'description': 'Flowing fabric simulation',
+      'hasSpeed': true,
+      'hasSensitivity': true,
+      'hasColor': false,
     },
   };
 
