@@ -31,7 +31,7 @@ public class MainActivity extends AudioServiceActivity {
 
   private static final String CHANNEL = "eq_app";
 
-  private final AudioVisualizer visualizer =  AudioVisualizer.instance;
+  private final AudioVisualizer visualizer =  AudioVisualizer.getInstance();
   private MethodChannel visualizerChannel; // Define the MethodChannel here
     @Override
     protected void onCreate(Bundle savedInstance) {
@@ -91,7 +91,7 @@ public class MainActivity extends AudioServiceActivity {
 
                 case "setFrameRate":
                 int frameRate = call.argument("frameRate");
-                visualizer.setFrameRate(frameRate);
+//                visualizer.(frameRate);
                 break;
 
                 case "init":

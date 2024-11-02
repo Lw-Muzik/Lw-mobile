@@ -20,7 +20,7 @@ public class EngineService extends Service {
     private static final String CHANNEL_ID = "MusicPlayerChannel";
     private void a() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            DSPEngine.initDSPEngine();
+            // DSPEngine.initDSPEngine();
         }
 //        if (Build.VERSION.SDK_INT >= 26) {
 //            String string = "HYPE MIZUKI";
@@ -67,7 +67,7 @@ public class EngineService extends Service {
     @Override
     public IBinder onBind(Intent intent) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            DSPEngine.initDSPEngine();
+            // DSPEngine.initDSPEngine();
         }
         return null;
     }
@@ -86,7 +86,7 @@ public class EngineService extends Service {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             Log.e("ESERVICE","Created and running");
 
-            DSPEngine.initDSPEngine();
+            // DSPEngine.initDSPEngine();
         }
 //            DSPEngine.assignBandGains();
     }

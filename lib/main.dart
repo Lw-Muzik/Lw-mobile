@@ -48,8 +48,8 @@ Future<void> main() async {
     androidNotificationOngoing: true,
     preloadArtwork: true,
     androidStopForegroundOnPause: true,
-    artDownscaleHeight: 200,
-    artDownscaleWidth: 200,
+    // artDownscaleHeight: 200,
+    // artDownscaleWidth: 200,
   );
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge, overlays: []);
   SystemChrome.setSystemUIOverlayStyle(overlay);
