@@ -62,7 +62,8 @@ class _ControlsState extends State<Controls> {
                     IconButton(
                       iconSize: 32,
                       onPressed: () => controller.prev(),
-                      icon: const Icon(Icons.skip_previous, color: Colors.white),
+                      icon:
+                          const Icon(Icons.skip_previous, color: Colors.white),
                     ),
                     const ControlButtons(),
                     IconButton(

@@ -1,10 +1,13 @@
+import 'package:eq_app/Visualizers/cube_visualizer.dart';
 import 'package:flutter/material.dart';
 
 import 'CircularBarVisualizer.dart';
+import 'PhaseVisualizer.dart';
 import 'fabric_visualizer.dart';
 import 'plasma_visualiser.dart';
 import 'ripple_visualizer.dart';
 import 'sea-visualizer.dart';
+import 'sine_wave_visualizer.dart';
 import 'spectrum-visualiser.dart';
 import 'sphere_visualizer.dart';
 
@@ -13,12 +16,14 @@ class WaveVisualizer extends StatefulWidget {
   final double width;
   final String selector;
   final double height;
+  final Color color;
 
   const WaveVisualizer({
     super.key,
     required this.audioData,
     required this.width,
     required this.height,
+    this.color = Colors.white,
     this.selector = "circular",
   });
 
@@ -98,22 +103,32 @@ class _WaveVisualizerState extends State<WaveVisualizer>
                   : selector == 'bars'
                       ? SpectrumVisualizer(
                           audioData: _normalizedAudioData,
+                          color: widget.color,
                           time: _controller.value)
                       : selector == 'sea'
                           ? OceanVisualizer(
                               audioData: _normalizedAudioData,
                               time: _controller.value,
+                              color: widget.color,
                             )
                           : selector == 'circular'
                               ? CircularBarVisualizer(
                                   waveData: widget.audioData,
                                   height: widget.height,
                                   width: widget.width,
-                                  color: Colors.white,
+                                  color: widget.color,
                                 )
-                              : RippleVisualizer(
-                                  audioData: _normalizedAudioData,
-                                  time: _controller.value),
+                              : selector == 'cube'
+                                  ? CubeVisualizer(
+                                      audioData: _normalizedAudioData,
+                                      time: _controller.value,
+                                      color: widget.color,
+                                    )
+                                  : RippleVisualizer(
+                                      audioData: _normalizedAudioData,
+                                      time: _controller.value,
+                                      color: widget.color,
+                                    ),
     );
   }
 }

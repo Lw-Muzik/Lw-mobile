@@ -21,17 +21,16 @@ class PlasmaVisualizer extends CustomPainter {
 
     if (audioData.isEmpty) return;
 
-    // Enhanced audio analysis
+    // Enhanced audio analysis with more dynamic response
     final frequencies = List.generate(6, (i) {
       final start = (audioData.length ~/ 6) * i;
       final end = (audioData.length ~/ 6) * (i + 1);
       return clamp01(audioData.sublist(start, end).reduce((a, b) => a + b) /
           (audioData.length / 6));
     });
-
     final avgAmplitude = clamp01(frequencies.reduce((a, b) => a + b) / 6);
 
-    // Color palette for neon effects
+    // Neon color palette
     final colors = [
       Colors.blue,
       Colors.purple,
@@ -41,9 +40,9 @@ class PlasmaVisualizer extends CustomPainter {
       Colors.white,
     ];
 
-    // Draw multiple layers of patterns
+    // Draw multiple kaleidoscope layers
     for (int layer = 0; layer < 3; layer++) {
-      final scale = 1.0 - (layer * 0.2);
+      final scale = 1.0 - (layer * 0.2) * (1 + avgAmplitude);
       drawKaleidoscopeLayer(
         canvas,
         center,
@@ -56,10 +55,10 @@ class PlasmaVisualizer extends CustomPainter {
       );
     }
 
-    // Add central pattern
+    // Central pattern for dynamic effects
     drawCenterPattern(canvas, center, frequencies, colors, avgAmplitude);
 
-    // Add floating particles
+    // Floating particles responsive to audio
     drawParticles(canvas, size, frequencies, avgAmplitude);
   }
 
@@ -78,13 +77,12 @@ class PlasmaVisualizer extends CustomPainter {
 
     for (int i = 0; i < numSegments; i++) {
       final angle = (2 * pi * i) / numSegments;
-      final rotationOffset = time * (1 + layer) * 0.2;
+      final rotationOffset = time * (1 + layer) * 0.3 * avgAmplitude;
 
       canvas.save();
       canvas.translate(center.dx, center.dy);
       canvas.rotate(angle + rotationOffset);
 
-      // Draw geometric patterns
       drawGeometricPattern(
         canvas,
         radius,
@@ -106,7 +104,7 @@ class PlasmaVisualizer extends CustomPainter {
     double avgAmplitude,
     int layer,
   ) {
-    final baseSize = radius * 0.2;
+    final baseSize = radius * 0.2 * (1 + avgAmplitude);
     final patterns = [
       drawCirclePattern,
       drawDiamondPattern,
@@ -136,7 +134,7 @@ class PlasmaVisualizer extends CustomPainter {
       final color = colors[i % colors.length];
 
       final paint = Paint()
-        ..color = color.withOpacity(0.6)
+        ..color = color.withOpacity(0.6 + avgAmplitude * 0.3)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2 + (frequency * 3)
         ..maskFilter = MaskFilter.blur(
@@ -144,20 +142,8 @@ class PlasmaVisualizer extends CustomPainter {
           2 + (frequency * 4),
         );
 
-      final radius = size * (0.5 + progress) * (1 + frequency * 0.3);
+      final radius = size * (0.5 + progress) * (1 + frequency * 0.4);
       canvas.drawCircle(Offset.zero, radius, paint);
-
-      // Add inner glow
-      final glowPaint = Paint()
-        ..color = color.withOpacity(0.3)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1
-        ..maskFilter = MaskFilter.blur(
-          BlurStyle.normal,
-          3 + (frequency * 2),
-        );
-
-      canvas.drawCircle(Offset.zero, radius * 0.9, glowPaint);
     }
   }
 
@@ -175,7 +161,7 @@ class PlasmaVisualizer extends CustomPainter {
       final color = colors[(i + 1) % colors.length];
 
       final paint = Paint()
-        ..color = color.withOpacity(0.6)
+        ..color = color.withOpacity(0.6 + avgAmplitude * 0.2)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2 + (frequency * 3)
         ..maskFilter = MaskFilter.blur(
@@ -193,18 +179,6 @@ class PlasmaVisualizer extends CustomPainter {
       path.close();
 
       canvas.drawPath(path, paint);
-
-      // Add inner glow
-      final glowPaint = Paint()
-        ..color = color.withOpacity(0.3)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1
-        ..maskFilter = MaskFilter.blur(
-          BlurStyle.normal,
-          3 + (frequency * 2),
-        );
-
-      canvas.drawPath(path, glowPaint);
     }
   }
 
@@ -220,7 +194,7 @@ class PlasmaVisualizer extends CustomPainter {
     final color = colors[2];
 
     final paint = Paint()
-      ..color = color.withOpacity(0.6)
+      ..color = color.withOpacity(0.7 + avgAmplitude * 0.2)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2 + (frequency * 3)
       ..maskFilter = MaskFilter.blur(
@@ -257,7 +231,7 @@ class PlasmaVisualizer extends CustomPainter {
     List<Color> colors,
     double avgAmplitude,
   ) {
-    final size = min(center.dx, center.dy) * 0.15;
+    final size = min(center.dx, center.dy) * 0.2 * (1 + avgAmplitude);
     final pattern = Path();
     final segments = 4;
 
@@ -267,7 +241,7 @@ class PlasmaVisualizer extends CustomPainter {
       final color = colors[i % colors.length];
 
       final paint = Paint()
-        ..color = color.withOpacity(0.7)
+        ..color = color.withOpacity(0.7 + avgAmplitude * 0.3)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 3 + (frequency * 4)
         ..maskFilter = MaskFilter.blur(
@@ -281,8 +255,8 @@ class PlasmaVisualizer extends CustomPainter {
 
       final rect = Rect.fromCenter(
         center: Offset.zero,
-        width: size * (1 + frequency * 0.4),
-        height: size * (1 + frequency * 0.4),
+        width: size * (1 + frequency * 0.5),
+        height: size * (1 + frequency * 0.5),
       );
 
       pattern.addRect(rect);
@@ -297,7 +271,7 @@ class PlasmaVisualizer extends CustomPainter {
     List<double> frequencies,
     double avgAmplitude,
   ) {
-    final numParticles = (50 * avgAmplitude).toInt();
+    final numParticles = (30 * avgAmplitude).toInt();
 
     for (int i = 0; i < numParticles; i++) {
       final progress = (time * 0.5 + i * 0.1) % 1.0;
@@ -309,7 +283,7 @@ class PlasmaVisualizer extends CustomPainter {
       final y = size.height / 2 + sin(angle) * radius;
 
       final paint = Paint()
-        ..color = color.withOpacity((1 - progress) * 0.5)
+        ..color = color.withOpacity((1 - progress) * 0.6)
         ..maskFilter = MaskFilter.blur(
           BlurStyle.normal,
           2 + (avgAmplitude * 3),

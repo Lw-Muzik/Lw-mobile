@@ -24,7 +24,7 @@ class SphereVisualizer extends CustomPainter {
 
     if (audioData.isEmpty) return;
 
-    // Safe audio analysis with clamped values
+    // Frequency amplitude breakdowns
     final lowFreqAmplitude = clamp01(
         audioData.sublist(0, audioData.length ~/ 3).reduce((a, b) => a + b) /
             (audioData.length / 3));
@@ -40,28 +40,26 @@ class SphereVisualizer extends CustomPainter {
         clamp01(audioData.reduce((a, b) => a + b) / audioData.length);
     final maxAmplitude = clamp01(audioData.reduce(max));
 
-    // Clamped responses
-    final sizeResponse = clamp01(avgAmplitude * 0.6 + maxAmplitude * 0.4);
+    // Adjusted responses for smoother animation
+    final sizeResponse = clamp01(avgAmplitude * 0.5 + maxAmplitude * 0.5);
     final colorResponse = clamp01(lowFreqAmplitude * 0.5 +
         midFreqAmplitude * 0.3 +
         highFreqAmplitude * 0.2);
     final distortionResponse =
-        clamp01(midFreqAmplitude * 0.4 + highFreqAmplitude * 0.6);
+        clamp01(midFreqAmplitude * 0.3 + highFreqAmplitude * 0.5);
 
     final baseRadius = min(width, height) * 0.35;
-    final minScale = 0.7;
-    final maxScale = 1.6;
+    final minScale = 0.8;
+    final maxScale = 1.3;
     final scale = minScale + (maxScale - minScale) * sizeResponse;
 
-    final numLayers = 25;
-    final numPoints = 240;
+    final numLayers = 20;
+    final numPoints = 200;
 
-    // Safe color calculations
-    final baseHue = (360 * (time * 0.2 + colorResponse * 0.5)) % 360;
-    final baseSaturation =
-        clamp01(0.7 + (colorResponse * 0.2)); // Reduced multiplier
-    final baseValue =
-        clamp01(0.7 + (colorResponse * 0.2)); // Reduced multiplier
+    // Controlled base hue rotation
+    final baseHue = (360 * (time * 0.05 + colorResponse * 0.4)) % 360;
+    final baseSaturation = 0.7 + (colorResponse * 0.15);
+    final baseValue = 0.8;
 
     final baseColor = HSVColor.fromAHSV(
       1.0,
@@ -73,18 +71,18 @@ class SphereVisualizer extends CustomPainter {
     final accentColor = HSVColor.fromAHSV(
       1.0,
       (baseHue + 180) % 360,
-      clamp01(baseSaturation * 0.9),
-      clamp01(baseValue * 1.1),
+      baseSaturation * 0.9,
+      baseValue * 1.05,
     ).toColor();
 
-    // Shadow effect
+    // Subtle shadow effect for depth
     final shadowPaint = Paint()
-      ..color = baseColor.withOpacity(clamp01(0.2))
-      ..maskFilter = MaskFilter.blur(BlurStyle.normal, 20 * sizeResponse);
+      ..color = baseColor.withOpacity(0.15)
+      ..maskFilter = MaskFilter.blur(BlurStyle.normal, 15 * sizeResponse);
 
     canvas.drawCircle(
-      Offset(centerX, centerY + baseRadius * 0.8),
-      baseRadius * scale * 0.8,
+      Offset(centerX, centerY + baseRadius * 0.5),
+      baseRadius * scale * 0.7,
       shadowPaint,
     );
 
@@ -92,55 +90,38 @@ class SphereVisualizer extends CustomPainter {
       final layerProgress = layer / numLayers;
       final path = Path();
 
-      final layerOpacity = clamp01(0.9 - (layerProgress * 0.6));
+      final layerOpacity = clamp01(0.8 - (layerProgress * 0.6));
       final layerDistortionFactor =
           clamp01(pow(1.0 - layerProgress, 1.5).toDouble());
 
       for (int i = 0; i <= numPoints; i++) {
         final angle = (i / numPoints) * 2 * pi;
 
-        final baseDistortion = 120.0 * distortionResponse;
+        // Adjusted distortion with reduced frequency influence
+        final baseDistortion = 80.0 * distortionResponse;
         final distortionAmount = baseDistortion * layerDistortionFactor;
-
-        final distortion = distortionAmount *
-            (sin(10 * angle + time * 3.0) * 0.3 +
-                cos(8 * angle - time * 4.0) * 0.25 +
-                sin(15 * angle + time * 5.0) * 0.2 +
-                cos(20 * angle - time * 6.0) * 0.15 +
-                sin(25 * angle + time * 7.0) * 0.1);
+        final distortion =
+            distortionAmount * (sin(8 * angle + time * 2.0) * 0.25);
 
         final dynamicRadius = baseRadius * scale;
         final radius = dynamicRadius + distortion;
-        final depthEffect = 0.7 + (sizeResponse * 0.3);
-        final sphereEffect =
-            clamp01(pow(cos(layerProgress * pi), depthEffect).toDouble());
+        final sphereEffect = clamp01(
+            pow(cos(layerProgress * pi), 0.8 + (sizeResponse * 0.2))
+                .toDouble());
         final adjustedRadius = radius * sphereEffect;
 
-        final rotationSpeed = 0.8 + (distortionResponse * 1.2);
-        final rotationOffset = time * rotationSpeed;
-        final rotatedAngle = angle + rotationOffset;
-
-        final x = centerX + adjustedRadius * cos(rotatedAngle);
-        final y = centerY + adjustedRadius * sin(rotatedAngle);
+        final x = centerX + adjustedRadius * cos(angle);
+        final y = centerY + adjustedRadius * sin(angle);
 
         if (i == 0) {
           path.moveTo(x, y);
         } else {
-          final prevAngle = ((i - 1) / numPoints) * 2 * pi + rotationOffset;
-          final prevRadius = dynamicRadius + distortion;
-          final prevSphericalRadius = prevRadius * sphereEffect;
-          final prevX = centerX + prevSphericalRadius * cos(prevAngle);
-          final prevY = centerY + prevSphericalRadius * sin(prevAngle);
-
-          final tension = clamp01(0.3 + (distortionResponse * 0.2));
-          final controlX = (x + prevX) / 2 - (y - prevY) * tension;
-          final controlY = (y + prevY) / 2 + (x - prevX) * tension;
-
-          path.quadraticBezierTo(controlX, controlY, x, y);
+          path.lineTo(x, y);
         }
       }
       path.close();
 
+      // Smooth color transition per layer
       final layerColor = Color.lerp(
         baseColor,
         accentColor,
@@ -150,70 +131,45 @@ class SphereVisualizer extends CustomPainter {
       final paint = Paint()
         ..color = layerColor.withOpacity(layerOpacity)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.5 + (sizeResponse * 3.0)
+        ..strokeWidth = 2.0 + (sizeResponse * 1.5)
         ..strokeCap = StrokeCap.round
         ..strokeJoin = StrokeJoin.round;
 
       if (distortionResponse > 0.2) {
         paint.maskFilter = MaskFilter.blur(
           BlurStyle.outer,
-          3.0 + (distortionResponse * 4.0),
-        );
-      }
-
-      // Highlights
-      if (layer == numLayers - 1) {
-        // Primary highlight
-        final highlightPaint = Paint()
-          ..shader = RadialGradient(
-            colors: [
-              Colors.white.withOpacity(clamp01(0.6 + (colorResponse * 0.3))),
-              Colors.white.withOpacity(0),
-            ],
-          ).createShader(Rect.fromCircle(
-            center: Offset(
-              centerX - baseRadius * 0.3,
-              centerY - baseRadius * 0.3,
-            ),
-            radius: baseRadius * 0.6 * scale,
-          ))
-          ..maskFilter = MaskFilter.blur(BlurStyle.normal, 8);
-
-        canvas.drawCircle(
-          Offset(
-            centerX - baseRadius * 0.3,
-            centerY - baseRadius * 0.3,
-          ),
-          baseRadius * 0.4 * scale,
-          highlightPaint,
-        );
-
-        // Secondary highlight
-        final smallHighlightPaint = Paint()
-          ..shader = RadialGradient(
-            colors: [
-              Colors.white.withOpacity(clamp01(0.8 + (colorResponse * 0.15))),
-              Colors.white.withOpacity(0),
-            ],
-          ).createShader(Rect.fromCircle(
-            center: Offset(
-              centerX - baseRadius * 0.4,
-              centerY - baseRadius * 0.4,
-            ),
-            radius: baseRadius * 0.2 * scale,
-          ));
-
-        canvas.drawCircle(
-          Offset(
-            centerX - baseRadius * 0.4,
-            centerY - baseRadius * 0.4,
-          ),
-          baseRadius * 0.15 * scale,
-          smallHighlightPaint,
+          2.0 + (distortionResponse * 3.0),
         );
       }
 
       canvas.drawPath(path, paint);
+    }
+
+    // Controlled highlight
+    if (numLayers > 1) {
+      final highlightPaint = Paint()
+        ..shader = RadialGradient(
+          colors: [
+            Colors.white.withOpacity(0.4 + colorResponse * 0.2),
+            Colors.white.withOpacity(0),
+          ],
+        ).createShader(Rect.fromCircle(
+          center: Offset(
+            centerX - baseRadius * 0.25,
+            centerY - baseRadius * 0.25,
+          ),
+          radius: baseRadius * 0.5 * scale,
+        ))
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, 6);
+
+      canvas.drawCircle(
+        Offset(
+          centerX - baseRadius * 0.25,
+          centerY - baseRadius * 0.25,
+        ),
+        baseRadius * 0.35 * scale,
+        highlightPaint,
+      );
     }
   }
 

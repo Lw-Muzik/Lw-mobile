@@ -4,10 +4,12 @@ import 'package:flutter/material.dart';
 class SpectrumVisualizer extends CustomPainter {
   final List<double> audioData;
   final double time;
+  final Color color;
 
   SpectrumVisualizer({
     required this.audioData,
     required this.time,
+    this.color = Colors.blue,
   });
 
   @override
@@ -23,7 +25,7 @@ class SpectrumVisualizer extends CustomPainter {
 
     // Single color paint
     final paint = Paint()
-      ..color = Colors.blue
+      ..color = color
       ..style = PaintingStyle.fill;
 
     for (int i = 0; i < audioData.length / 8; i++) {

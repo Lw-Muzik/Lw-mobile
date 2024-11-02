@@ -43,6 +43,14 @@ class _VisualUIState extends State<VisualUI>
       'hasSensitivity': true,
       'hasColor': true,
     },
+    'cube': {
+      'name': 'Cube',
+      'icon': Icons.square,
+      'description': 'Cube analyzer',
+      'hasSpeed': false,
+      'hasSensitivity': true,
+      'hasColor': true,
+    },
     'sea': {
       'name': 'Ocean',
       'icon': Icons.water,
@@ -122,6 +130,7 @@ class _VisualUIState extends State<VisualUI>
             );
           },
           child: WaveVisualizer(
+            color: _visualColor,
             key: ValueKey(_selectedVisual),
             width: width,
             height: height,
@@ -186,7 +195,7 @@ class _VisualUIState extends State<VisualUI>
                     onChanged: (value) => setState(() => _sensitivity = value),
                     min: 0.1,
                     max: 2.0,
-                    activeColor: Theme.of(context).primaryColor,
+                    activeColor: Colors.red,
                   ),
                 ],
               ),
@@ -206,7 +215,7 @@ class _VisualUIState extends State<VisualUI>
                     onChanged: (value) => setState(() => _speed = value),
                     min: 0.1,
                     max: 2.0,
-                    activeColor: Theme.of(context).primaryColor,
+                    activeColor: Colors.red,
                   ),
                 ],
               ),
