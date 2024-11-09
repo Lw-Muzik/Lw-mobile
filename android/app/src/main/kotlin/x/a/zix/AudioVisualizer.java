@@ -48,7 +48,7 @@ public class AudioVisualizer {
                 Log.e(TAG, "Failed to get capture size range");
                 return;
             }
-
+            visualizer.setScalingMode(Visualizer.SCALING_MODE_NORMALIZED);
             // Set the data capture listener
             visualizer.setDataCaptureListener(
                 listener,

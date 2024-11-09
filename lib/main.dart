@@ -47,9 +47,6 @@ Future<void> main() async {
     androidNotificationChannelName: 'Audio playback',
     androidNotificationOngoing: true,
     preloadArtwork: true,
-    androidStopForegroundOnPause: true,
-    // artDownscaleHeight: 200,
-    // artDownscaleWidth: 200,
   );
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge, overlays: []);
   SystemChrome.setSystemUIOverlayStyle(overlay);

@@ -14,8 +14,8 @@ public class DSPEngine {
     private static DynamicsProcessing.Eq tuner;
     private static final int bandCount = 10;
     private static DynamicsProcessing.Mbc dspMbc;
-   static int[] dsp_speakers = {32, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 16000};
-    static float[] dsp_gains = {4.8f,3.6f,3.0f,5.0f,5,3,5,8,4,7};
+   static int[] dsp_speakers = {31, 62, 85, 250, 500, 1000, 2000, 4000, 8000, 16000};
+    static float[] dsp_gains = {4.8f,3.6f,3.0f,5.0f,5,3,5,6,4,7};
     private static DynamicsProcessing.Limiter dspLimiter;
 
     private static DynamicsProcessing.MbcBand dspBand;
@@ -30,8 +30,19 @@ public class DSPEngine {
     static int audioSessionId = 0;
     static int tunerBassFreq = 916;
 
-  private static final DynamicsProcessing.Config.Builder builder =  new DynamicsProcessing.Config.Builder(0, 4, true, bandCount, true, bandCount, true, bandCount, true);
-
+ // Standard 10-band multiband dynamics processing configuration
+private static final DynamicsProcessing.Config.Builder builder = 
+    new DynamicsProcessing.Config.Builder(
+        0,              // variant - use 0 for standard processing
+        2,              // channel count (stereo)
+        true,           // pre-EQ enabled
+        bandCount,      // pre-EQ band count
+        true,           // mbc enabled (multiband compression)
+        bandCount,      // mbc band count
+        true,           // post-EQ enabled
+        bandCount,      // post-EQ band count
+        true            // limiter enabled
+    );
    private static final DynamicsProcessing.Config engineConfig  = builder.build();
     
     // utility functions
@@ -95,39 +106,57 @@ public class DSPEngine {
 
     }
     private static void c() {
-        if (Build.VERSION.SDK_INT < 28 || dspEngine == null) {
-            return;
-        }
-        for (int i = 0; i < 1; i++) {
-            DynamicsProcessing.MbcBand band = dspMbc.getBand(i);
-            dspBand = band;
-            band.setAttackTime(5.0f);
-            dspBand.setReleaseTime(10.0f);
-            dspBand.setRatio(4.0f);
-            dspBand.setKneeWidth(1.0f);
-            dspBand.setThreshold(-10.0f);
-            dspBand.setNoiseGateThreshold(-90.0f);
-            dspBand.setExpanderRatio(10.0f);
-            dspBand.setPreGain(10.0f);
-            dspBand.setPostGain(10.0f);
-        }
-        dspBand.setEnabled(true);
+    if (Build.VERSION.SDK_INT < 28 || dspEngine == null) {
+        return;
     }
+    for (int i = 0; i < 1; i++) {
+        DynamicsProcessing.MbcBand band = dspMbc.getBand(i);
+        dspBand = band;
+        // Attack time: 10-20ms is standard for most applications
+        band.setAttackTime(15.0f);
+        // Release time: Usually 2-4x attack time
+        dspBand.setReleaseTime(45.0f);
+        // Ratio: 2:1 to 4:1 is typical for compression
+        dspBand.setRatio(2.5f);
+        // Knee width: 6-12dB is common for smooth transition
+        dspBand.setKneeWidth(8.0f);
+        // Threshold: -24 to -12dB is typical
+        dspBand.setThreshold(-18.0f);
+        // Noise gate: -60 to -80dB is standard
+        dspBand.setNoiseGateThreshold(-70.0f);
+        // Expander ratio: 1:2 to 1:4 is common
+        dspBand.setExpanderRatio(2.0f);
+        // Pre/Post gain: Adjust based on input/output levels
+        dspBand.setPreGain(3.0f);
+        dspBand.setPostGain(2.0f);
+    }
+    dspBand.setEnabled(true);
+}
 
     public static void initDSPEngine() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             if(dspEngine == null){
                 dspEngine = new DynamicsProcessing(priority, AudioManager.AUDIO_SESSION_ID_GENERATE, engineConfig);
-                builder.setPreferredFrameDuration(10.0f);
+                builder.setPreferredFrameDuration(20.0f);
 
                 dspEq = new DynamicsProcessing.Eq(true, true, bandCount);
 //                tuner = new DynamicsProcessing.Eq(true, true, 2);
 
                 dspMbc = new DynamicsProcessing.Mbc(true, true, bandCount);
                 //   Engine configuration
-               dspLimiter = new DynamicsProcessing.Limiter(true, true, 5, 0.5f, 4.0f, 5.0f, -3.0f, out_gain);// new DynamicsProcessing.Limiter(true, true, 7, 1.0f, 60.0f, 10.0f, -2.0f, out_gain);
-                //  default chanel gain
-                presetOne();
+              // Standard limiter settings for transparent limiting with protection
+                    dspLimiter = new DynamicsProcessing.Limiter(
+                        true,                    // enabled
+                        true,                    // in linear domain
+                        10,                      // link channels
+                        1.0f,                    // attack time (ms) - fast enough to catch peaks
+                        30.0f,                   // release time (ms) - natural release
+                        6.0f,                    // ratio - high for true limiting
+                        -1.0f,                   // threshold (dB) - prevent digital clipping
+                        out_gain                 // output gain
+                    );
+               //  default chanel gain
+                // presetOne();
                 c();
                 // assign gain default gain values
                 assignBandGains();
