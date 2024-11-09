@@ -40,8 +40,8 @@ class _AudioFxState extends State<AudioFx> {
                       buildSlider(
                         "Preamp",
                         controller.dspVolume,
-                        -20,
-                        20,
+                        -15,
+                        15,
                         (x) {
                           controller.dspVolume = x;
                           Channel.setDSPVolume(x);
@@ -51,7 +51,7 @@ class _AudioFxState extends State<AudioFx> {
                         "XTreble",
                         controller.dspXTreble,
                         0,
-                        20,
+                        15,
                         (x) {
                           controller.dspXTreble = x;
                           Channel.setDSPTreble(x);
@@ -61,7 +61,7 @@ class _AudioFxState extends State<AudioFx> {
                         "Power Bass",
                         controller.dspPowerBass,
                         0,
-                        30,
+                        15,
                         (x) {
                           controller.dspPowerBass = x;
                           Channel.setDSPPowerBass(x);
@@ -71,7 +71,7 @@ class _AudioFxState extends State<AudioFx> {
                         "XBass",
                         controller.dspXBass,
                         0,
-                        25,
+                        15,
                         (x) {
                           controller.dspXBass = x;
                           Channel.setDSPXBass(x);

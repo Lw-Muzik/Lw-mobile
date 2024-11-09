@@ -199,8 +199,8 @@ class _AssetLoaderState extends State<AssetLoader>
             end: Alignment.bottomRight,
             colors: [
               Colors.black,
-              Colors.blue.shade900,
-              Colors.purple.shade900,
+              Colors.orange.shade600,
+              Colors.green.shade900,
               Colors.black,
             ],
             stops: const [0.0, 0.3, 0.7, 1.0],
@@ -258,9 +258,9 @@ class _AssetLoaderState extends State<AssetLoader>
                     shape: BoxShape.circle,
                     gradient: SweepGradient(
                       colors: [
-                        Colors.blue.withOpacity(0.3 - (index * 0.1)),
-                        Colors.purple.withOpacity(0.3 - (index * 0.1)),
-                        Colors.blue.withOpacity(0.3 - (index * 0.1)),
+                        Colors.green.withOpacity(0.3 - (index * 0.1)),
+                        Colors.orange.withOpacity(0.3 - (index * 0.1)),
+                        Colors.green.withOpacity(0.3 - (index * 0.1)),
                       ],
                     ),
                   ),
@@ -358,8 +358,8 @@ class _AssetLoaderState extends State<AssetLoader>
               borderRadius: BorderRadius.circular(2),
               gradient: LinearGradient(
                 colors: [
-                  Colors.blue.shade400,
-                  Colors.purple.shade400,
+                  Colors.green.shade400,
+                  Colors.orange.shade400,
                 ],
               ),
             ),
@@ -402,7 +402,7 @@ class _AssetLoaderState extends State<AssetLoader>
             shape: BoxShape.circle,
             border: Border.all(
               color:
-                  Colors.blue.withOpacity(0.5 + _pulseController.value * 0.5),
+                  Colors.amber.withOpacity(0.5 + _pulseController.value * 0.5),
               width: 2,
             ),
           ),
