@@ -13,7 +13,7 @@ public class ReverbEngine {
             try{
                 reverb = new PresetReverb(Integer.MAX_VALUE, AudioManager.AUDIO_SESSION_ID_GENERATE);
             }catch (Exception ex){
-                ex.printStackTrace();
+//                Log.e('Reverb Error',ex.getMessage());
             }
         }
     }

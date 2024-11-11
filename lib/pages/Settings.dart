@@ -42,10 +42,14 @@ class _SettingsState extends State<Settings> {
                   _buildPlayerBackgroundSettings(controller),
                   _buildVisualizerSettings(controller),
                   _buildBugReportTile(context),
-                  const ListTile(
-                    leading: Icon(Icons.info_rounded),
-                    title: Text("About Hype Music"),
-                    subtitle: Text("All you need to know about Hype Muzik"),
+                  ListTile(
+                    leading: const Icon(Icons.info_rounded),
+                    title: const Text("About Hype Music"),
+                    subtitle:
+                        const Text("All you need to know about Hype Music"),
+                    onTap: () {
+                      showAboutAppDialog(context);
+                    },
                   ),
                   _buildExitTile(),
                 ],
@@ -58,6 +62,29 @@ class _SettingsState extends State<Settings> {
         },
       );
     });
+  }
+// import 'package:flutter/material.dart';
+
+  void showAboutAppDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text("About Hype Music"),
+          content: const Text(
+            "Hype Music is your ultimate music app, bringing you the best tunes, personalized playlists, and immersive audio experiences. "
+            "Discover new songs, follow your favorite artists, and enjoy seamless music streaming with high-quality sound and a user-friendly interface. "
+            "Join the hype and elevate your music journey with Hype Music!",
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text("Close"),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   ListTile _buildLibraryTile() {

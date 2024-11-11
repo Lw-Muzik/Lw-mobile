@@ -1,10 +1,23 @@
 // ignore_for_file: constant_identifier_names
-
 import 'dart:convert';
-import 'dart:developer';
-
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+/***
+ * 
+ * 
+ *  public static final int PRESET_NONE = 0;
+     public static final int PRESET_SMALL_ROOM = 1;
+     public static final int PRESET_MEDIUM_ROOM = 2;
+     public static final int PRESET_LARGE_ROOM = 3;
+     public static final int PRESET_MEDIUM_HALL = 4;
+     public static final int PRESET_LARGE_HALL = 5;
+     public static final int PRESET_PLATE = 6;
+     public static final int PRESET_SCENE = 7;
+     public static final int PRESET_CONCERT = 8;
+     public static final int PRESET_ARENA = 9;
+     public static final int m = Integer.MAX_VALUE;
+ */
 
 enum PresetReverb {
   SMALL_ROOM,
@@ -14,7 +27,10 @@ enum PresetReverb {
   MEDIUM_ROOM,
   MEDIUM_HALL,
   LARGE_HALL,
-  PRESET
+  PRESET,
+  CONCERT,
+  SCENE,
+  PRESET_ARENA
 }
 
 class Channel {
@@ -121,10 +137,12 @@ class Channel {
     return (await channel.invokeMethod("virtualizerStrength"));
   }
 
-/// initalizing loaudness enhancer
-static void _initLoudnessEnhancer(int sessionId) async {
-  await channel.invokeMethod("initLoudnessEnhancer",{"sessionId":sessionId});
-}
+  /// initalizing loaudness enhancer
+  static void _initLoudnessEnhancer(int sessionId) async {
+    await channel
+        .invokeMethod("initLoudnessEnhancer", {"sessionId": sessionId});
+  }
+
   // @Deprecated("nolonger used")
   static void enableLoudnessEnhancer(bool enable) async {
     await channel
@@ -151,12 +169,12 @@ static void _initLoudnessEnhancer(int sessionId) async {
 
   /// Turns on the reverb effect
   static void enableReverb(bool enable) async {
-    await channel.invokeMethod("enableReverb", {"enableReverb": enable});
+    await channel.invokeMethod("enableRoomEffects", {"enableEffects": enable});
   }
 
   /// check if reverb is enabled
   static Future<bool> isReverbEnabled() async {
-    return (await channel.invokeMethod("isReverbEnabled"));
+    return (await channel.invokeMethod("isEffectEnabled"));
   }
 
   ///  The valid range is [100, 20000].
@@ -383,7 +401,6 @@ static void _initLoudnessEnhancer(int sessionId) async {
       case PresetReverb.NONE:
         x = 0;
         break;
-
       case PresetReverb.SMALL_ROOM:
         x = 1;
         break;
@@ -402,11 +419,25 @@ static void _initLoudnessEnhancer(int sessionId) async {
       case PresetReverb.LARGE_HALL:
         x = 5;
         break;
+      case PresetReverb.CONCERT:
+        x = 7;
+        break;
+      case PresetReverb.SCENE:
+        x = 8;
+        break;
+      case PresetReverb.PRESET_ARENA:
+        x = 9;
+        break;
+
       case PresetReverb.PRESET:
         x = 0;
         break;
     }
-    await channel.invokeMethod("setReverbPreset", {"preset": x});
+    await channel.invokeMethod("chooseEffectPreset", {"preset": x});
+  }
+
+  static Future<bool> isAndroid11() async {
+    return await channel.invokeMethod("isAndroid11");
   }
 
   static Future<int> getReverbPreset() async {

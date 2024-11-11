@@ -25,7 +25,9 @@ class _RoomEffectsState extends State<RoomEffects> {
     {"name": "Medium Hall", "value": PresetReverb.MEDIUM_HALL},
     {"name": "Medium Room", "value": PresetReverb.MEDIUM_ROOM},
     {"name": "Plate", "value": PresetReverb.PRESET_PLATE},
-    {"name": "None", "value": PresetReverb.NONE},
+    {"name": "Concert", "value": PresetReverb.CONCERT},
+    {"name": "Arena", "value": PresetReverb.PRESET_ARENA},
+    {"name": "Scene", "value": PresetReverb.SCENE},
   ];
 
   void _toggleReverb(bool value) {
@@ -33,7 +35,7 @@ class _RoomEffectsState extends State<RoomEffects> {
       isEnabled = value;
     });
     Channel.enableReverb(value);
-    Channel.enablePresetReverb(value);
+    // Channel.enablePresetReverb(value);
 
     // Apply default reverb settings
     Channel.setDecayTime(17882);
@@ -52,7 +54,7 @@ class _RoomEffectsState extends State<RoomEffects> {
     return ListView(
       children: [
         _buildReverbSwitch(),
-        _buildReverbLevelSlider(),
+        // _buildReverbLevelSlider(),
         _buildDividerWithLabel(context, "Room Presets"),
         _buildPresetsGrid(controller),
       ],

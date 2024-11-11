@@ -10,7 +10,7 @@ import '../Routes/routes.dart';
 import '../models/ArtworkModel.dart';
 
 class Apis {
-  static String devUrl = "http://15.237.71.190:5054";
+  static String devUrl = "http://94.72.116.178:5054";
   static String artwork = "$devUrl/get/songImage/";
   static String fetchLyrics = "$devUrl/get/songLyrics/";
 

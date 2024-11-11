@@ -91,12 +91,6 @@ private static final DynamicsProcessing.Config.Builder builder =
             dspBand.setRatio(4.0f);
             dspBand.setKneeWidth(1.0f);
             dspBand.setThreshold(-4.0f);
-
-            // band.setAttackTime(10.0f);
-            // dspBand.setReleaseTime(100.0f);
-            // dspBand.setRatio(8.0f);
-            // dspBand.setKneeWidth(0.4f);
-            // dspBand.setThreshold(0.0f);
             dspBand.setNoiseGateThreshold(-50.0f);
             dspBand.setExpanderRatio(1.0f);
             dspBand.setPreGain(4.0f);

@@ -30,7 +30,7 @@ public class MainActivity extends AudioServiceActivity {
     }
 
   private static final String CHANNEL = "eq_app";
-
+   final RoomEffects effects = new RoomEffects();
   private final AudioVisualizer visualizer =  AudioVisualizer.getInstance();
   private MethodChannel visualizerChannel; // Define the MethodChannel here
     @Override
@@ -534,7 +534,28 @@ public class MainActivity extends AudioServiceActivity {
                 String message = call.argument("message");
                 showMessage(message);
                 break;
+//    adaptive room effects
+//                check if android is higher than 11
+                case "isAndroid11":
+                    boolean isAndroid11 = RoomEffects.isAndroid11OrHigher();
+                    result.success(isAndroid11);
+                    break;
+                case "enableRoomEffects":
+                    boolean enableEffects = (boolean)call.argument("enableEffects");
+                    effects.enableEffect(enableEffects);
+                    break;
+                case "isEffectEnabled":
+                    boolean enabledEffect = effects.isEnabled();
+                    result.success(enabledEffect);
+                    break;
+                case "chooseEffectPreset":
+                    int effectPreset = (int)call.argument("effectPReset");
+                    effects.applyRoomEffect(effectPreset);
+                    break;
 
+                case "disposeRoomEffects":
+                    effects.release();
+                    break;
                 default:
                 result.notImplemented();
                 break;

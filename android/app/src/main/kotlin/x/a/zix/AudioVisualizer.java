@@ -10,8 +10,7 @@ public class AudioVisualizer {
     private Visualizer visualizer;
     private boolean isActive = false;
     private static final int CAPTURE_SIZE = 1024; // Must be a power of 2
-    private int audioSessionId = AudioManager.AUDIO_SESSION_ID_GENERATE;
-    
+
     // Singleton pattern with private constructor
     private static AudioVisualizer instance;
     
@@ -35,6 +34,7 @@ public class AudioVisualizer {
         // First, clean up any existing visualizer
         deactivate();
         try {
+            int audioSessionId = AudioManager.AUDIO_SESSION_ID_GENERATE;
             visualizer = new Visualizer(audioSessionId);
 //            currentAudioSessionId = audioSessionId;
             
@@ -83,21 +83,6 @@ public class AudioVisualizer {
             }
         }
     }
-
-    @SuppressLint("NewApi")
-    public boolean getAudioData(byte[] waveform, byte[] fft) {
-        if (visualizer != null && isActive && visualizer.getEnabled()) {
-            try {
-                return visualizer.getWaveForm(waveform) == Visualizer.SUCCESS &&
-                       visualizer.getFft(fft) == Visualizer.SUCCESS;
-            } catch (Exception e) {
-                Log.e(TAG, "Error capturing audio data: " + e.getMessage());
-                return false;
-            }
-        }
-        return false;
-    }
-
     @SuppressLint("NewApi")
     public void enableVisual(boolean enable) {
         if (visualizer != null) {
@@ -129,9 +114,5 @@ public class AudioVisualizer {
                 Log.e(TAG, "Error deactivating visualizer: " + e.getMessage());
             }
         }
-    }
-
-    public int getCurrentAudioSessionId() {
-        return audioSessionId;
     }
 }
