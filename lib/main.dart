@@ -1,9 +1,9 @@
-import 'package:eq_app/Helpers/AudioHandler.dart';
-import 'package:eq_app/Routes/routes.dart';
-import 'package:eq_app/Global/index.dart';
-import 'package:eq_app/Themes/AppThemes.dart';
-import 'package:eq_app/controllers/AppController.dart';
-import 'package:eq_app/controllers/BandController.dart';
+import '/Helpers/AudioHandler.dart';
+import '/Routes/routes.dart';
+import '/Global/index.dart';
+import '/Themes/AppThemes.dart';
+import '/controllers/AppController.dart';
+import '/controllers/BandController.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/foundation.dart';
 
@@ -13,7 +13,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:just_audio_background/just_audio_background.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
-// import 'package:shared_preferences/shared_preferences.dart';
+
 import 'package:wiredash/wiredash.dart';
 import 'package:firebase_core/firebase_core.dart';
 
@@ -62,22 +62,16 @@ Future<void> main() async {
   runApp(
     MultiBlocProvider(
       providers: [
-        ChangeNotifierProvider(
-          create: (_) => AppController(),
-        ),
+        ChangeNotifierProvider(create: (_) => AppController()),
         ChangeNotifierProvider(create: (context) => PlaylistController()),
         ChangeNotifierProvider(create: (context) => AudioHandler()),
         ChangeNotifierProvider(create: (context) => PlayerController()),
-        BlocProvider(
-          create: (context) => BandController(),
-        )
+        BlocProvider(create: (context) => BandController()),
       ],
       child: Wiredash(
         projectId: "hype-muzik-q8wp9st",
         secret: "UB-v1DeJeOBqg3yxM5lOqEhoSsjrq-HM",
-        options: const WiredashOptionsData(
-          locale: Locale('en'),
-        ),
+        options: const WiredashOptionsData(locale: Locale('en')),
         child: MaterialApp(
           theme: AppThemes.fancyTheme,
           initialRoute: Routes.loader,
