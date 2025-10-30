@@ -1,0 +1,11 @@
+export 'package:on_audio_query/on_audio_query.dart';
+export 'package:flutter/material.dart';
+export 'package:provider/provider.dart';
+export 'package:just_audio/just_audio.dart';
+export 'package:path_provider/path_provider.dart';
+export 'package:firebase_analytics/firebase_analytics.dart';
+export 'package:firebase_crashlytics/firebase_crashlytics.dart';
+export 'package:wiredash/wiredash.dart';
+export 'package:sleek_circular_slider/sleek_circular_slider.dart';
+export 'package:flutter_shaders/flutter_shaders.dart';
+export 'package:swipable_stack/swipable_stack.dart';

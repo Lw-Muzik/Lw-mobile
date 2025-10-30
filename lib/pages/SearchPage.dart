@@ -1,8 +1,6 @@
 import 'package:eq_app/Global/index.dart';
 import 'package:eq_app/Routes/routes.dart';
-import 'package:flutter/material.dart';
-import 'package:on_audio_query/on_audio_query.dart';
-import 'package:provider/provider.dart';
+import '/exports/exports.dart';
 
 import '../controllers/AppController.dart';
 import '../player/PlayerUI.dart';
@@ -14,17 +12,14 @@ class SearchPage extends SearchDelegate<SongModel> {
 
   @override
   List<Widget>? buildActions(BuildContext context) => [
-        IconButton(
-          onPressed: () => query = "",
-          icon: const Icon(Icons.close),
-        ),
-      ];
+    IconButton(onPressed: () => query = "", icon: const Icon(Icons.close)),
+  ];
 
   @override
   Widget? buildLeading(BuildContext context) => InkWell(
-        child: const Icon(Icons.arrow_back_ios_new),
-        onTap: () => Routes.pop(context),
-      );
+    child: const Icon(Icons.arrow_back_ios_new),
+    onTap: () => Routes.pop(context),
+  );
 
   @override
   Widget buildResults(BuildContext context) {
@@ -73,7 +68,10 @@ class SearchPage extends SearchDelegate<SongModel> {
   }
 
   void _playSong(
-      BuildContext context, AppController controller, SongModel song) {
+    BuildContext context,
+    AppController controller,
+    SongModel song,
+  ) {
     final songIndex = controller.songs.indexOf(song);
     if (songIndex != -1) {
       controller.songId = songIndex;

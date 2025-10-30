@@ -19,7 +19,7 @@ class Equalizer extends StatefulWidget {
 class _EqualizerState extends State<Equalizer> with TickerProviderStateMixin {
   late final TabController _tabController;
   final List<double> bandValues = [0, 0, 0, 0, 0];
-  static const List<int> bandLevel = [-10, 10];
+  // static const List<int> bandLevel = [-10, 10];
   String? preset;
 
   @override
@@ -34,10 +34,10 @@ class _EqualizerState extends State<Equalizer> with TickerProviderStateMixin {
         .player
         .androidAudioSessionIdStream
         .listen((event) {
-      if (event != null) {
-        Channel.setSessionId(event);
-      }
-    });
+          if (event != null) {
+            Channel.setSessionId(event);
+          }
+        });
   }
 
   @override
@@ -81,12 +81,7 @@ class _EqualizerState extends State<Equalizer> with TickerProviderStateMixin {
   Widget _buildTabBarView() {
     return TabBarView(
       controller: _tabController,
-      children: const [
-        EqView(),
-        AudioFx(),
-        CompressorView(),
-        RoomEffects(),
-      ],
+      children: const [EqView(), AudioFx(), CompressorView(), RoomEffects()],
     );
   }
 }

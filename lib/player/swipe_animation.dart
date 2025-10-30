@@ -1,6 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
-export 'swipe_animation.dart' show AnimatedPlayerCardState;
+export 'swipe_animation.dart';
 
 // Animation Configuration
 class CardAnimationConfig {
@@ -40,15 +40,13 @@ class CardController extends ChangeNotifier {
       duration: CardAnimationConfig.animationDuration,
     );
 
-    _positionAnimation = _animationController.drive(Tween<Offset>(
-      begin: Offset.zero,
-      end: Offset.zero,
-    ));
+    _positionAnimation = _animationController.drive(
+      Tween<Offset>(begin: Offset.zero, end: Offset.zero),
+    );
 
-    _angleAnimation = _animationController.drive(Tween<double>(
-      begin: 0.0,
-      end: 0.0,
-    ));
+    _angleAnimation = _animationController.drive(
+      Tween<double>(begin: 0.0, end: 0.0),
+    );
 
     _animationController.addListener(() {
       position = _positionAnimation.value;
@@ -68,7 +66,8 @@ class CardController extends ChangeNotifier {
 
   void onPanUpdate(DragUpdateDetails details) {
     position += details.delta;
-    angle = (position.dx / screenSize.width) *
+    angle =
+        (position.dx / screenSize.width) *
         (math.pi / 180) *
         CardAnimationConfig.maxAngle;
     notifyListeners();
@@ -79,21 +78,20 @@ class CardController extends ChangeNotifier {
     final swipeMagnitude = position.dx.abs() / screenSize.width;
 
     if (swipeMagnitude > CardAnimationConfig.swipeThreshold) {
-      final direction =
-          position.dx > 0 ? SwipeDirection.right : SwipeDirection.left;
+      final direction = position.dx > 0
+          ? SwipeDirection.right
+          : SwipeDirection.left;
       final endX = direction == SwipeDirection.right
           ? screenSize.width * 1.5
           : -screenSize.width * 1.5;
 
-      _positionAnimation = _animationController.drive(Tween<Offset>(
-        begin: position,
-        end: Offset(endX, position.dy),
-      ));
+      _positionAnimation = _animationController.drive(
+        Tween<Offset>(begin: position, end: Offset(endX, position.dy)),
+      );
 
-      _angleAnimation = _animationController.drive(Tween<double>(
-        begin: angle,
-        end: angle * 2,
-      ));
+      _angleAnimation = _animationController.drive(
+        Tween<double>(begin: angle, end: angle * 2),
+      );
 
       _animationController.forward().then((_) => onSwipeComplete(direction));
     } else {
@@ -103,30 +101,29 @@ class CardController extends ChangeNotifier {
   }
 
   void reset() {
-    _positionAnimation = _animationController.drive(Tween<Offset>(
-      begin: position,
-      end: Offset.zero,
-    ));
+    _positionAnimation = _animationController.drive(
+      Tween<Offset>(begin: position, end: Offset.zero),
+    );
 
-    _angleAnimation = _animationController.drive(Tween<double>(
-      begin: angle,
-      end: 0.0,
-    ));
+    _angleAnimation = _animationController.drive(
+      Tween<double>(begin: angle, end: 0.0),
+    );
 
     _animationController.forward(from: 0);
   }
 
   void animateToNext() {
     final endX = screenSize.width * 1.5;
-    _positionAnimation = _animationController.drive(Tween<Offset>(
-      begin: Offset.zero,
-      end: Offset(endX, 0),
-    ));
+    _positionAnimation = _animationController.drive(
+      Tween<Offset>(begin: Offset.zero, end: Offset(endX, 0)),
+    );
 
-    _angleAnimation = _animationController.drive(Tween<double>(
-      begin: 0.0,
-      end: CardAnimationConfig.maxAngle * (math.pi / 180),
-    ));
+    _angleAnimation = _animationController.drive(
+      Tween<double>(
+        begin: 0.0,
+        end: CardAnimationConfig.maxAngle * (math.pi / 180),
+      ),
+    );
 
     _animationController.forward(from: 0).then((_) {
       onSwipeComplete(SwipeDirection.right);
@@ -135,15 +132,16 @@ class CardController extends ChangeNotifier {
 
   void animateToPrevious() {
     final endX = -screenSize.width * 1.5;
-    _positionAnimation = _animationController.drive(Tween<Offset>(
-      begin: Offset.zero,
-      end: Offset(endX, 0),
-    ));
+    _positionAnimation = _animationController.drive(
+      Tween<Offset>(begin: Offset.zero, end: Offset(endX, 0)),
+    );
 
-    _angleAnimation = _animationController.drive(Tween<double>(
-      begin: 0.0,
-      end: -CardAnimationConfig.maxAngle * (math.pi / 180),
-    ));
+    _angleAnimation = _animationController.drive(
+      Tween<double>(
+        begin: 0.0,
+        end: -CardAnimationConfig.maxAngle * (math.pi / 180),
+      ),
+    );
 
     _animationController.forward(from: 0).then((_) {
       onSwipeComplete(SwipeDirection.left);
@@ -294,7 +292,8 @@ class _AnimatedPlayerCardState extends State<AnimatedPlayerCard>
                           child!,
                           if (index == 0 && _cardControllers[0].isDragging)
                             _buildSwipeIndicators(
-                                _cardControllers[0].position.dx),
+                              _cardControllers[0].position.dx,
+                            ),
                         ],
                       ),
                     ),
@@ -305,8 +304,11 @@ class _AnimatedPlayerCardState extends State<AnimatedPlayerCard>
                         onPanStart: _cardControllers[0].onPanStart,
                         onPanUpdate: _cardControllers[0].onPanUpdate,
                         onPanEnd: _cardControllers[0].onPanEnd,
-                        child: widget.itemBuilder(context, itemIndex,
-                            isActive: true),
+                        child: widget.itemBuilder(
+                          context,
+                          itemIndex,
+                          isActive: true,
+                        ),
                       )
                     : widget.itemBuilder(context, itemIndex, isActive: false),
               );
@@ -330,8 +332,10 @@ class _AnimatedPlayerCardState extends State<AnimatedPlayerCard>
             child: Transform.rotate(
               angle: -math.pi / 8,
               child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
                   border: Border.all(color: Colors.green, width: 4),
                   borderRadius: BorderRadius.circular(8),
@@ -357,8 +361,10 @@ class _AnimatedPlayerCardState extends State<AnimatedPlayerCard>
             child: Transform.rotate(
               angle: math.pi / 8,
               child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
                   border: Border.all(color: Colors.red, width: 4),
                   borderRadius: BorderRadius.circular(8),

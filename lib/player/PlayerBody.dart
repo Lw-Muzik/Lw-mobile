@@ -1,9 +1,6 @@
 import 'dart:ui';
 
-import 'package:flutter/material.dart';
-import 'package:on_audio_query/on_audio_query.dart';
-import 'package:provider/provider.dart';
-
+import '/exports/exports.dart';
 import '../Helpers/AudioVisualizer.dart';
 import '../controllers/AppController.dart';
 import '../widgets/ArtworkWidget.dart';
@@ -42,7 +39,9 @@ class _PlayerBodyState extends State<PlayerBody> {
             ),
             BackdropFilter(
               filter: ImageFilter.blur(
-                  sigmaX: controller.blur, sigmaY: controller.blur),
+                sigmaX: controller.blur,
+                sigmaY: controller.blur,
+              ),
               child: Container(
                 height: MediaQuery.of(context).size.height,
                 decoration: BoxDecoration(
@@ -50,7 +49,7 @@ class _PlayerBodyState extends State<PlayerBody> {
                     colors: [
                       const Color.fromARGB(255, 0, 0, 0).withOpacity(0.2),
                       const Color.fromARGB(255, 0, 0, 0).withOpacity(0.50),
-                      const Color.fromARGB(255, 0, 0, 0).withOpacity(0.90)
+                      const Color.fromARGB(255, 0, 0, 0).withOpacity(0.90),
                     ],
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,

@@ -2,11 +2,9 @@ import 'dart:ui';
 import 'package:eq_app/Helpers/VisualizerWidget.dart';
 import 'package:eq_app/Helpers/index.dart';
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:just_audio/just_audio.dart';
 import 'package:just_audio_background/just_audio_background.dart';
-import 'package:on_audio_query/on_audio_query.dart';
+import '/exports/exports.dart';
 
 import '../Helpers/AudioHandler.dart';
 import '../Helpers/Files.dart';
@@ -19,10 +17,11 @@ import '../player/widgets/TrackInfo.dart';
 import '../widgets/ArtworkWidget.dart';
 
 SystemUiOverlayStyle overlay = const SystemUiOverlayStyle(
-    systemNavigationBarDividerColor: Colors.transparent,
-    systemNavigationBarContrastEnforced: false,
-    systemNavigationBarIconBrightness: Brightness.dark,
-    systemNavigationBarColor: Colors.transparent);
+  systemNavigationBarDividerColor: Colors.transparent,
+  systemNavigationBarContrastEnforced: false,
+  systemNavigationBarIconBrightness: Brightness.dark,
+  systemNavigationBarColor: Colors.transparent,
+);
 PreferredSizeWidget kAppBar = AppBar(
   toolbarHeight: 0,
   systemOverlayStyle: overlay,
@@ -35,10 +34,11 @@ Widget playerVisual(AppController controller) {
       return fft.isNotEmpty
           ? CustomPaint(
               painter: MultiWaveVisualizer(
-                  color: Theme.of(context).primaryColorLight.withOpacity(0.1),
-                  waveData: fft,
-                  // width: MediaQuery.of(context).size.width,
-                  height: MediaQuery.of(context).size.height),
+                color: Theme.of(context).primaryColorLight.withOpacity(0.1),
+                waveData: fft,
+                // width: MediaQuery.of(context).size.width,
+                height: MediaQuery.of(context).size.height,
+              ),
               child: const Center(),
             )
           : Container();
@@ -59,66 +59,73 @@ Widget playerControls(AppController controller, BuildContext context) {
           icon: const Icon(Icons.graphic_eq_rounded),
         ),
         IconButton(
-            style: IconButton.styleFrom(backgroundColor: Colors.black54),
-            onPressed: () {
-              showCupertinoModalPopup(
-                barrierColor: Colors.black12,
-                filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-                context: context,
-                builder: (context) {
-                  return BottomSheet(
-                    backgroundColor: Colors.black38,
-                    onClosing: () {},
-                    builder: (context) {
-                      return NowPlaying(
-                        controller: controller,
-                      );
-                    },
-                  );
-                },
-              );
-            },
-            icon: const Icon(Icons.playlist_play)),
+          style: IconButton.styleFrom(backgroundColor: Colors.black54),
+          onPressed: () {
+            showCupertinoModalPopup(
+              barrierColor: Colors.black12,
+              filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+              context: context,
+              builder: (context) {
+                return BottomSheet(
+                  backgroundColor: Colors.black38,
+                  onClosing: () {},
+                  builder: (context) {
+                    return NowPlaying(controller: controller);
+                  },
+                );
+              },
+            );
+          },
+          icon: const Icon(Icons.playlist_play),
+        ),
         IconButton(
           style: IconButton.styleFrom(backgroundColor: Colors.black54),
           onPressed: () => showTrackInfo(context, controller),
           color: Colors.white,
           icon: const Icon(Icons.more_vert_rounded),
-        )
+        ),
       ],
     ),
   );
 }
 
-Widget playerCard(Animation<double> animation, BuildContext context,
-    AppController controller) {
+Widget playerCard(
+  Animation<double> animation,
+  BuildContext context,
+  AppController controller,
+) {
   return Stack(
     children: [
       AnimatedBuilder(
-          animation: animation,
-          builder: (context, child) {
-            return Transform.scale(
-              scale: animation.value,
-              child: FittedBox(
-                child: Padding(
-                  padding: const EdgeInsets.only(
-                      right: 28.0, top: 10, bottom: 0, left: 28),
-                  child: SizedBox(
-                    height: MediaQuery.of(context).size.width,
-                    width: MediaQuery.of(context).size.width,
-                    child: ArtworkWidget(
-                      quality: 100,
-                      borderRadius: BorderRadius.circular(15),
-                      size: 1000,
-                      songId: controller.songs[controller.songId].id,
-                      type: ArtworkType.AUDIO,
-                      path: controller.songs[controller.songId].data,
-                    ),
+        animation: animation,
+        builder: (context, child) {
+          return Transform.scale(
+            scale: animation.value,
+            child: FittedBox(
+              child: Padding(
+                padding: const EdgeInsets.only(
+                  right: 28.0,
+                  top: 10,
+                  bottom: 0,
+                  left: 28,
+                ),
+                child: SizedBox(
+                  height: MediaQuery.of(context).size.width,
+                  width: MediaQuery.of(context).size.width,
+                  child: ArtworkWidget(
+                    quality: 100,
+                    borderRadius: BorderRadius.circular(15),
+                    size: 1000,
+                    songId: controller.songs[controller.songId].id,
+                    type: ArtworkType.AUDIO,
+                    path: controller.songs[controller.songId].data,
                   ),
                 ),
               ),
-            );
-          }),
+            ),
+          );
+        },
+      ),
       Positioned(
         bottom: 0,
         left: 20,
@@ -130,80 +137,84 @@ Widget playerCard(Animation<double> animation, BuildContext context,
 }
 
 Decoration commonDeration(
-    AppController controller, int listIndex, BuildContext context) {
+  AppController controller,
+  int listIndex,
+  BuildContext context,
+) {
   return BoxDecoration(
     borderRadius: BorderRadius.circular(10),
     color: controller.songId == listIndex && controller.handler.player.playing
         ? Theme.of(context).brightness == Brightness.light
-            ? Theme.of(context).primaryColor.withOpacity(0.41)
-            : Theme.of(context).colorScheme.primary.withOpacity(0.31)
+              ? Theme.of(context).primaryColor.withOpacity(0.41)
+              : Theme.of(context).colorScheme.primary.withOpacity(0.31)
         : null,
   );
 }
 
 Widget folderArtwork(String path, String title) {
   return FutureBuilder<List<SongModel>>(
-      future: Files.queryFromFolder(path),
-      builder: (context, snapshot) {
-        var data = snapshot.data;
-        return snapshot.hasData
-            ? Stack(
-                children: [
-                  ArtworkWidget(
-                    quality: 50,
-                    size: 200,
-                    useSaved: data!.isNotEmpty,
-                    borderRadius: BorderRadius.circular(10),
-                    width: MediaQuery.of(context).size.width,
-                    height: MediaQuery.of(context).size.width,
-                    songId: data[data.length > 2 ? data.length - 2 : 0].id,
-                    type: ArtworkType.AUDIO,
-                    path: data[data.length > 2 ? data.length - 2 : 0].data,
-                  ),
-                  Positioned(
-                    right: 0,
-                    left: 0,
-                    bottom: -10,
-                    child: Card(
-                      margin: const EdgeInsets.all(10),
-                      color:
-                          Theme.of(context).primaryColorDark.withOpacity(0.7),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: RichText(
-                        textAlign: TextAlign.center,
-                        text: TextSpan(
-                          children: [
-                            TextSpan(
-                              text: "$title \n",
-                              style:
-                                  Theme.of(context).textTheme.labelSmall!.apply(
-                                        color: Colors.white,
-                                      ),
-                            ),
-                            TextSpan(
-                              text: "${data.length} Songs",
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .labelSmall!
-                                  .apply(
-                                    color: Theme.of(context).primaryColorLight,
-                                  ),
-                            ),
-                          ],
-                        ),
+    future: Files.queryFromFolder(path),
+    builder: (context, snapshot) {
+      var data = snapshot.data;
+      return snapshot.hasData
+          ? Stack(
+              children: [
+                ArtworkWidget(
+                  quality: 50,
+                  size: 200,
+                  useSaved: data!.isNotEmpty,
+                  borderRadius: BorderRadius.circular(10),
+                  width: MediaQuery.of(context).size.width,
+                  height: MediaQuery.of(context).size.width,
+                  songId: data[data.length > 2 ? data.length - 2 : 0].id,
+                  type: ArtworkType.AUDIO,
+                  path: data[data.length > 2 ? data.length - 2 : 0].data,
+                ),
+                Positioned(
+                  right: 0,
+                  left: 0,
+                  bottom: -10,
+                  child: Card(
+                    margin: const EdgeInsets.all(10),
+                    color: Theme.of(context).primaryColorDark.withOpacity(0.7),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: RichText(
+                      textAlign: TextAlign.center,
+                      text: TextSpan(
+                        children: [
+                          TextSpan(
+                            text: "$title \n",
+                            style: Theme.of(
+                              context,
+                            ).textTheme.labelSmall!.apply(color: Colors.white),
+                          ),
+                          TextSpan(
+                            text: "${data.length} Songs",
+                            style: Theme.of(context).textTheme.labelSmall!
+                                .apply(
+                                  color: Theme.of(context).primaryColorLight,
+                                ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
-                ],
-              )
-            : Container();
-      });
+                ),
+              ],
+            )
+          : Container();
+    },
+  );
 }
 
-Widget headerWidget(AppController controller, BuildContext context,
-    {List<SongModel>? data, Widget? child}) {
+Widget headerWidget(
+  AppController controller,
+  BuildContext context, {
+  List<SongModel>? data,
+  Widget? child,
+}) {
   return Stack(
     children: [
       child ??
@@ -269,7 +280,7 @@ Widget headerWidget(AppController controller, BuildContext context,
               ),
             ),
           ),
-        )
+        ),
     ],
   );
 }
@@ -286,12 +297,7 @@ void loadAudioSource(AudioHandler handler, SongModel song) async {
     artUri: Uri.file(image),
   );
 
-  handler.player.setAudioSource(
-    AudioSource.uri(
-      Uri.parse(item.id),
-      tag: item,
-    ),
-  );
+  handler.player.setAudioSource(AudioSource.uri(Uri.parse(item.id), tag: item));
   // player.setUrl(song.data);
 
   handler.player.play();
@@ -300,12 +306,11 @@ void loadAudioSource(AudioHandler handler, SongModel song) async {
 //  function to show track info
 void showTrackInfo(BuildContext context, AppController controller) {
   showCupertinoModalPopup(
-      barrierColor: Colors.transparent,
-      context: context,
-      filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-      builder: (context) {
-        return TrackInfoWidget(
-          controller: controller,
-        );
-      });
+    barrierColor: Colors.transparent,
+    context: context,
+    filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+    builder: (context) {
+      return TrackInfoWidget(controller: controller);
+    },
+  );
 }

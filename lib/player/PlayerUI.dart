@@ -1,11 +1,9 @@
 // ignore_for_file: library_private_types_in_public_api, depend_on_referenced_packages, invalid_use_of_protected_member
-import 'dart:math' as math;
 import 'package:permission_handler/permission_handler.dart';
 import 'package:rxdart/rxdart.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../Helpers/Channel.dart';
 import '/Global/index.dart';
 import '/Routes/routes.dart';
 import '/player/PlayerBody.dart';
@@ -45,8 +43,10 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
       duration: const Duration(milliseconds: 800),
     )..forward();
 
-    _animation =
-        Tween<double>(begin: 0.98, end: 1).animate(_animationController!);
+    _animation = Tween<double>(
+      begin: 0.98,
+      end: 1,
+    ).animate(_animationController!);
   }
 
   void checkPermissionForAudioVisualization() {
@@ -61,11 +61,12 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
 
   Stream<PositionData> get _positionDataStream =>
       Rx.combineLatest3<Duration, Duration, Duration?, PositionData>(
-          context.watch<AppController>().handler.player.positionStream,
-          context.watch<AppController>().handler.player.bufferedPositionStream,
-          context.watch<AppController>().handler.player.durationStream,
-          (position, bufferedPosition, duration) => PositionData(
-              position, bufferedPosition, duration ?? Duration.zero));
+        context.watch<AppController>().handler.player.positionStream,
+        context.watch<AppController>().handler.player.bufferedPositionStream,
+        context.watch<AppController>().handler.player.durationStream,
+        (position, bufferedPosition, duration) =>
+            PositionData(position, bufferedPosition, duration ?? Duration.zero),
+      );
 
   @override
   void dispose() {
@@ -117,35 +118,43 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
                                   controller.prev();
                                 }
                               },
-                              itemBuilder: (context, index,
-                                  {bool isActive = false}) {
-                                return Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.stretch,
-                                  children: <Widget>[
-                                    InkWell(
-                                      onTap: () => Routes.pop(context),
-                                      onLongPress: () =>
-                                          showTrackInfo(context, controller),
-                                      child: AnimatedSwitcher(
-                                        duration:
-                                            const Duration(milliseconds: 300),
-                                        child: playerCard(
-                                            _animation!, context, controller),
-                                      ),
-                                    ),
-                                    // Only show MusicInfo for the active card
-                                    if (isActive)
-                                      AnimatedOpacity(
-                                        duration:
-                                            const Duration(milliseconds: 200),
-                                        opacity: isActive ? 1.0 : 0.0,
-                                        child:
-                                            MusicInfo(controller: controller),
-                                      ),
-                                  ],
-                                );
-                              },
+                              itemBuilder:
+                                  (context, index, {bool isActive = false}) {
+                                    return Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.stretch,
+                                      children: <Widget>[
+                                        InkWell(
+                                          onTap: () => Routes.pop(context),
+                                          onLongPress: () => showTrackInfo(
+                                            context,
+                                            controller,
+                                          ),
+                                          child: AnimatedSwitcher(
+                                            duration: const Duration(
+                                              milliseconds: 300,
+                                            ),
+                                            child: playerCard(
+                                              _animation!,
+                                              context,
+                                              controller,
+                                            ),
+                                          ),
+                                        ),
+                                        // Only show MusicInfo for the active card
+                                        if (isActive)
+                                          AnimatedOpacity(
+                                            duration: const Duration(
+                                              milliseconds: 200,
+                                            ),
+                                            opacity: isActive ? 1.0 : 0.0,
+                                            child: MusicInfo(
+                                              controller: controller,
+                                            ),
+                                          ),
+                                      ],
+                                    );
+                                  },
                             ),
                           ),
                           // Seek bar
@@ -163,7 +172,7 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
                                         positionData?.position ?? Duration.zero,
                                     bufferedPosition:
                                         positionData?.bufferedPosition ??
-                                            Duration.zero,
+                                        Duration.zero,
                                     onChangeEnd: controller.handler.player.seek,
                                   );
                                 },
@@ -171,8 +180,8 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
                             ),
                           ),
                           const Controls(
-                              // playerCard: _playerCardKey.currentState!.widget,
-                              ),
+                            // playerCard: _playerCardKey.currentState!.widget,
+                          ),
                         ],
                       ),
                     ),

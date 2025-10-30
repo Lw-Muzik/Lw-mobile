@@ -6,9 +6,7 @@ import '/controllers/AppController.dart';
 import '/extensions/index.dart';
 import '/widgets/Body.dart';
 import '/widgets/PlayListWidget.dart';
-import 'package:flutter/material.dart';
-import 'package:on_audio_query/on_audio_query.dart';
-import 'package:provider/provider.dart';
+import '/exports/exports.dart';
 
 import '../Helpers/index.dart';
 import '../player/PlayerUI.dart';
@@ -107,17 +105,15 @@ class _ArtistSongsState extends State<ArtistSongs> {
                 ),
                 TextSpan(
                   text: "${widget.songs}",
-                  style: Theme.of(context)
-                      .textTheme
-                      .headlineLarge!
-                      .copyWith(fontWeight: FontWeight.w300),
+                  style: Theme.of(context).textTheme.headlineLarge!.copyWith(
+                    fontWeight: FontWeight.w300,
+                  ),
                 ),
                 TextSpan(
                   text: widget.songs.aTracks,
-                  style: Theme.of(context)
-                      .textTheme
-                      .headlineSmall!
-                      .copyWith(fontWeight: FontWeight.w300),
+                  style: Theme.of(context).textTheme.headlineSmall!.copyWith(
+                    fontWeight: FontWeight.w300,
+                  ),
                 ),
               ],
             ),
@@ -141,7 +137,8 @@ class _ArtistSongsState extends State<ArtistSongs> {
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(
-                    child: CircularProgressIndicator.adaptive());
+                  child: CircularProgressIndicator.adaptive(),
+                );
               } else if (snapshot.hasData && snapshot.data!.isNotEmpty) {
                 return SongLists(songs: snapshot.data!);
               } else {
@@ -193,8 +190,9 @@ class SongLists extends StatelessWidget {
               decoration: commonDeration(controller, index, context),
               child: ListTile(
                 selected: controller.songId == index,
-                selectedTileColor:
-                    Theme.of(context).primaryColor.withOpacity(0.1),
+                selectedTileColor: Theme.of(
+                  context,
+                ).primaryColor.withOpacity(0.1),
                 selectedColor: Theme.of(context).primaryColorLight,
                 title: Text(
                   song.title,
@@ -232,7 +230,10 @@ class SongLists extends StatelessWidget {
   }
 
   void _playSelectedSong(
-      AppController controller, BuildContext context, SongModel song) {
+    AppController controller,
+    BuildContext context,
+    SongModel song,
+  ) {
     controller.songs = songs;
     controller.songId = songs.indexOf(song);
     loadAudioSource(controller.handler, song);
@@ -240,16 +241,16 @@ class SongLists extends StatelessWidget {
   }
 
   void _showPlaylistOptions(
-      BuildContext context, AppController controller, SongModel song) {
+    BuildContext context,
+    AppController controller,
+    SongModel song,
+  ) {
     showModalBottomSheet(
       context: context,
       builder: (context) => BottomSheet(
         onClosing: () {},
         builder: (context) {
-          return PlaylistWidget(
-            audioId: song.id,
-            song: song.title,
-          );
+          return PlaylistWidget(audioId: song.id, song: song.title);
         },
       ),
     );

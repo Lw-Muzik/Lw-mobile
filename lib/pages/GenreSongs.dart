@@ -7,9 +7,7 @@ import 'package:eq_app/Routes/routes.dart';
 import 'package:eq_app/controllers/AppController.dart';
 import 'package:eq_app/extensions/index.dart';
 import 'package:eq_app/widgets/Body.dart';
-import 'package:flutter/material.dart';
-import 'package:on_audio_query/on_audio_query.dart';
-import 'package:provider/provider.dart';
+import '/exports/exports.dart';
 
 import '../player/PlayerUI.dart';
 import '/Helpers/index.dart';
@@ -20,11 +18,12 @@ class GenreSongs extends StatefulWidget {
   final int? genreId;
   final String genre;
   final int songs;
-  const GenreSongs(
-      {super.key,
-      required this.genreId,
-      required this.genre,
-      required this.songs});
+  const GenreSongs({
+    super.key,
+    required this.genreId,
+    required this.genre,
+    required this.songs,
+  });
 
   @override
   State<GenreSongs> createState() => _GenreSongsState();
@@ -41,8 +40,9 @@ class _GenreSongsState extends State<GenreSongs> {
             SliverAppBar(
               expandedHeight: 400,
               leading: IconButton.filledTonal(
-                  onPressed: () => Routes.pop(context),
-                  icon: const Icon(Icons.arrow_back)),
+                onPressed: () => Routes.pop(context),
+                icon: const Icon(Icons.arrow_back),
+              ),
               // floating: true,
               // snap: true,
               flexibleSpace: FlexibleSpaceBar(
@@ -75,36 +75,33 @@ class _GenreSongsState extends State<GenreSongs> {
                             ),
                             TextSpan(
                               text: "${widget.songs}",
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .headlineLarge!
+                              style: Theme.of(context).textTheme.headlineLarge!
                                   .copyWith(fontWeight: FontWeight.w300),
                             ),
                             TextSpan(
                               text: widget.songs.aTracks,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .headlineSmall!
+                              style: Theme.of(context).textTheme.headlineSmall!
                                   .copyWith(fontWeight: FontWeight.w300),
                             ),
                           ],
                         ),
                       ),
-                    )
+                    ),
                   ],
                 ),
               ),
-            )
+            ),
           ];
         },
-        body: Consumer<AppController>(builder: (context, controller, child) {
-          return StreamBuilder(
+        body: Consumer<AppController>(
+          builder: (context, controller, child) {
+            return StreamBuilder(
               stream: controller.handler.player.playingStream,
               builder: (context, service) {
                 return Scaffold(
-                  backgroundColor: Theme.of(context)
-                      .scaffoldBackgroundColor
-                      .withOpacity(0.8),
+                  backgroundColor: Theme.of(
+                    context,
+                  ).scaffoldBackgroundColor.withOpacity(0.8),
                   body: FutureBuilder(
                     future: OnAudioQuery.platform.queryAudiosFrom(
                       AudiosFromType.GENRE_ID,
@@ -119,13 +116,13 @@ class _GenreSongsState extends State<GenreSongs> {
                     },
                   ),
                   bottomNavigationBar: service.data ?? false
-                      ? BottomPlayer(
-                          controller: controller,
-                        )
+                      ? BottomPlayer(controller: controller)
                       : null,
                 );
-              });
-        }),
+              },
+            );
+          },
+        ),
       ),
     );
   }
@@ -154,45 +151,48 @@ class _SongListsState extends State<SongLists> {
             itemCount: widget.songs.length,
             itemBuilder: (context, index) {
               return Consumer<AppController>(
-                  builder: (context, controller, ch) {
-                return Container(
-                  decoration: commonDeration(controller, index, context),
-                  child: ListTile(
-                    selected: controller.songId == _selected,
-                    selectedTileColor:
-                        Theme.of(context).primaryColorLight.withOpacity(0.1),
-                    selectedColor: Theme.of(context).primaryColorLight,
-                    title: Text(widget.songs[index].title),
-                    subtitle: Text(widget.songs[index].artist ?? "No Artist"),
-                    trailing: Text(
-                      "${formatTime(
-                        Duration(
-                            milliseconds: widget.songs[index].duration ?? 0),
-                      )} | ${widget.songs[index].fileExtension}",
-                    ),
-                    onTap: () {
-                      setState(() {
-                        _selected = index;
-                      });
-                      controller.songs = widget.songs;
+                builder: (context, controller, ch) {
+                  return Container(
+                    decoration: commonDeration(controller, index, context),
+                    child: ListTile(
+                      selected: controller.songId == _selected,
+                      selectedTileColor: Theme.of(
+                        context,
+                      ).primaryColorLight.withOpacity(0.1),
+                      selectedColor: Theme.of(context).primaryColorLight,
+                      title: Text(widget.songs[index].title),
+                      subtitle: Text(widget.songs[index].artist ?? "No Artist"),
+                      trailing: Text(
+                        "${formatTime(Duration(milliseconds: widget.songs[index].duration ?? 0))} | ${widget.songs[index].fileExtension}",
+                      ),
+                      onTap: () {
+                        setState(() {
+                          _selected = index;
+                        });
+                        controller.songs = widget.songs;
 
-                      int songIndex = (controller.songs.indexWhere((result) =>
-                          result.title == widget.songs[index].title));
-                      controller.songId = songIndex;
-                      loadAudioSource(
-                          controller.handler, controller.songs[songIndex]);
-                      Routes.routeTo(const Player(), context);
-                    },
-                    // This Widget will query/load image.
-                    // You can use/create your own widget/method using [queryArtwork].
-                    leading: ArtworkWidget(
-                      songId: widget.songs[index].id,
-                      path: widget.songs[index].data,
-                      type: ArtworkType.AUDIO,
+                        int songIndex = (controller.songs.indexWhere(
+                          (result) => result.title == widget.songs[index].title,
+                        ));
+                        controller.songId = songIndex;
+                        loadAudioSource(
+                          controller.handler,
+                          controller.songs[songIndex],
+                        );
+                        Routes.routeTo(const Player(), context);
+                      },
+                      // This Widget will query/load image.
+                      // You can use/create your own widget/method using [queryArtwork].
+                      leading: ArtworkWidget(
+                        songId: widget.songs[index].id,
+                        path: widget.songs[index].data,
+                        type: ArtworkType.AUDIO,
+                      ),
                     ),
-                  ),
-                );
-              });
-            });
+                  );
+                },
+              );
+            },
+          );
   }
 }

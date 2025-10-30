@@ -114,8 +114,8 @@ class _DSPSpeakerWidgetState extends State<DSPSpeakerWidget> {
         child: Card(
           margin: const EdgeInsets.all(10),
           color: widget.controller.selectSpeaker == index
-              ? Theme.of(context).colorScheme.primary.withOpacity(0.34)
-              : Theme.of(context).primaryColorLight.withOpacity(0.5),
+              ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.34)
+              : Theme.of(context).primaryColorLight.withValues(alpha: .5),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -150,12 +150,14 @@ class _DSPSpeakerWidgetState extends State<DSPSpeakerWidget> {
         gain: [6.4, 3.0, -4.0, 3.9, -11.2, -2.4, 5.2, -1.0, -4.5, -2.8],
       ),
       // Other static DSPSpeakers here...
-      ...data.map((e) => DSPSpeaker(
-            id: 0,
-            name: e["spk"],
-            freq: e["freq"],
-            gain: [5.8, 1.6, 1.0, 5.0, 5, 3, 5, 8, 4, 7],
-          )),
+      ...data.map(
+        (e) => DSPSpeaker(
+          id: 0,
+          name: e["spk"],
+          freq: e["freq"],
+          gain: [5.8, 1.6, 1.0, 5.0, 5, 3, 5, 8, 4, 7],
+        ),
+      ),
     ];
   }
 
@@ -178,8 +180,8 @@ class _DSPSpeakerWidgetState extends State<DSPSpeakerWidget> {
                       ? GridView.builder(
                           gridDelegate:
                               const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 3,
-                          ),
+                                crossAxisCount: 3,
+                              ),
                           itemCount: speakers.length,
                           itemBuilder: (context, index) =>
                               _buildSpeakerGridTile(index, speakers[index]),

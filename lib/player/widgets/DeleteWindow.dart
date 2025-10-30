@@ -1,10 +1,6 @@
-import 'dart:io';
-
-import 'package:eq_app/Helpers/Channel.dart';
-import 'package:eq_app/Routes/routes.dart';
+import '/Helpers/Channel.dart';
+import '/Routes/routes.dart';
 import 'package:flutter/material.dart';
-
-import '../../Helpers/index.dart';
 
 class DeleteWindow extends StatefulWidget {
   final String folder;
@@ -31,9 +27,7 @@ class _DeleteWindowState extends State<DeleteWindow> {
                 style: Theme.of(context).textTheme.titleLarge,
               ),
             ),
-            const SizedBox.square(
-              dimension: 40,
-            ),
+            const SizedBox.square(dimension: 40),
             Text.rich(
               TextSpan(
                 children: [
@@ -45,17 +39,14 @@ class _DeleteWindowState extends State<DeleteWindow> {
                     text: widget.folder.split('/').last.endsWith(".mp3")
                         ? widget.folder.split('/').last.replaceAll(".mp3", "")
                         : widget.folder.split('/').last,
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleMedium!
-                        .copyWith(fontWeight: FontWeight.bold),
+                    style: Theme.of(context).textTheme.titleMedium!.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ],
               ),
             ),
-            const SizedBox.square(
-              dimension: 9,
-            ),
+            const SizedBox.square(dimension: 9),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -75,9 +66,9 @@ class _DeleteWindowState extends State<DeleteWindow> {
                       child: const Text("Cancel"),
                     ),
                   ],
-                )
+                ),
               ],
-            )
+            ),
           ],
         ),
       ),

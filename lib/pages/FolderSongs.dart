@@ -1,9 +1,6 @@
 import 'package:eq_app/Global/index.dart';
 import 'package:eq_app/Helpers/Files.dart';
-import 'package:flutter/material.dart';
-import 'package:on_audio_query/on_audio_query.dart';
-import 'package:provider/provider.dart';
-
+import '/exports/exports.dart';
 import '../controllers/AppController.dart';
 import '../widgets/BottomPlayer.dart';
 import 'ArtistSongs.dart';
@@ -48,7 +45,9 @@ class _FolderSongsState extends State<FolderSongs> {
   }
 
   SliverAppBar _buildSliverAppBar(
-      BuildContext context, AppController appController) {
+    BuildContext context,
+    AppController appController,
+  ) {
     return SliverAppBar(
       forceMaterialTransparency: appController.isFancy,
       expandedHeight: 400,
@@ -75,11 +74,7 @@ class _FolderSongsState extends State<FolderSongs> {
             );
           },
         ),
-        Positioned(
-          bottom: 45,
-          left: 10,
-          child: _buildFolderInfo(context),
-        ),
+        Positioned(bottom: 45, left: 10, child: _buildFolderInfo(context)),
       ],
     );
   }
@@ -91,10 +86,7 @@ class _FolderSongsState extends State<FolderSongs> {
     return RichText(
       text: TextSpan(
         children: [
-          TextSpan(
-            text: "$folderName\n",
-            style: textTheme.displayMedium,
-          ),
+          TextSpan(text: "$folderName\n", style: textTheme.displayMedium),
           TextSpan(
             text: "$_songCount",
             style: textTheme.headlineLarge?.copyWith(
@@ -102,17 +94,16 @@ class _FolderSongsState extends State<FolderSongs> {
             ),
           ),
           TextSpan(
-            text:
-                _songCount == 1 ? " Available Track\n" : " Available Tracks\n",
+            text: _songCount == 1
+                ? " Available Track\n"
+                : " Available Tracks\n",
             style: textTheme.headlineSmall?.copyWith(
               fontWeight: FontWeight.w300,
             ),
           ),
           TextSpan(
             text: widget.path,
-            style: textTheme.titleSmall?.copyWith(
-              fontWeight: FontWeight.w600,
-            ),
+            style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
           ),
         ],
       ),
@@ -130,8 +121,9 @@ class _FolderSongsState extends State<FolderSongs> {
               ? Colors.transparent
               : Theme.of(context).scaffoldBackgroundColor,
           body: _buildSongList(),
-          bottomNavigationBar:
-              isPlaying ? BottomPlayer(controller: controller) : null,
+          bottomNavigationBar: isPlaying
+              ? BottomPlayer(controller: controller)
+              : null,
         );
       },
     );
@@ -142,9 +134,7 @@ class _FolderSongsState extends State<FolderSongs> {
       future: _songsFuture,
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
-          return const Center(
-            child: CircularProgressIndicator.adaptive(),
-          );
+          return const Center(child: CircularProgressIndicator.adaptive());
         }
 
         return SongLists(songs: snapshot.data!);

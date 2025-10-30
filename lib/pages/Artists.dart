@@ -1,7 +1,6 @@
 import 'package:eq_app/Routes/routes.dart';
 import 'package:eq_app/extensions/index.dart';
-import 'package:flutter/material.dart';
-import 'package:on_audio_query/on_audio_query.dart';
+import '/exports/exports.dart';
 
 import '../widgets/ArtworkWidget.dart';
 import 'ArtistSongs.dart';
@@ -49,7 +48,10 @@ class _ArtistsState extends State<Artists> {
           // List<SongModel> songs = item.data!;
           return GridView.builder(
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 3, crossAxisSpacing: 4, mainAxisSpacing: 6),
+              crossAxisCount: 3,
+              crossAxisSpacing: 4,
+              mainAxisSpacing: 6,
+            ),
             itemCount: item.data!.length,
             itemBuilder: (context, index) {
               Future.delayed(const Duration(seconds: 1));
@@ -69,9 +71,11 @@ class _ArtistsState extends State<Artists> {
                               overflow: TextOverflow.ellipsis,
                               style: Theme.of(context).textTheme.labelMedium,
                             ),
-                            Text(item.data![index].numberOfTracks!.nSongs,
-                                textAlign: TextAlign.center,
-                                style: Theme.of(context).textTheme.titleSmall),
+                            Text(
+                              item.data![index].numberOfTracks!.nSongs,
+                              textAlign: TextAlign.center,
+                              style: Theme.of(context).textTheme.titleSmall,
+                            ),
                           ],
                         ),
                       ),

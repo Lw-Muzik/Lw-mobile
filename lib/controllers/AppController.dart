@@ -1,9 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:eq_app/Global/index.dart';
-import 'package:flutter/material.dart';
-import 'package:just_audio/just_audio.dart';
-import 'package:on_audio_query/on_audio_query.dart';
+import '/exports/exports.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../Helpers/AudioHandler.dart';
@@ -104,7 +102,7 @@ class AppController with ChangeNotifier {
     return _dspOutGain;
   }
 
-// compressor
+  // compressor
   double get threshold => _threshold;
   double get attackTime => _attackTime;
   double get ratio => _ratio;
@@ -397,7 +395,7 @@ class AppController with ChangeNotifier {
     notifyListeners();
   }
 
-// ========================
+  // ========================
   set selectedPreset(int pr) {
     _prefs?.setInt("selectedPreset", pr);
 

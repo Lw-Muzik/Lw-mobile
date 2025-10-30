@@ -1,8 +1,6 @@
 import 'dart:ui';
 
-import 'package:flutter/material.dart';
-import 'package:on_audio_query/on_audio_query.dart';
-
+import '/exports/exports.dart';
 import '../Helpers/index.dart';
 
 class ArtworkWidget extends StatelessWidget {
@@ -43,8 +41,13 @@ class ArtworkWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<ImageProvider>(
-      future:
-          savedImage(path, songId, type: type, other: other, quality: quality),
+      future: savedImage(
+        path,
+        songId,
+        type: type,
+        other: other,
+        quality: quality,
+      ),
       builder: (context, imageSnap) {
         return Container(
           margin: margin,
