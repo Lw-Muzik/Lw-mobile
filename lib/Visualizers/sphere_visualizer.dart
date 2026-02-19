@@ -63,7 +63,7 @@ class SphereVisualizer extends CustomPainter {
 
     // Draw background shadow once
     final shadowPaint = Paint()
-      ..color = baseColor.withOpacity(0.15)
+      ..color = baseColor.withValues(alpha: 0.15)
       ..maskFilter = MaskFilter.blur(
           BlurStyle.normal, 10 * sizeResponse); // Adjusted blur strength
 
@@ -105,7 +105,7 @@ class SphereVisualizer extends CustomPainter {
       final layerColor = Color.lerp(
           baseColor, accentColor, clamp01(layerProgress * colorResponse))!;
       final paint = Paint()
-        ..color = layerColor.withOpacity(layerOpacity)
+        ..color = layerColor.withValues(alpha: layerOpacity)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.5 + sizeResponse * 1.0;
 
@@ -117,7 +117,7 @@ class SphereVisualizer extends CustomPainter {
       final highlightPaint = Paint()
         ..shader = RadialGradient(
           colors: [
-            Colors.white.withOpacity(0.4 + colorResponse * 0.2),
+            Colors.white.withValues(alpha: 0.4 + colorResponse * 0.2),
             Colors.transparent
           ],
         ).createShader(Rect.fromCircle(

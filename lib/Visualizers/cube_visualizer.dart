@@ -89,7 +89,7 @@ class CubeVisualizer extends CustomPainter {
         ..lineTo(-cubeSize / 2, cubeSize / 2)
         ..close();
 
-      canvas.drawPath(depthPath, paint..color = baseColor.withOpacity(0.7));
+      canvas.drawPath(depthPath, paint..color = baseColor.withValues(alpha: 0.7));
 
       final depthPath2 = Path()
         ..moveTo(cubeSize / 2, -cubeSize / 2)
@@ -98,7 +98,7 @@ class CubeVisualizer extends CustomPainter {
         ..lineTo(cubeSize / 2, cubeSize / 2)
         ..close();
 
-      canvas.drawPath(depthPath2, paint..color = baseColor.withOpacity(0.7));
+      canvas.drawPath(depthPath2, paint..color = baseColor.withValues(alpha: 0.7));
 
       canvas.restore();
     }

@@ -53,14 +53,14 @@ class PhaseLightningVisualizer extends CustomPainter {
       ..maskFilter = MaskFilter.blur(BlurStyle.solid, 2);
 
     glowPaint = Paint()
-      ..color = secondaryColor.withOpacity(0.3)
+      ..color = secondaryColor.withValues(alpha: 0.3)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 6 + (avgAmplitude * 5)
       ..strokeCap = StrokeCap.round
       ..maskFilter = MaskFilter.blur(BlurStyle.normal, 8);
 
     subBranchPaint = Paint()
-      ..color = primaryColor.withOpacity(0.4)
+      ..color = primaryColor.withValues(alpha: 0.4)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1 + (avgAmplitude * 2)
       ..strokeCap = StrokeCap.round
@@ -69,15 +69,15 @@ class PhaseLightningVisualizer extends CustomPainter {
     plasmaPaint = Paint()
       ..shader = RadialGradient(
         colors: [
-          primaryColor.withOpacity(0.2),
-          secondaryColor.withOpacity(0.1),
+          primaryColor.withValues(alpha: 0.2),
+          secondaryColor.withValues(alpha: 0.1),
           Colors.transparent,
         ],
       ).createShader(Rect.fromLTWH(0, 0, 500, 500))
       ..maskFilter = MaskFilter.blur(BlurStyle.normal, 20);
 
     particlePaint = Paint()
-      ..color = primaryColor.withOpacity(0.6)
+      ..color = primaryColor.withValues(alpha: 0.6)
       ..maskFilter = MaskFilter.blur(BlurStyle.normal, 4);
   }
 

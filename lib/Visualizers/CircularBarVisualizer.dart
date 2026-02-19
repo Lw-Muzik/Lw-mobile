@@ -26,7 +26,7 @@ class CircularBarVisualizer extends CustomPainter {
       this.density = 100,
       this.gap = 2})
       : wavePaint = Paint()
-          ..color = color!.withOpacity(1.0)
+          ..color = color!.withValues(alpha: 1.0)
           ..style = PaintingStyle.stroke,
         assert(height != null),
         assert(width != null);

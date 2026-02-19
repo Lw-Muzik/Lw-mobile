@@ -164,7 +164,7 @@ class _SongListsState extends State<SongLists> {
                       selected: controller.songId == _selected,
                       selectedTileColor: Theme.of(
                         context,
-                      ).primaryColorLight.withOpacity(0.3),
+                      ).primaryColorLight.withValues(alpha: 0.3),
                       selectedColor: Theme.of(context).primaryColorLight,
                       title: Text(widget.songs[index].title),
                       subtitle: Text(widget.songs[index].artist ?? "No Artist"),

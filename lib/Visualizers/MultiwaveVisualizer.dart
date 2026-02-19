@@ -11,7 +11,7 @@ class MultiWaveVisualizer extends CustomPainter {
     required this.height,
     required this.color,
   })  : wavePaint = Paint()
-          ..color = color.withOpacity(0.75)
+          ..color = color.withValues(alpha: 0.75)
           ..style = PaintingStyle.fill,
         assert(waveData.isNotEmpty),
         assert(height != null);

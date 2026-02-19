@@ -87,8 +87,8 @@ class OceanVisualizer extends CustomPainter {
         center: const Alignment(0.0, -0.5),
         radius: 0.5,
         colors: [
-          Colors.white.withOpacity(0.3 + (intensity * 0.2)),
-          Colors.white.withOpacity(0.0),
+          Colors.white.withValues(alpha: 0.3 + (intensity * 0.2)),
+          Colors.white.withValues(alpha: 0.0),
         ],
       ).createShader(Rect.fromLTWH(
           width * 0.25, -height * 0.2, width * 0.5, height * 0.8));
@@ -152,8 +152,8 @@ class OceanVisualizer extends CustomPainter {
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
         colors: [
-          waveColor.withOpacity(opacity),
-          waveColor.withOpacity(opacity * 0.7)
+          waveColor.withValues(alpha: opacity),
+          waveColor.withValues(alpha: opacity * 0.7)
         ],
       ).createShader(Rect.fromLTWH(0, heightOffset - 50, width, 100));
 
@@ -168,7 +168,7 @@ class OceanVisualizer extends CustomPainter {
       Canvas canvas, double width, double height, double intensity) {
     final numParticles = (100 * intensity).toInt();
     final foamPaint = Paint()
-      ..color = color.withOpacity(0.4)
+      ..color = color.withValues(alpha: 0.4)
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2);
 
     for (int i = 0; i < numParticles; i++) {
@@ -186,7 +186,7 @@ class OceanVisualizer extends CustomPainter {
     final numHighlights = (20 * avgAmplitude).toInt();
     final highlightPaint = Paint()
       ..shader = RadialGradient(
-        colors: [Colors.white.withOpacity(0.3), Colors.white.withOpacity(0.0)],
+        colors: [Colors.white.withValues(alpha: 0.3), Colors.white.withValues(alpha: 0.0)],
       ).createShader(Rect.fromLTWH(0, 0, 20, 20));
 
     for (int i = 0; i < numHighlights; i++) {

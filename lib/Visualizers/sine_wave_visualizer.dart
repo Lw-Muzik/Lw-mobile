@@ -100,7 +100,7 @@ class HeartbeatVisualizer extends CustomPainter {
     // Apply subtle glow effect
     for (double i = 3; i >= 0; i--) {
       final glowPaint = Paint()
-        ..color = baseColor.withOpacity(0.1)
+        ..color = baseColor.withValues(alpha: 0.1)
         ..style = PaintingStyle.stroke
         ..strokeWidth = paint.strokeWidth + i * 2;
       canvas.drawPath(path, glowPaint);

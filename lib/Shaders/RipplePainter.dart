@@ -11,7 +11,7 @@ class RipplePainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
       ..color = Colors.white
-          .withOpacity(0.07124) // Adjust the ripple color and opacity.
+          .withValues(alpha: 0.07124) // Adjust the ripple color and opacity.
       ..style = PaintingStyle.fill;
     // ..fillWidth = 2.0;
 

@@ -53,7 +53,7 @@ class SpectrumVisualizer extends CustomPainter {
 
       // Add subtle shine effect
       final shinePaint = Paint()
-        ..color = Colors.white.withOpacity(0.2)
+        ..color = Colors.white.withValues(alpha: 0.2)
         ..style = PaintingStyle.fill;
 
       final shineRect = RRect.fromRectAndRadius(
@@ -71,7 +71,7 @@ class SpectrumVisualizer extends CustomPainter {
 
     // Draw fewer reference lines
     final linePaint = Paint()
-      ..color = Colors.white.withOpacity(0.1)
+      ..color = Colors.white.withValues(alpha: 0.1)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.0;
 

@@ -238,7 +238,7 @@ class FabricVisualizer extends CustomPainter {
 
   void _drawTexture(
       Canvas canvas, Offset start, Offset end, Paint paint, double opacity) {
-    paint.color = Colors.white.withOpacity(0.05 + (opacity * 0.1));
+    paint.color = Colors.white.withValues(alpha: 0.05 + (opacity * 0.1));
     canvas.drawLine(start, end, paint);
   }
 
@@ -265,7 +265,7 @@ class FabricVisualizer extends CustomPainter {
       Canvas canvas, Paint paint, double x, double y, double particleTime) {
     for (int j = 0; j < 3; j++) {
       final trailOpacity = (0.3 - (j * 0.1)) * (1 - particleTime);
-      paint.color = Colors.white.withOpacity(trailOpacity);
+      paint.color = Colors.white.withValues(alpha: trailOpacity);
 
       canvas.drawCircle(
         Offset(x, y - (j * 2)),

@@ -40,7 +40,7 @@ class _GenresState extends State<Genres> {
               return Routes.animateTo(
                 closedWidget: GridTile(
                   footer: Card(
-                    color: Theme.of(context).cardColor.withOpacity(0.4),
+                    color: Theme.of(context).cardColor.withValues(alpha: 0.4),
                     child: SizedBox(
                       height: 46,
                       child: Column(

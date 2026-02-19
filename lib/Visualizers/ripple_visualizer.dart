@@ -59,7 +59,7 @@ class RippleVisualizer extends CustomPainter {
       path.close();
 
       final paint = Paint()
-        ..color = color.withOpacity(opacity)
+        ..color = color.withValues(alpha: opacity)
         ..style = PaintingStyle.stroke
         ..strokeWidth = strokeWidth;
 

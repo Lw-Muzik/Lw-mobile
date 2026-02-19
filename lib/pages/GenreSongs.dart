@@ -99,7 +99,7 @@ class _GenreSongsState extends State<GenreSongs> {
                 return Scaffold(
                   backgroundColor: Theme.of(
                     context,
-                  ).scaffoldBackgroundColor.withOpacity(0.8),
+                  ).scaffoldBackgroundColor.withValues(alpha: 0.8),
                   body: FutureBuilder(
                     future: OnAudioQuery.platform.queryAudiosFrom(
                       AudiosFromType.GENRE_ID,
@@ -156,7 +156,7 @@ class _SongListsState extends State<SongLists> {
                       selected: controller.songId == _selected,
                       selectedTileColor: Theme.of(
                         context,
-                      ).primaryColorLight.withOpacity(0.1),
+                      ).primaryColorLight.withValues(alpha: 0.1),
                       selectedColor: Theme.of(context).primaryColorLight,
                       title: Text(widget.songs[index].title),
                       subtitle: Text(widget.songs[index].artist ?? "No Artist"),

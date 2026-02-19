@@ -101,7 +101,7 @@ class PlasmaVisualizer extends CustomPainter {
       final color = colors[i % colors.length];
 
       _circlePaint
-        ..color = color.withOpacity(0.6 + avgAmplitude * 0.3)
+        ..color = color.withValues(alpha: 0.6 + avgAmplitude * 0.3)
         ..strokeWidth = 2 + (frequency * 2);
 
       final radius = size * (0.5 + progress) * (1 + frequency * 0.3);
@@ -118,7 +118,7 @@ class PlasmaVisualizer extends CustomPainter {
       final color = colors[(i + 1) % colors.length];
 
       _diamondPaint
-        ..color = color.withOpacity(0.6 + avgAmplitude * 0.2)
+        ..color = color.withValues(alpha: 0.6 + avgAmplitude * 0.2)
         ..strokeWidth = 2 + (frequency * 1.5);
 
       final diamondSize = size * (0.7 + progress) * (1 + frequency * 0.2);
@@ -144,7 +144,7 @@ class PlasmaVisualizer extends CustomPainter {
       final color = colors[i % colors.length];
 
       _circlePaint
-        ..color = color.withOpacity(0.7 + avgAmplitude * 0.3)
+        ..color = color.withValues(alpha: 0.7 + avgAmplitude * 0.3)
         ..strokeWidth = 2 + (frequency * 2);
 
       final rect = Rect.fromCenter(
@@ -168,7 +168,7 @@ class PlasmaVisualizer extends CustomPainter {
       final angle = 2 * pi * progress;
       final radius = min(size.width, size.height) * 0.5 * progress;
 
-      _particlePaint.color = Colors.white.withOpacity((1 - progress) * 0.5);
+      _particlePaint.color = Colors.white.withValues(alpha: (1 - progress) * 0.5);
 
       canvas.drawCircle(
         Offset(size.width / 2 + cos(angle) * radius,

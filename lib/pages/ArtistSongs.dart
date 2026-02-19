@@ -192,7 +192,7 @@ class SongLists extends StatelessWidget {
                 selected: controller.songId == index,
                 selectedTileColor: Theme.of(
                   context,
-                ).primaryColor.withOpacity(0.1),
+                ).primaryColor.withValues(alpha: 0.1),
                 selectedColor: Theme.of(context).primaryColorLight,
                 title: Text(
                   song.title,

@@ -119,7 +119,7 @@ class _RoomEffectsState extends State<RoomEffects> {
           width: 120,
           child: Divider(
             thickness: 2,
-            color: Theme.of(context).colorScheme.primary.withOpacity(0.4),
+            color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.4),
           ),
         ),
         Card(
@@ -127,7 +127,7 @@ class _RoomEffectsState extends State<RoomEffects> {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(5),
             side: BorderSide(
-              color: Theme.of(context).colorScheme.primary.withOpacity(0.4),
+              color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.4),
             ),
           ),
           child: Padding(
@@ -139,7 +139,7 @@ class _RoomEffectsState extends State<RoomEffects> {
           width: 120,
           child: Divider(
             thickness: 2,
-            color: Theme.of(context).colorScheme.primary.withOpacity(0.4),
+            color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.4),
           ),
         ),
       ],
@@ -180,7 +180,7 @@ class _RoomEffectsState extends State<RoomEffects> {
                   child: Card(
                     color: isSelected
                         ? Theme.of(context).colorScheme.primary
-                        : Theme.of(context).primaryColorLight.withOpacity(0.4),
+                        : Theme.of(context).primaryColorLight.withValues(alpha: 0.4),
                     child: Center(
                       child: Text(
                         preset['name'],
