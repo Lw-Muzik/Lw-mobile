@@ -285,6 +285,9 @@ class AppController with ChangeNotifier {
   StreamSubscription<Duration>? _positionSub;
   bool _isCrossfading = false;
 
+  StreamSubscription<ProcessingState>? _processingSub;
+  StreamSubscription<int?>? _indexSub;
+
   AppController(this._prefs, this._handler) {
     _loadSettings();
 
@@ -292,17 +295,30 @@ class AppController with ChangeNotifier {
     _handler.onSkipToNext = next;
     _handler.onSkipToPrevious = prev;
 
+    // When crossfade starts, notify UI so waveform binds to the new track player
+    _handler.onCrossfadeStarted = () => notifyListeners();
+
+    // Re-bind all player streams after a crossfade player swap
+    _handler.onPlayerSwapped = _rebindPlayerStreams;
+
     // Apply DVC state on startup
     if (_dvcEnabled) {
       Channel.enableLoudnessEnhancer(true);
       Channel.setTargetGain((_dvcGain * 100).toInt());
     }
 
-    handler.player.processingStateStream.listen((event) {
+    _bindProcessingState();
+    _bindCurrentIndex();
+    _setupCrossfadeListener();
+  }
+
+  /// Subscribe to the active player's processingStateStream.
+  /// Called once at init and again after every crossfade swap.
+  void _bindProcessingState() {
+    _processingSub?.cancel();
+    _processingSub = handler.player.processingStateStream.listen((event) {
       if (event == ProcessingState.completed) {
         if (_gaplessPlayback && handler.player.audioSources.length > 1) {
-          // Gapless mode: just_audio handles advancement via ConcatenatingAudioSource
-          // If we've reached the end of the queue, stop
           final idx = handler.player.currentIndex ?? 0;
           if (idx >= songs.length - 1) {
             handler.player.stop();
@@ -318,9 +334,12 @@ class AppController with ChangeNotifier {
         }
       }
     });
+  }
 
-    // Listen for index changes in gapless mode
-    handler.player.currentIndexStream.listen((index) {
+  /// Subscribe to currentIndexStream for gapless mode index tracking.
+  void _bindCurrentIndex() {
+    _indexSub?.cancel();
+    _indexSub = handler.player.currentIndexStream.listen((index) {
       if (index != null && _gaplessPlayback && songs.isNotEmpty && index < songs.length) {
         _songId = index;
         _artWorkId = songs[index].id;
@@ -328,9 +347,16 @@ class AppController with ChangeNotifier {
         notifyListeners();
       }
     });
+  }
 
-    // Crossfade position monitoring
+  /// Called by HypeAudioHandler after crossfade completes and players are swapped.
+  /// Re-binds all subscriptions to the new active player and notifies the UI
+  /// so StreamBuilders (waveform, playing state) reconnect to the new player.
+  void _rebindPlayerStreams() {
+    _bindProcessingState();
+    _bindCurrentIndex();
     _setupCrossfadeListener();
+    notifyListeners();
   }
 
   void _setupCrossfadeListener() {
@@ -353,16 +379,22 @@ class AppController with ChangeNotifier {
     _isCrossfading = true;
     final nextIdx = songId + 1;
     final nextSong = songs[nextIdx];
+
+    // Update songId/artWorkId immediately so the deck switches.
+    // Don't call notifyListeners() here — handler.beginCrossfade will
+    // fire onCrossfadeStarted after the new track is loaded on the
+    // incoming player, at which point currentTrackPlayer returns the
+    // correct player for the waveform.
+    _songId = nextIdx;
+    _artWorkId = nextSong.id;
+
     await handler.beginCrossfade(
       AudioSource.uri(Uri.parse(nextSong.data)),
       nextSong,
       Duration(seconds: _crossfadeDuration),
       replayGain: _replayGain,
     );
-    _songId = nextIdx;
-    _artWorkId = nextSong.id;
     _isCrossfading = false;
-    notifyListeners();
   }
 
   Future<void> _updateMediaItemForIndex(int index) async {

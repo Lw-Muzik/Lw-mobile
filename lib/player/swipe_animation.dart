@@ -176,14 +176,15 @@ class AnimatedPlayerCard extends StatefulWidget {
   }) : super(key: key);
 
   @override
-  State<AnimatedPlayerCard> createState() => _AnimatedPlayerCardState();
+  AnimatedPlayerCardState createState() => AnimatedPlayerCardState();
 }
 
-class _AnimatedPlayerCardState extends State<AnimatedPlayerCard>
+class AnimatedPlayerCardState extends State<AnimatedPlayerCard>
     with TickerProviderStateMixin {
   late List<CardController> _cardControllers;
   Size _screenSize = Size.zero;
   int _currentIndex = 0;
+  bool _animatingFromControls = false;
 
   @override
   void initState() {
@@ -201,15 +202,30 @@ class _AnimatedPlayerCardState extends State<AnimatedPlayerCard>
     });
   }
 
+  /// Called externally (from Controls) to animate card swipe to next
   void animateToNext() {
     if (_currentIndex < widget.itemCount - 1) {
+      _animatingFromControls = true;
       _cardControllers[0].animateToNext();
     }
   }
 
+  /// Called externally (from Controls) to animate card swipe to previous
   void animateToPrevious() {
     if (_currentIndex > 0) {
+      _animatingFromControls = true;
       _cardControllers[0].animateToPrevious();
+    }
+  }
+
+  @override
+  void didUpdateWidget(AnimatedPlayerCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Sync index if changed externally (e.g. processingStateStream auto-advance)
+    if (widget.currentSongId != _currentIndex && !_animatingFromControls) {
+      setState(() {
+        _currentIndex = widget.currentSongId;
+      });
     }
   }
 
@@ -239,12 +255,17 @@ class _AnimatedPlayerCardState extends State<AnimatedPlayerCard>
       setState(() {
         _currentIndex = nextIndex;
       });
-      widget.onPageChanged(nextIndex);
+      // Only fire onPageChanged for user swipe, not control-triggered animation
+      if (!_animatingFromControls) {
+        widget.onPageChanged(nextIndex);
+      }
+      _animatingFromControls = false;
 
       final swipedController = _cardControllers.removeAt(0);
       swipedController.reset();
       _cardControllers.add(swipedController);
     } else {
+      _animatingFromControls = false;
       _cardControllers[0].reset();
     }
   }

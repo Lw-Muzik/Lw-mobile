@@ -92,8 +92,11 @@ Widget playerControls(AppController controller, BuildContext context) {
 Widget playerCard(
   Animation<double> animation,
   BuildContext context,
-  AppController controller,
-) {
+  AppController controller, {
+  int? songIndex,
+}) {
+  final idx = songIndex ?? controller.songId;
+  final song = controller.songs[idx];
   return Stack(
     children: [
       AnimatedBuilder(
@@ -112,13 +115,75 @@ Widget playerCard(
                 child: SizedBox(
                   height: MediaQuery.of(context).size.width,
                   width: MediaQuery.of(context).size.width,
-                  child: ArtworkWidget(
-                    quality: 100,
+                  child: ClipRRect(
                     borderRadius: BorderRadius.circular(15),
-                    size: 1000,
-                    songId: controller.songs[controller.songId].id,
-                    type: ArtworkType.AUDIO,
-                    path: controller.songs[controller.songId].data,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        ArtworkWidget(
+                          quality: 100,
+                          borderRadius: BorderRadius.circular(15),
+                          size: 1000,
+                          songId: song.id,
+                          type: ArtworkType.AUDIO,
+                          path: song.data,
+                        ),
+                        // Gradient overlay at bottom for text legibility
+                        Positioned(
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          height: 120,
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [
+                                  Colors.transparent,
+                                  Colors.black.withValues(alpha: 0.7),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                        // Title + artist overlay
+                        Positioned(
+                          left: 16,
+                          right: 16,
+                          bottom: 52,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                song.title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .titleMedium!
+                                    .copyWith(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                song.artist ?? 'Unknown artist',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodySmall!
+                                    .copyWith(
+                                      color: Colors.white.withValues(alpha: 0.7),
+                                    ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -126,12 +191,13 @@ Widget playerCard(
           );
         },
       ),
-      Positioned(
-        bottom: 0,
-        left: 20,
-        right: 20,
-        child: playerControls(controller, context),
-      ),
+      if (idx == controller.songId)
+        Positioned(
+          bottom: 0,
+          left: 20,
+          right: 20,
+          child: playerControls(controller, context),
+        ),
     ],
   );
 }

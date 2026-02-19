@@ -15,20 +15,39 @@ class HypeAudioHandler extends BaseAudioHandler {
   late AudioPlayer _activePlayer;
   late AudioPlayer _inactivePlayer;
 
+  StreamSubscription<PlaybackEvent>? _playbackSub;
+  bool _isCrossfading = false;
+
+  /// The primary player used for playback controls (play/pause/stop/seek).
   AudioPlayer get player => _activePlayer;
+
+  /// The player that has the latest track loaded.
+  /// During crossfade this returns the incoming player (new track).
+  /// Outside crossfade this is the same as [player].
+  AudioPlayer get currentTrackPlayer =>
+      _isCrossfading ? _inactivePlayer : _activePlayer;
 
   VoidCallback? onSkipToNext;
   VoidCallback? onSkipToPrevious;
 
+  /// Fired right after the new track starts playing on the incoming player
+  /// (before the fade begins) so the UI can bind to [currentTrackPlayer].
+  VoidCallback? onCrossfadeStarted;
+
+  /// Fired after a crossfade completes so AppController can re-bind streams.
+  VoidCallback? onPlayerSwapped;
+
   HypeAudioHandler() {
     _activePlayer = _playerA;
     _inactivePlayer = _playerB;
-    _playerA.playbackEventStream.map(_transformEvent).pipe(playbackState);
+    _bindPlaybackState();
   }
 
-  void _rebindPlaybackState() {
-    // Pipe the new active player's events
-    _activePlayer.playbackEventStream.map(_transformEvent).pipe(playbackState);
+  void _bindPlaybackState() {
+    _playbackSub?.cancel();
+    _playbackSub = _activePlayer.playbackEventStream.listen((event) {
+      playbackState.add(_transformEvent(event));
+    });
   }
 
   @override
@@ -87,7 +106,14 @@ class HypeAudioHandler extends BaseAudioHandler {
       artUri: Uri.file(image),
     );
 
-    final steps = 20;
+    setCurrentMediaItem(item);
+
+    // Signal that the new track is now playing on _inactivePlayer.
+    // currentTrackPlayer will return _inactivePlayer while _isCrossfading.
+    _isCrossfading = true;
+    onCrossfadeStarted?.call();
+
+    const steps = 20;
     final stepDuration = Duration(
       milliseconds: fadeDuration.inMilliseconds ~/ steps,
     );
@@ -108,8 +134,9 @@ class HypeAudioHandler extends BaseAudioHandler {
     _activePlayer = _inactivePlayer;
     _inactivePlayer = temp;
 
-    setCurrentMediaItem(item);
-    _rebindPlaybackState();
+    _isCrossfading = false;
+    _bindPlaybackState();
+    onPlayerSwapped?.call();
   }
 
   /// Compute replay gain volume from ID3 tags
@@ -123,7 +150,6 @@ class HypeAudioHandler extends BaseAudioHandler {
         if (frame is TextInformation) {
           final val = frame.value.toLowerCase();
           if (val.contains('replaygain_track_gain')) {
-            // Value format: "replaygain_track_gain\x00+3.5 dB" or similar
             final gainStr = frame.value
                 .replaceAll(RegExp(r'replaygain_track_gain', caseSensitive: false), '')
                 .replaceAll(RegExp(r'[^\d.\-+]'), '');

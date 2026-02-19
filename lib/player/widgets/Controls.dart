@@ -7,7 +7,10 @@ import '../../Helpers/Eq.dart';
 import 'package:flutter/material.dart';
 
 class Controls extends StatefulWidget {
-  const Controls({super.key});
+  final VoidCallback? onNextPressed;
+  final VoidCallback? onPrevPressed;
+
+  const Controls({super.key, this.onNextPressed, this.onPrevPressed});
 
   @override
   State<Controls> createState() => _ControlsState();
@@ -59,14 +62,20 @@ class _ControlsState extends State<Controls> {
                     ),
                     IconButton(
                       iconSize: 32,
-                      onPressed: () => controller.prev(),
+                      onPressed: () {
+                        widget.onPrevPressed?.call();
+                        controller.prev();
+                      },
                       icon:
                           const Icon(Icons.skip_previous, color: Colors.white),
                     ),
                     const ControlButtons(),
                     IconButton(
                       iconSize: 32,
-                      onPressed: () => controller.next(),
+                      onPressed: () {
+                        widget.onNextPressed?.call();
+                        controller.next();
+                      },
                       icon: const Icon(Icons.skip_next, color: Colors.white),
                     ),
                     StreamBuilder<bool>(
@@ -96,21 +105,6 @@ class _ControlsState extends State<Controls> {
                         );
                       },
                     ),
-                    // IconButton(
-                    //   highlightColor: Colors.transparent,
-                    //   splashColor: Colors.transparent,
-                    //   onPressed: () {
-                    //     setState(() {
-                    //       isShuffle = !isShuffle;
-                    //     });
-                    //     controller.audioPlayer
-                    //         .setShuffleModeEnabled(isShuffle);
-                    //   },
-                    //   icon: Icon(
-                    //     isShuffle ? Icons.shuffle_on_rounded : Icons.shuffle,
-                    //     color: Colors.white.withOpacity(isShuffle ? 0.9 : 0.4),
-                    //   ),
-                    // ),
                   ],
                 ),
               ),
