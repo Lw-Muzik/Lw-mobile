@@ -1,13 +1,8 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '/Helpers/Channel.dart';
 import '/controllers/AppController.dart';
 import '/widgets/Body.dart';
-import 'AudioFx.dart';
-import 'Compressor.dart';
 import 'GraphicEqView.dart';
 import 'ParametricEqView.dart';
 import 'SpaceView.dart';
@@ -21,28 +16,15 @@ class Equalizer extends StatefulWidget {
 
 class _EqualizerState extends State<Equalizer> with TickerProviderStateMixin {
   late final TabController _tabController;
-  StreamSubscription<int?>? _sessionIdSubscription;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 5, vsync: this);
-
-    _sessionIdSubscription = context
-        .read<AppController>()
-        .handler
-        .player
-        .androidAudioSessionIdStream
-        .listen((event) {
-      if (event != null) {
-        Channel.setSessionId(event);
-      }
-    });
+    _tabController = TabController(length: 3, vsync: this);
   }
 
   @override
   void dispose() {
-    _sessionIdSubscription?.cancel();
     _tabController.dispose();
     super.dispose();
   }
@@ -68,7 +50,6 @@ class _EqualizerState extends State<Equalizer> with TickerProviderStateMixin {
   PreferredSizeWidget _buildTabBar(BuildContext context) {
     final accent = Theme.of(context).colorScheme.primary;
     return TabBar(
-      isScrollable: true,
       controller: _tabController,
       dividerColor: Colors.transparent,
       indicatorSize: TabBarIndicatorSize.tab,
@@ -77,28 +58,24 @@ class _EqualizerState extends State<Equalizer> with TickerProviderStateMixin {
         color: accent.withValues(alpha: 0.15),
       ),
       labelColor: accent,
-      unselectedLabelColor: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
-      tabAlignment: TabAlignment.start,
+      unselectedLabelColor: Theme.of(
+        context,
+      ).colorScheme.onSurface.withValues(alpha: 0.6),
+      padding: const EdgeInsets.symmetric(horizontal: 12),
       tabs: const [
         Tab(icon: Icon(Icons.equalizer, size: 20), text: "Graphic"),
         Tab(icon: Icon(Icons.show_chart, size: 20), text: "Parametric"),
-        Tab(icon: Icon(Icons.tune, size: 20), text: "Audio FX"),
-        Tab(icon: Icon(Icons.compress, size: 20), text: "Dynamics"),
         Tab(icon: Icon(Icons.surround_sound, size: 20), text: "Space"),
       ],
     );
   }
 
   Widget _buildTabBarView() {
-    return TabBarView(
-      controller: _tabController,
-      children: const [
-        GraphicEqView(),
-        ParametricEqView(),
-        AudioFx(),
-        DynamicsView(),
-        SpaceView(),
-      ],
+    return SafeArea(
+      child: TabBarView(
+        controller: _tabController,
+        children: const [GraphicEqView(), ParametricEqView(), SpaceView()],
+      ),
     );
   }
 }

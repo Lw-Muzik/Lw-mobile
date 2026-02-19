@@ -60,6 +60,9 @@ class AppController with ChangeNotifier {
   bool _dvcEnabled = false;
   double _dvcGain = 0.0; // dB, range -30 to +30
 
+  // Configurable EQ band count (UI-layer only, native always 32)
+  int _eqBandCount = 32;
+
   // 32-band Graphic EQ state
   List<double> _graphicBandGains = List.filled(32, 0.0);
   bool _graphicEqEnabled = false;
@@ -70,6 +73,33 @@ class AppController with ChangeNotifier {
 
   // Parametric EQ state
   List<ParametricPoint> _parametricPoints = [];
+
+  // EQ band count getters/setters
+  int get eqBandCount => _eqBandCount;
+  set eqBandCount(int value) {
+    if (BandMapping.supportedCounts.contains(value)) {
+      _prefs.setInt("eqBandCount", value);
+      _eqBandCount = value;
+      notifyListeners();
+    }
+  }
+
+  BandMapping get currentBandMapping => BandMapping.forCount(_eqBandCount);
+
+  List<double> get displayBandGains =>
+      currentBandMapping.nativeToDisplay(_graphicBandGains);
+
+  void setDisplayBandGain(int displayBand, double gain) {
+    final mapping = currentBandMapping;
+    if (displayBand >= 0 && displayBand < mapping.nativeGroups.length) {
+      for (final nativeIdx in mapping.nativeGroups[displayBand]) {
+        _graphicBandGains[nativeIdx] = gain;
+      }
+      Channel.setGraphicAllBands(_graphicBandGains);
+      _persistGraphicGains();
+      notifyListeners();
+    }
+  }
 
   // Graphic EQ getters/setters
   List<double> get graphicBandGains => _graphicBandGains;
@@ -466,6 +496,7 @@ class AppController with ChangeNotifier {
 
   StreamSubscription<ProcessingState>? _processingSub;
   StreamSubscription<int?>? _indexSub;
+  StreamSubscription<int?>? _sessionIdSub;
 
   AppController(this._prefs, this._handler) {
     _loadSettings();
@@ -489,6 +520,24 @@ class AppController with ChangeNotifier {
     _bindProcessingState();
     _bindCurrentIndex();
     _setupCrossfadeListener();
+    _bindAudioSessionId();
+  }
+
+  /// Listen to audio session ID changes and rebind all native effects.
+  /// This runs for the lifetime of the app, not just while the Equalizer page is open.
+  void _bindAudioSessionId() {
+    _sessionIdSub?.cancel();
+    _sessionIdSub = _handler.player.androidAudioSessionIdStream.listen((sessionId) {
+      if (sessionId != null) {
+        Channel.setSessionId(sessionId);
+        // Re-apply current graphic EQ bands to the new session
+        if (_graphicEqEnabled) {
+          Channel.setGraphicAllBands(_graphicBandGains);
+          Channel.enableEq(true);
+          Channel.enableDSPEngine(true);
+        }
+      }
+    });
   }
 
   /// Subscribe to the active player's processingStateStream.
@@ -516,10 +565,18 @@ class AppController with ChangeNotifier {
   }
 
   /// Subscribe to currentIndexStream for gapless mode index tracking.
+  /// Only updates songId when the player actually has a multi-source queue
+  /// loaded (audioSources.length > 1). When a single source is loaded via
+  /// loadAudioSource(), the player always emits index 0 which would
+  /// incorrectly overwrite the real songId.
   void _bindCurrentIndex() {
     _indexSub?.cancel();
     _indexSub = handler.player.currentIndexStream.listen((index) {
-      if (index != null && _gaplessPlayback && songs.isNotEmpty && index < songs.length) {
+      if (index != null &&
+          _gaplessPlayback &&
+          songs.isNotEmpty &&
+          index < songs.length &&
+          handler.player.audioSources.length > 1) {
         _songId = index;
         _artWorkId = songs[index].id;
         _updateMediaItemForIndex(index);
@@ -535,6 +592,7 @@ class AppController with ChangeNotifier {
     _bindProcessingState();
     _bindCurrentIndex();
     _setupCrossfadeListener();
+    _bindAudioSessionId();
     notifyListeners();
   }
 
@@ -590,6 +648,19 @@ class AppController with ChangeNotifier {
     ));
   }
 
+  /// Central method for playing a song selected from any list.
+  /// Properly handles gapless queue vs single-source loading.
+  void playSongFromList(List<SongModel> songList, int index) {
+    songs = songList;
+    songId = index;
+    artWorkId = songList[index].id;
+    if (_gaplessPlayback && _crossfadeDuration == 0) {
+      loadGaplessQueue(index);
+    } else {
+      loadAudioSource(handler, songList[index], replayGain: _replayGain);
+    }
+  }
+
   /// Build and load a queue for gapless playback
   Future<void> loadGaplessQueue(int startIndex) async {
     if (songs.isEmpty) return;
@@ -634,6 +705,8 @@ class AppController with ChangeNotifier {
     _replayGain = _prefs.getBool("replayGain") ?? false;
     _dvcEnabled = _prefs.getBool("dvcEnabled") ?? false;
     _dvcGain = _prefs.getDouble("dvcGain") ?? 0.0;
+    // EQ band count
+    _eqBandCount = _prefs.getInt("eqBandCount") ?? 32;
     // 32-band Graphic EQ
     _graphicEqEnabled = _prefs.getBool("graphicEqEnabled") ?? false;
     _activePresetName = _prefs.getString("activePresetName") ?? 'Flat';

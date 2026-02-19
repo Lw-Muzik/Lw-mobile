@@ -12,10 +12,18 @@ import java.util.ArrayList;
 public class CustomEq {
 	private static final int m = Integer.MAX_VALUE;
 	private static Equalizer equalizer;
+	private static int boundSessionId = -1;
 
 	public static void init(int sessionId) {
-		if(equalizer == null){
-			equalizer = new Equalizer(m, sessionId > 0 ? sessionId : 0);
+		int sid = sessionId > 0 ? sessionId : 0;
+		// If session changed, release old and recreate
+		if (equalizer != null && boundSessionId != sid) {
+			try { equalizer.release(); } catch (Exception ignored) {}
+			equalizer = null;
+		}
+		if (equalizer == null) {
+			equalizer = new Equalizer(m, sid);
+			boundSessionId = sid;
 		}
 	}
 

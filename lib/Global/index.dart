@@ -154,6 +154,7 @@ Widget playerCard(
   int? songIndex,
 }) {
   final idx = songIndex ?? controller.songId;
+  if (idx < 0 || idx >= controller.songs.length) return const SizedBox.shrink();
   final song = controller.songs[idx];
 
   return Align(
@@ -320,11 +321,7 @@ Widget headerWidget(
             onTap: () {
               List<SongModel> s = data;
               if (s.isNotEmpty) {
-                controller.songs.clear();
-                controller.songs = s;
-                controller.songId = 0;
-
-                loadAudioSource(controller.handler, s[0]);
+                controller.playSongFromList(s, 0);
               }
             },
             child: Card(

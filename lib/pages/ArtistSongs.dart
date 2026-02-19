@@ -240,9 +240,7 @@ class SongLists extends StatelessWidget {
     BuildContext context,
     SongModel song,
   ) {
-    controller.songs = songs;
-    controller.songId = songs.indexOf(song);
-    loadAudioSource(controller.handler, song);
+    controller.playSongFromList(songs, songs.indexOf(song));
     Routes.routeTo(const Player(), context);
   }
 

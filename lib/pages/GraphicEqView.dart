@@ -9,14 +9,6 @@ import '../Helpers/Channel.dart';
 import '../models/eq_models.dart';
 import 'AudioFx.dart';
 
-/// Standard ISO 1/3-octave center frequencies for a 32-band graphic EQ.
-const List<double> _kBandFrequencies = [
-  20, 25, 31.5, 40, 50, 63, 80, 100,
-  125, 160, 200, 250, 315, 400, 500, 630,
-  800, 1000, 1250, 1600, 2000, 2500, 3150, 4000,
-  5000, 6300, 8000, 10000, 12500, 16000, 18000, 20000,
-];
-
 const Color _kAccent = Color(0xFFD4A825);
 const double _kMinGain = -12.0;
 const double _kMaxGain = 12.0;
@@ -29,13 +21,13 @@ class GraphicEqView extends StatefulWidget {
 }
 
 class _GraphicEqViewState extends State<GraphicEqView> {
-  /// Tracks which band index the user is currently dragging, or -1 if idle.
   int _activeBand = -1;
 
   @override
   Widget build(BuildContext context) {
     final controller = context.watch<AppController>();
-    final gains = controller.graphicBandGains;
+    final mapping = controller.currentBandMapping;
+    final displayGains = controller.displayBandGains;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -44,9 +36,9 @@ class _GraphicEqViewState extends State<GraphicEqView> {
         children: [
           _buildToggleRow(controller),
           const SizedBox(height: 12),
-          _buildCurveSection(controller, gains),
+          _buildCurveSection(controller, displayGains, mapping),
           const SizedBox(height: 16),
-          _buildBandSlidersSection(controller, gains),
+          _buildBandSlidersSection(controller, displayGains, mapping),
           const SizedBox(height: 16),
           _buildPresetChips(controller),
           const SizedBox(height: 12),
@@ -99,15 +91,23 @@ class _GraphicEqViewState extends State<GraphicEqView> {
   // 2. Frequency response curve (CustomPainter)
   // ---------------------------------------------------------------------------
 
-  Widget _buildCurveSection(AppController controller, List<double> gains) {
+  Widget _buildCurveSection(
+    AppController controller,
+    List<double> gains,
+    BandMapping mapping,
+  ) {
+    final screenH = MediaQuery.of(context).size.height;
+    final curveHeight = (screenH * 0.22).clamp(120.0, 260.0);
+
     return FancyCard(
       isFancy: controller.isFancy,
       child: SizedBox(
-        height: MediaQuery.of(context).size.height * 0.28,
+        height: curveHeight,
         child: RepaintBoundary(
           child: CustomPaint(
             painter: _FrequencyCurvePainter(
               gains: gains,
+              frequencies: mapping.frequencies,
               accent: _kAccent,
             ),
             size: Size.infinite,
@@ -118,40 +118,84 @@ class _GraphicEqViewState extends State<GraphicEqView> {
   }
 
   // ---------------------------------------------------------------------------
-  // 3. 32 vertical band sliders
+  // 3. Variable-count band sliders (responsive)
   // ---------------------------------------------------------------------------
 
   Widget _buildBandSlidersSection(
     AppController controller,
-    List<double> gains,
+    List<double> displayGains,
+    BandMapping mapping,
   ) {
-    final sliderHeight = MediaQuery.of(context).size.height * 0.30;
+    final screenH = MediaQuery.of(context).size.height;
+    final sliderHeight = (screenH * 0.26).clamp(140.0, 280.0);
+    final bandCount = mapping.displayCount;
+    final frequencies = mapping.frequencies;
+
+    // Label visibility: all at <=10, every 2nd at 16, every 4th at 20+
+    bool showLabel(int i) {
+      if (bandCount <= 10) return true;
+      if (bandCount <= 16) return i % 2 == 0 || i == bandCount - 1;
+      return i % 4 == 0 || i == bandCount - 1;
+    }
 
     return FancyCard(
       isFancy: controller.isFancy,
       child: SizedBox(
-        height: sliderHeight + 40, // extra space for labels
-        child: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          physics: const BouncingScrollPhysics(),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: List.generate(32, (i) {
-              return _BandSlider(
-                index: i,
-                gain: gains[i],
-                height: sliderHeight,
-                isActive: _activeBand == i,
-                showLabel: i % 4 == 0 || i == 31,
-                onChanged: (value) {
-                  controller.setGraphicBandGain(i, value);
-                  controller.activePresetName = 'Custom';
-                },
-                onDragStart: () => setState(() => _activeBand = i),
-                onDragEnd: () => setState(() => _activeBand = -1),
+        height: sliderHeight + 40,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final availableWidth = constraints.maxWidth;
+
+            // <=10 bands: fill width evenly, no scroll
+            if (bandCount <= 10) {
+              final bandWidth = availableWidth / bandCount;
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: List.generate(bandCount, (i) {
+                  return _BandSlider(
+                    frequency: frequencies[i],
+                    gain: displayGains[i],
+                    width: bandWidth,
+                    height: sliderHeight,
+                    isActive: _activeBand == i,
+                    showLabel: showLabel(i),
+                    onChanged: (value) {
+                      controller.setDisplayBandGain(i, value);
+                      controller.activePresetName = 'Custom';
+                    },
+                    onDragStart: () => setState(() => _activeBand = i),
+                    onDragEnd: () => setState(() => _activeBand = -1),
+                  );
+                }),
               );
-            }),
-          ),
+            }
+
+            // >10 bands: fixed width per slider with horizontal scroll
+            const fixedBandWidth = 38.0;
+            return SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              physics: const BouncingScrollPhysics(),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: List.generate(bandCount, (i) {
+                  return _BandSlider(
+                    frequency: frequencies[i],
+                    gain: displayGains[i],
+                    width: fixedBandWidth,
+                    height: sliderHeight,
+                    isActive: _activeBand == i,
+                    showLabel: showLabel(i),
+                    onChanged: (value) {
+                      controller.setDisplayBandGain(i, value);
+                      controller.activePresetName = 'Custom';
+                    },
+                    onDragStart: () => setState(() => _activeBand = i),
+                    onDragEnd: () => setState(() => _activeBand = -1),
+                  );
+                }),
+              ),
+            );
+          },
         ),
       ),
     );
@@ -295,8 +339,9 @@ class _GraphicEqViewState extends State<GraphicEqView> {
 // =============================================================================
 
 class _BandSlider extends StatelessWidget {
-  final int index;
+  final double frequency;
   final double gain;
+  final double width;
   final double height;
   final bool isActive;
   final bool showLabel;
@@ -305,8 +350,9 @@ class _BandSlider extends StatelessWidget {
   final VoidCallback onDragEnd;
 
   const _BandSlider({
-    required this.index,
+    required this.frequency,
     required this.gain,
+    required this.width,
     required this.height,
     required this.isActive,
     required this.showLabel,
@@ -316,27 +362,24 @@ class _BandSlider extends StatelessWidget {
   });
 
   String get _freqLabel {
-    final freq = _kBandFrequencies[index];
-    if (freq >= 1000) {
-      final k = freq / 1000;
+    if (frequency >= 1000) {
+      final k = frequency / 1000;
       return k == k.roundToDouble()
           ? '${k.round()}k'
           : '${k.toStringAsFixed(1)}k';
     }
-    return freq >= 100 ? '${freq.round()}' : freq.toStringAsFixed(1);
+    return frequency >= 100 ? '${frequency.round()}' : frequency.toStringAsFixed(1);
   }
 
   @override
   Widget build(BuildContext context) {
-    // Normalized 0..1 within the gain range.
     final normalized = (gain - _kMinGain) / (_kMaxGain - _kMinGain);
 
     return SizedBox(
-      width: 38,
+      width: width,
       child: Column(
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
-          // Gain tooltip shown while dragging.
           if (isActive)
             Text(
               '${gain.toStringAsFixed(1)} dB',
@@ -349,7 +392,6 @@ class _BandSlider extends StatelessWidget {
           if (!isActive)
             const SizedBox(height: 14),
 
-          // Vertical slider area.
           SizedBox(
             height: height - 30,
             child: RotatedBox(
@@ -374,7 +416,6 @@ class _BandSlider extends StatelessWidget {
                   onChanged: (v) {
                     final newGain =
                         _kMinGain + v * (_kMaxGain - _kMinGain);
-                    // Snap to 0.5 dB steps.
                     final snapped = (newGain * 2).roundToDouble() / 2;
                     onChanged(snapped.clamp(_kMinGain, _kMaxGain));
                   },
@@ -384,7 +425,6 @@ class _BandSlider extends StatelessWidget {
             ),
           ),
 
-          // Frequency label (shown every 4th band + last).
           SizedBox(
             height: 16,
             child: showLabel
@@ -395,6 +435,7 @@ class _BandSlider extends StatelessWidget {
                       color: Colors.white.withValues(alpha: 0.5),
                     ),
                     textAlign: TextAlign.center,
+                    overflow: TextOverflow.ellipsis,
                   )
                 : const SizedBox.shrink(),
           ),
@@ -410,16 +451,18 @@ class _BandSlider extends StatelessWidget {
 
 class _FrequencyCurvePainter extends CustomPainter {
   final List<double> gains;
+  final List<double> frequencies;
   final Color accent;
 
   _FrequencyCurvePainter({
     required this.gains,
+    required this.frequencies,
     required this.accent,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
-    if (gains.length != 32) return;
+    if (gains.isEmpty || gains.length != frequencies.length) return;
 
     const double padLeft = 32;
     const double padRight = 8;
@@ -429,25 +472,20 @@ class _FrequencyCurvePainter extends CustomPainter {
     final plotW = size.width - padLeft - padRight;
     final plotH = size.height - padTop - padBottom;
 
-    // Clip to plot region to prevent overdraw.
     canvas.save();
     canvas.clipRect(Rect.fromLTWH(padLeft, padTop, plotW, plotH));
 
-    // -- Grid lines (dashed, subtle) --
     _drawGrid(canvas, size, padLeft, padRight, padTop, padBottom, plotW, plotH);
 
-    // -- Build Catmull-Rom points --
     final points = <Offset>[];
-    for (int i = 0; i < 32; i++) {
-      final x = padLeft + _logNormalize(_kBandFrequencies[i]) * plotW;
+    for (int i = 0; i < gains.length; i++) {
+      final x = padLeft + _logNormalize(frequencies[i]) * plotW;
       final y = padTop + plotH * (1.0 - (gains[i] - _kMinGain) / (_kMaxGain - _kMinGain));
       points.add(Offset(x, y));
     }
 
-    // Build path using Catmull-Rom interpolation.
     final curvePath = _catmullRomPath(points);
 
-    // -- Filled area below curve --
     final fillPath = Path.from(curvePath)
       ..lineTo(points.last.dx, padTop + plotH)
       ..lineTo(points.first.dx, padTop + plotH)
@@ -464,7 +502,6 @@ class _FrequencyCurvePainter extends CustomPainter {
       );
     canvas.drawPath(fillPath, fillPaint);
 
-    // -- Curve stroke --
     final curvePaint = Paint()
       ..color = accent
       ..style = PaintingStyle.stroke
@@ -473,7 +510,6 @@ class _FrequencyCurvePainter extends CustomPainter {
       ..isAntiAlias = true;
     canvas.drawPath(curvePath, curvePaint);
 
-    // -- Dot at each band --
     final dotPaint = Paint()..color = accent;
     for (final pt in points) {
       canvas.drawCircle(pt, 2.5, dotPaint);
@@ -481,11 +517,9 @@ class _FrequencyCurvePainter extends CustomPainter {
 
     canvas.restore();
 
-    // -- Axis labels (outside clip) --
     _drawAxisLabels(canvas, size, padLeft, padRight, padTop, padBottom, plotW, plotH);
   }
 
-  /// Converts a frequency (20-20000) to 0..1 on a log scale.
   static double _logNormalize(double freq) {
     const logMin = 1.3010299957; // log10(20)
     const logMax = 4.3010299957; // log10(20000)
@@ -506,7 +540,6 @@ class _FrequencyCurvePainter extends CustomPainter {
       ..color = Colors.white.withValues(alpha: 0.08)
       ..strokeWidth = 0.5;
 
-    // Horizontal grid at -12, -6, 0, +6, +12 dB.
     for (final dB in [-12.0, -6.0, 0.0, 6.0, 12.0]) {
       final y = padTop + plotH * (1.0 - (dB - _kMinGain) / (_kMaxGain - _kMinGain));
       _drawDashedLine(
@@ -519,7 +552,6 @@ class _FrequencyCurvePainter extends CustomPainter {
       );
     }
 
-    // Vertical grid at key frequencies.
     const freqGridLines = [100.0, 1000.0, 10000.0];
     for (final f in freqGridLines) {
       final x = padLeft + _logNormalize(f) * plotW;
@@ -575,7 +607,6 @@ class _FrequencyCurvePainter extends CustomPainter {
       fontSize: 9,
     );
 
-    // dB labels on the left.
     for (final dB in [-12.0, -6.0, 0.0, 6.0, 12.0]) {
       final y = padTop + plotH * (1.0 - (dB - _kMinGain) / (_kMaxGain - _kMinGain));
       final builder = ui.ParagraphBuilder(ui.ParagraphStyle(
@@ -588,7 +619,6 @@ class _FrequencyCurvePainter extends CustomPainter {
       canvas.drawParagraph(paragraph, Offset(2, y - paragraph.height / 2));
     }
 
-    // Frequency labels at the bottom.
     final freqLabels = <double, String>{100.0: '100', 1000.0: '1k', 10000.0: '10k'};
     for (final entry in freqLabels.entries) {
       final x = padLeft + _logNormalize(entry.key) * plotW;
@@ -603,7 +633,6 @@ class _FrequencyCurvePainter extends CustomPainter {
     }
   }
 
-  /// Builds a smooth Catmull-Rom spline path through the given [points].
   Path _catmullRomPath(List<Offset> points) {
     final path = Path();
     if (points.length < 2) return path;
@@ -616,14 +645,12 @@ class _FrequencyCurvePainter extends CustomPainter {
       final p2 = points[i + 1];
       final p3 = i + 2 < points.length ? points[i + 2] : points[i + 1];
 
-      // Number of segments per span -- fewer keeps it smooth but lightweight.
       const segments = 10;
       for (int s = 1; s <= segments; s++) {
         final t = s / segments;
         final tt = t * t;
         final ttt = tt * t;
 
-        // Catmull-Rom basis (alpha = 0.5 uniform parameterization).
         final x = 0.5 *
             ((2 * p1.dx) +
                 (-p0.dx + p2.dx) * t +
@@ -645,8 +672,12 @@ class _FrequencyCurvePainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _FrequencyCurvePainter oldDelegate) {
     if (gains.length != oldDelegate.gains.length) return true;
+    if (frequencies.length != oldDelegate.frequencies.length) return true;
     for (int i = 0; i < gains.length; i++) {
       if (gains[i] != oldDelegate.gains[i]) return true;
+    }
+    for (int i = 0; i < frequencies.length; i++) {
+      if (frequencies[i] != oldDelegate.frequencies[i]) return true;
     }
     return accent != oldDelegate.accent;
   }

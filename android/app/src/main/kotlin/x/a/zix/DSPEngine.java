@@ -31,6 +31,7 @@ public class DSPEngine {
     private static final float DEFAULT_TREBLE = 3.3f;
 
     static int audioSessionId = 0;
+    private static int boundSessionId = -1; // session ID the engine was created with
 
     // 32-band ISO 1/3 octave center frequencies (Hz)
     public static final int[] GRAPHIC_FREQUENCIES = {
@@ -81,12 +82,44 @@ public class DSPEngine {
 
     public static void initDSPEngine() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) return;
-        if (dspEngine != null) return;
+
+        int sessionId = audioSessionId > 0 ? audioSessionId : 0;
+
+        // If already initialized with the same session, nothing to do
+        if (dspEngine != null && boundSessionId == sessionId) return;
+
+        // Session changed — snapshot current gains, dispose, and recreate
+        float[] savedGraphicGains = null;
+        float[] savedParametricFreqs = null;
+        float[] savedParametricGains = null;
+        boolean wasEnabled = false;
+
+        if (dspEngine != null) {
+            wasEnabled = dspEngine.getEnabled();
+            // Save current graphic EQ gains
+            if (preEq != null) {
+                savedGraphicGains = new float[GRAPHIC_BAND_COUNT];
+                for (int i = 0; i < GRAPHIC_BAND_COUNT; i++) {
+                    savedGraphicGains[i] = preEq.getBand(i).getGain();
+                }
+            }
+            // Save current parametric EQ
+            if (postEq != null) {
+                savedParametricFreqs = new float[PARAMETRIC_BAND_COUNT];
+                savedParametricGains = new float[PARAMETRIC_BAND_COUNT];
+                for (int i = 0; i < PARAMETRIC_BAND_COUNT; i++) {
+                    savedParametricFreqs[i] = postEq.getBand(i).getCutoffFrequency();
+                    savedParametricGains[i] = postEq.getBand(i).getGain();
+                }
+            }
+            Log.d(TAG, "Session changed " + boundSessionId + " -> " + sessionId + ", reinitializing");
+            dispose();
+        }
 
         try {
             DynamicsProcessing.Config config = buildConfig();
-            int sessionId = audioSessionId > 0 ? audioSessionId : 0;
             dspEngine = new DynamicsProcessing(priority, sessionId, config);
+            boundSessionId = sessionId;
 
             // Create separate Pre-EQ (graphic) and Post-EQ (parametric)
             preEq = new DynamicsProcessing.Eq(true, true, GRAPHIC_BAND_COUNT);
@@ -107,16 +140,18 @@ public class DSPEngine {
                 DEFAULT_OUT_GAIN    // output gain
             );
 
-            // Configure Pre-EQ with ISO frequencies
+            // Configure Pre-EQ with ISO frequencies and restore gains
             for (int b = 0; b < GRAPHIC_BAND_COUNT; b++) {
                 preEq.getBand(b).setCutoffFrequency(GRAPHIC_FREQUENCIES[b]);
-                preEq.getBand(b).setGain(0.0f);
+                preEq.getBand(b).setGain(savedGraphicGains != null ? savedGraphicGains[b] : 0.0f);
             }
 
-            // Configure Post-EQ with same ISO frequencies (user can change freq via parametric)
+            // Configure Post-EQ — restore parametric settings if available
             for (int b = 0; b < PARAMETRIC_BAND_COUNT; b++) {
-                postEq.getBand(b).setCutoffFrequency(GRAPHIC_FREQUENCIES[b]);
-                postEq.getBand(b).setGain(0.0f);
+                float freq = savedParametricFreqs != null ? savedParametricFreqs[b] : GRAPHIC_FREQUENCIES[b];
+                float gain = savedParametricGains != null ? savedParametricGains[b] : 0.0f;
+                postEq.getBand(b).setCutoffFrequency(freq);
+                postEq.getBand(b).setGain(gain);
             }
 
             // Configure MBC bands
@@ -129,10 +164,16 @@ public class DSPEngine {
             dspEngine.setMbcAllChannelsTo(dspMbc);
             dspEngine.setLimiterAllChannelsTo(dspLimiter);
 
+            // Restore enabled state
+            if (wasEnabled) {
+                dspEngine.setEnabled(true);
+            }
+
             Log.d(TAG, "DSPEngine initialized with 32+32 bands, session=" + sessionId);
         } catch (Exception e) {
             Log.e(TAG, "Failed to initialize DSPEngine", e);
             dspEngine = null;
+            boundSessionId = -1;
         }
     }
 
@@ -298,6 +339,7 @@ public class DSPEngine {
             postEq = null;
             dspMbc = null;
             dspLimiter = null;
+            boundSessionId = -1;
         }
     }
 

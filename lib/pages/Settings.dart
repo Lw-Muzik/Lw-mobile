@@ -8,6 +8,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:wiredash/wiredash.dart';
 
+import '../models/eq_models.dart';
+
 import '/Helpers/AudioHandler.dart';
 import '/widgets/BottomPlayer.dart';
 
@@ -40,6 +42,8 @@ class _SettingsState extends State<Settings> {
                   _buildPlaybackSection(controller),
                   const SizedBox(height: 12),
                   _buildAudioEnhancementSection(controller),
+                  const SizedBox(height: 12),
+                  _buildEqualizerSection(controller),
                   const SizedBox(height: 12),
                   _buildAppearanceSection(controller),
                   const SizedBox(height: 12),
@@ -187,6 +191,45 @@ class _SettingsState extends State<Settings> {
               ),
             ),
           ],
+        ]),
+      ],
+    );
+  }
+
+  // -- Equalizer Section --
+
+  Widget _buildEqualizerSection(AppController controller) {
+    final bandCount = controller.eqBandCount;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionHeader(Icons.equalizer, "Equalizer"),
+        _buildSectionCard([
+          ListTile(
+            title: const Text("Band count"),
+            subtitle: Text("$bandCount bands"),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: SegmentedButton<int>(
+              segments: BandMapping.supportedCounts
+                  .map((c) => ButtonSegment<int>(
+                        value: c,
+                        label: Text('$c'),
+                      ))
+                  .toList(),
+              selected: {bandCount},
+              onSelectionChanged: (values) {
+                controller.eqBandCount = values.first;
+              },
+              style: SegmentedButton.styleFrom(
+                selectedBackgroundColor:
+                    Theme.of(context).colorScheme.primary.withValues(alpha: 0.15),
+                selectedForegroundColor:
+                    Theme.of(context).colorScheme.primary,
+              ),
+            ),
+          ),
         ]),
       ],
     );

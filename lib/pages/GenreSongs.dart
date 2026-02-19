@@ -173,16 +173,11 @@ class _SongListsState extends State<SongLists> {
                   setState(() {
                     _selected = index;
                   });
-                  controller.songs = widget.songs;
-
-                  int songIndex = (controller.songs.indexWhere(
+                  int songIndex = widget.songs.indexWhere(
                     (result) => result.title == widget.songs[index].title,
-                  ));
-                  controller.songId = songIndex;
-                  loadAudioSource(
-                    controller.handler,
-                    controller.songs[songIndex],
                   );
+                  if (songIndex == -1) songIndex = index;
+                  controller.playSongFromList(widget.songs, songIndex);
                   Routes.routeTo(const Player(), context);
                 },
                 leading: ArtworkWidget(

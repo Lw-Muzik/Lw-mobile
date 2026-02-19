@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:eq_app/Global/index.dart';
 import 'package:eq_app/controllers/AppController.dart';
 import 'package:eq_app/widgets/ArtworkWidget.dart';
 import 'package:on_audio_query/on_audio_query.dart';
@@ -133,10 +132,7 @@ class _NowPlayingState extends State<NowPlaying> {
                   index: i,
                   isCurrent: i == currentId,
                   onTap: () {
-                    setState(() {
-                      widget.controller.songId = i;
-                    });
-                    loadAudioSource(widget.controller.handler, songs[i]);
+                    widget.controller.playSongFromList(songs, i);
                   },
                   onDismissed: () {
                     setState(() {

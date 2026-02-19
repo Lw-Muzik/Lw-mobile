@@ -74,8 +74,7 @@ class SearchPage extends SearchDelegate<SongModel> {
   ) {
     final songIndex = controller.songs.indexOf(song);
     if (songIndex != -1) {
-      controller.songId = songIndex;
-      loadAudioSource(controller.handler, controller.songs[songIndex]);
+      controller.playSongFromList(controller.songs, songIndex);
       Routes.routeTo(const Player(), context);
     }
   }

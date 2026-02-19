@@ -223,7 +223,6 @@ class WaveformSeekBar extends StatefulWidget {
   final ValueChanged<Duration>? onChangeEnd;
   final Color activeColor;
   final Color inactiveColor;
-  final int barCount;
   final double barWidth;
   final double barSpacing;
   final double height;
@@ -237,10 +236,9 @@ class WaveformSeekBar extends StatefulWidget {
     this.onChangeEnd,
     this.activeColor = const Color(0xFFD4A825),
     this.inactiveColor = const Color(0x55FFFFFF),
-    this.barCount = 60,
-    this.barWidth = 2.5,
+    this.barWidth = 3.0,
     this.barSpacing = 1.5,
-    this.height = 48,
+    this.height = 72,
   }) : super(key: key);
 
   @override
@@ -254,24 +252,24 @@ class _WaveformSeekBarState extends State<WaveformSeekBar> {
   List<double> _barHeights = [];
   double? _dragProgress;
   int? _lastSeedHash;
+  int _lastBarCount = 0;
 
   @override
   void didUpdateWidget(WaveformSeekBar old) {
     super.didUpdateWidget(old);
-    // Regenerate waveform when the track changes (different duration)
     final newHash = widget.duration.inMilliseconds;
     if (_lastSeedHash != newHash) {
-      _generateBars(newHash);
+      _generateBars(newHash, _lastBarCount);
     }
   }
 
-  void _generateBars(int seed) {
+  void _generateBars(int seed, int count) {
+    if (count <= 0) return;
     _lastSeedHash = seed;
+    _lastBarCount = count;
     final rng = Random(seed);
-    _barHeights = List.generate(widget.barCount, (_) {
-      // Mix of short and tall bars for an organic waveform look
+    _barHeights = List.generate(count, (_) {
       final base = 0.15 + rng.nextDouble() * 0.85;
-      // Occasional tall spikes
       return rng.nextDouble() > 0.7 ? min(base * 1.3, 1.0) : base;
     });
   }
@@ -289,10 +287,6 @@ class _WaveformSeekBarState extends State<WaveformSeekBar> {
 
   @override
   Widget build(BuildContext context) {
-    if (_barHeights.isEmpty || _barHeights.length != widget.barCount) {
-      _generateBars(widget.duration.inMilliseconds);
-    }
-
     final progress = _dragProgress ??
         (widget.duration.inMilliseconds > 0
             ? widget.position.inMilliseconds / widget.duration.inMilliseconds
@@ -301,12 +295,24 @@ class _WaveformSeekBarState extends State<WaveformSeekBar> {
     final remaining = widget.duration - widget.position;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24),
+      padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           LayoutBuilder(
             builder: (context, constraints) {
+              // Calculate bar count to fill available width
+              final totalBarUnit = widget.barWidth + widget.barSpacing;
+              final barCount =
+                  ((constraints.maxWidth + widget.barSpacing) / totalBarUnit)
+                      .floor()
+                      .clamp(10, 200);
+
+              if (_barHeights.length != barCount ||
+                  _lastSeedHash != widget.duration.inMilliseconds) {
+                _generateBars(widget.duration.inMilliseconds, barCount);
+              }
+
               return GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onHorizontalDragStart: (d) =>

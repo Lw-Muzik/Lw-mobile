@@ -206,17 +206,11 @@ class PlaylistSongLists extends StatelessWidget {
                   "${formatTime(Duration(milliseconds: songs[index].duration ?? 0))} | ${songs[index].fileExtension}",
                 ),
                 onTap: () {
-                  if (controller.songs.length != songs.length) {
-                    controller.songs = songs;
-                  }
-                  int songIndex = (controller.songs.indexWhere(
+                  int songIndex = songs.indexWhere(
                     (result) => result.title == songs[index].title,
-                  ));
-                  controller.songId = songIndex;
-                  loadAudioSource(
-                    controller.handler,
-                    controller.songs[songIndex],
                   );
+                  if (songIndex == -1) songIndex = index;
+                  controller.playSongFromList(songs, songIndex);
                 },
                 leading: ArtworkWidget(
                   height: 60,
