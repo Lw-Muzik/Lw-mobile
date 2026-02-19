@@ -126,6 +126,13 @@ class _CloudViewState extends State<CloudView>
     );
   }
 
+  void _showError(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
+    );
+  }
+
   Widget _buildProviderCards(AppController controller) {
     return Row(
       children: [
@@ -136,7 +143,11 @@ class _CloudViewState extends State<CloudView>
             connected: controller.isGoogleConnected,
             onConnect: () async {
               final ok = await controller.connectGoogle();
-              if (ok && mounted) _loadFiles();
+              if (ok && mounted) {
+                _loadFiles();
+              } else if (!ok && mounted) {
+                _showError(controller.cloudAuth.lastError ?? 'Connection failed');
+              }
             },
             onDisconnect: () async {
               await controller.disconnectGoogle();
@@ -152,7 +163,11 @@ class _CloudViewState extends State<CloudView>
             connected: controller.isDropboxConnected,
             onConnect: () async {
               final ok = await controller.connectDropbox();
-              if (ok && mounted) _loadFiles();
+              if (ok && mounted) {
+                _loadFiles();
+              } else if (!ok && mounted) {
+                _showError(controller.cloudAuth.lastError ?? 'Connection failed');
+              }
             },
             onDisconnect: () async {
               await controller.disconnectDropbox();

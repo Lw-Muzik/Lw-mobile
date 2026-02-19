@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:developer' as dev;
 
 import 'package:flutter_appauth/flutter_appauth.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -8,9 +9,11 @@ import 'package:http/http.dart' as http;
 import '../config/app_config.dart';
 
 class CloudAuthService {
+  static const _driveScope = 'https://www.googleapis.com/auth/drive.readonly';
+
   // Google
   final GoogleSignIn _googleSignIn = GoogleSignIn(
-    scopes: ['https://www.googleapis.com/auth/drive.readonly'],
+    scopes: [_driveScope],
   );
   GoogleSignInAccount? _googleAccount;
 
@@ -21,16 +24,52 @@ class CloudAuthService {
   String? _dropboxRefreshToken;
   DateTime? _dropboxTokenExpiry;
 
+  /// Last error message for UI display.
+  String? lastError;
+
   bool get isGoogleConnected => _googleAccount != null;
   bool get isDropboxConnected => _dropboxAccessToken != null;
 
   // --- Google ---
 
   Future<bool> signInGoogle() async {
+    lastError = null;
     try {
       _googleAccount = await _googleSignIn.signIn();
-      return _googleAccount != null;
+      if (_googleAccount == null) {
+        lastError = 'Sign-in cancelled';
+        return false;
+      }
+
+      // Ensure Drive scope was granted
+      final hasScope =
+          await _googleSignIn.canAccessScopes([_driveScope]);
+      if (!hasScope) {
+        // Request the scope explicitly (needed on Android with granular permissions)
+        final granted =
+            await _googleSignIn.requestScopes([_driveScope]);
+        if (!granted) {
+          lastError = 'Drive permission denied';
+          await _googleSignIn.signOut();
+          _googleAccount = null;
+          return false;
+        }
+      }
+
+      // Verify we can actually get an access token
+      final auth = await _googleAccount!.authentication;
+      if (auth.accessToken == null) {
+        lastError = 'Failed to get access token';
+        await _googleSignIn.signOut();
+        _googleAccount = null;
+        return false;
+      }
+
+      return true;
     } catch (e) {
+      lastError = 'Google sign-in failed: $e';
+      dev.log('Google sign-in error: $e', name: 'CloudAuth');
+      _googleAccount = null;
       return false;
     }
   }
@@ -43,21 +82,38 @@ class CloudAuthService {
   Future<bool> restoreGoogleSession() async {
     try {
       _googleAccount = await _googleSignIn.signInSilently();
+      if (_googleAccount != null) {
+        // Check the scope is still valid
+        final hasScope =
+            await _googleSignIn.canAccessScopes([_driveScope]);
+        if (!hasScope) {
+          // Don't request scopes silently — just mark as not connected
+          _googleAccount = null;
+          return false;
+        }
+      }
       return _googleAccount != null;
     } catch (_) {
+      _googleAccount = null;
       return false;
     }
   }
 
   Future<Map<String, String>> getGoogleAuthHeaders() async {
     if (_googleAccount == null) return {};
-    final auth = await _googleAccount!.authentication;
-    return {'Authorization': 'Bearer ${auth.accessToken}'};
+    try {
+      final auth = await _googleAccount!.authentication;
+      if (auth.accessToken == null) return {};
+      return {'Authorization': 'Bearer ${auth.accessToken}'};
+    } catch (_) {
+      return {};
+    }
   }
 
   // --- Dropbox ---
 
   Future<bool> signInDropbox() async {
+    lastError = null;
     try {
       final result = await _appAuth.authorizeAndExchangeCode(
         AuthorizationTokenRequest(
@@ -67,7 +123,7 @@ class CloudAuthService {
             authorizationEndpoint: 'https://www.dropbox.com/oauth2/authorize',
             tokenEndpoint: 'https://api.dropboxapi.com/oauth2/token',
           ),
-          scopes: ['files.metadata.read', 'files.content.read'],
+          scopes: null,
           additionalParameters: {'token_access_type': 'offline'},
         ),
       );
@@ -77,6 +133,8 @@ class CloudAuthService {
       await _persistDropboxTokens();
       return true;
     } catch (e) {
+      lastError = 'Dropbox sign-in failed: $e';
+      dev.log('Dropbox sign-in error: $e', name: 'CloudAuth');
       return false;
     }
   }
@@ -120,7 +178,8 @@ class CloudAuthService {
   Future<void> _refreshDropboxIfNeeded() async {
     if (_dropboxRefreshToken == null) return;
     if (_dropboxTokenExpiry != null &&
-        _dropboxTokenExpiry!.isAfter(DateTime.now().add(const Duration(minutes: 5)))) {
+        _dropboxTokenExpiry!
+            .isAfter(DateTime.now().add(const Duration(minutes: 5)))) {
       return; // Token still valid
     }
     try {

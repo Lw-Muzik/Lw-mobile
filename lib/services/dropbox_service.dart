@@ -12,51 +12,55 @@ class DropboxService {
 
   static const _apiUrl = 'https://api.dropboxapi.com/2';
   static const _contentUrl = 'https://content.dropboxapi.com/2';
-  static const _audioExtensions = [
-    'mp3', 'm4a', 'flac', 'wav', 'ogg', 'aac', 'wma'
-  ];
+  static const _audioExtensions = {
+    'mp3', 'm4a', 'flac', 'wav', 'ogg', 'aac', 'wma',
+  };
 
+  /// Lists all audio files by recursively listing all folders
+  /// and filtering by file extension client-side.
   Future<List<CloudFile>> listAudioFiles() async {
     final headers = await _auth.getDropboxAuthHeaders();
     if (headers.isEmpty) return [];
 
     final allFiles = <CloudFile>[];
     String? cursor;
-    bool hasMore = true;
 
-    // Initial search
+    // Initial request — list root recursively
     var response = await http.post(
-      Uri.parse('$_apiUrl/files/search_v2'),
+      Uri.parse('$_apiUrl/files/list_folder'),
       headers: {
         ...headers,
         'Content-Type': 'application/json',
       },
       body: json.encode({
-        'query': ' ',
-        'options': {
-          'file_extensions': _audioExtensions,
-          'file_status': {'tag': 'active'},
-          'max_results': 100,
-        },
+        'path': '',
+        'recursive': true,
+        'include_media_info': false,
+        'include_deleted': false,
+        'limit': 2000,
       }),
     );
 
-    if (response.statusCode != 200) return [];
+    if (response.statusCode != 200) {
+      return [];
+    }
 
-    while (hasMore) {
+    while (true) {
       final data = json.decode(response.body);
-      final matches = data['matches'] as List? ?? [];
+      final entries = data['entries'] as List? ?? [];
 
-      for (final match in matches) {
-        final metadata = match['metadata']?['metadata'];
-        if (metadata == null) continue;
-        final tag = metadata['.tag'];
-        if (tag != 'file') continue;
+      for (final entry in entries) {
+        if (entry['.tag'] != 'file') continue;
+        final name = entry['name'] as String? ?? '';
+        final ext = name.contains('.')
+            ? name.split('.').last.toLowerCase()
+            : '';
+        if (!_audioExtensions.contains(ext)) continue;
 
-        final pathLower = metadata['path_lower'] as String? ?? '';
-        final name = metadata['name'] as String? ?? '';
-        final size = metadata['size'] as int? ?? 0;
-        final parentPath = pathLower.substring(0, pathLower.lastIndexOf('/'));
+        final pathLower = entry['path_lower'] as String? ?? '';
+        final size = entry['size'] as int? ?? 0;
+        final parentPath =
+            pathLower.substring(0, pathLower.lastIndexOf('/'));
 
         allFiles.add(CloudFile(
           provider: CloudProvider.dropbox,
@@ -65,26 +69,28 @@ class DropboxService {
           folderPath: parentPath.isEmpty ? '/' : parentPath,
           size: size,
           mimeType: _mimeFromExtension(name),
-          modifiedDate: metadata['server_modified'] != null
-              ? DateTime.tryParse(metadata['server_modified'] as String)
+          modifiedDate: entry['server_modified'] != null
+              ? DateTime.tryParse(entry['server_modified'] as String)
               : null,
         ));
       }
 
-      hasMore = data['has_more'] as bool? ?? false;
-      cursor = data['cursor'] as String?;
+      final hasMore = data['has_more'] as bool? ?? false;
+      if (!hasMore) break;
 
-      if (hasMore && cursor != null) {
-        response = await http.post(
-          Uri.parse('$_apiUrl/files/search/continue_v2'),
-          headers: {
-            ...headers,
-            'Content-Type': 'application/json',
-          },
-          body: json.encode({'cursor': cursor}),
-        );
-        if (response.statusCode != 200) break;
-      }
+      cursor = data['cursor'] as String?;
+      if (cursor == null) break;
+
+      // Continue listing
+      response = await http.post(
+        Uri.parse('$_apiUrl/files/list_folder/continue'),
+        headers: {
+          ...headers,
+          'Content-Type': 'application/json',
+        },
+        body: json.encode({'cursor': cursor}),
+      );
+      if (response.statusCode != 200) break;
     }
 
     return allFiles;
@@ -127,7 +133,6 @@ class DropboxService {
     );
 
     if (response.statusCode == 200 && response.bodyBytes.isNotEmpty) {
-      // Return as data URI for simplicity
       final base64Data = base64Encode(response.bodyBytes);
       return 'data:image/png;base64,$base64Data';
     }
