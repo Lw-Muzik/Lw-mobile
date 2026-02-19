@@ -262,7 +262,7 @@ class _AssetLoaderState extends State<AssetLoader>
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: _accent.withOpacity(0.06 - (index * 0.015)),
+                      color: _accent.withValues(alpha:0.06 - (index * 0.015)),
                       width: 1,
                     ),
                   ),
@@ -291,12 +291,12 @@ class _AssetLoaderState extends State<AssetLoader>
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               border: Border.all(
-                color: _accent.withOpacity(0.12),
+                color: _accent.withValues(alpha:0.12),
                 width: 1.5,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: _accent.withOpacity(0.04),
+                  color: _accent.withValues(alpha:0.04),
                   blurRadius: 40,
                   spreadRadius: 8,
                 ),
@@ -340,7 +340,7 @@ class _AssetLoaderState extends State<AssetLoader>
                 text: Provider.of<PlayerController>(context).textHeader,
                 controller: _shimmerController,
                 style: TextStyle(
-                  color: _accent.withOpacity(0.4),
+                  color: _accent.withValues(alpha:0.4),
                   fontSize: 14 * textScale,
                   fontWeight: FontWeight.w300,
                   letterSpacing: 0.3,
@@ -361,7 +361,7 @@ class _AssetLoaderState extends State<AssetLoader>
           height: 2,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(1),
-            color: _accent.withOpacity(0.08),
+            color: _accent.withValues(alpha:0.08),
           ),
           child: Stack(
             children: [
@@ -370,7 +370,7 @@ class _AssetLoaderState extends State<AssetLoader>
                 width: width * _progress,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(1),
-                  color: _accent.withOpacity(0.6),
+                  color: _accent.withValues(alpha:0.6),
                 ),
               ),
               // Shimmer sweep
@@ -385,9 +385,9 @@ class _AssetLoaderState extends State<AssetLoader>
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
                           colors: [
-                            _accent.withOpacity(0),
-                            _accent.withOpacity(0.9),
-                            _accent.withOpacity(0),
+                            _accent.withValues(alpha:0),
+                            _accent.withValues(alpha:0.9),
+                            _accent.withValues(alpha:0),
                           ],
                         ),
                       ),
@@ -402,7 +402,7 @@ class _AssetLoaderState extends State<AssetLoader>
         Text(
           '${(_progress * 100).toInt()}%',
           style: TextStyle(
-            color: _accent.withOpacity(0.3),
+            color: _accent.withValues(alpha:0.3),
             fontSize: 11,
             fontWeight: FontWeight.w400,
             letterSpacing: 1,
@@ -456,7 +456,7 @@ class RipplePainter extends CustomPainter {
       final opacity = (1 - value).clamp(0.0, 1.0);
 
       final paint = Paint()
-        ..color = _AssetLoaderState._accent.withOpacity(opacity * 0.08)
+        ..color = _AssetLoaderState._accent.withValues(alpha:opacity * 0.08)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1;
 
@@ -489,9 +489,9 @@ class ShimmerText extends StatelessWidget {
           shaderCallback: (bounds) {
             return LinearGradient(
               colors: [
-                _AssetLoaderState._accent.withOpacity(0.3),
+                _AssetLoaderState._accent.withValues(alpha:0.3),
                 _AssetLoaderState._accent,
-                _AssetLoaderState._accent.withOpacity(0.3),
+                _AssetLoaderState._accent.withValues(alpha:0.3),
               ],
               stops: const [0.0, 0.5, 1.0],
               begin: Alignment.topLeft,

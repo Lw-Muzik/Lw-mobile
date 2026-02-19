@@ -120,13 +120,13 @@ class SeekBarState extends State<SeekBar> {
                             ?.group(1) ??
                         '- ${widget.position}',
                     style: Theme.of(context).textTheme.bodyMedium!.apply(
-                          color: Colors.white.withOpacity(0.7),
+                          color: Colors.white.withValues(alpha: 0.7),
                         ),
                   ),
                   Text(
                     "-${_durationRegex.firstMatch("$_remaining")?.group(1)}",
                     style: Theme.of(context).textTheme.bodyMedium!.apply(
-                          color: Colors.white.withOpacity(0.7),
+                          color: Colors.white.withValues(alpha: 0.7),
                         ),
                   ),
                 ],

@@ -58,7 +58,7 @@ class RoundSlider extends StatelessWidget {
               customColors: CustomSliderColors(
                 dotColor: Theme.of(context).colorScheme.primary,
                 trackColor:
-                    Theme.of(context).colorScheme.primary.withOpacity(0.2),
+                    Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
                 progressBarColor: Theme.of(context).colorScheme.primary,
               ),
             ),

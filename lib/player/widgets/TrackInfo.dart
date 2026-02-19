@@ -83,7 +83,7 @@ class TrackInfoWidget extends StatelessWidget {
                                                 .textTheme
                                                 .labelLarge
                                                 ?.color!
-                                                .withOpacity(0.6)),
+                                                .withValues(alpha: 0.6)),
                                   )
                                 ],
                               ),

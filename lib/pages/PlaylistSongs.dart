@@ -182,7 +182,7 @@ class PlaylistSongLists extends StatelessWidget {
                       },
                       selectedTileColor: Theme.of(
                         context,
-                      ).primaryColor.withOpacity(0.1),
+                      ).primaryColor.withValues(alpha: 0.1),
                       selectedColor: Theme.of(context).primaryColorLight,
                       title: Text(
                         songs[index].title,

@@ -65,7 +65,7 @@ class _NowPlayingState extends State<NowPlaying> {
                   selectedColor: Theme.of(context).primaryColorLight,
                   selectedTileColor: Theme.of(
                     context,
-                  ).primaryColorLight.withOpacity(0.2),
+                  ).primaryColorLight.withValues(alpha: 0.2),
                   leading: const Icon(Icons.menu),
                   onTap: () {
                     setState(() {

@@ -41,7 +41,7 @@ class _MiniPlayerState extends State<MiniPlayer> {
                       const SizedBox(width: 8, height: 8),
                       Text('Kyle Watson',
                           style: TextStyle(
-                              color: colorTheme.onPrimary.withOpacity(0.5),
+                              color: colorTheme.onPrimary.withValues(alpha: 0.5),
                               fontSize: 12),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis),

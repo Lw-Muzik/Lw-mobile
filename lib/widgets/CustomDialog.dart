@@ -13,31 +13,29 @@ class _CustomDialogState extends State<CustomDialog> {
     return Dialog(
       child: SizedBox(
         height: MediaQuery.of(context).size.width / 2,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            RadioListTile(
-              groupValue: 1,
-              value: 0,
-              onChanged: (x) {},
-              title: Text(
-                "Light Mode",
-                style: Theme.of(context).textTheme.bodyLarge,
+        child: RadioGroup<int>(
+          groupValue: 1,
+          onChanged: (x) {},
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              RadioListTile<int>(
+                value: 0,
+                title: Text(
+                  "Light Mode",
+                  style: Theme.of(context).textTheme.bodyLarge,
+                ),
               ),
-            ),
-            RadioListTile(
-              groupValue: 1,
-              value: 0,
-              onChanged: (x) {},
-              title: const Text("Dark Mode"),
-            ),
-            RadioListTile(
-              groupValue: 1,
-              value: 0,
-              onChanged: (x) {},
-              title: const Text("Follow Day / Night"),
-            )
-          ],
+              RadioListTile<int>(
+                value: 1,
+                title: const Text("Dark Mode"),
+              ),
+              RadioListTile<int>(
+                value: 2,
+                title: const Text("Follow Day / Night"),
+              )
+            ],
+          ),
         ),
       ),
     );

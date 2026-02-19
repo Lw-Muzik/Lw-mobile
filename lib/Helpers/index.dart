@@ -203,12 +203,12 @@ void showMessage({
       backgroundColor: type == 'info'
           ? Theme.of(context).colorScheme.primary
           : type == 'warning'
-          ? const Color.fromARGB(255, 255, 155, 73).withOpacity(opacity)
+          ? const Color.fromARGB(255, 255, 155, 73).withValues(alpha: opacity)
           : type == 'danger'
-          ? const Color.fromARGB(255, 247, 68, 68).withOpacity(opacity)
+          ? const Color.fromARGB(255, 247, 68, 68).withValues(alpha: opacity)
           : type == 'success'
-          ? const Color.fromARGB(255, 20, 238, 31).withOpacity(opacity)
-          : Colors.grey[600]!.withOpacity(opacity),
+          ? const Color.fromARGB(255, 20, 238, 31).withValues(alpha: opacity)
+          : Colors.grey[600]!.withValues(alpha: opacity),
       duration: Duration(seconds: duration),
     ),
   );

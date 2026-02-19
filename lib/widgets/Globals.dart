@@ -9,7 +9,7 @@ Widget bottomPlayer(AppController controller, BuildContext context) {
   return Container(
     height: 64,
     decoration: BoxDecoration(
-      color: Colors.black.withOpacity(0.45),
+      color: Colors.black.withValues(alpha:0.45),
     ),
     padding: const EdgeInsets.symmetric(horizontal: 12),
     child: Row(
@@ -47,7 +47,7 @@ Widget bottomPlayer(AppController controller, BuildContext context) {
                 overflow: TextOverflow.ellipsis,
                 maxLines: 1,
                 style: TextStyle(
-                  color: Colors.white.withOpacity(0.55),
+                  color: Colors.white.withValues(alpha:0.55),
                   fontSize: 12,
                   fontWeight: FontWeight.w400,
                 ),
@@ -119,7 +119,7 @@ class _ControlButton extends StatelessWidget {
         icon: Icon(
           icon,
           size: size,
-          color: prominent ? Colors.white : Colors.white.withOpacity(0.8),
+          color: prominent ? Colors.white : Colors.white.withValues(alpha:0.8),
         ),
         splashRadius: 20,
       ),

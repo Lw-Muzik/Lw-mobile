@@ -34,7 +34,7 @@ Widget playerVisual(AppController controller) {
       return fft.isNotEmpty
           ? CustomPaint(
               painter: MultiWaveVisualizer(
-                color: Theme.of(context).primaryColorLight.withOpacity(0.1),
+                color: Theme.of(context).primaryColorLight.withValues(alpha: 0.1),
                 waveData: fft,
                 // width: MediaQuery.of(context).size.width,
                 height: MediaQuery.of(context).size.height,
@@ -145,8 +145,8 @@ Decoration commonDeration(
     borderRadius: BorderRadius.circular(10),
     color: controller.songId == listIndex && controller.handler.player.playing
         ? Theme.of(context).brightness == Brightness.light
-              ? Theme.of(context).primaryColor.withOpacity(0.41)
-              : Theme.of(context).colorScheme.primary.withOpacity(0.31)
+              ? Theme.of(context).primaryColor.withValues(alpha: 0.41)
+              : Theme.of(context).colorScheme.primary.withValues(alpha: 0.31)
         : null,
   );
 }
@@ -176,7 +176,7 @@ Widget folderArtwork(String path, String title) {
                   bottom: -10,
                   child: Card(
                     margin: const EdgeInsets.all(10),
-                    color: Theme.of(context).primaryColorDark.withOpacity(0.7),
+                    color: Theme.of(context).primaryColorDark.withValues(alpha: 0.7),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
                     ),

@@ -40,9 +40,9 @@ class Body extends StatelessWidget {
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: [
-                      const Color.fromARGB(255, 0, 0, 0).withOpacity(0.2),
-                      const Color.fromARGB(255, 0, 0, 0).withOpacity(0.30),
-                      const Color.fromARGB(255, 0, 0, 0).withOpacity(0.50),
+                      const Color.fromARGB(255, 0, 0, 0).withValues(alpha:0.2),
+                      const Color.fromARGB(255, 0, 0, 0).withValues(alpha:0.30),
+                      const Color.fromARGB(255, 0, 0, 0).withValues(alpha:0.50),
                     ],
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
@@ -60,9 +60,9 @@ class Body extends StatelessWidget {
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       colors: [
-                        const Color.fromARGB(255, 0, 0, 0).withOpacity(0.2),
-                        const Color.fromARGB(255, 0, 0, 0).withOpacity(0.3),
-                        const Color.fromARGB(255, 0, 0, 0).withOpacity(0.4),
+                        const Color.fromARGB(255, 0, 0, 0).withValues(alpha:0.2),
+                        const Color.fromARGB(255, 0, 0, 0).withValues(alpha:0.3),
+                        const Color.fromARGB(255, 0, 0, 0).withValues(alpha:0.4),
                       ],
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
@@ -78,7 +78,7 @@ class Body extends StatelessWidget {
                     painter: CircularBarVisualizer(
                       color: Theme.of(
                         context,
-                      ).primaryColorLight.withOpacity(0.1),
+                      ).primaryColorLight.withValues(alpha:0.1),
                       waveData: fft,
                       width: MediaQuery.of(context).size.width,
                       height: MediaQuery.of(context).size.height,

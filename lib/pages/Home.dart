@@ -202,7 +202,7 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
         onPressed: onPressed,
         icon: Icon(icon, size: 22),
         style: IconButton.styleFrom(
-          foregroundColor: Colors.white.withOpacity(0.85),
+          foregroundColor: Colors.white.withValues(alpha: 0.85),
           padding: const EdgeInsets.all(10),
         ),
       ),
@@ -222,7 +222,7 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
         dividerHeight: 0,
         indicator: BoxDecoration(
           borderRadius: BorderRadius.circular(20),
-          color: Colors.white.withOpacity(0.12),
+          color: Colors.white.withValues(alpha: 0.12),
         ),
         labelStyle: const TextStyle(
           fontSize: 13,
@@ -235,7 +235,7 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
           letterSpacing: 0.2,
         ),
         labelColor: Colors.white,
-        unselectedLabelColor: Colors.white.withOpacity(0.45),
+        unselectedLabelColor: Colors.white.withValues(alpha: 0.45),
         splashBorderRadius: BorderRadius.circular(20),
         tabs: _tabDefs.map((def) {
           return Tab(

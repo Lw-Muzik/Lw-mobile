@@ -47,9 +47,9 @@ class _PlayerBodyState extends State<PlayerBody> {
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: [
-                      const Color.fromARGB(255, 0, 0, 0).withOpacity(0.2),
-                      const Color.fromARGB(255, 0, 0, 0).withOpacity(0.50),
-                      const Color.fromARGB(255, 0, 0, 0).withOpacity(0.90),
+                      const Color.fromARGB(255, 0, 0, 0).withValues(alpha:0.2),
+                      const Color.fromARGB(255, 0, 0, 0).withValues(alpha:0.50),
+                      const Color.fromARGB(255, 0, 0, 0).withValues(alpha:0.90),
                     ],
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,

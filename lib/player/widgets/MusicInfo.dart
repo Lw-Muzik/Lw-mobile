@@ -100,7 +100,7 @@ class _MusicInfoState extends State<MusicInfo>
           text: currentSong.artist ?? '',
           controller: _artistScrollController,
           style: textTheme.titleMedium!.apply(
-            color: Colors.white.withOpacity(0.5),
+            color: Colors.white.withValues(alpha: 0.5),
           ),
           fallbackText: 'Unknown artist',
         ),

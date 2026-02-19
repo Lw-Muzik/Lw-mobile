@@ -96,14 +96,20 @@ class _DSPSpeakerWidgetState extends State<DSPSpeakerWidget> {
   }
 
   Widget _buildSpeakerListTile(int index, DSPSpeaker speaker) {
-    return RadioListTile(
+    return ListTile(
       selected: widget.controller.selectSpeaker == index,
-      selectedTileColor: Theme.of(context).primaryColorLight.withOpacity(0.34),
-      secondary: const Icon(Icons.surround_sound_rounded),
+      selectedTileColor: Theme.of(context).primaryColorLight.withValues(alpha: 0.34),
+      trailing: const Icon(Icons.surround_sound_rounded),
+      leading: Icon(
+        widget.controller.selectSpeaker == index
+            ? Icons.radio_button_checked
+            : Icons.radio_button_unchecked,
+        color: widget.controller.selectSpeaker == index
+            ? Theme.of(context).colorScheme.primary
+            : null,
+      ),
       title: Text(speaker.name, style: Theme.of(context).textTheme.bodyLarge),
-      value: widget.controller.selectSpeaker == index ? 1 : 0,
-      groupValue: 1,
-      onChanged: (value) => _onSpeakerSelected(index, speaker),
+      onTap: () => _onSpeakerSelected(index, speaker),
     );
   }
 

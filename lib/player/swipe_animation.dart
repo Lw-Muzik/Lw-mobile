@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:vector_math/vector_math_64.dart' show Vector3;
 export 'swipe_animation.dart';
 
 // Animation Configuration
@@ -276,14 +277,14 @@ class _AnimatedPlayerCardState extends State<AnimatedPlayerCard>
 
                   return Transform(
                     transform: Matrix4.identity()
-                      ..translate(
+                      ..translateByVector3(Vector3(
                         _cardControllers[index].position.dx + offset,
                         _cardControllers[index].position.dy +
                             (index * CardAnimationConfig.stackedCardOffset),
                         0.0,
-                      )
+                      ))
                       ..rotateZ(_cardControllers[index].angle)
-                      ..scale(scale - (index * 0.05)),
+                      ..scaleByVector3(Vector3.all(scale - (index * 0.05))),
                     alignment: Alignment.center,
                     child: Opacity(
                       opacity: 1.0 - (index * 0.2),

@@ -186,7 +186,7 @@ class _VisualUIState extends State<VisualUI>
                   Text(
                     'Sensitivity',
                     style: TextStyle(
-                      color: Colors.white.withOpacity(0.9),
+                      color: Colors.white.withValues(alpha: 0.9),
                       fontSize: 14,
                     ),
                   ),
@@ -206,7 +206,7 @@ class _VisualUIState extends State<VisualUI>
                   Text(
                     'Speed',
                     style: TextStyle(
-                      color: Colors.white.withOpacity(0.9),
+                      color: Colors.white.withValues(alpha: 0.9),
                       fontSize: 14,
                     ),
                   ),
@@ -225,7 +225,7 @@ class _VisualUIState extends State<VisualUI>
                   Text(
                     'Color',
                     style: TextStyle(
-                      color: Colors.white.withOpacity(0.9),
+                      color: Colors.white.withValues(alpha: 0.9),
                       fontSize: 14,
                     ),
                   ),
@@ -305,7 +305,7 @@ class _VisualUIState extends State<VisualUI>
                     decoration: BoxDecoration(
                       color: isSelected
                           ? Theme.of(context).primaryColor
-                          : Colors.white.withOpacity(0.1),
+                          : Colors.white.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(15),
                     ),
                     child: Row(
