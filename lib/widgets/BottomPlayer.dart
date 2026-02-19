@@ -18,55 +18,34 @@ class BottomPlayer extends StatefulWidget {
 
 class _BottomPlayerState extends State<BottomPlayer>
     with TickerProviderStateMixin {
-  // @override
-  // void initState() {
-  //   super.initState();
-  //   _animationController = AnimationController(
-  //     vsync: this,
-  //     value: 0,
-  //     duration: const Duration(milliseconds: 95000),
-  //   )..repeat();
-  //   _animation =
-  //       Tween<double>(begin: 0, end: 358).animate(_animationController!);
-
-  //   WidgetsBinding.instance.addPostFrameCallback((_) {
-  //     var player =
-  //         Provider.of<AppController>(context, listen: false).audioPlayer;
-
-  //     if (player.playing) {
-  //       _animationController!.repeat();
-  //     } else {
-  //       _animationController!.stop();
-  //     }
-  //   });
-  // }
-
-  // @override
-  // void dispose() {
-  //   super.dispose();
-  //   // _animationController!.dispose();
-  // }
-
   @override
   Widget build(BuildContext context) {
-    return Routes.animateTo(
-      closedWidget: ArtworkWidget(
-        useSaved: true,
-        path: widget.controller.songs[widget.controller.songId].data,
-        songId: widget.controller.songs[widget.controller.songId].id,
-        width: MediaQuery.of(context).size.width,
-        height: MediaQuery.of(context).size.width / 5.7,
-        margin: const EdgeInsets.only(left: 10, bottom: 30, right: 10),
-        borderRadius: BorderRadius.circular(50),
-        child: ClipRRect(
-          clipBehavior: Clip.hardEdge,
-          borderRadius: BorderRadius.circular(50),
-          child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-              child: bottomPlayer(widget.controller, context)),
-        ),
+    final song = widget.controller.songs[widget.controller.songId];
+
+    return Padding(
+      padding: EdgeInsets.only(
+        left: 12,
+        right: 12,
+        bottom: MediaQuery.of(context).padding.bottom + 8,
       ),
-      openWidget: const Player(),
+      child: Routes.animateTo(
+        closedWidget: ArtworkWidget(
+          useSaved: true,
+          path: song.data,
+          songId: song.id,
+          width: MediaQuery.of(context).size.width - 24,
+          height: 64,
+          borderRadius: BorderRadius.circular(16),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 40, sigmaY: 40),
+              child: bottomPlayer(widget.controller, context),
+            ),
+          ),
+        ),
+        openWidget: const Player(),
+      ),
     );
   }
 }

@@ -44,7 +44,7 @@ dependencies:
   permission_handler: ^12.0.1
   shared_preferences: ^2.2.1
   flutter_bloc: ^9.1.1
-  just_audio_background: ^0.0.1-beta.10
+  audio_service: ^0.18.15
   animations: ^2.0.8
   id3tag: ^0.2.0
   tutorial_coach_mark: ^1.2.9

@@ -9,3 +9,4 @@ export 'package:wiredash/wiredash.dart';
 export 'package:sleek_circular_slider/sleek_circular_slider.dart';
 export 'package:flutter_shaders/flutter_shaders.dart';
 export 'package:swipable_stack/swipable_stack.dart';
+export 'package:audio_service/audio_service.dart';

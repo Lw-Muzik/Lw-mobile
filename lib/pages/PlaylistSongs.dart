@@ -97,7 +97,7 @@ class _PlaylistSongsState extends State<PlaylistSongs> {
       body: Consumer<AppController>(
         builder: (context, controller, child) {
           return StreamBuilder(
-            stream: context.read<AudioHandler>().player.playingStream,
+            stream: context.read<HypeAudioHandler>().player.playingStream,
             builder: (context, service) {
               return Scaffold(
                 backgroundColor: controller.isFancy

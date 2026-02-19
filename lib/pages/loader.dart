@@ -21,6 +21,10 @@ class _AssetLoaderState extends State<AssetLoader>
   static const Duration _animationDuration = Duration(milliseconds: 2000);
   static const Duration _loadingDelay = Duration(seconds: 3);
 
+  // Two-tone palette
+  static const Color _bg = Color(0xFF0A0A0A);
+  static const Color _accent = Color(0xFFF5F5F5);
+
   late final List<Ripple> _ripples;
   late final AnimationController _rotationController;
   late final AnimationController _pulseController;
@@ -147,12 +151,12 @@ class _AssetLoaderState extends State<AssetLoader>
       Future.delayed(_loadingDelay, () {
         if (mounted && !_isNavigating) {
           _isNavigating = true;
-          Navigator.pushReplacementNamed(context, Routes.home);
+          Navigator.pushNamedAndRemoveUntil(
+              context, Routes.home, (route) => false);
         }
       });
     } catch (e) {
       debugPrint('Error loading assets: $e');
-      // Show error state
       _showErrorDialog();
     }
   }
@@ -162,15 +166,19 @@ class _AssetLoaderState extends State<AssetLoader>
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
-        title: const Text('Loading Error'),
-        content: const Text('Failed to load assets. Please try again.'),
+        backgroundColor: const Color(0xFF1A1A1A),
+        title: const Text('Loading Error', style: TextStyle(color: _accent)),
+        content: const Text(
+          'Failed to load assets. Please try again.',
+          style: TextStyle(color: _accent),
+        ),
         actions: [
           TextButton(
             onPressed: () {
               Navigator.pop(context);
               _loadAssets();
             },
-            child: const Text('Retry'),
+            child: const Text('Retry', style: TextStyle(color: _accent)),
           ),
         ],
       ),
@@ -196,51 +204,41 @@ class _AssetLoaderState extends State<AssetLoader>
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
     final shortestSide = math.min(size.width, size.height);
-    final imageSize = shortestSide * 0.4; // Responsive image size
+    final imageSize = shortestSide * 0.38;
 
     return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Colors.black,
-              Colors.orange.shade600,
-              Colors.green.shade900,
-              Colors.black,
-            ],
-            stops: const [0.0, 0.3, 0.7, 1.0],
-          ),
-        ),
-        child: SafeArea(
-          child: Consumer<PlayerController>(
-            builder: (context, playerController, _) => Column(
-              children: [
-                Expanded(
-                  child: Center(
-                    child: SingleChildScrollView(
-                      physics: const NeverScrollableScrollPhysics(),
-                      child: Padding(
-                        padding: EdgeInsets.all(shortestSide * 0.05),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            _buildAnimatedLogo(imageSize),
-                            SizedBox(height: shortestSide * 0.08),
-                            _buildLoadingText(shortestSide),
-                            SizedBox(height: shortestSide * 0.04),
-                            _buildProgressBar(size.width * 0.8),
-                            SizedBox(height: shortestSide * 0.04),
-                            _buildProgressIndicator(shortestSide * 0.12),
-                          ],
-                        ),
+      backgroundColor: _bg,
+      body: SafeArea(
+        child: Consumer<PlayerController>(
+          builder: (context, playerController, _) => Column(
+            children: [
+              Expanded(
+                child: Center(
+                  child: SingleChildScrollView(
+                    physics: const NeverScrollableScrollPhysics(),
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: shortestSide * 0.08,
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          _buildAnimatedLogo(imageSize),
+                          SizedBox(height: shortestSide * 0.1),
+                          _buildLoadingText(shortestSide),
+                          SizedBox(height: shortestSide * 0.06),
+                          _buildProgressBar(size.width * 0.6),
+                        ],
                       ),
                     ),
                   ),
                 ),
-              ],
-            ),
+              ),
+              Padding(
+                padding: EdgeInsets.only(bottom: shortestSide * 0.06),
+                child: _buildBottomBranding(shortestSide),
+              ),
+            ],
           ),
         ),
       ),
@@ -251,7 +249,7 @@ class _AssetLoaderState extends State<AssetLoader>
     return Stack(
       alignment: Alignment.center,
       children: [
-        // Rotating gradient rings
+        // Subtle rotating rings
         ...List.generate(3, (index) {
           return AnimatedBuilder(
             animation: _rotationController,
@@ -259,16 +257,13 @@ class _AssetLoaderState extends State<AssetLoader>
               return Transform.rotate(
                 angle: _rotationController.value * 2 * math.pi * (index + 1),
                 child: Container(
-                  width: size + (index * 20),
-                  height: size + (index * 20),
+                  width: size + (index * 24),
+                  height: size + (index * 24),
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    gradient: SweepGradient(
-                      colors: [
-                        Colors.green.withOpacity(0.3 - (index * 0.1)),
-                        Colors.orange.withOpacity(0.3 - (index * 0.1)),
-                        Colors.green.withOpacity(0.3 - (index * 0.1)),
-                      ],
+                    border: Border.all(
+                      color: _accent.withOpacity(0.06 - (index * 0.015)),
+                      width: 1,
                     ),
                   ),
                 ),
@@ -281,24 +276,31 @@ class _AssetLoaderState extends State<AssetLoader>
           size: Size(size, size),
           painter: RipplePainter(_ripples),
         ),
-        // Animated scale container
+        // Animated scale container with image
         AnimatedBuilder(
           animation: _scaleController,
           builder: (context, child) {
             return Transform.scale(
-              scale: 1 + (_scaleController.value * 0.05),
+              scale: 1 + (_scaleController.value * 0.03),
               child: child,
             );
           },
           child: Container(
-            width: size * 0.9,
-            height: size * 0.9,
+            width: size * 0.85,
+            height: size * 0.85,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               border: Border.all(
-                color: Colors.white.withOpacity(0.2),
-                width: 2,
+                color: _accent.withOpacity(0.12),
+                width: 1.5,
               ),
+              boxShadow: [
+                BoxShadow(
+                  color: _accent.withOpacity(0.04),
+                  blurRadius: 40,
+                  spreadRadius: 8,
+                ),
+              ],
             ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(size * 0.45),
@@ -314,7 +316,7 @@ class _AssetLoaderState extends State<AssetLoader>
   }
 
   Widget _buildLoadingText(double shortestSide) {
-    final textScale = shortestSide / 400; // Base scale on screen size
+    final textScale = shortestSide / 400;
 
     return AnimatedBuilder(
       animation: _scanTextController,
@@ -326,19 +328,22 @@ class _AssetLoaderState extends State<AssetLoader>
               Text(
                 _scanningTexts[_currentTextIndex],
                 style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 24 * textScale,
-                  fontWeight: FontWeight.bold,
+                  color: _accent,
+                  fontSize: 20 * textScale,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0.5,
                 ),
                 textAlign: TextAlign.center,
               ),
-              SizedBox(height: 10 * textScale),
+              SizedBox(height: 8 * textScale),
               ShimmerText(
                 text: Provider.of<PlayerController>(context).textHeader,
                 controller: _shimmerController,
                 style: TextStyle(
-                  color: Colors.white.withOpacity(0.8),
-                  fontSize: 16 * textScale,
+                  color: _accent.withOpacity(0.4),
+                  fontSize: 14 * textScale,
+                  fontWeight: FontWeight.w300,
+                  letterSpacing: 0.3,
                 ),
               ),
             ],
@@ -349,78 +354,79 @@ class _AssetLoaderState extends State<AssetLoader>
   }
 
   Widget _buildProgressBar(double width) {
-    return Container(
-      width: width,
-      height: 4,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(2),
-        color: Colors.white.withOpacity(0.1),
-      ),
-      child: Stack(
-        children: [
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 500),
-            width: width * _progress,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(2),
-              gradient: LinearGradient(
-                colors: [
-                  Colors.green.shade400,
-                  Colors.orange.shade400,
-                ],
-              ),
-            ),
+    return Column(
+      children: [
+        Container(
+          width: width,
+          height: 2,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(1),
+            color: _accent.withOpacity(0.08),
           ),
-          // Shimmer effect
-          AnimatedBuilder(
-            animation: _shimmerController,
-            builder: (context, child) {
-              return Positioned(
-                left: width * _shimmerController.value - 50,
-                child: Container(
-                  width: 50,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        Colors.white.withOpacity(0),
-                        Colors.white.withOpacity(0.5),
-                        Colors.white.withOpacity(0),
-                      ],
-                    ),
-                  ),
+          child: Stack(
+            children: [
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 500),
+                width: width * _progress,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(1),
+                  color: _accent.withOpacity(0.6),
                 ),
-              );
-            },
+              ),
+              // Shimmer sweep
+              AnimatedBuilder(
+                animation: _shimmerController,
+                builder: (context, child) {
+                  return Positioned(
+                    left: width * _shimmerController.value - 40,
+                    child: Container(
+                      width: 40,
+                      height: 2,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            _accent.withOpacity(0),
+                            _accent.withOpacity(0.9),
+                            _accent.withOpacity(0),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ],
           ),
-        ],
-      ),
+        ),
+        const SizedBox(height: 12),
+        Text(
+          '${(_progress * 100).toInt()}%',
+          style: TextStyle(
+            color: _accent.withOpacity(0.3),
+            fontSize: 11,
+            fontWeight: FontWeight.w400,
+            letterSpacing: 1,
+          ),
+        ),
+      ],
     );
   }
 
-  Widget _buildProgressIndicator(double size) {
+  Widget _buildBottomBranding(double shortestSide) {
+    final textScale = shortestSide / 400;
+
     return AnimatedBuilder(
       animation: _pulseController,
       builder: (context, child) {
-        return Container(
-          width: size,
-          height: size,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(
-              color:
-                  Colors.amber.withOpacity(0.5 + _pulseController.value * 0.5),
-              width: 2,
-            ),
-          ),
-          child: Center(
-            child: SizedBox(
-              width: size * 0.6,
-              height: size * 0.6,
-              child: const CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
-                strokeWidth: 2,
-              ),
+        return Opacity(
+          opacity: 0.25 + (_pulseController.value * 0.15),
+          child: Text(
+            'HYPE MUZIK',
+            style: TextStyle(
+              color: _accent,
+              fontSize: 11 * textScale,
+              fontWeight: FontWeight.w500,
+              letterSpacing: 6,
             ),
           ),
         );
@@ -450,9 +456,9 @@ class RipplePainter extends CustomPainter {
       final opacity = (1 - value).clamp(0.0, 1.0);
 
       final paint = Paint()
-        ..color = Colors.blue.withOpacity(opacity * 0.3)
+        ..color = _AssetLoaderState._accent.withOpacity(opacity * 0.08)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 2;
+        ..strokeWidth = 1;
 
       canvas.drawCircle(center, radius, paint);
     }
@@ -483,9 +489,9 @@ class ShimmerText extends StatelessWidget {
           shaderCallback: (bounds) {
             return LinearGradient(
               colors: [
-                Colors.white.withOpacity(0.5),
-                Colors.white,
-                Colors.white.withOpacity(0.5),
+                _AssetLoaderState._accent.withOpacity(0.3),
+                _AssetLoaderState._accent,
+                _AssetLoaderState._accent.withOpacity(0.3),
               ],
               stops: const [0.0, 0.5, 1.0],
               begin: Alignment.topLeft,

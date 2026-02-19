@@ -21,8 +21,8 @@ class AppController with ChangeNotifier {
     notifyListeners();
   }
 
-  final AudioHandler _handler = AudioHandler();
-  AudioHandler get handler => _handler;
+  final HypeAudioHandler _handler;
+  HypeAudioHandler get handler => _handler;
   int _selectedRoomPreset = -1;
 
   // DSP settings
@@ -219,8 +219,12 @@ class AppController with ChangeNotifier {
   List<SongModel> _songs = [];
   List<SongModel> _shuffledSongs = [];
 
-  AppController(this._prefs) {
+  AppController(this._prefs, this._handler) {
     _loadSettings();
+
+    // Wire up notification skip controls
+    _handler.onSkipToNext = next;
+    _handler.onSkipToPrevious = prev;
 
     handler.player.processingStateStream.listen((event) {
       if (event == ProcessingState.completed) {

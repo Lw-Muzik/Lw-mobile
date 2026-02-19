@@ -71,7 +71,7 @@ class _ControlsState extends State<Controls> {
                     ),
                     StreamBuilder<bool>(
                       stream: context
-                          .read<AudioHandler>()
+                          .read<HypeAudioHandler>()
                           .player
                           .shuffleModeEnabledStream,
                       builder: (context, snapshot) {
@@ -89,7 +89,7 @@ class _ControlsState extends State<Controls> {
                               controller.shuffleSongs();
                             } else {}
                             context
-                                .read<AudioHandler>()
+                                .read<HypeAudioHandler>()
                                 .player
                                 .setShuffleModeEnabled(enable);
                           },

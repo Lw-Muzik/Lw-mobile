@@ -1,65 +1,128 @@
-import 'dart:ui';
-
 import 'package:flutter/material.dart';
 
 import '../controllers/AppController.dart';
 import 'ArtworkWidget.dart';
 
 Widget bottomPlayer(AppController controller, BuildContext context) {
-  return BackdropFilter(
-    filter: ImageFilter.blur(sigmaX: 40, sigmaY: 40 * 2),
-    child: ListTile(
-      leading: Transform.rotate(
-          angle: 0,
-          child: ArtworkWidget(
-            songId: controller.songs[controller.songId].id,
-            path: controller.songs[controller.songId].data,
-            borderRadius: BorderRadius.circular(60),
-          )),
-      title: Text(
-        controller.songs[controller.songId].title,
-        overflow: TextOverflow.ellipsis,
-        style:
-            Theme.of(context).textTheme.bodyLarge!.apply(color: Colors.white),
-      ),
-      subtitle: Text(
-        controller.songs[controller.songId].artist ?? "Unknown artist",
-        overflow: TextOverflow.ellipsis,
-        style:
-            Theme.of(context).textTheme.bodyLarge!.apply(color: Colors.white),
-      ),
-      trailing: SizedBox(
-        width: 150,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            IconButton(
-              onPressed: controller.prev,
-              color: Colors.white,
-              icon: const Icon(Icons.skip_previous),
-            ),
-            StreamBuilder(
-                stream: controller.handler.player.playingStream,
-                builder: (context, snapshot) {
-                  bool? p = snapshot.data;
+  final song = controller.songs[controller.songId];
 
-                  return IconButton(
-                    color: Colors.white,
-                    onPressed: () {
-                      p == true
-                          ? controller.handler.player.pause()
-                          : controller.handler.player.play();
-                    },
-                    icon: Icon(p == true ? Icons.pause : Icons.play_arrow),
-                  );
-                }),
-            IconButton(
-                color: Colors.white,
-                onPressed: controller.next,
-                icon: const Icon(Icons.skip_next))
+  return Container(
+    height: 64,
+    decoration: BoxDecoration(
+      color: Colors.black.withOpacity(0.45),
+    ),
+    padding: const EdgeInsets.symmetric(horizontal: 12),
+    child: Row(
+      children: [
+        // Artwork thumbnail
+        ArtworkWidget(
+          songId: song.id,
+          path: song.data,
+          width: 42,
+          height: 42,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        const SizedBox(width: 12),
+
+        // Song info
+        Expanded(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                song.title,
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: -0.2,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                song.artist ?? 'Unknown artist',
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.55),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w400,
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(width: 4),
+
+        // Controls
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _ControlButton(
+              icon: Icons.skip_previous_rounded,
+              onPressed: controller.prev,
+              size: 22,
+            ),
+            StreamBuilder<bool>(
+              stream: controller.handler.player.playingStream,
+              builder: (context, snapshot) {
+                final isPlaying = snapshot.data ?? false;
+                return _ControlButton(
+                  icon: isPlaying
+                      ? Icons.pause_rounded
+                      : Icons.play_arrow_rounded,
+                  onPressed: () => isPlaying
+                      ? controller.handler.player.pause()
+                      : controller.handler.player.play(),
+                  size: 28,
+                  prominent: true,
+                );
+              },
+            ),
+            _ControlButton(
+              icon: Icons.skip_next_rounded,
+              onPressed: controller.next,
+              size: 22,
+            ),
           ],
         ),
-      ),
+      ],
     ),
   );
+}
+
+class _ControlButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onPressed;
+  final double size;
+  final bool prominent;
+
+  const _ControlButton({
+    required this.icon,
+    required this.onPressed,
+    this.size = 22,
+    this.prominent = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 40,
+      height: 40,
+      child: IconButton(
+        onPressed: onPressed,
+        padding: EdgeInsets.zero,
+        icon: Icon(
+          icon,
+          size: size,
+          color: prominent ? Colors.white : Colors.white.withOpacity(0.8),
+        ),
+        splashRadius: 20,
+      ),
+    );
+  }
 }

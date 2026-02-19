@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
 import '/exports/exports.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '/Routes/routes.dart';
@@ -34,14 +33,13 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
   late final AppController _appController;
   bool _isAndroid = false;
 
-  // Constant tab definitions to avoid rebuilds
-  static const List<Tab> _tabs = [
-    Tab(child: Text("Folders")),
-    Tab(child: Text("Playlists")),
-    Tab(child: Text("Artists")),
-    Tab(child: Text("Albums")),
-    Tab(child: Text("Genres")),
-    Tab(child: Text("Songs")),
+  static const List<_TabDef> _tabDefs = [
+    _TabDef(Icons.folder_rounded, 'Folders'),
+    _TabDef(Icons.queue_music_rounded, 'Playlists'),
+    _TabDef(Icons.person_rounded, 'Artists'),
+    _TabDef(Icons.album_rounded, 'Albums'),
+    _TabDef(Icons.category_rounded, 'Genres'),
+    _TabDef(Icons.music_note_rounded, 'Songs'),
   ];
 
   static const List<Widget> _tabViews = [
@@ -70,20 +68,8 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
   }
 
   Future<void> _initializeApp() async {
-    await _checkPermission();
     if (_isAndroid) {
       await _loadAndroidSettings();
-    }
-  }
-
-  Future<void> _checkPermission() async {
-    var permissionStatus = await Permission.storage.status;
-    if (!permissionStatus.isGranted) {
-      await Future.wait([
-        Permission.storage.request(),
-        Permission.audio.request(),
-        Permission.accessMediaLocation.request(),
-      ]);
     }
   }
 
@@ -145,8 +131,15 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
           backgroundColor: controller.isFancy
               ? Colors.transparent
               : Theme.of(context).scaffoldBackgroundColor,
-          appBar: _buildAppBar(controller),
-          body: TabBarView(controller: _tabController, children: _tabViews),
+          body: NestedScrollView(
+            headerSliverBuilder: (context, innerBoxIsScrolled) => [
+              _buildSliverAppBar(controller, innerBoxIsScrolled),
+            ],
+            body: TabBarView(
+              controller: _tabController,
+              children: _tabViews,
+            ),
+          ),
           bottomNavigationBar: controller.handler.player.playing
               ? BottomPlayer(controller: controller)
               : null,
@@ -155,32 +148,118 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
     );
   }
 
-  PreferredSizeWidget _buildAppBar(AppController controller) {
-    return AppBar(
+  Widget _buildSliverAppBar(
+      AppController controller, bool innerBoxIsScrolled) {
+    return SliverAppBar(
+      floating: true,
+      snap: true,
+      pinned: true,
       forceMaterialTransparency: controller.isFancy,
-      title: const Text("Hype Muzik"),
+      surfaceTintColor: Colors.transparent,
+      expandedHeight: 120,
+      toolbarHeight: 64,
+      flexibleSpace: FlexibleSpaceBar(
+        titlePadding: const EdgeInsets.only(left: 20, bottom: 52),
+        title: const Text(
+          'Hype Muzik',
+          style: TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.5,
+          ),
+        ),
+        background: Container(color: Colors.transparent),
+      ),
       actions: [
-        IconButton(
+        _buildActionButton(
+          icon: Icons.search_rounded,
           onPressed: _handleSearch,
-          icon: const Icon(Icons.search),
-          padding: const EdgeInsets.only(right: 18.0),
         ),
-        IconButton(
-          onPressed: () => Routes.routeTo(const Settings(), context),
-          icon: const Icon(Icons.settings),
-          padding: const EdgeInsets.only(right: 18.0),
-        ),
-        IconButton(
+        _buildActionButton(
+          icon: Icons.tune_rounded,
           onPressed: () => Routes.routeTo(const Equalizer(), context),
-          icon: const Icon(Icons.equalizer),
-          padding: const EdgeInsets.only(right: 18.0),
         ),
+        _buildActionButton(
+          icon: Icons.settings_rounded,
+          onPressed: () => Routes.routeTo(const Settings(), context),
+        ),
+        const SizedBox(width: 8),
       ],
-      bottom: TabBar(
-        isScrollable: true,
-        controller: _tabController,
-        tabs: _tabs,
+      bottom: PreferredSize(
+        preferredSize: const Size.fromHeight(44),
+        child: _buildTabBar(),
       ),
     );
   }
+
+  Widget _buildActionButton({
+    required IconData icon,
+    required VoidCallback onPressed,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 2),
+      child: IconButton(
+        onPressed: onPressed,
+        icon: Icon(icon, size: 22),
+        style: IconButton.styleFrom(
+          foregroundColor: Colors.white.withOpacity(0.85),
+          padding: const EdgeInsets.all(10),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTabBar() {
+    return Container(
+      alignment: Alignment.centerLeft,
+      child: TabBar(
+        controller: _tabController,
+        isScrollable: true,
+        tabAlignment: TabAlignment.start,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        labelPadding: const EdgeInsets.symmetric(horizontal: 6),
+        indicatorSize: TabBarIndicatorSize.label,
+        dividerHeight: 0,
+        indicator: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          color: Colors.white.withOpacity(0.12),
+        ),
+        labelStyle: const TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 0.2,
+        ),
+        unselectedLabelStyle: const TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w400,
+          letterSpacing: 0.2,
+        ),
+        labelColor: Colors.white,
+        unselectedLabelColor: Colors.white.withOpacity(0.45),
+        splashBorderRadius: BorderRadius.circular(20),
+        tabs: _tabDefs.map((def) {
+          return Tab(
+            height: 36,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(def.icon, size: 16),
+                  const SizedBox(width: 6),
+                  Text(def.label),
+                ],
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+}
+
+class _TabDef {
+  final IconData icon;
+  final String label;
+  const _TabDef(this.icon, this.label);
 }

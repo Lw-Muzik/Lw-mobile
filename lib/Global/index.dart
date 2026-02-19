@@ -3,7 +3,7 @@ import 'package:eq_app/Helpers/VisualizerWidget.dart';
 import 'package:eq_app/Helpers/index.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
-import 'package:just_audio_background/just_audio_background.dart';
+import 'package:audio_service/audio_service.dart';
 import '/exports/exports.dart';
 
 import '../Helpers/AudioHandler.dart';
@@ -285,7 +285,7 @@ Widget headerWidget(
   );
 }
 
-void loadAudioSource(AudioHandler handler, SongModel song) async {
+void loadAudioSource(HypeAudioHandler handler, SongModel song) async {
   String image = await fetchArtworkUrl(song.data, song.id);
 
   MediaItem item = MediaItem(
@@ -297,9 +297,8 @@ void loadAudioSource(AudioHandler handler, SongModel song) async {
     artUri: Uri.file(image),
   );
 
+  handler.setCurrentMediaItem(item);
   handler.player.setAudioSource(AudioSource.uri(Uri.parse(item.id), tag: item));
-  // player.setUrl(song.data);
-
   handler.player.play();
 }
 

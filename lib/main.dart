@@ -4,13 +4,13 @@ import '/Global/index.dart';
 import '/Themes/AppThemes.dart';
 import '/controllers/AppController.dart';
 import '/controllers/BandController.dart';
+import 'package:audio_service/audio_service.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/foundation.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:just_audio_background/just_audio_background.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -42,13 +42,16 @@ Future<void> main() async {
     Permission.audio,
   ].request();
 
-  await JustAudioBackground.init(
-    androidNotificationIcon: "mipmap/launcher_icon",
-    androidNotificationChannelId: 'com.ryanheise.bg_demo.channel.audio',
-    androidNotificationChannelName: 'Audio playback',
-    androidNotificationOngoing: true,
-    preloadArtwork: true,
+  final handler = await AudioService.init<HypeAudioHandler>(
+    builder: () => HypeAudioHandler(),
+    config: const AudioServiceConfig(
+      androidNotificationChannelId: 'com.ryanheise.bg_demo.channel.audio',
+      androidNotificationChannelName: 'Audio playback',
+      androidNotificationOngoing: true,
+      androidNotificationIcon: 'mipmap/launcher_icon',
+    ),
   );
+
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge, overlays: []);
   SystemChrome.setSystemUIOverlayStyle(overlay);
   // prevent the app from turning to landscape
@@ -63,9 +66,9 @@ Future<void> main() async {
   runApp(
     MultiBlocProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => AppController(prefs)),
+        ChangeNotifierProvider(create: (_) => AppController(prefs, handler)),
         ChangeNotifierProvider(create: (_) => PlaylistController()),
-        ChangeNotifierProvider(create: (_) => AudioHandler()),
+        Provider<HypeAudioHandler>.value(value: handler),
         ChangeNotifierProvider(create: (_) => PlayerController()),
         BlocProvider(create: (_) => BandController()),
       ],
