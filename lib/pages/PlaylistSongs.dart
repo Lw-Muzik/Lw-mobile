@@ -1,5 +1,3 @@
-// ignore_for_file: non_constant_identifier_names
-
 import 'package:eq_app/Global/index.dart';
 import 'package:eq_app/Helpers/index.dart';
 import 'package:eq_app/Routes/routes.dart';
@@ -13,12 +11,12 @@ import '../widgets/ArtworkWidget.dart';
 import '../widgets/BottomPlayer.dart';
 
 class PlaylistSongs extends StatefulWidget {
-  final int playlist_id;
+  final int playlistId;
   final String playlist;
   final int songs;
   const PlaylistSongs({
     super.key,
-    required this.playlist_id,
+    required this.playlistId,
     required this.playlist,
     required this.songs,
   });
@@ -46,7 +44,7 @@ class _PlaylistSongsState extends State<PlaylistSongs> {
                     stream: Stream.fromFuture(
                       OnAudioQuery().queryAudiosFrom(
                         AudiosFromType.PLAYLIST,
-                        widget.playlist_id,
+                        widget.playlistId,
                       ),
                     ),
                     builder: (context, snapshot) {
@@ -110,13 +108,13 @@ class _PlaylistSongsState extends State<PlaylistSongs> {
                     FutureBuilder(
                       future: (OnAudioQuery().queryAudiosFrom(
                         AudiosFromType.PLAYLIST,
-                        widget.playlist_id,
+                        widget.playlistId,
                       )),
                       builder: (context, snap) {
                         return snap.hasData
                             ? PlaylistSongLists(
                                 songs: snap.data ?? [],
-                                playlist: widget.playlist_id,
+                                playlist: widget.playlistId,
                               )
                             : const Center(
                                 child: CircularProgressIndicator.adaptive(),

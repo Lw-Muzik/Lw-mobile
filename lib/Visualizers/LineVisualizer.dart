@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 
 class LineVisualizer extends CustomPainter {
@@ -29,7 +27,6 @@ class LineVisualizer extends CustomPainter {
     for (int i = 0; i < waveData.length; i++) {
       double x = i * dx;
       double y = height - waveData[i] * height;
-      print("data ${waveData.length}");
       if (i == 0) {
         path.moveTo(x, y / 2);
       } else {
@@ -41,7 +38,7 @@ class LineVisualizer extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(CustomPainter oldDelegate) {
-    return true;
+  bool shouldRepaint(covariant LineVisualizer oldDelegate) {
+    return oldDelegate.waveData != waveData;
   }
 }

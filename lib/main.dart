@@ -13,10 +13,12 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:just_audio_background/just_audio_background.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:wiredash/wiredash.dart';
 import 'package:firebase_core/firebase_core.dart';
 
+import 'config/app_config.dart';
 import 'controllers/PlayerController.dart';
 import 'controllers/PlaylistController.dart';
 import 'firebase_options.dart';
@@ -38,7 +40,6 @@ Future<void> main() async {
     Permission.mediaLibrary,
     Permission.storage,
     Permission.audio,
-    // Permission.manageExternalStorage,
   ].request();
 
   await JustAudioBackground.init(
@@ -50,27 +51,27 @@ Future<void> main() async {
   );
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge, overlays: []);
   SystemChrome.setSystemUIOverlayStyle(overlay);
-  // SystemSound.play(SystemSoundType.alert);
   // prevent the app from turning to landscape
   SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
   ]);
-  // request for permission to read audio files
-  // SharedPreferences prefs = await SharedPreferences.getInstance();
-  // prefs.clear();
+
+  // Initialize SharedPreferences once before the app starts
+  final prefs = await SharedPreferences.getInstance();
+
   runApp(
     MultiBlocProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => AppController()),
-        ChangeNotifierProvider(create: (context) => PlaylistController()),
-        ChangeNotifierProvider(create: (context) => AudioHandler()),
-        ChangeNotifierProvider(create: (context) => PlayerController()),
-        BlocProvider(create: (context) => BandController()),
+        ChangeNotifierProvider(create: (_) => AppController(prefs)),
+        ChangeNotifierProvider(create: (_) => PlaylistController()),
+        ChangeNotifierProvider(create: (_) => AudioHandler()),
+        ChangeNotifierProvider(create: (_) => PlayerController()),
+        BlocProvider(create: (_) => BandController()),
       ],
       child: Wiredash(
-        projectId: "hype-muzik-q8wp9st",
-        secret: "UB-v1DeJeOBqg3yxM5lOqEhoSsjrq-HM",
+        projectId: AppConfig.wiredashProjectId,
+        secret: AppConfig.wiredashSecret,
         options: const WiredashOptionsData(locale: Locale('en')),
         child: MaterialApp(
           theme: AppThemes.fancyTheme,

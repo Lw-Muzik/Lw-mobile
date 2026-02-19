@@ -1,5 +1,3 @@
-// ignore_for_file: prefer_is_empty
-
 import 'dart:ui';
 
 import 'package:eq_app/Routes/routes.dart';
@@ -147,7 +145,7 @@ class _SongListsState extends State<SongLists> {
   int _selected = -1;
   @override
   Widget build(BuildContext context) {
-    return widget.songs.length < 0
+    return widget.songs.isEmpty
         ? Center(
             child: Text(
               "No songs found",
@@ -181,8 +179,7 @@ class _SongListsState extends State<SongLists> {
                         controller.songs = widget.songs;
 
                         int songIndex = controller.songs.indexWhere(
-                          (result) => true,
-                          //result?.title == widget.songs[index].title,
+                          (result) => result.title == widget.songs[index].title,
                         );
                         controller.songId = songIndex;
 

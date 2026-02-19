@@ -1,5 +1,3 @@
-// ignore_for_file: must_be_immutable
-
 import 'package:eq_app/controllers/AppController.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:provider/provider.dart';

@@ -40,8 +40,6 @@ class CircularBarVisualizer extends CustomPainter {
       wavePaint.strokeWidth = circumference / 90;
       wavePaint.style = PaintingStyle.fill;
     }
-    // canvas.drawCircle(
-    //     Offset(getWidth() / 2, getHeight() / 2), radius.toDouble(), wavePaint);
     if (waveData.isNotEmpty) {
       if (points == null || points!.length < waveData.length * 8) {
         points = Float32List(waveData.length * 8);
@@ -62,12 +60,6 @@ class CircularBarVisualizer extends CustomPainter {
 
         points![i * 4 + 3] =
             getHeight() / 2 + (radius + t) * sin(radians(angle));
-        // points![i * 4 + 4] =
-        //     getHeight() / 2 + (radius + t) * cos(radians(angle));
-        // points![i * 4 + 8] =
-        //     getHeight() / 2 + (radius + t) * cos(radians(angle / 2));
-        // points![i * 8 + 16] =
-        //     getHeight() / 2 + (radius + t) * cos(radians(angle));
       }
 
       canvas.drawRawPoints(PointMode.lines, points!, wavePaint);
@@ -75,8 +67,8 @@ class CircularBarVisualizer extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(CustomPainter oldDelegate) {
-    return true;
+  bool shouldRepaint(covariant CircularBarVisualizer oldDelegate) {
+    return oldDelegate.waveData != waveData;
   }
 
   getHeight() {

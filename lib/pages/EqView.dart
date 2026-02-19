@@ -34,6 +34,14 @@ class _EqViewState extends State<EqView> {
               StreamBuilder<bool>(
                 stream: Stream.fromFuture(Channel.isEnabled()),
                 builder: (context, snapshot) {
+                  if (snapshot.hasError) {
+                    return SwitchListTile(
+                      title: const Text("Equalizer"),
+                      subtitle: const Text("Error"),
+                      value: eq,
+                      onChanged: null,
+                    );
+                  }
                   eq = snapshot.data ?? false;
                   return SwitchListTile(
                     title: const Text("Equalizer"),

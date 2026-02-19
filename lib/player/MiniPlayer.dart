@@ -1,12 +1,10 @@
-// ignore_for_file: library_private_types_in_public_api
-
 import 'package:flutter/material.dart';
 
 class MiniPlayer extends StatefulWidget {
   const MiniPlayer({super.key, required this.onTap});
   final Function onTap;
   @override
-  _MiniPlayerState createState() => _MiniPlayerState();
+  State<MiniPlayer> createState() => _MiniPlayerState();
 }
 
 class _MiniPlayerState extends State<MiniPlayer> {
@@ -14,7 +12,7 @@ class _MiniPlayerState extends State<MiniPlayer> {
   Widget build(BuildContext context) {
     final colorTheme = Theme.of(context).colorScheme;
     return Container(
-      color: colorTheme.onBackground,
+      color: colorTheme.onSurface,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         height: 71.0,
@@ -24,13 +22,7 @@ class _MiniPlayerState extends State<MiniPlayer> {
               children: [
                 GestureDetector(
                   onTap: () => widget.onTap(),
-                  // onTap: () {
-                  //   Navigator.push(
-                  //     context,
-                  //     MaterialPageRoute(builder: (context) => Player()),
-                  //   );
-                  // },
-                  child: Container(
+                  child: SizedBox(
                     width: 70,
                     height: 70,
                     child: Image.asset("assets/audio.jpeg", fit: BoxFit.cover),
@@ -67,7 +59,7 @@ class _MiniPlayerState extends State<MiniPlayer> {
                 const SizedBox(width: 20),
               ],
             ),
-            Divider(color: colorTheme.background, height: 1),
+            Divider(color: colorTheme.surface, height: 1),
           ],
         ),
       ),

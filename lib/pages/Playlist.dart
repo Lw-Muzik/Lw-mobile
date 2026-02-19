@@ -47,7 +47,7 @@ class _PlayListViewState extends State<PlayListView> {
                             onTap: () {
                               Routes.routeTo(
                                 PlaylistSongs(
-                                  playlist_id: sna.data![index].id,
+                                  playlistId: sna.data![index].id,
                                   playlist: sna.data![index].playlist,
                                   songs: sna.data![index].numOfSongs,
                                 ),

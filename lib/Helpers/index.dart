@@ -2,6 +2,7 @@
 
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:id3tag/id3tag.dart';
 import '/exports/exports.dart';
@@ -47,31 +48,33 @@ Future<void> fetchArtwork(
   // function to fetch saveImage Urls
 
   Future<void> saveArtworkImage(String imgPath, String original) async {
-    if (!File(imgPath).existsSync()) {
-      if (type == ArtworkType.ALBUM ||
-          type == ArtworkType.ARTIST ||
-          type == ArtworkType.GENRE) {
-        var artworkData = await OnAudioQuery().queryArtwork(
-          id,
-          type,
-          quality: quality,
-          size: 500,
-        );
-        if (artworkData != null && artworkData.isNotEmpty) {
-          // log("Saving $imgPath");
-          await File(imgPath).writeAsBytes(artworkData);
-        }
-      } else if (type == ArtworkType.AUDIO) {
-        if (File(original).existsSync() == true) {
-          var parser = ID3TagReader.path(original);
-          var tag = await parser.readTag();
-          var artworkData = tag.pictures;
-          if (tempPath.isNotEmpty && artworkData.isNotEmpty) {
-            // log("Saving song artwork $imgPath");
-            await File(imgPath).writeAsBytes(artworkData.first.imageData);
+    try {
+      if (!File(imgPath).existsSync()) {
+        if (type == ArtworkType.ALBUM ||
+            type == ArtworkType.ARTIST ||
+            type == ArtworkType.GENRE) {
+          var artworkData = await OnAudioQuery().queryArtwork(
+            id,
+            type,
+            quality: quality,
+            size: 500,
+          );
+          if (artworkData != null && artworkData.isNotEmpty) {
+            await File(imgPath).writeAsBytes(artworkData);
+          }
+        } else if (type == ArtworkType.AUDIO) {
+          if (File(original).existsSync()) {
+            var parser = ID3TagReader.path(original);
+            var tag = await parser.readTag();
+            var artworkData = tag.pictures;
+            if (tempPath.isNotEmpty && artworkData.isNotEmpty) {
+              await File(imgPath).writeAsBytes(artworkData.first.imageData);
+            }
           }
         }
       }
+    } catch (e) {
+      debugPrint('Error saving artwork: $e');
     }
   }
 
@@ -234,9 +237,11 @@ void showAddPlaylist(
             children: [
               TextButton(
                 onPressed: () {
-                  if (textController.text.isNotEmpty) {
+                  final name = textController.text.trim();
+                  if (name.isNotEmpty &&
+                      !RegExp(r'[\\/:*?"<>|]').hasMatch(name)) {
                     controller.audioQuery
-                        .createPlaylist(textController.text)
+                        .createPlaylist(name)
                         .then((value) {
                           if (value) {
                             // controller.audioQuery.addToPlaylist()
@@ -255,10 +260,10 @@ void showAddPlaylist(
                     showMessage(
                       context: context,
                       float: true,
-                      msg: "Playlist name is required",
+                      msg: name.isEmpty
+                          ? "Playlist name is required"
+                          : "Playlist name contains invalid characters",
                     );
-                    Routes.pop(context);
-                    Routes.pop(context);
                   }
                 },
                 child: const Text("Create"),
@@ -312,8 +317,11 @@ void showDeletePlaylist(
   );
 }
 
+final RegExp _durationRegex =
+    RegExp(r'((^0*[1-9]\d*:)?\d{2}:\d{2})\.\d+$');
+
 String formatTime(Duration time) {
-  return "${RegExp(r'((^0*[1-9]\d*:)?\d{2}:\d{2})\.\d+$').firstMatch("$time")?.group(1)}";
+  return "${_durationRegex.firstMatch("$time")?.group(1)}";
 }
 
 // method to invoke the delete window

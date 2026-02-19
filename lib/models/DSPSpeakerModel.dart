@@ -1,9 +1,7 @@
-// ignore_for_file: non_constant_identifier_names
-
 import 'package:flutter/services.dart';
 
 class DSPSpeaker {
-  int id;
+  final int id;
   final String name;
   final List<dynamic> freq;
   final List<double> gain;

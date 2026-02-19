@@ -4,6 +4,8 @@ import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
 import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, kIsWeb, TargetPlatform;
 
+import 'config/app_config.dart';
+
 /// Default [FirebaseOptions] for use with your Firebase apps.
 ///
 /// Example:
@@ -49,20 +51,20 @@ class DefaultFirebaseOptions {
     }
   }
 
-  static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyDHcsmb7ik8VwYtpT61ufIrsQKwD_udHgg',
-    appId: '1:618382337035:android:281cf52691c9ad7a02d30e',
-    messagingSenderId: '618382337035',
-    projectId: 'hype-muzik',
-    storageBucket: 'hype-muzik.appspot.com',
-  );
+  static FirebaseOptions get android => FirebaseOptions(
+        apiKey: AppConfig.firebaseAndroidApiKey,
+        appId: AppConfig.firebaseAppIdAndroid,
+        messagingSenderId: AppConfig.firebaseMessagingSenderId,
+        projectId: AppConfig.firebaseProjectId,
+        storageBucket: AppConfig.firebaseStorageBucket,
+      );
 
-  static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyC0qCPDjsjCFW9NGptlKqBCtksBmnEq-X4',
-    appId: '1:618382337035:ios:2c2d37fc7c83fabe02d30e',
-    messagingSenderId: '618382337035',
-    projectId: 'hype-muzik',
-    storageBucket: 'hype-muzik.appspot.com',
-    iosBundleId: 'com.example.eqApp',
-  );
+  static FirebaseOptions get ios => FirebaseOptions(
+        apiKey: AppConfig.firebaseIosApiKey,
+        appId: AppConfig.firebaseAppIdIos,
+        messagingSenderId: AppConfig.firebaseMessagingSenderId,
+        projectId: AppConfig.firebaseProjectId,
+        storageBucket: AppConfig.firebaseStorageBucket,
+        iosBundleId: AppConfig.firebaseIosBundleId,
+      );
 }

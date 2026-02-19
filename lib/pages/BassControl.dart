@@ -72,6 +72,14 @@ class _BassControlState extends State<BassControl> {
     return StreamBuilder<bool>(
       stream: Stream.fromFuture(Channel.getVirtualizerEnabled()),
       builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return SwitchListTile.adaptive(
+            title: const Text("Effects"),
+            subtitle: const Text("Error loading"),
+            value: ebass,
+            onChanged: null,
+          );
+        }
         ebass = snapshot.data ?? ebass;
         return SwitchListTile.adaptive(
           title: const Text("Effects"),
@@ -100,6 +108,18 @@ class _BassControlState extends State<BassControl> {
     return StreamBuilder<dynamic>(
       stream: stream,
       builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return RoundSlider(
+            title: title,
+            dB: 0,
+            value: value,
+            max: max,
+            width: 120,
+            height: 120,
+            min: 0,
+            onChanged: (x) {},
+          );
+        }
         double sliderValue = snapshot.data?.toDouble() ?? value;
         return RoundSlider(
           title: title,

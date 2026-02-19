@@ -38,7 +38,7 @@ class BarVisualizer extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(CustomPainter oldDelegate) {
-    return true;
+  bool shouldRepaint(covariant BarVisualizer oldDelegate) {
+    return oldDelegate.waveData != waveData;
   }
 }

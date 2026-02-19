@@ -23,6 +23,8 @@ class SeekBar extends StatefulWidget {
 }
 
 class SeekBarState extends State<SeekBar> {
+  static final RegExp _durationRegex =
+      RegExp(r'((^0*[1-9]\d*:)?\d{2}:\d{2})\.\d+$');
   double? _dragValue;
   late SliderThemeData _sliderThemeData;
 
@@ -113,7 +115,7 @@ class SeekBarState extends State<SeekBar> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    RegExp(r'((^0*[1-9]\d*:)?\d{2}:\d{2})\.\d+$')
+                    _durationRegex
                             .firstMatch("${widget.position}")
                             ?.group(1) ??
                         '- ${widget.position}',
@@ -122,7 +124,7 @@ class SeekBarState extends State<SeekBar> {
                         ),
                   ),
                   Text(
-                    "-${RegExp(r'((^0*[1-9]\d*:)?\d{2}:\d{2})\.\d+$').firstMatch("$_remaining")?.group(1)}",
+                    "-${_durationRegex.firstMatch("$_remaining")?.group(1)}",
                     style: Theme.of(context).textTheme.bodyMedium!.apply(
                           color: Colors.white.withOpacity(0.7),
                         ),
@@ -173,7 +175,6 @@ void showSliderDialog({
   required double min,
   required double max,
   String valueSuffix = '',
-  // TODO: Replace these two by ValueStream.
   required double value,
   required Stream<double> stream,
   required ValueChanged<double> onChanged,

@@ -30,6 +30,8 @@ class _AssetLoaderState extends State<AssetLoader>
   bool _isNavigating = false;
   int _currentTextIndex = 0;
   double _progress = 0.0;
+  Timer? _progressTimer;
+  Timer? _textTimer;
 
   final List<String> _scanningTexts = [
     'Preparing Your Library',
@@ -96,7 +98,7 @@ class _AssetLoaderState extends State<AssetLoader>
   }
 
   void _startProgressAnimation() {
-    Timer.periodic(const Duration(milliseconds: 50), (timer) {
+    _progressTimer = Timer.periodic(const Duration(milliseconds: 50), (timer) {
       if (mounted && !_isNavigating) {
         setState(() {
           _progress = math.min(1.0, _progress + 0.01);
@@ -109,13 +111,16 @@ class _AssetLoaderState extends State<AssetLoader>
 
   void _startTextAnimation() {
     _scanTextController.forward();
-    Timer.periodic(const Duration(seconds: 2), (timer) {
+    _textTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
       if (mounted && !_isNavigating) {
         _scanTextController.reverse().then((_) {
-          setState(() {
-            _currentTextIndex = (_currentTextIndex + 1) % _scanningTexts.length;
-          });
-          _scanTextController.forward();
+          if (mounted) {
+            setState(() {
+              _currentTextIndex =
+                  (_currentTextIndex + 1) % _scanningTexts.length;
+            });
+            _scanTextController.forward();
+          }
         });
       } else {
         timer.cancel();
@@ -174,6 +179,8 @@ class _AssetLoaderState extends State<AssetLoader>
 
   @override
   void dispose() {
+    _progressTimer?.cancel();
+    _textTimer?.cancel();
     for (var ripple in _ripples) {
       ripple.controller.dispose();
     }

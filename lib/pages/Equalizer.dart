@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 // custom files
@@ -19,8 +21,8 @@ class Equalizer extends StatefulWidget {
 class _EqualizerState extends State<Equalizer> with TickerProviderStateMixin {
   late final TabController _tabController;
   final List<double> bandValues = [0, 0, 0, 0, 0];
-  // static const List<int> bandLevel = [-10, 10];
   String? preset;
+  StreamSubscription<int?>? _sessionIdSubscription;
 
   @override
   void initState() {
@@ -28,7 +30,7 @@ class _EqualizerState extends State<Equalizer> with TickerProviderStateMixin {
     _tabController = TabController(length: 4, vsync: this);
 
     // Setting up listener for android audio session ID.
-    context
+    _sessionIdSubscription = context
         .read<AppController>()
         .handler
         .player
@@ -42,6 +44,7 @@ class _EqualizerState extends State<Equalizer> with TickerProviderStateMixin {
 
   @override
   void dispose() {
+    _sessionIdSubscription?.cancel();
     _tabController.dispose();
     super.dispose();
   }
