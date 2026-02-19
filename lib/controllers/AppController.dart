@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:eq_app/Global/index.dart';
@@ -8,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../Helpers/AudioHandler.dart';
 import '../Helpers/Channel.dart';
 import '../Helpers/index.dart';
+import '../models/eq_models.dart';
 
 class AppController with ChangeNotifier {
   List<int> bandValues = [0, 0, 0, 0, 0];
@@ -57,6 +59,177 @@ class AppController with ChangeNotifier {
   bool _replayGain = false;
   bool _dvcEnabled = false;
   double _dvcGain = 0.0; // dB, range -30 to +30
+
+  // 32-band Graphic EQ state
+  List<double> _graphicBandGains = List.filled(32, 0.0);
+  bool _graphicEqEnabled = false;
+  String _activePresetName = 'Flat';
+  Map<String, EqPreset> _savedPresets = {};
+  String _lastOutputDevice = 'speaker';
+  bool _linkAllDevices = true;
+
+  // Parametric EQ state
+  List<ParametricPoint> _parametricPoints = [];
+
+  // Graphic EQ getters/setters
+  List<double> get graphicBandGains => _graphicBandGains;
+  bool get graphicEqEnabled => _graphicEqEnabled;
+  String get activePresetName => _activePresetName;
+  Map<String, EqPreset> get savedPresets => _savedPresets;
+  String get lastOutputDevice => _lastOutputDevice;
+  bool get linkAllDevices => _linkAllDevices;
+  List<ParametricPoint> get parametricPoints => _parametricPoints;
+
+  set graphicEqEnabled(bool value) {
+    _prefs.setBool("graphicEqEnabled", value);
+    _graphicEqEnabled = value;
+    notifyListeners();
+  }
+
+  set activePresetName(String value) {
+    _prefs.setString("activePresetName", value);
+    _activePresetName = value;
+    notifyListeners();
+  }
+
+  set linkAllDevices(bool value) {
+    _prefs.setBool("linkAllDevices", value);
+    _linkAllDevices = value;
+    notifyListeners();
+  }
+
+  void setGraphicBandGain(int band, double gain) {
+    if (band >= 0 && band < _graphicBandGains.length) {
+      _graphicBandGains[band] = gain;
+      Channel.setGraphicBandGain(band, gain);
+      _persistGraphicGains();
+      notifyListeners();
+    }
+  }
+
+  void setGraphicAllBands(List<double> gains) {
+    _graphicBandGains = List<double>.from(gains);
+    Channel.setGraphicAllBands(gains);
+    _persistGraphicGains();
+    notifyListeners();
+  }
+
+  void applyBuiltInPreset(String name) {
+    final gains = BuiltInPresets.presets[name];
+    if (gains != null) {
+      setGraphicAllBands(gains);
+      activePresetName = name;
+    }
+  }
+
+  void savePreset(String name) {
+    _savedPresets[name] = EqPreset(
+      name: name,
+      graphicGains: List<double>.from(_graphicBandGains),
+      parametric: _parametricPoints.map((p) => p.copyWith()).toList(),
+      deviceType: _linkAllDevices ? null : _lastOutputDevice,
+    );
+    _prefs.setString("eqPresets", EqPreset.encodeList(_savedPresets));
+    notifyListeners();
+  }
+
+  void loadPreset(String name) {
+    final preset = _savedPresets[name];
+    if (preset != null) {
+      setGraphicAllBands(preset.graphicGains);
+      _parametricPoints = preset.parametric.map((p) => p.copyWith()).toList();
+      _applyParametricToNative();
+      activePresetName = name;
+    }
+  }
+
+  void deletePreset(String name) {
+    _savedPresets.remove(name);
+    _prefs.setString("eqPresets", EqPreset.encodeList(_savedPresets));
+    notifyListeners();
+  }
+
+  // Parametric EQ methods
+  void addParametricPoint(double frequency, double gain) {
+    _parametricPoints.add(ParametricPoint(frequency: frequency, gain: gain));
+    _applyParametricToNative();
+    _persistParametricPoints();
+    notifyListeners();
+  }
+
+  void updateParametricPoint(int index, {double? frequency, double? gain, bool? enabled}) {
+    if (index >= 0 && index < _parametricPoints.length) {
+      _parametricPoints[index] = _parametricPoints[index].copyWith(
+        frequency: frequency,
+        gain: gain,
+        enabled: enabled,
+      );
+      _applyParametricToNative();
+      _persistParametricPoints();
+      notifyListeners();
+    }
+  }
+
+  void removeParametricPoint(int index) {
+    if (index >= 0 && index < _parametricPoints.length) {
+      _parametricPoints.removeAt(index);
+      _applyParametricToNative();
+      _persistParametricPoints();
+      notifyListeners();
+    }
+  }
+
+  void resetParametricPoints() {
+    _parametricPoints.clear();
+    _applyParametricToNative();
+    _persistParametricPoints();
+    notifyListeners();
+  }
+
+  void _applyParametricToNative() {
+    // Map parametric points to 32 native bands
+    final freqs = List.filled(32, 1000.0);
+    final gains = List.filled(32, 0.0);
+    for (int i = 0; i < _parametricPoints.length && i < 32; i++) {
+      freqs[i] = _parametricPoints[i].frequency;
+      gains[i] = _parametricPoints[i].enabled ? _parametricPoints[i].gain : 0.0;
+    }
+    Channel.setParametricAllBands(freqs, gains);
+  }
+
+  void _persistGraphicGains() {
+    _prefs.setString("graphicBandGains", json.encode(_graphicBandGains));
+  }
+
+  void _persistParametricPoints() {
+    _prefs.setString("parametricPoints",
+        json.encode(_parametricPoints.map((p) => p.toJson()).toList()));
+  }
+
+  Future<void> detectAndApplyDevicePreset() async {
+    final device = await Channel.getAudioOutputType();
+    if (device != _lastOutputDevice && !_linkAllDevices) {
+      // Save current for old device
+      _savedPresets['_device_$_lastOutputDevice'] = EqPreset(
+        name: '_device_$_lastOutputDevice',
+        graphicGains: List<double>.from(_graphicBandGains),
+        parametric: _parametricPoints.map((p) => p.copyWith()).toList(),
+        deviceType: _lastOutputDevice,
+      );
+      _prefs.setString("eqPresets", EqPreset.encodeList(_savedPresets));
+
+      // Load preset for new device if it exists
+      final devicePreset = _savedPresets['_device_$device'];
+      if (devicePreset != null) {
+        setGraphicAllBands(devicePreset.graphicGains);
+        _parametricPoints = devicePreset.parametric.map((p) => p.copyWith()).toList();
+        _applyParametricToNative();
+      }
+    }
+    _lastOutputDevice = device;
+    _prefs.setString("lastOutputDevice", device);
+    notifyListeners();
+  }
 
   // Audio feature getters
   bool get gaplessPlayback => _gaplessPlayback;
@@ -461,6 +634,33 @@ class AppController with ChangeNotifier {
     _replayGain = _prefs.getBool("replayGain") ?? false;
     _dvcEnabled = _prefs.getBool("dvcEnabled") ?? false;
     _dvcGain = _prefs.getDouble("dvcGain") ?? 0.0;
+    // 32-band Graphic EQ
+    _graphicEqEnabled = _prefs.getBool("graphicEqEnabled") ?? false;
+    _activePresetName = _prefs.getString("activePresetName") ?? 'Flat';
+    _linkAllDevices = _prefs.getBool("linkAllDevices") ?? true;
+    _lastOutputDevice = _prefs.getString("lastOutputDevice") ?? 'speaker';
+    final graphicJson = _prefs.getString("graphicBandGains");
+    if (graphicJson != null) {
+      try {
+        _graphicBandGains = (json.decode(graphicJson) as List)
+            .map((e) => (e as num).toDouble())
+            .toList();
+      } catch (_) {}
+    }
+    final parametricJson = _prefs.getString("parametricPoints");
+    if (parametricJson != null) {
+      try {
+        _parametricPoints = (json.decode(parametricJson) as List)
+            .map((e) => ParametricPoint.fromJson(e as Map<String, dynamic>))
+            .toList();
+      } catch (_) {}
+    }
+    final presetsJson = _prefs.getString("eqPresets");
+    if (presetsJson != null) {
+      try {
+        _savedPresets = EqPreset.decodeList(presetsJson);
+      } catch (_) {}
+    }
     // Visualizer fine-tuning
     _visualizerStyle = _prefs.getString("visualizerStyle") ?? 'circular';
     _visualizerColor = _prefs.getInt("visualizerColor") ?? 0xFFFFFFFF;

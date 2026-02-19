@@ -1,6 +1,5 @@
 package x.a.zix;
 
-import android.media.AudioManager;
 import android.media.audiofx.DynamicsProcessing;
 import android.os.Build;
 import android.util.Log;
@@ -9,388 +8,421 @@ import androidx.annotation.RequiresApi;
 
 @RequiresApi(api = Build.VERSION_CODES.P)
 public class DSPEngine {
+    private static final String TAG = "DSPEngine";
+
     private static DynamicsProcessing dspEngine;
-    private static DynamicsProcessing.Eq dspEq;
-    private static DynamicsProcessing.Eq tuner;
-    private static final int bandCount = 10;
+    private static DynamicsProcessing.Eq preEq;   // Graphic EQ (32 bands)
+    private static DynamicsProcessing.Eq postEq;   // Parametric EQ (32 bands)
     private static DynamicsProcessing.Mbc dspMbc;
-   static int[] dsp_speakers = {31, 62, 85, 250, 500, 1000, 2000, 4000, 8000, 16000};
-    static float[] dsp_gains = {4.8f,3.6f,3.0f,5.0f,5,3,5,6,4,7};
     private static DynamicsProcessing.Limiter dspLimiter;
 
-    private static DynamicsProcessing.MbcBand dspBand;
+    public static final int GRAPHIC_BAND_COUNT = 32;
+    public static final int PARAMETRIC_BAND_COUNT = 32;
+    public static final int MBC_BAND_COUNT = 10;
+
     public static final int priority = Integer.MAX_VALUE;
-    private static final float out_gain = 2.0f;
-    private static final float dsp_volume = -4.0f;
-//    private static final float dsp_powerBass = 8.0f;
-    private static final float dsp_powerBass = 2.0f;
-    private static final float dsp_xBass = 3.0f;
-    private static final float dsp_xBass2 = 4.0f;
-    private static final float dsp_treble = 3.3f;
+
+    // Default DSP values
+    private static final float DEFAULT_OUT_GAIN = 2.0f;
+    private static final float DEFAULT_INPUT_GAIN = -4.0f;
+    private static final float DEFAULT_POWER_BASS = 2.0f;
+    private static final float DEFAULT_X_BASS = 3.0f;
+    private static final float DEFAULT_X_BASS2 = 4.0f;
+    private static final float DEFAULT_TREBLE = 3.3f;
+
     static int audioSessionId = 0;
-    static int tunerBassFreq = 916;
 
- // Standard 10-band multiband dynamics processing configuration
-private static final DynamicsProcessing.Config.Builder builder = 
-    new DynamicsProcessing.Config.Builder(
-        0,              // variant - use 0 for standard processing
-        2,              // channel count (stereo)
-        true,           // pre-EQ enabled
-        bandCount,      // pre-EQ band count
-        true,           // mbc enabled (multiband compression)
-        bandCount,      // mbc band count
-        true,           // post-EQ enabled
-        bandCount,      // post-EQ band count
-        true            // limiter enabled
-    );
-   private static final DynamicsProcessing.Config engineConfig  = builder.build();
-    
-    // utility functions
-    public static void setDspSpeakers(int[] speakers, float[] gains){
-        dsp_speakers = speakers;
-        dsp_gains = gains;
-        if(dspEngine != null && dspEq != null){
-            for (int b = 0; b < bandCount; b++) {
-                try {
-                    dspEq.getBand(b).setCutoffFrequency(dsp_speakers[b]);
-                    dspMbc.getBand(b).setCutoffFrequency(dsp_speakers[b]);
-                } catch (Exception e2) {
-                    e2.printStackTrace();
-                }
-            }
-            dspEngine.setPreEqAllChannelsTo(dspEq);
-            dspEngine.setPostEqAllChannelsTo(dspEq);
-//            dspEngine.setPreEqAllChannelsTo(tuner);
-//            dspEngine.setPostEqAllChannelsTo(tuner);
-            dspEngine.setMbcAllChannelsTo(dspMbc);
-            dspEngine.setLimiterAllChannelsTo(dspLimiter);
-        }
+    // 32-band ISO 1/3 octave center frequencies (Hz)
+    public static final int[] GRAPHIC_FREQUENCIES = {
+        20, 25, 31, 40, 50, 63, 80, 100,
+        125, 160, 200, 250, 315, 400, 500, 630,
+        800, 1000, 1250, 1600, 2000, 2500, 3150, 4000,
+        5000, 6300, 8000, 10000, 12500, 16000, 18000, 20000
+    };
 
-    }
-    public static void setAudioSessionId(int id){
-      audioSessionId = id;
-    }
-    public static void setCutOffFrequencyForTunerBass(int frequency){
-        tunerBassFreq = frequency;
-    }
-    public static void assignBandGains() {
-        for (int i = 0; i < bandCount; i++) {
-            dspBandConfig(i, dsp_gains[i]);
-        }
-    }
-    private static void presetOne() {
-        if (Build.VERSION.SDK_INT < 28) {
-            return;
-        }
-        for(int x = 0; x< 10; x++){
-            DynamicsProcessing.MbcBand band  = dspMbc.getBand(x);
-            dspBand = band;
+    // Default flat gains for graphic EQ
+    private static final float[] DEFAULT_GRAPHIC_GAINS = new float[GRAPHIC_BAND_COUNT]; // all 0.0f
 
-            band.setAttackTime(5.0f);
-            dspBand.setReleaseTime(1.0f);
-            dspBand.setRatio(4.0f);
-            dspBand.setKneeWidth(1.0f);
-            dspBand.setThreshold(-4.0f);
-            dspBand.setNoiseGateThreshold(-50.0f);
-            dspBand.setExpanderRatio(1.0f);
-            dspBand.setPreGain(4.0f);
-            dspBand.setPostGain(-10.0f);
-            dspBand.setEnabled(true);
-        }
+    // MBC frequencies (10 bands covering key ranges)
+    private static final int[] MBC_FREQUENCIES = {
+        31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000
+    };
 
+    // Legacy DSP speakers config (for backwards compatibility)
+    static int[] dsp_speakers = {31, 62, 85, 250, 500, 1000, 2000, 4000, 8000, 16000};
+    static float[] dsp_gains = {4.8f, 3.6f, 3.0f, 5.0f, 5f, 3f, 5f, 6f, 4f, 7f};
+
+    // Engine config: 32-band Pre-EQ, 10-band MBC, 32-band Post-EQ, limiter
+    private static DynamicsProcessing.Config buildConfig() {
+        DynamicsProcessing.Config.Builder builder = new DynamicsProcessing.Config.Builder(
+            0,                      // variant
+            2,                      // channel count (stereo)
+            true,                   // pre-EQ enabled
+            GRAPHIC_BAND_COUNT,     // pre-EQ band count (32)
+            true,                   // MBC enabled
+            MBC_BAND_COUNT,         // MBC band count (10)
+            true,                   // post-EQ enabled
+            PARAMETRIC_BAND_COUNT,  // post-EQ band count (32)
+            true                    // limiter enabled
+        );
+        builder.setPreferredFrameDuration(20.0f);
+        return builder.build();
     }
-    private static void c() {
-    if (Build.VERSION.SDK_INT < 28 || dspEngine == null) {
-        return;
+
+    public static boolean isDynamicsProcessingAvailable() {
+        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.P;
     }
-    for (int i = 0; i < 1; i++) {
-        DynamicsProcessing.MbcBand band = dspMbc.getBand(i);
-        dspBand = band;
-        // Attack time: 10-20ms is standard for most applications
-        band.setAttackTime(15.0f);
-        // Release time: Usually 2-4x attack time
-        dspBand.setReleaseTime(45.0f);
-        // Ratio: 2:1 to 4:1 is typical for compression
-        dspBand.setRatio(2.5f);
-        // Knee width: 6-12dB is common for smooth transition
-        dspBand.setKneeWidth(8.0f);
-        // Threshold: -24 to -12dB is typical
-        dspBand.setThreshold(-18.0f);
-        // Noise gate: -60 to -80dB is standard
-        dspBand.setNoiseGateThreshold(-70.0f);
-        // Expander ratio: 1:2 to 1:4 is common
-        dspBand.setExpanderRatio(2.0f);
-        // Pre/Post gain: Adjust based on input/output levels
-        dspBand.setPreGain(3.0f);
-        dspBand.setPostGain(2.0f);
+
+    public static void setAudioSessionId(int id) {
+        audioSessionId = id;
     }
-    dspBand.setEnabled(true);
-}
+
+    // ======================== INITIALIZATION ========================
 
     public static void initDSPEngine() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            if(dspEngine == null){
-                dspEngine = new DynamicsProcessing(priority, AudioManager.AUDIO_SESSION_ID_GENERATE, engineConfig);
-                builder.setPreferredFrameDuration(20.0f);
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) return;
+        if (dspEngine != null) return;
 
-                dspEq = new DynamicsProcessing.Eq(true, true, bandCount);
-//                tuner = new DynamicsProcessing.Eq(true, true, 2);
+        try {
+            DynamicsProcessing.Config config = buildConfig();
+            int sessionId = audioSessionId > 0 ? audioSessionId : 0;
+            dspEngine = new DynamicsProcessing(priority, sessionId, config);
 
-                dspMbc = new DynamicsProcessing.Mbc(true, true, bandCount);
-                //   Engine configuration
-              // Standard limiter settings for transparent limiting with protection
-                    dspLimiter = new DynamicsProcessing.Limiter(
-                        true,                    // enabled
-                        true,                    // in linear domain
-                        10,                      // link channels
-                        1.0f,                    // attack time (ms) - fast enough to catch peaks
-                        30.0f,                   // release time (ms) - natural release
-                        6.0f,                    // ratio - high for true limiting
-                        -1.0f,                   // threshold (dB) - prevent digital clipping
-                        out_gain                 // output gain
-                    );
-               //  default chanel gain
-                // presetOne();
-                c();
-                // assign gain default gain values
-                assignBandGains();
-                // initialize dsp defaults
-                dspEngine.setInputGainAllChannelsTo(dsp_volume);
-                tunerConfig(0.0f,0);
-                tunerConfig(0.0f,1);
-                dspBandConfig(0, dsp_xBass);
-                dspBandConfig(1, dsp_powerBass);
-                dspBandConfig(2, dsp_xBass2);
-                dspBandConfig(4, out_gain);
-                dspBandConfig(9, dsp_treble);
+            // Create separate Pre-EQ (graphic) and Post-EQ (parametric)
+            preEq = new DynamicsProcessing.Eq(true, true, GRAPHIC_BAND_COUNT);
+            postEq = new DynamicsProcessing.Eq(true, true, PARAMETRIC_BAND_COUNT);
+
+            // MBC
+            dspMbc = new DynamicsProcessing.Mbc(true, true, MBC_BAND_COUNT);
+
+            // Limiter
+            dspLimiter = new DynamicsProcessing.Limiter(
+                true,               // enabled
+                true,               // in linear domain
+                10,                 // link channels
+                1.0f,               // attack time (ms)
+                30.0f,              // release time (ms)
+                6.0f,               // ratio
+                -1.0f,              // threshold (dB)
+                DEFAULT_OUT_GAIN    // output gain
+            );
+
+            // Configure Pre-EQ with ISO frequencies
+            for (int b = 0; b < GRAPHIC_BAND_COUNT; b++) {
+                preEq.getBand(b).setCutoffFrequency(GRAPHIC_FREQUENCIES[b]);
+                preEq.getBand(b).setGain(0.0f);
             }
 
-            dspEq.getBand(4).setCutoffFrequency(500);
-            setDspSpeakers(dsp_speakers, dsp_gains);
-// set tuner frequencies
-//tuner.getBand(0).setCutoffFrequency(50);
-//tuner.getBand(1).setCutoffFrequency(450);
-         // assign frequencies to the bands
-                for (int b = 0; b < bandCount; b++) {
-                    try {
-                        dspEq.getBand(b).setCutoffFrequency(dsp_speakers[b]);
-                        dspMbc.getBand(b).setCutoffFrequency(dsp_speakers[b]);
-                    } catch (Exception e2) {
-                        e2.printStackTrace();
-                    }
-                }
-            //    assign configurations globally
-            dspEngine.setPreEqAllChannelsTo(dspEq);
-            dspEngine.setPostEqAllChannelsTo(dspEq);
-//            dspEngine.setPreEqAllChannelsTo(tuner);
-//            dspEngine.setPostEqAllChannelsTo(tuner);
+            // Configure Post-EQ with same ISO frequencies (user can change freq via parametric)
+            for (int b = 0; b < PARAMETRIC_BAND_COUNT; b++) {
+                postEq.getBand(b).setCutoffFrequency(GRAPHIC_FREQUENCIES[b]);
+                postEq.getBand(b).setGain(0.0f);
+            }
+
+            // Configure MBC bands
+            initMbcDefaults();
+
+            // Apply to engine
+            dspEngine.setInputGainAllChannelsTo(DEFAULT_INPUT_GAIN);
+            dspEngine.setPreEqAllChannelsTo(preEq);
+            dspEngine.setPostEqAllChannelsTo(postEq);
             dspEngine.setMbcAllChannelsTo(dspMbc);
             dspEngine.setLimiterAllChannelsTo(dspLimiter);
 
-        }
-    }
-    public static void setNoiseThreshold(float noiseThreshold){
-        if(dspBand != null){
-            dspBand.setNoiseGateThreshold(noiseThreshold);
+            Log.d(TAG, "DSPEngine initialized with 32+32 bands, session=" + sessionId);
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to initialize DSPEngine", e);
+            dspEngine = null;
         }
     }
 
-
-//    enable the DSP Engine
-    public static void enableEngine(boolean enable) {
-
-        if(dspEngine != null){
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                dspEngine.setEnabled(enable);
-                dspEq.setEnabled(enable);
-//                tuner.setEnabled(enable);
-                dspMbc.setEnabled(enable);
-                dspLimiter.setEnabled(enable);
-          }
+    private static void initMbcDefaults() {
+        for (int i = 0; i < MBC_BAND_COUNT; i++) {
+            DynamicsProcessing.MbcBand band = dspMbc.getBand(i);
+            band.setCutoffFrequency(MBC_FREQUENCIES[i]);
+            band.setAttackTime(15.0f);
+            band.setReleaseTime(45.0f);
+            band.setRatio(2.5f);
+            band.setKneeWidth(8.0f);
+            band.setThreshold(-18.0f);
+            band.setNoiseGateThreshold(-70.0f);
+            band.setExpanderRatio(2.0f);
+            band.setPreGain(3.0f);
+            band.setPostGain(2.0f);
+            band.setEnabled(true);
         }
     }
-    private static void tunerConfig(float gain,int band){
-        if(Build.VERSION.SDK_INT >= 28 && dspEngine != null && tuner != null){
-            try {
-               tuner.getBand(band).setGain(gain);
-                dspEngine.setPreEqBandAllChannelsTo(band, tuner.getBand(band));
-                dspEngine.setPostEqBandAllChannelsTo(band, tuner.getBand(band));
-            } catch (Exception e2) {
-                Log.e("TAGF", "setBandGain_Exception2!");
-                e2.printStackTrace();
+
+    // ======================== GRAPHIC EQ (Pre-EQ, 32 bands) ========================
+
+    public static void setGraphicBandGain(int band, float gain) {
+        if (dspEngine == null || preEq == null) return;
+        if (band < 0 || band >= GRAPHIC_BAND_COUNT) return;
+        try {
+            preEq.getBand(band).setGain(gain);
+            dspEngine.setPreEqBandAllChannelsTo(band, preEq.getBand(band));
+        } catch (Exception e) {
+            Log.e(TAG, "setGraphicBandGain error band=" + band, e);
+        }
+    }
+
+    public static float getGraphicBandGain(int band) {
+        if (preEq == null || band < 0 || band >= GRAPHIC_BAND_COUNT) return 0.0f;
+        return preEq.getBand(band).getGain();
+    }
+
+    public static void setGraphicAllBands(float[] gains) {
+        if (dspEngine == null || preEq == null) return;
+        int count = Math.min(gains.length, GRAPHIC_BAND_COUNT);
+        for (int i = 0; i < count; i++) {
+            preEq.getBand(i).setGain(gains[i]);
+        }
+        dspEngine.setPreEqAllChannelsTo(preEq);
+    }
+
+    public static float[] getGraphicAllBands() {
+        float[] gains = new float[GRAPHIC_BAND_COUNT];
+        if (preEq == null) return gains;
+        for (int i = 0; i < GRAPHIC_BAND_COUNT; i++) {
+            gains[i] = preEq.getBand(i).getGain();
+        }
+        return gains;
+    }
+
+    // ======================== PARAMETRIC EQ (Post-EQ, 32 bands) ========================
+
+    public static void setParametricBand(int band, float freq, float gain) {
+        if (dspEngine == null || postEq == null) return;
+        if (band < 0 || band >= PARAMETRIC_BAND_COUNT) return;
+        try {
+            postEq.getBand(band).setCutoffFrequency(freq);
+            postEq.getBand(band).setGain(gain);
+            dspEngine.setPostEqBandAllChannelsTo(band, postEq.getBand(band));
+        } catch (Exception e) {
+            Log.e(TAG, "setParametricBand error band=" + band, e);
+        }
+    }
+
+    public static float[] getParametricBand(int band) {
+        if (postEq == null || band < 0 || band >= PARAMETRIC_BAND_COUNT) {
+            return new float[]{0.0f, 0.0f};
+        }
+        return new float[]{
+            postEq.getBand(band).getCutoffFrequency(),
+            postEq.getBand(band).getGain()
+        };
+    }
+
+    public static void setParametricAllBands(float[] freqs, float[] gains) {
+        if (dspEngine == null || postEq == null) return;
+        int count = Math.min(Math.min(freqs.length, gains.length), PARAMETRIC_BAND_COUNT);
+        for (int i = 0; i < count; i++) {
+            postEq.getBand(i).setCutoffFrequency(freqs[i]);
+            postEq.getBand(i).setGain(gains[i]);
+        }
+        dspEngine.setPostEqAllChannelsTo(postEq);
+    }
+
+    // ======================== LEGACY DSP METHODS (backwards compat) ========================
+
+    public static void setDspSpeakers(int[] speakers, float[] gains) {
+        dsp_speakers = speakers;
+        dsp_gains = gains;
+        // Apply to MBC cutoff frequencies (first 10 bands)
+        if (dspEngine != null && dspMbc != null) {
+            int count = Math.min(speakers.length, MBC_BAND_COUNT);
+            for (int b = 0; b < count; b++) {
+                try {
+                    dspMbc.getBand(b).setCutoffFrequency(speakers[b]);
+                } catch (Exception e) {
+                    Log.e(TAG, "setDspSpeakers error band=" + b, e);
+                }
             }
+            dspEngine.setMbcAllChannelsTo(dspMbc);
         }
     }
-    public static float getVocalLevel(){
-        if(dspEq != null){
-            return dspEq.getBand(4).getGain();
+
+    // Legacy band config — maps old 10-band indices to graphic EQ
+    private static void legacyBandConfig(int band, float gain) {
+        if (dspEngine == null || preEq == null) return;
+        // Map legacy 10-band index to nearest graphic EQ band
+        int mappedBand = mapLegacyToGraphicBand(band);
+        if (mappedBand >= 0 && mappedBand < GRAPHIC_BAND_COUNT) {
+            setGraphicBandGain(mappedBand, gain);
+        }
+    }
+
+    private static int mapLegacyToGraphicBand(int legacyBand) {
+        // Legacy frequencies: {31, 62, 85, 250, 500, 1000, 2000, 4000, 8000, 16000}
+        // Map to closest graphic EQ band index
+        int[] mapping = {2, 5, 6, 9, 14, 17, 20, 23, 26, 29};
+        if (legacyBand >= 0 && legacyBand < mapping.length) {
+            return mapping[legacyBand];
+        }
+        return -1;
+    }
+
+    public static float getVocalLevel() {
+        if (preEq != null) {
+            // Band 14 = 500Hz (vocal range)
+            return preEq.getBand(14).getGain();
         }
         return 0;
     }
-//    function to handle bandConfig
-     private static void dspBandConfig(int band, float gain) {
-        if (Build.VERSION.SDK_INT >= 28 && dspEngine != null && dspEq != null) {
-                try {
-                    dspEq.getBand(band).setGain(gain);
-                    dspEngine.setPreEqBandAllChannelsTo(band, dspEq.getBand(band));
-                    dspEngine.setPostEqBandAllChannelsTo(band, dspEq.getBand(band));
-                } catch (UnsupportedOperationException e2) {
-                        Log.e("TAGF", "setBandGain_Exception2!");
-                    e2.printStackTrace();
-                }
+
+    // ======================== ENGINE CONTROL ========================
+
+    public static void enableEngine(boolean enable) {
+        if (dspEngine == null) return;
+        try {
+            dspEngine.setEnabled(enable);
+            if (preEq != null) preEq.setEnabled(enable);
+            if (postEq != null) postEq.setEnabled(enable);
+            if (dspMbc != null) dspMbc.setEnabled(enable);
+            if (dspLimiter != null) dspLimiter.setEnabled(enable);
+        } catch (Exception e) {
+            Log.e(TAG, "enableEngine error", e);
         }
     }
 
-//    ------------------ setting dsp compressor- --------------------------
-    public static void setOutGain(float gain) {
-        initDSPEngine();
-        if(dspEngine != null) {
-            initDSPEngine();
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                try {
-                    dspLimiter.setPostGain(gain);
-//                    dspBandConfig(4,gain);
-                } catch (Exception ex) {
-                    ex.printStackTrace();
-                }
-
+    public static void dispose() {
+        if (dspEngine != null) {
+            try {
+                dspEngine.setEnabled(false);
+                dspEngine.release();
+            } catch (Exception e) {
+                Log.e(TAG, "dispose error", e);
             }
+            dspEngine = null;
+            preEq = null;
+            postEq = null;
+            dspMbc = null;
+            dspLimiter = null;
         }
     }
 
-    public static float getGainValue(){
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && dspEngine != null ) {
-            initDSPEngine();
-            return dspLimiter.getPostGain();
+    // ======================== LIMITER ========================
+
+    public static void setOutGain(float gain) {
+        if (dspEngine == null || dspLimiter == null) return;
+        try {
+            dspLimiter.setPostGain(gain);
+            dspEngine.setLimiterAllChannelsTo(dspLimiter);
+        } catch (Exception e) {
+            Log.e(TAG, "setOutGain error", e);
         }
+    }
+
+    public static float getGainValue() {
+        if (dspLimiter != null) return dspLimiter.getPostGain();
         return 0.0f;
     }
-//    function for audio threshold
-    public static void setAudioThreshold(float threshold){
-        initDSPEngine();
-        if(dspEngine != null){
-            dspLimiter.setThreshold(threshold);
-        }
+
+    public static void setAudioThreshold(float threshold) {
+        if (dspEngine == null || dspLimiter == null) return;
+        dspLimiter.setThreshold(threshold);
+        dspEngine.setLimiterAllChannelsTo(dspLimiter);
     }
 
-    public static void setRelease(float knee){
-        initDSPEngine();
-        if(dspEngine != null){
-            dspLimiter.setReleaseTime(knee);
-        }
-    }
-    public static void setAttackTime(float knee){
-        initDSPEngine();
-        if(dspEngine != null){
-            dspLimiter.setAttackTime(knee);
-        }
-    }
-    public static void setAudioRatio(float ratio){
-        if(dspEngine != null){
-            dspLimiter.setRatio(ratio);
-        }
+    public static void setRelease(float release) {
+        if (dspEngine == null || dspLimiter == null) return;
+        dspLimiter.setReleaseTime(release);
+        dspEngine.setLimiterAllChannelsTo(dspLimiter);
     }
 
-    public static void setKneeWidth(float knee){
-        initDSPEngine();
-        if(dspEngine != null){
-            dspBand.setKneeWidth(knee);
-        }
-    }
-//    function to adjust pre gain
-    public static void setPreGain(float gain){
-        initDSPEngine();
-        if(dspEngine != null){
-            dspBand.setPreGain(gain);
-        }
-    }
-//    setExpanderRatio
-    public static void setExpanderRatio(float ratio){
-        initDSPEngine();
-        if(dspEngine != null){
-            dspBand.setRatio(ratio);
-        }
-    }
-//    --------------- end of compresseor settings ----------------------------
-
-    //  --------------- dsp power settings -----------------------
-    public static void setDSPPowerBass(float gain){
-        if(dspEngine != null){
-            initDSPEngine();
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                dspBandConfig(1,gain);
-            }
-        }
+    public static void setAttackTime(float attack) {
+        if (dspEngine == null || dspLimiter == null) return;
+        dspLimiter.setAttackTime(attack);
+        dspEngine.setLimiterAllChannelsTo(dspLimiter);
     }
 
-    public static void setDSPXBass(float gain){
-        if(dspEngine != null){
-            initDSPEngine();
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                dspBandConfig(0,gain);
-            }
-        }
+    public static void setAudioRatio(float ratio) {
+        if (dspEngine == null || dspLimiter == null) return;
+        dspLimiter.setRatio(ratio);
+        dspEngine.setLimiterAllChannelsTo(dspLimiter);
     }
 
-    public static void setDSPx(float gain){
-        if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && dspEngine != null){
-                dspBandConfig(2,gain);
+    // ======================== MBC / COMPRESSOR ========================
+
+    public static void setNoiseThreshold(float noiseThreshold) {
+        if (dspEngine == null || dspMbc == null) return;
+        for (int i = 0; i < MBC_BAND_COUNT; i++) {
+            dspMbc.getBand(i).setNoiseGateThreshold(noiseThreshold);
         }
+        dspEngine.setMbcAllChannelsTo(dspMbc);
     }
 
-    public static void setDSPVolume(float dsfxVolume) {
-        initDSPEngine();
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-
-            dspEngine.setInputGainAllChannelsTo(dsfxVolume);
+    public static void setKneeWidth(float knee) {
+        if (dspEngine == null || dspMbc == null) return;
+        for (int i = 0; i < MBC_BAND_COUNT; i++) {
+            dspMbc.getBand(i).setKneeWidth(knee);
         }
-    }
-    public static void setDSPTreble(float gain){
-        initDSPEngine();
-        if(dspEngine != null){
-
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                dspBandConfig(9,gain);
-            }
-        }
-    }
-    public static void dispose(){
-        if (dspEngine != null) {
-            dspEngine.setEnabled(false);
-            dspEngine.release();
-            dspEngine = null;
-
-        }
+        dspEngine.setMbcAllChannelsTo(dspMbc);
     }
 
-//    tunner setting
-    public static void setFrequencyForBassTuner(float bass){
-        initDSPEngine();
-        if(dspEngine != null){
-            tuner.getBand(0).setCutoffFrequency(bass);
+    public static void setPreGain(float gain) {
+        if (dspEngine == null || dspMbc == null) return;
+        for (int i = 0; i < MBC_BAND_COUNT; i++) {
+            dspMbc.getBand(i).setPreGain(gain);
         }
+        dspEngine.setMbcAllChannelsTo(dspMbc);
     }
 
-    public static void setFrequencyTrebleForTuner(float treble){
-        initDSPEngine();
-        if(dspEngine != null){
-            tuner.getBand(1).setCutoffFrequency(treble);
+    public static void setExpanderRatio(float ratio) {
+        if (dspEngine == null || dspMbc == null) return;
+        for (int i = 0; i < MBC_BAND_COUNT; i++) {
+            dspMbc.getBand(i).setExpanderRatio(ratio);
         }
-    }
-    public static void setBassTone(float bass){
-        initDSPEngine();
-        if(dspEngine != null) {
-//           tunerConfig(bass,0);
-        }
+        dspEngine.setMbcAllChannelsTo(dspMbc);
     }
 
-    public static void adjustTunerVocal(float gain){
-        if(dspEq != null){
-            dspBandConfig(4,gain);
-        }
+    // ======================== DSP POWER SETTINGS (legacy) ========================
 
+    public static void setDSPPowerBass(float gain) {
+        if (dspEngine == null) return;
+        legacyBandConfig(1, gain);
     }
 
+    public static void setDSPXBass(float gain) {
+        if (dspEngine == null) return;
+        legacyBandConfig(0, gain);
+    }
+
+    public static void setDSPx(float gain) {
+        if (dspEngine == null) return;
+        legacyBandConfig(2, gain);
+    }
+
+    public static void setDSPVolume(float volume) {
+        if (dspEngine == null) return;
+        dspEngine.setInputGainAllChannelsTo(volume);
+    }
+
+    public static void setDSPTreble(float gain) {
+        if (dspEngine == null) return;
+        legacyBandConfig(9, gain);
+    }
+
+    public static void adjustTunerVocal(float gain) {
+        if (preEq == null) return;
+        // Vocal range ~ 500Hz = band index 14
+        setGraphicBandGain(14, gain);
+    }
+
+    // Legacy tuner stubs (tuner removed — was never initialized)
+    public static void setCutOffFrequencyForTunerBass(int frequency) {
+        // No-op: tuner removed
+    }
+
+    public static void setFrequencyForBassTuner(float bass) {
+        // No-op: tuner removed
+    }
+
+    public static void setFrequencyTrebleForTuner(float treble) {
+        // No-op: tuner removed
+    }
+
+    public static void setBassTone(float bass) {
+        // No-op: tuner removed
+    }
 }
-
-//

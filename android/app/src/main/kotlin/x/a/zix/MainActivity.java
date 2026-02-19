@@ -383,7 +383,6 @@ public class MainActivity extends AudioServiceActivity {
                             float lGain = 0;
                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                                 lGain = DSPEngine.getGainValue();
-                                result.success(lGain);
                             }
                             result.success(lGain);
                             break;
@@ -553,13 +552,85 @@ public class MainActivity extends AudioServiceActivity {
                             result.success(enabledEffect);
                             break;
                         case "chooseEffectPreset":
-                            int effectPreset = (int) call.argument("effectPReset");
+                            int effectPreset = (int) call.argument("effectPreset");
                             effects.applyRoomEffect(effectPreset);
                             break;
 
                         case "disposeRoomEffects":
                             effects.release();
                             break;
+
+                        // ==================== 32-Band Graphic EQ ====================
+                        case "setGraphicBandGain":
+                            int gBand = call.argument("band");
+                            double gGain = call.argument("gain");
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                                DSPEngine.setGraphicBandGain(gBand, (float) gGain);
+                            }
+                            result.success(null);
+                            break;
+                        case "getGraphicBandGain":
+                            int gBandGet = call.argument("band");
+                            float gBandGain = 0f;
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                                gBandGain = DSPEngine.getGraphicBandGain(gBandGet);
+                            }
+                            result.success(gBandGain);
+                            break;
+                        case "setGraphicAllBands":
+                            ArrayList<Double> gGains = call.argument("gains");
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && gGains != null) {
+                                float[] gainArr = new float[gGains.size()];
+                                for (int gi = 0; gi < gGains.size(); gi++) {
+                                    gainArr[gi] = gGains.get(gi).floatValue();
+                                }
+                                DSPEngine.setGraphicAllBands(gainArr);
+                            }
+                            result.success(null);
+                            break;
+                        case "getGraphicAllBands":
+                            ArrayList<Double> allGains = new ArrayList<>();
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                                float[] raw = DSPEngine.getGraphicAllBands();
+                                for (float v : raw) allGains.add((double) v);
+                            }
+                            result.success(allGains);
+                            break;
+
+                        // ==================== 32-Band Parametric EQ ====================
+                        case "setParametricBand":
+                            int pBand = call.argument("band");
+                            double pFreq = call.argument("freq");
+                            double pGainV = call.argument("gain");
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                                DSPEngine.setParametricBand(pBand, (float) pFreq, (float) pGainV);
+                            }
+                            result.success(null);
+                            break;
+                        case "setParametricAllBands":
+                            ArrayList<Double> pFreqs = call.argument("freqs");
+                            ArrayList<Double> pGains = call.argument("gains");
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && pFreqs != null && pGains != null) {
+                                float[] freqArr = new float[pFreqs.size()];
+                                float[] pGainArr = new float[pGains.size()];
+                                for (int pi = 0; pi < pFreqs.size(); pi++) {
+                                    freqArr[pi] = pFreqs.get(pi).floatValue();
+                                    pGainArr[pi] = pGains.get(pi).floatValue();
+                                }
+                                DSPEngine.setParametricAllBands(freqArr, pGainArr);
+                            }
+                            result.success(null);
+                            break;
+
+                        // ==================== Device Detection ====================
+                        case "isDynamicsProcessingAvailable":
+                            result.success(Build.VERSION.SDK_INT >= Build.VERSION_CODES.P);
+                            break;
+                        case "getAudioOutputType":
+                            String outputType = AudioOutputDetector.getAudioOutputType(getApplicationContext());
+                            result.success(outputType);
+                            break;
+
                         default:
                             result.notImplemented();
                             break;

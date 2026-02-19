@@ -1,8 +1,7 @@
 import 'package:eq_app/controllers/AppController.dart';
+import 'package:eq_app/models/eq_models.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-
-import '../Helpers/Channel.dart';
 
 class EqPresets extends StatefulWidget {
   const EqPresets({super.key});
@@ -12,77 +11,59 @@ class EqPresets extends StatefulWidget {
 }
 
 class _EqPresetsState extends State<EqPresets> {
+  final ScrollController _scrollController = ScrollController();
+
   @override
-  void initState() {
-    super.initState();
-    if (_scrollController.hasClients) {
-      _scrollController.animateTo(
-        (context.read<AppController>().selectedPreset * 80).toDouble(),
-        duration: const Duration(milliseconds: 900),
-        curve: Curves.decelerate,
-      );
-    }
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
   }
 
-  final ScrollController _scrollController = ScrollController();
   @override
   Widget build(BuildContext context) {
-    // var controller = Provider.of<AppController>(context);
-    return Consumer<AppController>(builder: (context, controller, ch) {
-      return FutureBuilder<List<Map<String, dynamic>>>(
-        future: Channel.getPreset(),
-        builder: (context, presetData) {
-          return presetData.hasData
-              ? SingleChildScrollView(
-                  controller: _scrollController,
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: List.generate(
-                      presetData.data!.length,
-                      (index) => FittedBox(
-                        child: Padding(
-                          padding: const EdgeInsets.all(2.0),
-                          child: InkWell(
-                            onTap: () {
-                              context.read<AppController>().selectedPreset =
-                                  index;
-                              Channel.setPreset(
-                                presetData.data?[index]["preset"],
-                              );
-                              if (_scrollController.hasClients) {
-                                _scrollController.animateTo(
-                                  (index * 80).toDouble(),
-                                  duration: const Duration(milliseconds: 900),
-                                  curve: Curves.decelerate,
-                                );
-                              }
-                            },
-                            child: Chip(
-                              backgroundColor:
-                                  controller.selectedPreset == index
-                                      ? Theme.of(context).colorScheme.primary
-                                      : Colors.transparent,
-                              label: Text(
-                                presetData.data?[index]["preset"],
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .labelLarge
-                                    ?.apply(
-                                      color: controller.selectedPreset == index
-                                          ? Colors.black
-                                          : Colors.white,
-                                    ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                )
-              : Container();
-        },
-      );
-    });
+    return Consumer<AppController>(
+      builder: (context, controller, _) {
+        final builtInNames = BuiltInPresets.names;
+        final userPresets = controller.savedPresets.keys
+            .where((k) => !k.startsWith('_device_'))
+            .toList();
+        final allNames = [...builtInNames, ...userPresets];
+
+        return SizedBox(
+          height: 42,
+          child: ListView.separated(
+            controller: _scrollController,
+            scrollDirection: Axis.horizontal,
+            itemCount: allNames.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 6),
+            itemBuilder: (context, index) {
+              final name = allNames[index];
+              final isSelected = controller.activePresetName == name;
+              final isUser = index >= builtInNames.length;
+
+              return ChoiceChip(
+                label: Text(name),
+                selected: isSelected,
+                onSelected: (_) {
+                  if (isUser) {
+                    controller.loadPreset(name);
+                  } else {
+                    controller.applyBuiltInPreset(name);
+                  }
+                },
+                avatar: isUser ? const Icon(Icons.person, size: 16) : null,
+                selectedColor: Theme.of(context).colorScheme.primary,
+                labelStyle: TextStyle(
+                  color: isSelected
+                      ? Theme.of(context).colorScheme.onPrimary
+                      : Theme.of(context).colorScheme.onSurface,
+                  fontSize: 13,
+                ),
+              );
+            },
+          ),
+        );
+      },
+    );
   }
 }

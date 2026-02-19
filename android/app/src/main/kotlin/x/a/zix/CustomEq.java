@@ -15,7 +15,7 @@ public class CustomEq {
 
 	public static void init(int sessionId) {
 		if(equalizer == null){
-			equalizer = new Equalizer(m, AudioManager.AUDIO_SESSION_ID_GENERATE);
+			equalizer = new Equalizer(m, sessionId > 0 ? sessionId : 0);
 		}
 	}
 

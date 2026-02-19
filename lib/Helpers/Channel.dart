@@ -384,7 +384,7 @@ class Channel {
       PresetReverb.PRESET_ARENA: 9,
       PresetReverb.PRESET: 0,
     };
-    await _invoke("chooseEffectPreset", {"preset": presetMap[preset] ?? 0});
+    await _invoke("chooseEffectPreset", {"effectPreset": presetMap[preset] ?? 0});
   }
 
   static Future<bool> isAndroid11() async {
@@ -397,6 +397,46 @@ class Channel {
 
   static void deleteManager(String path) async {
     await _invoke("deleteManager", {"filePath": path});
+  }
+
+  // ==================== 32-Band Graphic EQ (Pre-EQ) ====================
+
+  static Future<void> setGraphicBandGain(int band, double gain) async {
+    await _invoke("setGraphicBandGain", {"band": band, "gain": gain});
+  }
+
+  static Future<double> getGraphicBandGain(int band) async {
+    return await _invokeRequired<double>("getGraphicBandGain", 0.0, {"band": band});
+  }
+
+  static Future<void> setGraphicAllBands(List<double> gains) async {
+    await _invoke("setGraphicAllBands", {"gains": gains});
+  }
+
+  static Future<List<double>> getGraphicAllBands() async {
+    final result = await _invoke("getGraphicAllBands");
+    if (result == null) return List.filled(32, 0.0);
+    return (result as List).map((e) => (e as num).toDouble()).toList();
+  }
+
+  // ==================== 32-Band Parametric EQ (Post-EQ) ====================
+
+  static Future<void> setParametricBand(int band, double freq, double gain) async {
+    await _invoke("setParametricBand", {"band": band, "freq": freq, "gain": gain});
+  }
+
+  static Future<void> setParametricAllBands(List<double> freqs, List<double> gains) async {
+    await _invoke("setParametricAllBands", {"freqs": freqs, "gains": gains});
+  }
+
+  // ==================== Device Detection ====================
+
+  static Future<bool> isDynamicsProcessingAvailable() async {
+    return await _invokeRequired<bool>("isDynamicsProcessingAvailable", false);
+  }
+
+  static Future<String> getAudioOutputType() async {
+    return await _invokeRequired<String>("getAudioOutputType", "speaker");
   }
 
   static void setSessionId(int sessionId) async {

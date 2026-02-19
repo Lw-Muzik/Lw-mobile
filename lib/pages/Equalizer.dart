@@ -2,14 +2,15 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-// custom files
+
 import '/Helpers/Channel.dart';
 import '/controllers/AppController.dart';
-import '/pages/Compressor.dart';
 import '/widgets/Body.dart';
 import 'AudioFx.dart';
-import 'EqView.dart';
-import 'Room.dart';
+import 'Compressor.dart';
+import 'GraphicEqView.dart';
+import 'ParametricEqView.dart';
+import 'SpaceView.dart';
 
 class Equalizer extends StatefulWidget {
   const Equalizer({super.key});
@@ -20,26 +21,23 @@ class Equalizer extends StatefulWidget {
 
 class _EqualizerState extends State<Equalizer> with TickerProviderStateMixin {
   late final TabController _tabController;
-  final List<double> bandValues = [0, 0, 0, 0, 0];
-  String? preset;
   StreamSubscription<int?>? _sessionIdSubscription;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 5, vsync: this);
 
-    // Setting up listener for android audio session ID.
     _sessionIdSubscription = context
         .read<AppController>()
         .handler
         .player
         .androidAudioSessionIdStream
         .listen((event) {
-          if (event != null) {
-            Channel.setSessionId(event);
-          }
-        });
+      if (event != null) {
+        Channel.setSessionId(event);
+      }
+    });
   }
 
   @override
@@ -60,23 +58,33 @@ class _EqualizerState extends State<Equalizer> with TickerProviderStateMixin {
         appBar: AppBar(
           forceMaterialTransparency: appController.isFancy,
           title: const Text("Sound Effects"),
-          bottom: _buildTabBar(),
+          bottom: _buildTabBar(context),
         ),
         body: _buildTabBarView(),
       ),
     );
   }
 
-  TabBar _buildTabBar() {
+  PreferredSizeWidget _buildTabBar(BuildContext context) {
+    final accent = Theme.of(context).colorScheme.primary;
     return TabBar(
       isScrollable: true,
       controller: _tabController,
       dividerColor: Colors.transparent,
+      indicatorSize: TabBarIndicatorSize.tab,
+      indicator: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        color: accent.withValues(alpha: 0.15),
+      ),
+      labelColor: accent,
+      unselectedLabelColor: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+      tabAlignment: TabAlignment.start,
       tabs: const [
-        Tab(text: "Equalizer"),
-        Tab(text: "Audio FX"),
-        Tab(text: "Compressor"),
-        Tab(text: "Room Effects"),
+        Tab(icon: Icon(Icons.equalizer, size: 20), text: "Graphic"),
+        Tab(icon: Icon(Icons.show_chart, size: 20), text: "Parametric"),
+        Tab(icon: Icon(Icons.tune, size: 20), text: "Audio FX"),
+        Tab(icon: Icon(Icons.compress, size: 20), text: "Dynamics"),
+        Tab(icon: Icon(Icons.surround_sound, size: 20), text: "Space"),
       ],
     );
   }
@@ -84,7 +92,13 @@ class _EqualizerState extends State<Equalizer> with TickerProviderStateMixin {
   Widget _buildTabBarView() {
     return TabBarView(
       controller: _tabController,
-      children: const [EqView(), AudioFx(), CompressorView(), RoomEffects()],
+      children: const [
+        GraphicEqView(),
+        ParametricEqView(),
+        AudioFx(),
+        DynamicsView(),
+        SpaceView(),
+      ],
     );
   }
 }
