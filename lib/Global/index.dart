@@ -156,7 +156,8 @@ Widget playerCard(
   final idx = songIndex ?? controller.songId;
   final song = controller.songs[idx];
 
-  return Center(
+  return Align(
+    alignment: const Alignment(0, -0.15),
     child: AnimatedBuilder(
       animation: animation,
       builder: (context, child) {
@@ -164,28 +165,31 @@ Widget playerCard(
           scale: animation.value,
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 32),
-            child: AspectRatio(
-              aspectRatio: 1.0,
-              child: Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(18),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.4),
-                      blurRadius: 30,
-                      offset: const Offset(0, 12),
-                    ),
-                  ],
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(18),
-                  child: ArtworkWidget(
-                    quality: 100,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 420, maxHeight: 420),
+              child: AspectRatio(
+                aspectRatio: 1.0,
+                child: Container(
+                  decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(18),
-                    size: 1000,
-                    songId: song.id,
-                    type: ArtworkType.AUDIO,
-                    path: song.data,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.4),
+                        blurRadius: 30,
+                        offset: const Offset(0, 12),
+                      ),
+                    ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(18),
+                    child: ArtworkWidget(
+                      quality: 100,
+                      borderRadius: BorderRadius.circular(18),
+                      size: 1000,
+                      songId: song.id,
+                      type: ArtworkType.AUDIO,
+                      path: song.data,
+                    ),
                   ),
                 ),
               ),

@@ -132,17 +132,22 @@ class _PlayerLayout extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final topPadding = MediaQuery.of(context).padding.top;
-    final bottomPadding = MediaQuery.of(context).padding.bottom;
+    final mq = MediaQuery.of(context);
+    final topPadding = mq.padding.top;
+    final bottomPadding = mq.padding.bottom;
+    final h = mq.size.height;
+
+    // Responsive gap that scales with screen height
+    final gap = (h * 0.015).clamp(6.0, 16.0);
 
     return SizedBox(
-      height: MediaQuery.of(context).size.height,
-      width: MediaQuery.of(context).size.width,
+      height: h,
+      width: mq.size.width,
       child: Column(
         children: [
-          SizedBox(height: topPadding + 4),
+          SizedBox(height: topPadding),
           const Header(),
-          // Card deck — sole Expanded, artwork centers itself within
+          // Card deck — Expanded, artwork aligns slightly above center
           _CardDeck(
             controller: controller,
             animation: animation,
@@ -150,16 +155,16 @@ class _PlayerLayout extends StatelessWidget {
           ),
           // Track info (title + artist)
           _TrackInfo(controller: controller),
-          const SizedBox(height: 12),
+          SizedBox(height: gap),
           // Waveform seek bar
           _WaveformProgress(controller: controller),
-          const SizedBox(height: 20),
+          SizedBox(height: gap * 1.4),
           // Playback controls
           Controls(onNextPressed: onControlNext, onPrevPressed: onControlPrev),
-          const SizedBox(height: 20),
+          SizedBox(height: gap * 1.4),
           // Action bar (visualizer, queue, more)
           playerActionBar(controller, context),
-          SizedBox(height: bottomPadding + 12),
+          SizedBox(height: bottomPadding + gap),
         ],
       ),
     );
