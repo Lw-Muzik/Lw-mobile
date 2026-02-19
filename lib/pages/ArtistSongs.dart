@@ -6,9 +6,9 @@ import '/controllers/AppController.dart';
 import '/extensions/index.dart';
 import '/widgets/Body.dart';
 import '/widgets/PlayListWidget.dart';
+import '/widgets/song_tile.dart';
 import '/exports/exports.dart';
 
-import '../Helpers/index.dart';
 import '../player/PlayerUI.dart';
 import '../widgets/ArtworkWidget.dart';
 import '../widgets/BottomPlayer.dart';
@@ -131,7 +131,7 @@ class _ArtistSongsState extends State<ArtistSongs> {
       stream: controller.handler.player.playingStream,
       builder: (context, service) {
         return Scaffold(
-          body: FutureBuilder(
+          body: FutureBuilder<List<SongModel>>(
             future: OnAudioQuery.platform.queryAudiosFrom(
               AudiosFromType.ARTIST_ID,
               widget.artistId ?? 0,
@@ -143,7 +143,26 @@ class _ArtistSongsState extends State<ArtistSongs> {
                   child: CircularProgressIndicator.adaptive(),
                 );
               } else if (snapshot.hasData && snapshot.data!.isNotEmpty) {
-                return SongLists(songs: snapshot.data!);
+                return SongListView(
+                  songs: snapshot.data!,
+                  controller: controller,
+                  onTap: (song, index) {
+                    controller.playSongFromList(snapshot.data!, index);
+                    Routes.routeTo(const Player(), context);
+                  },
+                  onLongPress: (song, index) {
+                    showModalBottomSheet(
+                      context: context,
+                      builder: (context) => BottomSheet(
+                        onClosing: () {},
+                        builder: (context) => PlaylistWidget(
+                          audioId: song.id,
+                          song: song.title,
+                        ),
+                      ),
+                    );
+                  },
+                );
               } else {
                 return const Center(child: Text("No songs found"));
               }
@@ -156,107 +175,6 @@ class _ArtistSongsState extends State<ArtistSongs> {
               : null,
         );
       },
-    );
-  }
-}
-
-class SongLists extends StatelessWidget {
-  final List<SongModel> songs;
-
-  const SongLists({super.key, required this.songs});
-
-  @override
-  Widget build(BuildContext context) {
-    if (songs.isEmpty) {
-      return Center(
-        child: Text(
-          "No songs found",
-          style: Theme.of(context).textTheme.titleMedium,
-        ),
-      );
-    }
-
-    return Consumer<AppController>(
-      builder: (context, controller, _) {
-        return ListView.builder(
-          itemCount: songs.length,
-          itemBuilder: (context, index) {
-            return _buildSongItem(context, index, controller);
-          },
-        );
-      },
-    );
-  }
-
-  Widget _buildSongItem(
-      BuildContext context, int index, AppController controller) {
-    final song = songs[index];
-    return Routes.animateTo(
-      closedWidget: InkWell(
-        child: Container(
-          margin: const EdgeInsets.symmetric(horizontal: 10),
-          decoration: commonDeration(controller, index, context),
-          child: ListTile(
-            selected: controller.songId == index,
-            selectedTileColor: Theme.of(
-              context,
-            ).primaryColor.withValues(alpha: 0.1),
-            selectedColor: Theme.of(context).primaryColorLight,
-            title: Text(
-              song.title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.bodyMedium!,
-            ),
-            subtitle: Text(
-              song.artist ?? "No Artist",
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            trailing: Text(
-              "${formatTime(Duration(milliseconds: song.duration ?? 0))} | ${song.fileExtension}",
-            ),
-            onTap: () {
-              _playSelectedSong(controller, context, song);
-            },
-            onLongPress: () =>
-                _showPlaylistOptions(context, controller, song),
-            leading: ArtworkWidget(
-              height: 60,
-              width: 60,
-              songId: song.id,
-              path: song.data,
-              type: ArtworkType.AUDIO,
-            ),
-          ),
-        ),
-      ),
-      openWidget: const Player(),
-    );
-  }
-
-  void _playSelectedSong(
-    AppController controller,
-    BuildContext context,
-    SongModel song,
-  ) {
-    controller.playSongFromList(songs, songs.indexOf(song));
-    Routes.routeTo(const Player(), context);
-  }
-
-  void _showPlaylistOptions(
-    BuildContext context,
-    AppController controller,
-    SongModel song,
-  ) {
-    showModalBottomSheet(
-      context: context,
-      builder: (context) => BottomSheet(
-        onClosing: () {},
-        builder: (context) {
-          return PlaylistWidget(audioId: song.id, song: song.title);
-        },
-      ),
     );
   }
 }

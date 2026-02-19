@@ -202,20 +202,6 @@ Widget playerCard(
   );
 }
 
-Decoration commonDeration(
-  AppController controller,
-  int listIndex,
-  BuildContext context,
-) {
-  return BoxDecoration(
-    borderRadius: BorderRadius.circular(10),
-    color: controller.songId == listIndex && controller.handler.player.playing
-        ? Theme.of(context).brightness == Brightness.light
-              ? Theme.of(context).primaryColor.withValues(alpha: 0.41)
-              : Theme.of(context).colorScheme.primary.withValues(alpha: 0.31)
-        : null,
-  );
-}
 
 Widget folderArtwork(String path, String title) {
   return FutureBuilder<List<SongModel>>(

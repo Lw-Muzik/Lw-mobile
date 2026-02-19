@@ -1,10 +1,9 @@
-import 'package:eq_app/Global/index.dart';
 import 'package:eq_app/Routes/routes.dart';
 import '/exports/exports.dart';
 
 import '../controllers/AppController.dart';
 import '../player/PlayerUI.dart';
-import '../widgets/ArtworkWidget.dart';
+import '../widgets/song_tile.dart';
 
 class SearchPage extends SearchDelegate<SongModel> {
   @override
@@ -32,25 +31,20 @@ class SearchPage extends SearchDelegate<SongModel> {
   }
 
   Widget _buildSongList(BuildContext context, String query) {
-    final controller = Provider.of<AppController>(context, listen: false);
-    final songs = _filterSongs(controller, query);
+    return Consumer<AppController>(
+      builder: (context, controller, _) {
+        final songs = _filterSongs(controller, query);
 
-    if (songs.isEmpty) {
-      return const Center(child: Text("No songs found"));
-    }
+        if (songs.isEmpty) {
+          return const Center(child: Text("No songs found"));
+        }
 
-    return ListView.builder(
-      itemCount: songs.length,
-      itemBuilder: (context, i) {
-        return ListTile(
-          onTap: () => _playSong(context, controller, songs[i]),
-          leading: ArtworkWidget(
-            songId: songs[i].id,
-            type: ArtworkType.AUDIO,
-            path: songs[i].data,
-          ),
-          title: Text(songs[i].title),
-          subtitle: Text(songs[i].artist ?? "Unknown artist"),
+        return SongListView(
+          songs: songs,
+          controller: controller,
+          showTrackNumbers: false,
+          showOptionsIcon: false,
+          onTap: (song, index) => _playSong(context, controller, song),
         );
       },
     );

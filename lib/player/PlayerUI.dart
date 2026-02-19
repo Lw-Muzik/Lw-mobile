@@ -11,6 +11,7 @@ import '/player/widgets/Controls.dart';
 import '/player/widgets/Header.dart';
 import '/controllers/AppController.dart';
 import '/Helpers/AudioVisualizer.dart';
+import '/Helpers/index.dart';
 import '/widgets/common.dart';
 import 'swipe_animation.dart';
 
@@ -32,6 +33,10 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
     super.initState();
     _requestVisualizerPermission();
     _initializeAnimationController();
+    // Detect current audio output device for display
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<AppController>().detectAndApplyDevicePreset();
+    });
   }
 
   void _initializeAnimationController() {
@@ -217,24 +222,45 @@ class _CardDeck extends StatelessWidget {
   }
 }
 
-/// Track title and artist — shown below the card deck.
+/// Track title, artist, and album — shown below the card deck.
+/// Long text auto-scrolls horizontally (marquee).
 class _TrackInfo extends StatelessWidget {
   final AppController controller;
   const _TrackInfo({required this.controller});
 
+  static const _deviceInfo = <String, (IconData, String)>{
+    'speaker': (Icons.speaker_rounded, 'Speaker'),
+    'bluetooth': (Icons.bluetooth_audio_rounded, 'Bluetooth'),
+    'wired_headphone': (Icons.headphones_rounded, 'Headphones'),
+    'usb_audio': (Icons.usb_rounded, 'USB Audio'),
+  };
+
   @override
   Widget build(BuildContext context) {
     final song = controller.songs[controller.songId];
+    final duration = formatTime(Duration(milliseconds: song.duration ?? 0));
+    final ext = song.fileExtension.toUpperCase();
+    final device = controller.lastOutputDevice;
+    final (deviceIcon, deviceLabel) =
+        _deviceInfo[device] ?? (Icons.speaker_rounded, 'Speaker');
+
+    final dimStyle = TextStyle(
+      color: Colors.white.withValues(alpha: 0.4),
+      fontSize: 12,
+      fontWeight: FontWeight.w400,
+    );
+    final dotStyle = TextStyle(
+      color: Colors.white.withValues(alpha: 0.3),
+      fontSize: 12,
+    );
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 32),
+      padding: const EdgeInsets.symmetric(horizontal: 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            song.title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
+          _MarqueeText(
+            text: song.title,
             style: const TextStyle(
               color: Colors.white,
               fontSize: 20,
@@ -243,17 +269,145 @@ class _TrackInfo extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 4),
-          Text(
-            song.artist ?? 'Unknown artist',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
+          _MarqueeText(
+            text: song.artist ?? 'Unknown artist',
             style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.55),
+              color: Colors.white.withValues(alpha: 0.6),
               fontSize: 14,
               fontWeight: FontWeight.w400,
             ),
           ),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              if (song.album != null && song.album!.isNotEmpty) ...[
+                Flexible(
+                  child: Text(
+                    song.album!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: dimStyle,
+                  ),
+                ),
+                Text('  \u2022  ', style: dotStyle),
+              ],
+              Text(duration, style: dimStyle),
+              if (ext.isNotEmpty) ...[
+                Text('  \u2022  ', style: dotStyle),
+                Text(ext, style: dimStyle),
+              ],
+              Text('  \u2022  ', style: dotStyle),
+              Icon(
+                deviceIcon,
+                size: 13,
+                color: Colors.white.withValues(alpha: 0.45),
+              ),
+              const SizedBox(width: 3),
+              Text(deviceLabel, style: dimStyle),
+            ],
+          ),
         ],
+      ),
+    );
+  }
+}
+
+/// Auto-scrolling text that scrolls when the text overflows.
+class _MarqueeText extends StatefulWidget {
+  final String text;
+  final TextStyle style;
+
+  const _MarqueeText({required this.text, required this.style});
+
+  @override
+  State<_MarqueeText> createState() => _MarqueeTextState();
+}
+
+class _MarqueeTextState extends State<_MarqueeText>
+    with SingleTickerProviderStateMixin {
+  late final ScrollController _scrollController;
+  bool _overflows = false;
+  AnimationController? _anim;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController = ScrollController();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkOverflow());
+  }
+
+  @override
+  void didUpdateWidget(_MarqueeText old) {
+    super.didUpdateWidget(old);
+    if (old.text != widget.text) {
+      _anim?.stop();
+      _anim?.dispose();
+      _anim = null;
+      _scrollController.jumpTo(0);
+      WidgetsBinding.instance.addPostFrameCallback((_) => _checkOverflow());
+    }
+  }
+
+  void _checkOverflow() {
+    if (!mounted) return;
+    final maxScroll = _scrollController.position.maxScrollExtent;
+    final overflows = maxScroll > 0;
+    if (overflows != _overflows) {
+      setState(() => _overflows = overflows);
+    }
+    if (overflows) {
+      _startScroll(maxScroll);
+    }
+  }
+
+  void _startScroll(double maxScroll) {
+    _anim?.dispose();
+    // Speed: ~30px/s — adjust duration based on overflow distance.
+    final durationMs = (maxScroll / 30 * 1000).round().clamp(2000, 15000);
+    _anim = AnimationController(
+      vsync: this,
+      duration: Duration(milliseconds: durationMs),
+    )..addListener(() {
+        if (_scrollController.hasClients) {
+          _scrollController.jumpTo(_anim!.value * maxScroll);
+        }
+      });
+
+    // Pause 1.5s → scroll to end → pause 1.5s → jump back → repeat
+    Future.doWhile(() async {
+      if (!mounted) return false;
+      await Future.delayed(const Duration(milliseconds: 1500));
+      if (!mounted) return false;
+      await _anim!.forward(from: 0);
+      if (!mounted) return false;
+      await Future.delayed(const Duration(milliseconds: 1500));
+      if (!mounted || !_scrollController.hasClients) return false;
+      _scrollController.jumpTo(0);
+      return mounted;
+    });
+  }
+
+  @override
+  void dispose() {
+    _anim?.dispose();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: widget.style.fontSize! * 1.4,
+      child: SingleChildScrollView(
+        controller: _scrollController,
+        scrollDirection: Axis.horizontal,
+        physics: const NeverScrollableScrollPhysics(),
+        child: Text(
+          widget.text,
+          maxLines: 1,
+          softWrap: false,
+          style: widget.style,
+        ),
       ),
     );
   }
@@ -277,23 +431,31 @@ class _WaveformProgress extends StatelessWidget {
       identityHashCode(trackPlayer),
     );
 
-    return StreamBuilder<PositionData>(
-      key: ValueKey(streamKey),
-      stream: Rx.combineLatest3<Duration, Duration, Duration?, PositionData>(
-        trackPlayer.positionStream,
-        trackPlayer.bufferedPositionStream,
-        trackPlayer.durationStream,
-        (position, bufferedPosition, duration) =>
-            PositionData(position, bufferedPosition, duration ?? Duration.zero),
-      ),
-      builder: (context, snapshot) {
-        final data = snapshot.data;
-        return WaveformSeekBar(
-          key: ValueKey('waveform_$streamKey'),
-          duration: data?.duration ?? Duration.zero,
-          position: data?.position ?? Duration.zero,
-          bufferedPosition: data?.bufferedPosition ?? Duration.zero,
-          onChangeEnd: (position) => trackPlayer.seek(position),
+    return StreamBuilder<bool>(
+      key: ValueKey('playing_$streamKey'),
+      stream: trackPlayer.playingStream,
+      builder: (context, playingSnap) {
+        final isPlaying = playingSnap.data ?? false;
+        return StreamBuilder<PositionData>(
+          key: ValueKey(streamKey),
+          stream: Rx.combineLatest3<Duration, Duration, Duration?, PositionData>(
+            trackPlayer.positionStream,
+            trackPlayer.bufferedPositionStream,
+            trackPlayer.durationStream,
+            (position, bufferedPosition, duration) =>
+                PositionData(position, bufferedPosition, duration ?? Duration.zero),
+          ),
+          builder: (context, snapshot) {
+            final data = snapshot.data;
+            return WaveformSeekBar(
+              key: ValueKey('waveform_$streamKey'),
+              duration: data?.duration ?? Duration.zero,
+              position: data?.position ?? Duration.zero,
+              bufferedPosition: data?.bufferedPosition ?? Duration.zero,
+              isPlaying: isPlaying,
+              onChangeEnd: (position) => trackPlayer.seek(position),
+            );
+          },
         );
       },
     );

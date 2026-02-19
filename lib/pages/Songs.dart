@@ -1,7 +1,11 @@
 import '/exports/exports.dart';
 
 import '/Helpers/Files.dart';
-import 'ArtistSongs.dart';
+import '/widgets/song_tile.dart';
+import '/widgets/PlayListWidget.dart';
+import '/Routes/routes.dart';
+import '/controllers/AppController.dart';
+import '../player/PlayerUI.dart';
 
 class AllSongs extends StatefulWidget {
   const AllSongs({super.key});
@@ -72,7 +76,32 @@ class _AllSongsState extends State<AllSongs> {
                   ],
                 ),
               ),
-              Expanded(child: SongLists(songs: snap.data!)),
+              Expanded(
+                child: Consumer<AppController>(
+                  builder: (context, controller, _) {
+                    return SongListView(
+                      songs: snap.data!,
+                      controller: controller,
+                      onTap: (song, index) {
+                        controller.playSongFromList(snap.data!, index);
+                        Routes.routeTo(const Player(), context);
+                      },
+                      onLongPress: (song, index) {
+                        showModalBottomSheet(
+                          context: context,
+                          builder: (context) => BottomSheet(
+                            onClosing: () {},
+                            builder: (context) => PlaylistWidget(
+                              audioId: song.id,
+                              song: song.title,
+                            ),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
             ],
           );
         } else {

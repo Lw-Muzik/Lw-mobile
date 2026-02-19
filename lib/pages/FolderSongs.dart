@@ -2,8 +2,11 @@ import 'package:eq_app/Global/index.dart';
 import 'package:eq_app/Helpers/Files.dart';
 import '/exports/exports.dart';
 import '../controllers/AppController.dart';
+import '../player/PlayerUI.dart';
 import '../widgets/BottomPlayer.dart';
-import 'ArtistSongs.dart';
+import '/widgets/PlayListWidget.dart';
+import '/widgets/song_tile.dart';
+import '/Routes/routes.dart';
 
 class FolderSongs extends StatefulWidget {
   final String path;
@@ -140,7 +143,30 @@ class _FolderSongsState extends State<FolderSongs> {
           return const Center(child: CircularProgressIndicator.adaptive());
         }
 
-        return SongLists(songs: snapshot.data!);
+        return Consumer<AppController>(
+          builder: (context, controller, _) {
+            return SongListView(
+              songs: snapshot.data!,
+              controller: controller,
+              onTap: (song, index) {
+                controller.playSongFromList(snapshot.data!, index);
+                Routes.routeTo(const Player(), context);
+              },
+              onLongPress: (song, index) {
+                showModalBottomSheet(
+                  context: context,
+                  builder: (context) => BottomSheet(
+                    onClosing: () {},
+                    builder: (context) => PlaylistWidget(
+                      audioId: song.id,
+                      song: song.title,
+                    ),
+                  ),
+                );
+              },
+            );
+          },
+        );
       },
     );
   }

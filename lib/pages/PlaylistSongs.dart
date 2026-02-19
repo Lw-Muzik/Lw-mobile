@@ -7,8 +7,8 @@ import '/exports/exports.dart';
 
 import '../Helpers/AudioHandler.dart';
 import '../controllers/AppController.dart';
-import '../widgets/ArtworkWidget.dart';
 import '../widgets/BottomPlayer.dart';
+import '../widgets/song_tile.dart';
 
 class PlaylistSongs extends StatefulWidget {
   final int playlistId;
@@ -111,22 +111,35 @@ class _PlaylistSongsState extends State<PlaylistSongs> {
                 backgroundColor: controller.isFancy
                     ? Colors.transparent
                     : Theme.of(context).scaffoldBackgroundColor,
-                body: Stack(
-                  children: [
-                    FutureBuilder(
-                      future: _songsFuture,
-                      builder: (context, snap) {
-                        return snap.hasData
-                            ? PlaylistSongLists(
-                                songs: snap.data ?? [],
-                                playlist: widget.playlistId,
-                              )
-                            : const Center(
-                                child: CircularProgressIndicator.adaptive(),
-                              );
+                body: FutureBuilder<List<SongModel>>(
+                  future: _songsFuture,
+                  builder: (context, snap) {
+                    if (!snap.hasData) {
+                      return const Center(
+                        child: CircularProgressIndicator.adaptive(),
+                      );
+                    }
+                    return SongListView(
+                      songs: snap.data ?? [],
+                      controller: controller,
+                      onTap: (song, index) {
+                        controller.playSongFromList(snap.data!, index);
                       },
-                    ),
-                  ],
+                      onLongPress: (song, index) {
+                        showModalBottomSheet(
+                          context: context,
+                          builder: (context) => BottomSheet(
+                            onClosing: () {},
+                            builder: (context) => PlayListEditor(
+                              audioId: song.id,
+                              song: song.title,
+                              playlist: widget.playlistId,
+                            ),
+                          ),
+                        );
+                      },
+                    );
+                  },
                 ),
                 bottomNavigationBar: service.data ?? false
                     ? BottomPlayer(controller: controller)
@@ -136,94 +149,6 @@ class _PlaylistSongsState extends State<PlaylistSongs> {
           );
         },
       ),
-    );
-  }
-}
-
-class PlaylistSongLists extends StatelessWidget {
-  final List<SongModel> songs;
-  final int playlist;
-  const PlaylistSongLists({
-    super.key,
-    required this.songs,
-    required this.playlist,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    if (songs.isEmpty) {
-      return Center(
-        child: Text(
-          "No songs found",
-          style: Theme.of(context).textTheme.titleMedium,
-        ),
-      );
-    }
-
-    return Consumer<AppController>(
-      builder: (context, controller, _) {
-        return ListView.builder(
-          itemCount: songs.length,
-          itemBuilder: (context, index) {
-            return Container(
-              margin: const EdgeInsets.only(left: 10, right: 10),
-              decoration: commonDeration(controller, index, context),
-              child: ListTile(
-                selected: controller.songId == index,
-                onLongPress: () {
-                  showModalBottomSheet(
-                    context: context,
-                    builder: (context) {
-                      return BottomSheet(
-                        onClosing: () {},
-                        builder: (context) {
-                          return PlayListEditor(
-                            audioId: controller.songs[index].id,
-                            song: controller.songs[index].title,
-                            playlist: playlist,
-                          );
-                        },
-                      );
-                    },
-                  );
-                },
-                selectedTileColor: Theme.of(
-                  context,
-                ).primaryColor.withValues(alpha: 0.1),
-                selectedColor: Theme.of(context).primaryColorLight,
-                title: Text(
-                  songs[index].title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodyMedium!,
-                ),
-                subtitle: Text(
-                  songs[index].artist ?? "No Artist",
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                trailing: Text(
-                  "${formatTime(Duration(milliseconds: songs[index].duration ?? 0))} | ${songs[index].fileExtension}",
-                ),
-                onTap: () {
-                  int songIndex = songs.indexWhere(
-                    (result) => result.title == songs[index].title,
-                  );
-                  if (songIndex == -1) songIndex = index;
-                  controller.playSongFromList(songs, songIndex);
-                },
-                leading: ArtworkWidget(
-                  height: 60,
-                  width: 60,
-                  songId: songs[index].id,
-                  path: songs[index].data,
-                  type: ArtworkType.AUDIO,
-                ),
-              ),
-            );
-          },
-        );
-      },
     );
   }
 }

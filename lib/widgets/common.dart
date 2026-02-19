@@ -10,21 +10,22 @@ class SeekBar extends StatefulWidget {
   final ValueChanged<Duration>? onChangeEnd;
 
   const SeekBar({
-    Key? key,
+    super.key,
     required this.duration,
     required this.position,
     required this.bufferedPosition,
     this.onChanged,
     this.onChangeEnd,
-  }) : super(key: key);
+  });
 
   @override
   SeekBarState createState() => SeekBarState();
 }
 
 class SeekBarState extends State<SeekBar> {
-  static final RegExp _durationRegex =
-      RegExp(r'((^0*[1-9]\d*:)?\d{2}:\d{2})\.\d+$');
+  static final RegExp _durationRegex = RegExp(
+    r'((^0*[1-9]\d*:)?\d{2}:\d{2})\.\d+$',
+  );
   double? _dragValue;
   late SliderThemeData _sliderThemeData;
 
@@ -32,9 +33,7 @@ class SeekBarState extends State<SeekBar> {
   void didChangeDependencies() {
     super.didChangeDependencies();
 
-    _sliderThemeData = SliderTheme.of(context).copyWith(
-      trackHeight: 2.0,
-    );
+    _sliderThemeData = SliderTheme.of(context).copyWith(trackHeight: 2.0);
   }
 
   @override
@@ -51,8 +50,10 @@ class SeekBarState extends State<SeekBar> {
             child: Slider(
               min: 0.0,
               max: widget.duration.inMilliseconds.toDouble(),
-              value: min(widget.bufferedPosition.inMilliseconds.toDouble(),
-                  widget.duration.inMilliseconds.toDouble()),
+              value: min(
+                widget.bufferedPosition.inMilliseconds.toDouble(),
+                widget.duration.inMilliseconds.toDouble(),
+              ),
               onChanged: (value) {
                 setState(() {
                   _dragValue = value;
@@ -77,8 +78,10 @@ class SeekBarState extends State<SeekBar> {
           child: Slider(
             min: 0.0,
             max: widget.duration.inMilliseconds.toDouble(),
-            value: min(_dragValue ?? widget.position.inMilliseconds.toDouble(),
-                widget.duration.inMilliseconds.toDouble()),
+            value: min(
+              _dragValue ?? widget.position.inMilliseconds.toDouble(),
+              widget.duration.inMilliseconds.toDouble(),
+            ),
             onChanged: (value) {
               setState(() {
                 _dragValue = value;
@@ -106,32 +109,31 @@ class SeekBarState extends State<SeekBar> {
         //       style: Theme.of(context).textTheme.bodySmall),
         // ),
         Positioned(
-            right: 0.0,
-            left: 0.0,
-            bottom: -5.0,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24.0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    _durationRegex
-                            .firstMatch("${widget.position}")
-                            ?.group(1) ??
-                        '- ${widget.position}',
-                    style: Theme.of(context).textTheme.bodyMedium!.apply(
-                          color: Colors.white.withValues(alpha: 0.7),
-                        ),
+          right: 0.0,
+          left: 0.0,
+          bottom: -5.0,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24.0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  _durationRegex.firstMatch("${widget.position}")?.group(1) ??
+                      '- ${widget.position}',
+                  style: Theme.of(context).textTheme.bodyMedium!.apply(
+                    color: Colors.white.withValues(alpha: 0.7),
                   ),
-                  Text(
-                    "-${_durationRegex.firstMatch("$_remaining")?.group(1)}",
-                    style: Theme.of(context).textTheme.bodyMedium!.apply(
-                          color: Colors.white.withValues(alpha: 0.7),
-                        ),
+                ),
+                Text(
+                  "-${_durationRegex.firstMatch("$_remaining")?.group(1)}",
+                  style: Theme.of(context).textTheme.bodyMedium!.apply(
+                    color: Colors.white.withValues(alpha: 0.7),
                   ),
-                ],
-              ),
-            )),
+                ),
+              ],
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -189,11 +191,14 @@ void showSliderDialog({
           height: 100.0,
           child: Column(
             children: [
-              Text('${snapshot.data?.toStringAsFixed(1)}$valueSuffix',
-                  style: const TextStyle(
-                      fontFamily: 'Fixed',
-                      fontWeight: FontWeight.bold,
-                      fontSize: 24.0)),
+              Text(
+                '${snapshot.data?.toStringAsFixed(1)}$valueSuffix',
+                style: const TextStyle(
+                  fontFamily: 'Fixed',
+                  fontWeight: FontWeight.bold,
+                  fontSize: 24.0,
+                ),
+              ),
               Slider(
                 divisions: divisions,
                 min: min,
@@ -224,8 +229,9 @@ class WaveformSeekBar extends StatefulWidget {
   final Color activeColor;
   final Color inactiveColor;
   final double barWidth;
-  final double barSpacing;
+  final double minBarSpacing;
   final double height;
+  final bool isPlaying;
 
   const WaveformSeekBar({
     Key? key,
@@ -236,9 +242,10 @@ class WaveformSeekBar extends StatefulWidget {
     this.onChangeEnd,
     this.activeColor = const Color(0xFFD4A825),
     this.inactiveColor = const Color(0x55FFFFFF),
-    this.barWidth = 3.0,
-    this.barSpacing = 1.5,
-    this.height = 72,
+    this.barWidth = 6.5,
+    this.minBarSpacing = 2.5,
+    this.height = 85,
+    this.isPlaying = true,
   }) : super(key: key);
 
   @override
@@ -246,11 +253,14 @@ class WaveformSeekBar extends StatefulWidget {
 }
 
 class _WaveformSeekBarState extends State<WaveformSeekBar> {
-  static final RegExp _durationRegex =
-      RegExp(r'((^0*[1-9]\d*:)?\d{2}:\d{2})\.\d+$');
+  static final RegExp _durationRegex = RegExp(
+    r'((^0*[1-9]\d*:)?\d{2}:\d{2})\.\d+$',
+  );
 
   List<double> _barHeights = [];
   double? _dragProgress;
+  double? _dragStartProgress;
+  double? _dragStartX;
   int? _lastSeedHash;
   int _lastBarCount = 0;
 
@@ -274,24 +284,75 @@ class _WaveformSeekBarState extends State<WaveformSeekBar> {
     });
   }
 
-  double _progressFromPosition(Offset local, double totalWidth) {
-    return (local.dx / totalWidth).clamp(0.0, 1.0);
+  double _currentProgress() {
+    return _dragProgress ??
+        (widget.duration.inMilliseconds > 0
+            ? widget.position.inMilliseconds / widget.duration.inMilliseconds
+            : 0.0);
   }
 
-  void _handleDrag(Offset local, double totalWidth) {
-    final progress = _progressFromPosition(local, totalWidth);
+  double _totalWaveWidth(int barCount, double spacing) {
+    final step = widget.barWidth + spacing;
+    return barCount * step - spacing;
+  }
+
+  void _onDragStart(
+    double localX,
+    double widgetWidth,
+    int barCount,
+    double spacing,
+  ) {
+    // Capture baseline: the progress when drag began, and the finger start X.
+    _dragStartProgress = _currentProgress();
+    _dragStartX = localX;
+    setState(() => _dragProgress = _dragStartProgress);
+  }
+
+  void _onDragUpdate(
+    double localX,
+    double widgetWidth,
+    int barCount,
+    double spacing,
+  ) {
+    if (_dragStartProgress == null || _dragStartX == null) return;
+    final totalW = _totalWaveWidth(barCount, spacing);
+    final delta = (_dragStartX! - localX) / totalW;
+    final progress = (_dragStartProgress! + delta).clamp(0.0, 1.0);
     setState(() => _dragProgress = progress);
     final ms = (progress * widget.duration.inMilliseconds).round();
     widget.onChanged?.call(Duration(milliseconds: ms));
   }
 
+  void _onDragEnd() {
+    if (_dragProgress != null) {
+      final ms = (_dragProgress! * widget.duration.inMilliseconds).round();
+      widget.onChangeEnd?.call(Duration(milliseconds: ms));
+    }
+    setState(() {
+      _dragProgress = null;
+      _dragStartProgress = null;
+      _dragStartX = null;
+    });
+  }
+
+  void _onTapUp(
+    double localX,
+    double widgetWidth,
+    int barCount,
+    double spacing,
+  ) {
+    final totalW = _totalWaveWidth(barCount, spacing);
+    final centerX = widgetWidth / 2;
+    final cur = _currentProgress();
+    final delta = (localX - centerX) / totalW;
+    final progress = (cur + delta).clamp(0.0, 1.0);
+    final ms = (progress * widget.duration.inMilliseconds).round();
+    widget.onChangeEnd?.call(Duration(milliseconds: ms));
+  }
+
   @override
   Widget build(BuildContext context) {
-    final progress = _dragProgress ??
-        (widget.duration.inMilliseconds > 0
-            ? widget.position.inMilliseconds / widget.duration.inMilliseconds
-            : 0.0);
-
+    final progress = _currentProgress();
     final remaining = widget.duration - widget.position;
 
     return Padding(
@@ -301,12 +362,12 @@ class _WaveformSeekBarState extends State<WaveformSeekBar> {
         children: [
           LayoutBuilder(
             builder: (context, constraints) {
-              // Calculate bar count to fill available width
-              final totalBarUnit = widget.barWidth + widget.barSpacing;
-              final barCount =
-                  ((constraints.maxWidth + widget.barSpacing) / totalBarUnit)
-                      .floor()
-                      .clamp(10, 200);
+              final availableW = constraints.maxWidth;
+              final minUnit = widget.barWidth + widget.minBarSpacing;
+              final barCount = (availableW / minUnit).floor().clamp(10, 200);
+              final actualSpacing = barCount > 1
+                  ? (availableW - barCount * widget.barWidth) / (barCount - 1)
+                  : 0.0;
 
               if (_barHeights.length != barCount ||
                   _lastSeedHash != widget.duration.inMilliseconds) {
@@ -315,36 +376,39 @@ class _WaveformSeekBarState extends State<WaveformSeekBar> {
 
               return GestureDetector(
                 behavior: HitTestBehavior.opaque,
-                onHorizontalDragStart: (d) =>
-                    _handleDrag(d.localPosition, constraints.maxWidth),
-                onHorizontalDragUpdate: (d) =>
-                    _handleDrag(d.localPosition, constraints.maxWidth),
-                onHorizontalDragEnd: (d) {
-                  if (_dragProgress != null) {
-                    final ms =
-                        (_dragProgress! * widget.duration.inMilliseconds)
-                            .round();
-                    widget.onChangeEnd?.call(Duration(milliseconds: ms));
-                  }
-                  setState(() => _dragProgress = null);
-                },
-                onTapUp: (d) {
-                  final p =
-                      _progressFromPosition(d.localPosition, constraints.maxWidth);
-                  final ms = (p * widget.duration.inMilliseconds).round();
-                  widget.onChangeEnd?.call(Duration(milliseconds: ms));
-                },
-                child: SizedBox(
-                  height: widget.height,
-                  width: constraints.maxWidth,
-                  child: CustomPaint(
-                    painter: _WaveformPainter(
-                      barHeights: _barHeights,
-                      progress: progress.clamp(0.0, 1.0),
-                      activeColor: widget.activeColor,
-                      inactiveColor: widget.inactiveColor,
-                      barWidth: widget.barWidth,
-                      barSpacing: widget.barSpacing,
+                onHorizontalDragStart: (d) => _onDragStart(
+                  d.localPosition.dx,
+                  availableW,
+                  barCount,
+                  actualSpacing,
+                ),
+                onHorizontalDragUpdate: (d) => _onDragUpdate(
+                  d.localPosition.dx,
+                  availableW,
+                  barCount,
+                  actualSpacing,
+                ),
+                onHorizontalDragEnd: (_) => _onDragEnd(),
+                onTapUp: (d) => _onTapUp(
+                  d.localPosition.dx,
+                  availableW,
+                  barCount,
+                  actualSpacing,
+                ),
+                child: ClipRect(
+                  child: SizedBox(
+                    height: widget.height,
+                    width: availableW,
+                    child: CustomPaint(
+                      painter: _WaveformPainter(
+                        barHeights: _barHeights,
+                        progress: progress.clamp(0.0, 1.0),
+                        activeColor: widget.activeColor,
+                        inactiveColor: widget.inactiveColor,
+                        barWidth: widget.barWidth,
+                        barSpacing: actualSpacing,
+                        showPlayhead: widget.isPlaying || _dragProgress != null,
+                      ),
                     ),
                   ),
                 ),
@@ -358,15 +422,16 @@ class _WaveformSeekBarState extends State<WaveformSeekBar> {
               Text(
                 _durationRegex.firstMatch("${widget.position}")?.group(1) ??
                     '${widget.position}',
-                style: Theme.of(context).textTheme.bodyMedium!.apply(
-                      color: widget.activeColor,
-                    ),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyMedium!.apply(color: widget.activeColor),
               ),
               Text(
-                _durationRegex.firstMatch("$remaining")?.group(1) ?? '$remaining',
+                _durationRegex.firstMatch("$remaining")?.group(1) ??
+                    '$remaining',
                 style: Theme.of(context).textTheme.bodyMedium!.apply(
-                      color: Colors.white.withValues(alpha: 0.5),
-                    ),
+                  color: Colors.white.withValues(alpha: 0.5),
+                ),
               ),
             ],
           ),
@@ -383,6 +448,7 @@ class _WaveformPainter extends CustomPainter {
   final Color inactiveColor;
   final double barWidth;
   final double barSpacing;
+  final bool showPlayhead;
 
   _WaveformPainter({
     required this.barHeights,
@@ -391,47 +457,80 @@ class _WaveformPainter extends CustomPainter {
     required this.inactiveColor,
     required this.barWidth,
     required this.barSpacing,
+    required this.showPlayhead,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
     if (barHeights.isEmpty) return;
 
-    final totalBarWidth = barWidth + barSpacing;
     final count = barHeights.length;
-    // Center the waveform
-    final totalWidth = count * totalBarWidth - barSpacing;
-    final startX = (size.width - totalWidth) / 2;
+    final step = barWidth + barSpacing;
+    final totalWaveW = count * step - barSpacing;
+    final centerX = size.width / 2;
     final midY = size.height / 2;
-    final maxBarHeight = size.height * 0.9;
-    final progressX = startX + progress * totalWidth;
+    final maxBarH = size.height * 0.9;
+    final radius = Radius.circular(barWidth / 2);
+
+    // Offset so the current-progress bar sits at centerX
+    final offsetX = centerX - progress * totalWaveW;
 
     final activePaint = Paint()
       ..color = activeColor
-      ..strokeCap = StrokeCap.round
       ..style = PaintingStyle.fill;
 
     final inactivePaint = Paint()
       ..color = inactiveColor
-      ..strokeCap = StrokeCap.round
       ..style = PaintingStyle.fill;
 
     for (var i = 0; i < count; i++) {
-      final x = startX + i * totalBarWidth;
-      final barH = barHeights[i] * maxBarHeight;
+      final x = offsetX + i * step;
+      // Skip bars outside the visible area
+      if (x + barWidth < 0 || x > size.width) continue;
 
+      final barH = barHeights[i] * maxBarH;
       final rect = RRect.fromRectAndRadius(
         Rect.fromCenter(
           center: Offset(x + barWidth / 2, midY),
           width: barWidth,
           height: barH,
         ),
-        Radius.circular(barWidth / 2),
+        radius,
       );
 
-      // Bar center determines active/inactive
       final barCenter = x + barWidth / 2;
-      canvas.drawRRect(rect, barCenter <= progressX ? activePaint : inactivePaint);
+      canvas.drawRRect(
+        rect,
+        barCenter <= centerX ? activePaint : inactivePaint,
+      );
+    }
+
+    // --- Playhead (fixed at center) ---
+    if (showPlayhead) {
+      final top = 0.0;
+      final bot = size.height;
+
+      // Glow
+      final glowPaint = Paint()
+        ..color = activeColor.withValues(alpha: 0.3)
+        ..strokeWidth = 10.0
+        ..strokeCap = StrokeCap.round
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8);
+      canvas.drawLine(Offset(centerX, top), Offset(centerX, bot), glowPaint);
+
+      // Core line
+      final linePaint = Paint()
+        ..color = activeColor
+        ..strokeWidth = 3.0
+        ..strokeCap = StrokeCap.round;
+      canvas.drawLine(Offset(centerX, top), Offset(centerX, bot), linePaint);
+
+      // Dot caps
+      final dotPaint = Paint()
+        ..color = activeColor
+        ..style = PaintingStyle.fill;
+      canvas.drawCircle(Offset(centerX, top), 5.0, dotPaint);
+      canvas.drawCircle(Offset(centerX, bot), 5.0, dotPaint);
     }
   }
 
@@ -439,5 +538,6 @@ class _WaveformPainter extends CustomPainter {
   bool shouldRepaint(_WaveformPainter old) =>
       old.progress != progress ||
       old.activeColor != activeColor ||
+      old.showPlayhead != showPlayhead ||
       old.barHeights != barHeights;
 }

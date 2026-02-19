@@ -7,9 +7,10 @@ import 'package:eq_app/widgets/Body.dart';
 import '/exports/exports.dart';
 
 import '/Global/index.dart';
-import '/Helpers/index.dart';
 import '/widgets/ArtworkWidget.dart';
 import '/widgets/BottomPlayer.dart';
+import '/widgets/PlayListWidget.dart';
+import '/widgets/song_tile.dart';
 
 class AlbumSongs extends StatefulWidget {
   final int? albumId;
@@ -104,18 +105,36 @@ class _AlbumSongsState extends State<AlbumSongs> {
               stream: controller.handler.player.playingStream,
               builder: (context, service) {
                 return Scaffold(
-                  // backgroundColor: Colors.transparent,
-                  body: FutureBuilder(
+                  body: FutureBuilder<List<SongModel>>(
                     future: OnAudioQuery.platform.queryAudiosFrom(
                       AudiosFromType.ALBUM_ID,
                       widget.albumId!,
                     ),
                     builder: (context, snapshot) {
-                      return snapshot.hasData
-                          ? SongLists(songs: snapshot.data ?? [])
-                          : const Center(
-                              child: CircularProgressIndicator.adaptive(),
-                            );
+                      if (!snapshot.hasData) {
+                        return const Center(
+                          child: CircularProgressIndicator.adaptive(),
+                        );
+                      }
+                      return SongListView(
+                        songs: snapshot.data ?? [],
+                        controller: controller,
+                        onTap: (song, index) {
+                          controller.playSongFromList(snapshot.data!, index);
+                        },
+                        onLongPress: (song, index) {
+                          showModalBottomSheet(
+                            context: context,
+                            builder: (context) => BottomSheet(
+                              onClosing: () {},
+                              builder: (context) => PlaylistWidget(
+                                audioId: song.id,
+                                song: song.title,
+                              ),
+                            ),
+                          );
+                        },
+                      );
                     },
                   ),
                   bottomNavigationBar: service.data ?? false
@@ -131,70 +150,3 @@ class _AlbumSongsState extends State<AlbumSongs> {
   }
 }
 
-class SongLists extends StatefulWidget {
-  final List<SongModel> songs;
-  const SongLists({super.key, required this.songs});
-
-  @override
-  State<SongLists> createState() => _SongListsState();
-}
-
-class _SongListsState extends State<SongLists> {
-  int _selected = -1;
-
-  @override
-  Widget build(BuildContext context) {
-    if (widget.songs.isEmpty) {
-      return Center(
-        child: Text(
-          "No songs found",
-          style: Theme.of(context).textTheme.titleMedium,
-        ),
-      );
-    }
-
-    return Consumer<AppController>(
-      builder: (context, controller, _) {
-        return ListView.builder(
-          itemCount: widget.songs.length,
-          itemBuilder: (context, index) {
-            return Container(
-              margin: const EdgeInsets.only(left: 10, right: 10),
-              decoration: commonDeration(controller, _selected, context),
-              child: ListTile(
-                selected: controller.songId == _selected,
-                selectedTileColor: Theme.of(
-                  context,
-                ).primaryColorLight.withValues(alpha: 0.3),
-                selectedColor: Theme.of(context).primaryColorLight,
-                title: Text(widget.songs[index].title),
-                subtitle: Text(widget.songs[index].artist ?? "No Artist"),
-                trailing: Text(
-                  "${formatTime(Duration(milliseconds: widget.songs[index].duration ?? 0))} | ${widget.songs[index].fileExtension}",
-                ),
-                onTap: () {
-                  setState(() {
-                    _selected = index;
-                  });
-
-                  int songIndex = widget.songs.indexWhere(
-                    (result) => result.title == widget.songs[index].title,
-                  );
-                  if (songIndex == -1) songIndex = index;
-                  controller.playSongFromList(widget.songs, songIndex);
-                },
-                leading: ArtworkWidget(
-                  height: 60,
-                  width: 60,
-                  path: widget.songs[index].data,
-                  songId: widget.songs[index].id,
-                  type: ArtworkType.AUDIO,
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-}
