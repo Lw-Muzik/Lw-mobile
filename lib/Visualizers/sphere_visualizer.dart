@@ -56,7 +56,7 @@ class SphereVisualizer extends CustomPainter {
     final scale = minScale + (maxScale - minScale) * sizeResponse;
 
     // Calculated once outside loop for reuse
-    final baseHue = (360 * (time * 0.05 + colorResponse * 0.4)) % 360;
+    final baseHue = (360 * (time * 0.25 + colorResponse * 0.3)) % 360;
     final baseColor = HSVColor.fromAHSV(1.0, baseHue, 0.7, 0.8).toColor();
     final accentColor =
         HSVColor.fromAHSV(1.0, (baseHue + 180) % 360, 0.6, 0.8).toColor();
@@ -83,7 +83,7 @@ class SphereVisualizer extends CustomPainter {
             60.0 * distortionResponse; // Reduced distortion value
         final distortionAmount = baseDistortion * layerDistortionFactor;
         final distortion =
-            distortionAmount * (sin(8 * angle + time * 2.0) * 0.25);
+            distortionAmount * (sin(6 * angle + time * pi * 2) * 0.2);
 
         final radius = baseRadius * scale + distortion;
         final sphereEffect =

@@ -4,7 +4,6 @@ import '../Visualizers/wave-visualizer.dart';
 import '/controllers/AppController.dart';
 import '/Helpers/AudioVisualizer.dart';
 import '/Helpers/VisualizerWidget.dart';
-import '/player/widgets/MusicInfo.dart';
 import '/Routes/routes.dart';
 import '/widgets/Body.dart';
 
@@ -17,90 +16,73 @@ class VisualUI extends StatefulWidget {
 
 class _VisualUIState extends State<VisualUI>
     with SingleTickerProviderStateMixin {
-  static const double musicInfoHeight = 150.0;
   late AnimationController _controller;
-  String _selectedVisual = 'circular';
-  bool _isSelectorVisible = false;
-  bool _isControlsVisible = false;
-  double _sensitivity = 1.0;
-  double _speed = 1.0;
-  Color _visualColor = Colors.white;
+  bool _isPanelOpen = false;
 
-  final Map<String, Map<String, dynamic>> _visualizers = {
-    'circular': {
-      'name': 'Circular Bars',
-      'icon': Icons.circle_outlined,
-      'description': 'Circular bars effect',
-      'hasSpeed': true,
-      'hasSensitivity': true,
-      'hasColor': true,
-    },
-    'bars': {
-      'name': 'Spectrum',
-      'icon': Icons.bar_chart,
-      'description': 'Classic spectrum analyzer',
-      'hasSpeed': false,
-      'hasSensitivity': true,
-      'hasColor': true,
-    },
-    // 'cube': {
-    //   'name': 'Cube',
-    //   'icon': Icons.square,
-    //   'description': 'Cube analyzer',
-    //   'hasSpeed': false,
-    //   'hasSensitivity': true,
-    //   'hasColor': true,
-    // },
-    // 'sea': {
-    //   'name': 'Ocean',
-    //   'icon': Icons.water,
-    //   'description': 'Dynamic ocean waves',
-    //   'hasSpeed': true,
-    //   'hasSensitivity': true,
-    //   'hasColor': true,
-    // },
-    // 'ripple': {
-    //   'name': 'Ripple',
-    //   'icon': Icons.circle,
-    //   'description': 'Reactive ripple effect',
-    //   'hasSpeed': true,
-    //   'hasSensitivity': true,
-    //   'hasColor': true,
-    // },
-    'sphere': {
-      'name': 'Sphere',
-      'icon': Icons.radio_button_unchecked,
-      'description': 'Reactive 3D sphere visualization',
-      'hasSpeed': true,
-      'hasSensitivity': true,
-      'hasColor': true,
-    },
-    'flower': {
-      'name': 'Plasma',
-      'icon': Icons.blur_circular,
-      'description': 'Flowing plasma effect',
-      'hasSpeed': true,
-      'hasSensitivity': false,
-      'hasColor': true,
-    },
-    // 'fabric': {
-    //   'name': 'Fabric',
-    //   'icon': Icons.waves,
-    //   'description': 'Flowing fabric simulation',
-    //   'hasSpeed': true,
-    //   'hasSensitivity': true,
-    //   'hasColor': false,
-    // },
+  static const _visualizers = {
+    'circular': _VisualPreset(
+      name: 'Circular',
+      icon: Icons.circle_outlined,
+      description: 'Circular bars',
+    ),
+    'bars': _VisualPreset(
+      name: 'Spectrum',
+      icon: Icons.bar_chart_rounded,
+      description: 'Classic analyzer',
+    ),
+    'sphere': _VisualPreset(
+      name: 'Sphere',
+      icon: Icons.radio_button_unchecked,
+      description: '3D reactive sphere',
+    ),
+    'flower': _VisualPreset(
+      name: 'Plasma',
+      icon: Icons.blur_circular,
+      description: 'Flowing plasma',
+    ),
+    'fabric': _VisualPreset(
+      name: 'Fabric',
+      icon: Icons.texture,
+      description: 'Flowing fabric',
+    ),
+    'sea': _VisualPreset(
+      name: 'Ocean',
+      icon: Icons.water,
+      description: 'Ocean waves',
+    ),
+    'cube': _VisualPreset(
+      name: 'Cube',
+      icon: Icons.view_in_ar,
+      description: '3D cube',
+    ),
+    'ripple': _VisualPreset(
+      name: 'Ripple',
+      icon: Icons.waves,
+      description: 'Ripple rings',
+    ),
   };
+
+  static const _colorPalette = [
+    (0xFFFFFFFF, Colors.white),
+    (0xFFD4A825, Color(0xFFD4A825)),
+    (0xFF2196F3, Colors.blue),
+    (0xFF9C27B0, Colors.purple),
+    (0xFF4CAF50, Colors.green),
+    (0xFFE91E63, Colors.pink),
+    (0xFFFF5722, Color(0xFFFF5722)),
+    (0xFF00BCD4, Color(0xFF00BCD4)),
+  ];
 
   @override
   void initState() {
     super.initState();
-    _initializeVisualizer();
     _controller = AnimationController(
       duration: const Duration(milliseconds: 300),
       vsync: this,
     );
+    final ctrl = context.read<AppController>();
+    Visualizers.setFrameRate(ctrl.visualizerFrameRate);
+    Visualizers.scaleVisualizer(true);
   }
 
   @override
@@ -109,272 +91,23 @@ class _VisualUIState extends State<VisualUI>
     super.dispose();
   }
 
-  void _initializeVisualizer() {
-    Visualizers.setFrameRate(60);
-    Visualizers.scaleVisualizer(true);
-    Visualizers.getEnabled().asStream().listen((v) {});
-  }
-
-  Widget _buildVisualizer(BuildContext context, double width, double height) {
-    return VisualizerWidget(
-      builder: (context, fft, x) {
-        return AnimatedSwitcher(
-          duration: const Duration(milliseconds: 500),
-          transitionBuilder: (Widget child, Animation<double> animation) {
-            return FadeTransition(
-              opacity: animation,
-              child: ScaleTransition(
-                scale: animation,
-                child: child,
-              ),
-            );
-          },
-          child: WaveVisualizer(
-            color: _visualColor,
-            key: ValueKey(_selectedVisual),
-            width: width,
-            height: height,
-            audioData: fft,
-            selector: _selectedVisual,
-          ),
-        );
-      },
-      id: 0,
-    );
-  }
-
-  Widget _buildVisualizerControls() {
-    final currentVisualizer = _visualizers[_selectedVisual]!;
-
-    return AnimatedPositioned(
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeInOut,
-      left: 20,
-      right: 20,
-      bottom: _isControlsVisible ? (musicInfoHeight + 100) : -200,
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.7),
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              currentVisualizer['name'],
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              currentVisualizer['description'],
-              style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.7),
-                fontSize: 14,
-              ),
-            ),
-            const SizedBox(height: 16),
-            if (currentVisualizer['hasSensitivity'])
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Sensitivity',
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.9),
-                      fontSize: 14,
-                    ),
-                  ),
-                  Slider(
-                    value: _sensitivity,
-                    onChanged: (value) => setState(() => _sensitivity = value),
-                    min: 0.1,
-                    max: 2.0,
-                    activeColor: Colors.red,
-                  ),
-                ],
-              ),
-            if (currentVisualizer['hasSpeed'])
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Speed',
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.9),
-                      fontSize: 14,
-                    ),
-                  ),
-                  Slider(
-                    value: _speed,
-                    onChanged: (value) => setState(() => _speed = value),
-                    min: 0.1,
-                    max: 2.0,
-                    activeColor: Colors.red,
-                  ),
-                ],
-              ),
-            if (currentVisualizer['hasColor'])
-              Row(
-                children: [
-                  Text(
-                    'Color',
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.9),
-                      fontSize: 14,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Wrap(
-                    spacing: 8,
-                    children: [
-                      Colors.white,
-                      Colors.blue,
-                      Colors.purple,
-                      Colors.green,
-                      Colors.orange,
-                      Colors.pink,
-                    ]
-                        .map((color) => GestureDetector(
-                              onTap: () => setState(() => _visualColor = color),
-                              child: Container(
-                                width: 30,
-                                height: 30,
-                                decoration: BoxDecoration(
-                                  color: color,
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                    color: _visualColor == color
-                                        ? Theme.of(context).primaryColor
-                                        : Colors.transparent,
-                                    width: 2,
-                                  ),
-                                ),
-                              ),
-                            ))
-                        .toList(),
-                  ),
-                ],
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildVisualizerSelector() {
-    return AnimatedPositioned(
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeInOut,
-      bottom: _isSelectorVisible ? musicInfoHeight + 20 : -100,
-      left: 0,
-      right: 0,
-      child: Center(
-        child: Container(
-          margin: const EdgeInsets.symmetric(horizontal: 20),
-          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-          decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.7),
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            physics: const BouncingScrollPhysics(),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: _visualizers.entries.map((entry) {
-                final isSelected = entry.key == _selectedVisual;
-
-                return GestureDetector(
-                  onTap: () {
-                    setState(() {
-                      _selectedVisual = entry.key;
-                    });
-                  },
-                  child: Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 8),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: isSelected
-                          ? Theme.of(context).primaryColor
-                          : Colors.white.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(15),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          entry.value['icon'],
-                          color: isSelected ? Colors.white : Colors.white70,
-                          size: 20,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          entry.value['name'],
-                          style: TextStyle(
-                            color: isSelected ? Colors.white : Colors.white70,
-                            fontWeight: isSelected
-                                ? FontWeight.bold
-                                : FontWeight.normal,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              }).toList(),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildControls() {
-    return Positioned(
-      bottom: musicInfoHeight + 20,
-      right: 20,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          FloatingActionButton(
-            heroTag: "toggle_controls",
-            mini: true,
-            onPressed: () =>
-                setState(() => _isControlsVisible = !_isControlsVisible),
-            child: Icon(_isControlsVisible ? Icons.tune : Icons.tune),
-          ),
-          const SizedBox(height: 8),
-          FloatingActionButton(
-            heroTag: "toggle_selector",
-            onPressed: () =>
-                setState(() => _isSelectorVisible = !_isSelectorVisible),
-            child: AnimatedIcon(
-              icon: AnimatedIcons.menu_close,
-              progress: _controller,
-            ),
-          ),
-        ],
-      ),
-    );
+  void _togglePanel() {
+    setState(() => _isPanelOpen = !_isPanelOpen);
+    if (_isPanelOpen) {
+      _controller.forward();
+    } else {
+      _controller.reverse();
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final bottomPadding = MediaQuery.of(context).padding.bottom;
+
     return Body(
       child: Consumer<AppController>(
         builder: (context, controller, child) {
-          if (controller.visuals) {
-            Visualizers.enableVisual(true);
-          }
-
+          if (controller.visuals) Visualizers.enableVisual(true);
           final size = MediaQuery.of(context).size;
 
           return Scaffold(
@@ -384,34 +117,388 @@ class _VisualUIState extends State<VisualUI>
             body: Stack(
               fit: StackFit.expand,
               children: [
+                // Visualizer canvas — tap to dismiss
                 GestureDetector(
                   onTap: () {
-                    if (_isSelectorVisible || _isControlsVisible) {
-                      setState(() {
-                        _isSelectorVisible = false;
-                        _isControlsVisible = false;
-                      });
+                    if (_isPanelOpen) {
+                      _togglePanel();
                     } else {
                       Routes.pop(context);
                     }
                   },
                   behavior: HitTestBehavior.opaque,
                   child: mounted
-                      ? _buildVisualizer(context, size.width, size.height)
+                      ? _buildVisualizer(size.width, size.height)
                       : const SizedBox(),
                 ),
-                _buildVisualizerSelector(),
-                _buildVisualizerControls(),
-                _buildControls(),
+
+                // Bottom controls overlay
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  child: _BottomOverlay(
+                    controller: controller,
+                    isPanelOpen: _isPanelOpen,
+                    selectedVisual: controller.visualizerStyle,
+                    visualColor: Color(controller.visualizerColor),
+                    visualizers: _visualizers,
+                    bottomPadding: bottomPadding,
+                    onTogglePanel: _togglePanel,
+                    onSelectVisual: (key) =>
+                        controller.visualizerStyle = key,
+                    onSelectColor: (color) =>
+                        controller.visualizerColor = color.toARGB32(),
+                    onClose: () => Routes.pop(context),
+                  ),
+                ),
               ],
-            ),
-            floatingActionButton: SizedBox(
-              height: musicInfoHeight,
-              width: double.infinity,
-              child: MusicInfo(controller: controller),
             ),
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildVisualizer(double width, double height) {
+    final ctrl = context.read<AppController>();
+    final style = ctrl.visualizerStyle;
+    final color = Color(ctrl.visualizerColor);
+    final reactivity = ctrl.visualizerReactivity;
+
+    return VisualizerWidget(
+      builder: (context, fft, x) {
+        return AnimatedSwitcher(
+          duration: const Duration(milliseconds: 500),
+          transitionBuilder: (child, animation) {
+            return FadeTransition(opacity: animation, child: child);
+          },
+          child: WaveVisualizer(
+            key: ValueKey(style),
+            color: color,
+            width: width,
+            height: height,
+            audioData: fft,
+            selector: style,
+            reactivity: reactivity,
+          ),
+        );
+      },
+      id: 0,
+    );
+  }
+}
+
+class _VisualPreset {
+  final String name;
+  final IconData icon;
+  final String description;
+  const _VisualPreset({
+    required this.name,
+    required this.icon,
+    required this.description,
+  });
+}
+
+/// Bottom overlay: track info bar + expandable settings panel.
+class _BottomOverlay extends StatelessWidget {
+  final AppController controller;
+  final bool isPanelOpen;
+  final String selectedVisual;
+  final Color visualColor;
+  final Map<String, _VisualPreset> visualizers;
+  final double bottomPadding;
+  final VoidCallback onTogglePanel;
+  final ValueChanged<String> onSelectVisual;
+  final ValueChanged<Color> onSelectColor;
+  final VoidCallback onClose;
+
+  const _BottomOverlay({
+    required this.controller,
+    required this.isPanelOpen,
+    required this.selectedVisual,
+    required this.visualColor,
+    required this.visualizers,
+    required this.bottomPadding,
+    required this.onTogglePanel,
+    required this.onSelectVisual,
+    required this.onSelectColor,
+    required this.onClose,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final song = controller.songs[controller.songId];
+
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Colors.transparent,
+            Colors.black.withValues(alpha: 0.7),
+            Colors.black.withValues(alpha: 0.9),
+          ],
+          stops: const [0.0, 0.3, 1.0],
+        ),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Expanded settings panel
+          AnimatedCrossFade(
+            firstChild: const SizedBox(width: double.infinity),
+            secondChild: _SettingsPanel(
+              selectedVisual: selectedVisual,
+              visualColor: visualColor,
+              visualizers: visualizers,
+              onSelectVisual: onSelectVisual,
+              onSelectColor: onSelectColor,
+            ),
+            crossFadeState: isPanelOpen
+                ? CrossFadeState.showSecond
+                : CrossFadeState.showFirst,
+            duration: const Duration(milliseconds: 250),
+          ),
+
+          // Track info + controls bar
+          Padding(
+            padding: EdgeInsets.fromLTRB(16, 12, 16, bottomPadding + 12),
+            child: Row(
+              children: [
+                // Close
+                _CircleButton(
+                  icon: Icons.keyboard_arrow_down_rounded,
+                  onTap: onClose,
+                ),
+                const SizedBox(width: 12),
+                // Track info
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        song.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      Text(
+                        song.artist ?? 'Unknown artist',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white54,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                // Settings toggle
+                _CircleButton(
+                  icon: isPanelOpen
+                      ? Icons.close_rounded
+                      : Icons.tune_rounded,
+                  onTap: onTogglePanel,
+                  accent: isPanelOpen,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Settings panel with visualizer selector + color picker.
+class _SettingsPanel extends StatelessWidget {
+  final String selectedVisual;
+  final Color visualColor;
+  final Map<String, _VisualPreset> visualizers;
+  final ValueChanged<String> onSelectVisual;
+  final ValueChanged<Color> onSelectColor;
+
+  static const _accentColor = Color(0xFFD4A825);
+
+  const _SettingsPanel({
+    required this.selectedVisual,
+    required this.visualColor,
+    required this.visualizers,
+    required this.onSelectVisual,
+    required this.onSelectColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Section: Visualizer type
+          const Text(
+            'STYLE',
+            style: TextStyle(
+              color: Colors.white38,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 1.0,
+            ),
+          ),
+          const SizedBox(height: 10),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            child: Row(
+              children: visualizers.entries.map((entry) {
+                final isSelected = entry.key == selectedVisual;
+
+                return Padding(
+                  padding: const EdgeInsets.only(right: 10),
+                  child: GestureDetector(
+                    onTap: () => onSelectVisual(entry.key),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? _accentColor.withValues(alpha: 0.2)
+                            : Colors.white.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: isSelected
+                              ? _accentColor.withValues(alpha: 0.5)
+                              : Colors.transparent,
+                          width: 1.5,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            entry.value.icon,
+                            color: isSelected ? _accentColor : Colors.white54,
+                            size: 18,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            entry.value.name,
+                            style: TextStyle(
+                              color:
+                                  isSelected ? _accentColor : Colors.white70,
+                              fontSize: 13,
+                              fontWeight: isSelected
+                                  ? FontWeight.w600
+                                  : FontWeight.w400,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+          const SizedBox(height: 20),
+          // Section: Color palette
+          const Text(
+            'COLOR',
+            style: TextStyle(
+              color: Colors.white38,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 1.0,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: _VisualUIState._colorPalette.map((pair) {
+              final color = pair.$2;
+              final isSelected = visualColor.toARGB32() == color.toARGB32();
+
+              return Padding(
+                padding: const EdgeInsets.only(right: 12),
+                child: GestureDetector(
+                  onTap: () => onSelectColor(color),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: color,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: isSelected
+                            ? Colors.white
+                            : Colors.transparent,
+                        width: 2.5,
+                      ),
+                      boxShadow: isSelected
+                          ? [
+                              BoxShadow(
+                                color: color.withValues(alpha: 0.4),
+                                blurRadius: 12,
+                                spreadRadius: 2,
+                              ),
+                            ]
+                          : null,
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 16),
+        ],
+      ),
+    );
+  }
+}
+
+/// Small circle button for the bottom bar.
+class _CircleButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+  final bool accent;
+
+  const _CircleButton({
+    required this.icon,
+    required this.onTap,
+    this.accent = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: accent
+                ? const Color(0xFFD4A825).withValues(alpha: 0.2)
+                : Colors.white.withValues(alpha: 0.1),
+          ),
+          child: Icon(
+            icon,
+            color: accent ? const Color(0xFFD4A825) : Colors.white70,
+            size: 22,
+          ),
+        ),
       ),
     );
   }

@@ -31,7 +31,7 @@ class SpectrumVisualizer extends CustomPainter {
     for (int i = 0; i < audioData.length / 8; i++) {
       // Add subtle animation to the bar heights
       final animatedValue =
-          audioData[i] * (0.9 + 0.1 * sin(time * 2 + i * 0.2));
+          audioData[i] * (0.95 + 0.05 * sin(time * pi * 2 + i * 0.15));
 
       // Limit height to 50% of screen height
       final barHeight = (height * 0.3) * animatedValue.clamp(0.0, 10);

@@ -14,6 +14,7 @@ import '../controllers/AppController.dart';
 import '../pages/VisualUI.dart';
 import '../player/widgets/NowPlaying.dart';
 import '../player/widgets/TrackInfo.dart';
+import '../pages/Equalizer.dart';
 import '../widgets/ArtworkWidget.dart';
 
 SystemUiOverlayStyle overlay = const SystemUiOverlayStyle(
@@ -47,46 +48,103 @@ Widget playerVisual(AppController controller) {
   );
 }
 
-Widget playerControls(AppController controller, BuildContext context) {
-  return Padding(
-    padding: const EdgeInsets.only(right: 20.0, top: 10, bottom: 10, left: 20),
+Widget playerActionBar(AppController controller, BuildContext context) {
+  return Container(
+    margin: const EdgeInsets.symmetric(horizontal: 24),
+    padding: const EdgeInsets.symmetric(vertical: 8),
+    decoration: BoxDecoration(
+      color: Colors.white.withValues(alpha: 0.06),
+      borderRadius: BorderRadius.circular(16),
+    ),
     child: Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
-        IconButton(
-          style: IconButton.styleFrom(backgroundColor: Colors.black54),
-          onPressed: () => Routes.routeTo(const VisualUI(), context),
-          icon: const Icon(Icons.graphic_eq_rounded),
+        _ActionItem(
+          icon: Icons.equalizer_rounded,
+          label: 'EQ',
+          onTap: () =>
+              Routes.routeTo(const Equalizer(), context, animate: true),
         ),
-        IconButton(
-          style: IconButton.styleFrom(backgroundColor: Colors.black54),
-          onPressed: () {
-            showCupertinoModalPopup(
-              barrierColor: Colors.black12,
-              filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+        _ActionItem(
+          icon: Icons.graphic_eq_rounded,
+          label: 'Visual',
+          onTap: () => Routes.routeTo(const VisualUI(), context),
+        ),
+        _ActionItem(
+          icon: Icons.queue_music_rounded,
+          label: 'Queue',
+          onTap: () {
+            showModalBottomSheet(
               context: context,
+              isScrollControlled: true,
+              backgroundColor: Colors.transparent,
+              barrierColor: Colors.black54,
               builder: (context) {
-                return BottomSheet(
-                  backgroundColor: Colors.black38,
-                  onClosing: () {},
-                  builder: (context) {
-                    return NowPlaying(controller: controller);
+                return DraggableScrollableSheet(
+                  initialChildSize: 0.55,
+                  minChildSize: 0.3,
+                  maxChildSize: 0.92,
+                  builder: (context, scrollController) {
+                    return NowPlaying(
+                      controller: controller,
+                      scrollController: scrollController,
+                    );
                   },
                 );
               },
             );
           },
-          icon: const Icon(Icons.playlist_play),
         ),
-        IconButton(
-          style: IconButton.styleFrom(backgroundColor: Colors.black54),
-          onPressed: () => showTrackInfo(context, controller),
-          color: Colors.white,
-          icon: const Icon(Icons.more_vert_rounded),
+        _ActionItem(
+          icon: Icons.info_outline_rounded,
+          label: 'Info',
+          onTap: () => showTrackInfo(context, controller),
         ),
       ],
     ),
   );
+}
+
+class _ActionItem extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  const _ActionItem({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, color: Colors.white70, size: 22),
+              const SizedBox(height: 4),
+              Text(
+                label,
+                style: const TextStyle(
+                  color: Colors.white54,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w500,
+                  letterSpacing: 0.3,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 Widget playerCard(
@@ -97,108 +155,45 @@ Widget playerCard(
 }) {
   final idx = songIndex ?? controller.songId;
   final song = controller.songs[idx];
-  return Stack(
-    children: [
-      AnimatedBuilder(
-        animation: animation,
-        builder: (context, child) {
-          return Transform.scale(
-            scale: animation.value,
-            child: FittedBox(
-              child: Padding(
-                padding: const EdgeInsets.only(
-                  right: 28.0,
-                  top: 10,
-                  bottom: 0,
-                  left: 28,
-                ),
-                child: SizedBox(
-                  height: MediaQuery.of(context).size.width,
-                  width: MediaQuery.of(context).size.width,
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(15),
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        ArtworkWidget(
-                          quality: 100,
-                          borderRadius: BorderRadius.circular(15),
-                          size: 1000,
-                          songId: song.id,
-                          type: ArtworkType.AUDIO,
-                          path: song.data,
-                        ),
-                        // Gradient overlay at bottom for text legibility
-                        Positioned(
-                          left: 0,
-                          right: 0,
-                          bottom: 0,
-                          height: 120,
-                          child: DecoratedBox(
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                begin: Alignment.topCenter,
-                                end: Alignment.bottomCenter,
-                                colors: [
-                                  Colors.transparent,
-                                  Colors.black.withValues(alpha: 0.7),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                        // Title + artist overlay
-                        Positioned(
-                          left: 16,
-                          right: 16,
-                          bottom: 52,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                song.title,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .titleMedium!
-                                    .copyWith(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                song.artist ?? 'Unknown artist',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .bodySmall!
-                                    .copyWith(
-                                      color: Colors.white.withValues(alpha: 0.7),
-                                    ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
+
+  return Center(
+    child: AnimatedBuilder(
+      animation: animation,
+      builder: (context, child) {
+        return Transform.scale(
+          scale: animation.value,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 32),
+            child: AspectRatio(
+              aspectRatio: 1.0,
+              child: Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(18),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.4),
+                      blurRadius: 30,
+                      offset: const Offset(0, 12),
                     ),
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(18),
+                  child: ArtworkWidget(
+                    quality: 100,
+                    borderRadius: BorderRadius.circular(18),
+                    size: 1000,
+                    songId: song.id,
+                    type: ArtworkType.AUDIO,
+                    path: song.data,
                   ),
                 ),
               ),
             ),
-          );
-        },
-      ),
-      if (idx == controller.songId)
-        Positioned(
-          bottom: 0,
-          left: 20,
-          right: 20,
-          child: playerControls(controller, context),
-        ),
-    ],
+          ),
+        );
+      },
+    ),
   );
 }
 

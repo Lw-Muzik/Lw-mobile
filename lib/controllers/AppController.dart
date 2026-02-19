@@ -271,6 +271,12 @@ class AppController with ChangeNotifier {
   bool _isShuffled = false;
   bool _isVisualInBackground = false;
   bool _visuals = false;
+
+  // Visualizer fine-tuning
+  String _visualizerStyle = 'circular';
+  int _visualizerColor = 0xFFFFFFFF; // white
+  int _visualizerFrameRate = 30;
+  double _visualizerReactivity = 0.15; // smoothing attack factor
   int _songId = 0;
   int _artWorkId = 0;
   // Main method.
@@ -455,6 +461,11 @@ class AppController with ChangeNotifier {
     _replayGain = _prefs.getBool("replayGain") ?? false;
     _dvcEnabled = _prefs.getBool("dvcEnabled") ?? false;
     _dvcGain = _prefs.getDouble("dvcGain") ?? 0.0;
+    // Visualizer fine-tuning
+    _visualizerStyle = _prefs.getString("visualizerStyle") ?? 'circular';
+    _visualizerColor = _prefs.getInt("visualizerColor") ?? 0xFFFFFFFF;
+    _visualizerFrameRate = _prefs.getInt("visualizerFrameRate") ?? 30;
+    _visualizerReactivity = _prefs.getDouble("visualizerReactivity") ?? 0.15;
   }
 
   bool get isDark {
@@ -481,6 +492,37 @@ class AppController with ChangeNotifier {
   set isVisualInBackground(bool b) {
     _prefs.setBool("isVisualInBackground", b);
     _isVisualInBackground = b;
+    notifyListeners();
+  }
+
+  // Visualizer fine-tuning getters
+  String get visualizerStyle => _visualizerStyle;
+  int get visualizerColor => _visualizerColor;
+  int get visualizerFrameRate => _visualizerFrameRate;
+  double get visualizerReactivity => _visualizerReactivity;
+
+  // Visualizer fine-tuning setters
+  set visualizerStyle(String v) {
+    _prefs.setString("visualizerStyle", v);
+    _visualizerStyle = v;
+    notifyListeners();
+  }
+
+  set visualizerColor(int c) {
+    _prefs.setInt("visualizerColor", c);
+    _visualizerColor = c;
+    notifyListeners();
+  }
+
+  set visualizerFrameRate(int fps) {
+    _prefs.setInt("visualizerFrameRate", fps);
+    _visualizerFrameRate = fps;
+    notifyListeners();
+  }
+
+  set visualizerReactivity(double r) {
+    _prefs.setDouble("visualizerReactivity", r);
+    _visualizerReactivity = r;
     notifyListeners();
   }
 

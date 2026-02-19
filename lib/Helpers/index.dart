@@ -1,8 +1,7 @@
-// ignore_for_file: depend_on_referenced_packages
+// ignore_for_file: depend_on_referenced_packages, use_build_context_synchronously
 
 import 'dart:io';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:id3tag/id3tag.dart';
 import '/exports/exports.dart';
@@ -240,22 +239,19 @@ void showAddPlaylist(
                   final name = textController.text.trim();
                   if (name.isNotEmpty &&
                       !RegExp(r'[\\/:*?"<>|]').hasMatch(name)) {
-                    controller.audioQuery
-                        .createPlaylist(name)
-                        .then((value) {
-                          if (value) {
-                            // controller.audioQuery.addToPlaylist()
-                            showMessage(
-                              context: context,
-                              float: true,
-                              type: "success",
-                              msg:
-                                  "${textController.text} created successfully",
-                            );
-                            textController.clear();
-                            Routes.pop(context);
-                          }
-                        });
+                    controller.audioQuery.createPlaylist(name).then((value) {
+                      if (value) {
+                        // controller.audioQuery.addToPlaylist()
+                        showMessage(
+                          context: context,
+                          float: true,
+                          type: "success",
+                          msg: "${textController.text} created successfully",
+                        );
+                        textController.clear();
+                        Routes.pop(context);
+                      }
+                    });
                   } else {
                     showMessage(
                       context: context,
@@ -317,8 +313,7 @@ void showDeletePlaylist(
   );
 }
 
-final RegExp _durationRegex =
-    RegExp(r'((^0*[1-9]\d*:)?\d{2}:\d{2})\.\d+$');
+final RegExp _durationRegex = RegExp(r'((^0*[1-9]\d*:)?\d{2}:\d{2})\.\d+$');
 
 String formatTime(Duration time) {
   return "${_durationRegex.firstMatch("$time")?.group(1)}";

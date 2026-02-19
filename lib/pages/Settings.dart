@@ -230,7 +230,31 @@ class _SettingsState extends State<Settings> {
 
   // -- Visualizer Section --
 
+  static const _visualizerStyles = {
+    'circular': ('Circular', Icons.circle_outlined),
+    'bars': ('Spectrum', Icons.bar_chart_rounded),
+    'sphere': ('Sphere', Icons.radio_button_unchecked),
+    'flower': ('Plasma', Icons.blur_circular),
+    'fabric': ('Fabric', Icons.texture),
+    'sea': ('Ocean', Icons.water),
+    'cube': ('Cube', Icons.view_in_ar),
+    'ripple': ('Ripple', Icons.waves),
+  };
+
+  static const _visualizerColors = [
+    (0xFFFFFFFF, 'White'),
+    (0xFFD4A825, 'Gold'),
+    (0xFF2196F3, 'Blue'),
+    (0xFF9C27B0, 'Purple'),
+    (0xFF4CAF50, 'Green'),
+    (0xFFE91E63, 'Pink'),
+    (0xFFFF5722, 'Orange'),
+    (0xFF00BCD4, 'Cyan'),
+  ];
+
   Widget _buildVisualizerSection(AppController controller) {
+    final accent = Theme.of(context).colorScheme.primary;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -269,8 +293,161 @@ class _SettingsState extends State<Settings> {
                 controller.isVisualInBackground = enabled,
           ),
         ]),
+
+        const SizedBox(height: 12),
+        _buildSectionHeader(Icons.auto_awesome, "Visual Style"),
+        _buildSectionCard([
+          // Style selector
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+            child: Text("Style",
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context)
+                        .colorScheme
+                        .onSurface
+                        .withValues(alpha: 0.5),
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.5)),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: _visualizerStyles.entries.map((entry) {
+                final isSelected = controller.visualizerStyle == entry.key;
+                return ChoiceChip(
+                  avatar: Icon(entry.value.$2,
+                      size: 16,
+                      color: isSelected ? accent : null),
+                  label: Text(entry.value.$1),
+                  selected: isSelected,
+                  onSelected: (_) =>
+                      controller.visualizerStyle = entry.key,
+                );
+              }).toList(),
+            ),
+          ),
+          const SizedBox(height: 12),
+          const Divider(height: 1, indent: 16, endIndent: 16),
+
+          // Color picker
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+            child: Text("Color",
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context)
+                        .colorScheme
+                        .onSurface
+                        .withValues(alpha: 0.5),
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.5)),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              children: _visualizerColors.map((pair) {
+                final colorVal = pair.$1;
+                final isSelected = controller.visualizerColor == colorVal;
+                return Padding(
+                  padding: const EdgeInsets.only(right: 10),
+                  child: GestureDetector(
+                    onTap: () => controller.visualizerColor = colorVal,
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      width: 30,
+                      height: 30,
+                      decoration: BoxDecoration(
+                        color: Color(colorVal),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: isSelected ? accent : Colors.transparent,
+                          width: 2.5,
+                        ),
+                        boxShadow: isSelected
+                            ? [
+                                BoxShadow(
+                                  color: Color(colorVal)
+                                      .withValues(alpha: 0.4),
+                                  blurRadius: 8,
+                                  spreadRadius: 1,
+                                ),
+                              ]
+                            : null,
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+          const SizedBox(height: 14),
+          const Divider(height: 1, indent: 16, endIndent: 16),
+
+          // Frame rate slider
+          ListTile(
+            title: const Text("Frame rate"),
+            subtitle: Text("${controller.visualizerFrameRate} fps"),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              children: [
+                const Text("15"),
+                Expanded(
+                  child: Slider.adaptive(
+                    value: controller.visualizerFrameRate.toDouble(),
+                    min: 15,
+                    max: 60,
+                    divisions: 9,
+                    label: "${controller.visualizerFrameRate} fps",
+                    onChanged: (v) {
+                      controller.visualizerFrameRate = v.toInt();
+                      Visualizers.setFrameRate(v.toInt());
+                    },
+                  ),
+                ),
+                const Text("60"),
+              ],
+            ),
+          ),
+          const Divider(height: 1, indent: 16, endIndent: 16),
+
+          // Reactivity slider
+          ListTile(
+            title: const Text("Reactivity"),
+            subtitle: Text(_reactivityLabel(controller.visualizerReactivity)),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: Row(
+              children: [
+                const Text("Smooth"),
+                Expanded(
+                  child: Slider.adaptive(
+                    value: controller.visualizerReactivity,
+                    min: 0.05,
+                    max: 0.35,
+                    divisions: 6,
+                    onChanged: (v) =>
+                        controller.visualizerReactivity = v,
+                  ),
+                ),
+                const Text("Snappy"),
+              ],
+            ),
+          ),
+        ]),
       ],
     );
+  }
+
+  String _reactivityLabel(double value) {
+    if (value <= 0.08) return "Very smooth";
+    if (value <= 0.12) return "Smooth";
+    if (value <= 0.18) return "Balanced";
+    if (value <= 0.25) return "Responsive";
+    return "Snappy";
   }
 
   // -- Library Section --

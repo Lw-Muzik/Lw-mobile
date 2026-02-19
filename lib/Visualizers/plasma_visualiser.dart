@@ -74,7 +74,7 @@ class PlasmaVisualizer extends CustomPainter {
 
     for (int i = 0; i < 8; i++) {
       final angle = (2 * pi * i) / 8;
-      final rotationOffset = time * (1 + layer) * 0.3 * avgAmplitude;
+      final rotationOffset = time * pi * 2 * (0.1 + layer * 0.05) * avgAmplitude;
 
       canvas.save();
       canvas.translate(center.dx, center.dy);
@@ -154,7 +154,7 @@ class PlasmaVisualizer extends CustomPainter {
 
       canvas.save();
       canvas.translate(center.dx, center.dy);
-      canvas.rotate(i * (2 * pi / segments) + time * 0.5);
+      canvas.rotate(i * (2 * pi / segments) + time * pi * 2 * 0.15);
       canvas.drawRect(rect, _circlePaint);
       canvas.restore();
     }
@@ -164,7 +164,7 @@ class PlasmaVisualizer extends CustomPainter {
       Canvas canvas, Size size, List<double> frequencies, double avgAmplitude) {
     final numParticles = (20 * avgAmplitude).toInt();
     for (int i = 0; i < numParticles; i++) {
-      final progress = (time * 0.5 + i * 0.1) % 1.0;
+      final progress = (time + i * 0.1) % 1.0;
       final angle = 2 * pi * progress;
       final radius = min(size.width, size.height) * 0.5 * progress;
 

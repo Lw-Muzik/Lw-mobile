@@ -7,40 +7,42 @@ class VisualizerWidget extends StatefulWidget {
       builder;
 
   final int id;
-  const VisualizerWidget({
-    super.key,
-    required this.builder,
-    required this.id,
-  });
+  const VisualizerWidget({super.key, required this.builder, required this.id});
 
   @override
   State<VisualizerWidget> createState() => _VisualizerWidgetState();
 }
 
 class _VisualizerWidgetState extends State<VisualizerWidget> {
-  AudioVisualizer? visualizer;
-  int sampleRate = 0;
-  List<int> waveData = const [];
-  final List<double> _normalizedAudioData = List.filled(512, 0.0);
+  AudioVisualizer? _visualizer;
+  int _sampleRate = 0;
+  List<int> _waveData = const [];
+
   @override
   void initState() {
     super.initState();
+    _visualizer = Visualizers.audioVisualizer()..activate(widget.id);
+    _visualizer!.addListener(
+      waveformCallback: _onWaveform,
+    );
+  }
+
+  void _onWaveform(List<int> samples, int sampleRate) {
+    if (!mounted) return;
+    setState(() {
+      _waveData = samples;
+      _sampleRate = sampleRate;
+    });
   }
 
   @override
   void dispose() {
+    _visualizer?.removeListener(waveformCallback: _onWaveform);
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    visualizer = Visualizers.audioVisualizer()
-      ..activate(widget.id)
-      ..addListener(waveformCallback: (samples, sampleRate) {
-        setState(() => waveData = samples);
-        setState(() => this.sampleRate = sampleRate);
-      });
-
-    return widget.builder(context, waveData, sampleRate);
+    return widget.builder(context, _waveData, _sampleRate);
   }
 }

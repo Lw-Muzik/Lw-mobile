@@ -1,4 +1,3 @@
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:provider/provider.dart';
@@ -7,7 +6,7 @@ import '/Helpers/Channel.dart';
 import '/extensions/index.dart';
 
 class EqualizerControls extends StatefulWidget {
-  const EqualizerControls({Key? key}) : super(key: key);
+  const EqualizerControls({super.key});
 
   @override
   State<EqualizerControls> createState() => _EqualizerControlsState();
@@ -97,12 +96,7 @@ class VerticalSlider extends StatelessWidget {
           thumbShape: RoundSliderThumbShape(enabledThumbRadius: 16),
           tickMarkShape: RoundSliderTickMarkShape(tickMarkRadius: 2),
         ),
-        child: Slider(
-          value: value,
-          min: min,
-          max: max,
-          onChanged: onChanged,
-        ),
+        child: Slider(value: value, min: min, max: max, onChanged: onChanged),
       ),
     );
   }

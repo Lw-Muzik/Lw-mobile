@@ -1,53 +1,38 @@
-import 'package:eq_app/Routes/routes.dart';
-import 'package:eq_app/pages/Equalizer.dart';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-
-import '../../controllers/AppController.dart';
 
 class Header extends StatelessWidget {
   const Header({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<AppController>(builder: (context, controller, child) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        child: Row(
-          children: <Widget>[
-            IconButton(
-              onPressed: () => Navigator.of(context).pop(),
-              iconSize: 32,
-              icon: const Icon(
-                Icons.keyboard_arrow_down_outlined,
-                color: Colors.white,
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      child: Row(
+        children: [
+          IconButton(
+            onPressed: () => Navigator.of(context).pop(),
+            icon: const Icon(
+              Icons.keyboard_arrow_down_rounded,
+              color: Colors.white,
+              size: 28,
+            ),
+          ),
+          const Expanded(
+            child: Text(
+              'NOW PLAYING',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.white70,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 1.5,
               ),
             ),
-            Expanded(
-              child: Column(
-                children: <Widget>[
-                  Text(
-                    "${controller.songId + 1} of ${controller.songs.length} TRACKS",
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context)
-                        .textTheme
-                        .bodySmall!
-                        .copyWith(fontWeight: FontWeight.w300)
-                        .apply(color: Colors.white),
-                  ),
-                ],
-              ),
-            ),
-            InkWell(
-                child: const Icon(
-                  Icons.equalizer_rounded,
-                  color: Colors.white,
-                ),
-                onTap: () =>
-                    Routes.routeTo(const Equalizer(), context, animate: true)),
-          ],
-        ),
-      );
-    });
+          ),
+          // Placeholder to balance the row
+          const SizedBox(width: 48),
+        ],
+      ),
+    );
   }
 }

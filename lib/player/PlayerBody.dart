@@ -22,38 +22,43 @@ class _PlayerBodyState extends State<PlayerBody> {
         if (controller.visuals) {
           Visualizers.enableVisual(true);
         }
+        final size = MediaQuery.of(context).size;
+
         return Stack(
           children: [
+            // Background artwork
             SizedBox(
-              height: MediaQuery.of(context).size.height,
+              height: size.height,
+              width: size.width,
               child: ArtworkWidget(
-                // artworkBlendMode: BlendMode.darken,
-                // useSaved: false,
-                height: MediaQuery.of(context).size.height,
-                width: MediaQuery.of(context).size.width,
+                height: size.height,
+                width: size.width,
                 songId: controller.songs[controller.songId].id,
                 size: 2000,
                 type: ArtworkType.AUDIO,
                 path: controller.songs[controller.songId].data,
               ),
             ),
+            // Heavy blur + dark gradient overlay
             BackdropFilter(
               filter: ImageFilter.blur(
-                sigmaX: controller.blur,
-                sigmaY: controller.blur,
+                sigmaX: controller.blur + 10,
+                sigmaY: controller.blur + 10,
               ),
               child: Container(
-                height: MediaQuery.of(context).size.height,
+                height: size.height,
+                width: size.width,
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: [
-                      const Color.fromARGB(255, 0, 0, 0).withValues(alpha:0.2),
-                      const Color.fromARGB(255, 0, 0, 0).withValues(alpha:0.50),
-                      const Color.fromARGB(255, 0, 0, 0).withValues(alpha:0.90),
+                      Colors.black.withValues(alpha: 0.40),
+                      Colors.black.withValues(alpha: 0.60),
+                      Colors.black.withValues(alpha: 0.85),
+                      Colors.black.withValues(alpha: 0.95),
                     ],
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
-                    stops: const [0.0, 0.50, 1.0],
+                    stops: const [0.0, 0.3, 0.7, 1.0],
                   ),
                 ),
               ),

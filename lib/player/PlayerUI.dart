@@ -1,4 +1,4 @@
-// ignore_for_file: library_private_types_in_public_api
+// ignore_for_file: library_private_types_in_public_api, depend_on_referenced_packages
 import 'package:permission_handler/permission_handler.dart';
 import 'package:rxdart/rxdart.dart';
 import 'package:flutter/material.dart';
@@ -73,7 +73,10 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
       body: Consumer<AppController>(
         builder: (context, controller, child) {
           final player = controller.handler.player;
-          final playerKey = Object.hash(controller.songId, identityHashCode(player));
+          final playerKey = Object.hash(
+            controller.songId,
+            identityHashCode(player),
+          );
 
           return StreamBuilder(
             key: ValueKey(playerKey),
@@ -130,27 +133,33 @@ class _PlayerLayout extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final topPadding = MediaQuery.of(context).padding.top;
+    final bottomPadding = MediaQuery.of(context).padding.bottom;
 
     return SizedBox(
       height: MediaQuery.of(context).size.height,
       width: MediaQuery.of(context).size.width,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: <Widget>[
-          SizedBox(height: topPadding),
+        children: [
+          SizedBox(height: topPadding + 4),
           const Header(),
+          // Card deck — sole Expanded, artwork centers itself within
           _CardDeck(
             controller: controller,
             animation: animation,
             cardKey: cardKey,
           ),
-          const SizedBox(height: 8),
+          // Track info (title + artist)
+          _TrackInfo(controller: controller),
+          const SizedBox(height: 12),
+          // Waveform seek bar
           _WaveformProgress(controller: controller),
-          const SizedBox(height: 4),
-          Controls(
-            onNextPressed: onControlNext,
-            onPrevPressed: onControlPrev,
-          ),
+          const SizedBox(height: 20),
+          // Playback controls
+          Controls(onNextPressed: onControlNext, onPrevPressed: onControlPrev),
+          const SizedBox(height: 20),
+          // Action bar (visualizer, queue, more)
+          playerActionBar(controller, context),
+          SizedBox(height: bottomPadding + 12),
         ],
       ),
     );
@@ -203,6 +212,48 @@ class _CardDeck extends StatelessWidget {
   }
 }
 
+/// Track title and artist — shown below the card deck.
+class _TrackInfo extends StatelessWidget {
+  final AppController controller;
+  const _TrackInfo({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    final song = controller.songs[controller.songId];
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 32),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            song.title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.2,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            song.artist ?? 'Unknown artist',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.55),
+              fontSize: 14,
+              fontWeight: FontWeight.w400,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// Waveform progress bar — uses [currentTrackPlayer] which always returns
 /// the player that has the latest track loaded, even during crossfade.
 class _WaveformProgress extends StatelessWidget {
@@ -216,7 +267,10 @@ class _WaveformProgress extends StatelessWidget {
     // and the active player otherwise — so the waveform always tracks
     // the new track from the moment crossfade begins.
     final trackPlayer = controller.handler.currentTrackPlayer;
-    final streamKey = Object.hash(controller.songId, identityHashCode(trackPlayer));
+    final streamKey = Object.hash(
+      controller.songId,
+      identityHashCode(trackPlayer),
+    );
 
     return StreamBuilder<PositionData>(
       key: ValueKey(streamKey),
