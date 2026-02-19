@@ -251,7 +251,7 @@ Widget headerWidget(
         Positioned(
           bottom: 160,
           left: 10,
-          child: InkWell(
+          child: GestureDetector(
             onTap: () {
               List<SongModel> s = data;
               if (s.isNotEmpty) {
@@ -285,7 +285,7 @@ Widget headerWidget(
   );
 }
 
-void loadAudioSource(HypeAudioHandler handler, SongModel song) async {
+void loadAudioSource(HypeAudioHandler handler, SongModel song, {bool replayGain = false}) async {
   String image = await fetchArtworkUrl(song.data, song.id);
 
   MediaItem item = MediaItem(
@@ -298,7 +298,15 @@ void loadAudioSource(HypeAudioHandler handler, SongModel song) async {
   );
 
   handler.setCurrentMediaItem(item);
-  handler.player.setAudioSource(AudioSource.uri(Uri.parse(item.id), tag: item));
+  await handler.player.setAudioSource(AudioSource.uri(Uri.parse(item.id), tag: item));
+
+  if (replayGain) {
+    final gain = await HypeAudioHandler.computeReplayGainVolume(song.data);
+    handler.player.setVolume(gain);
+  } else {
+    handler.player.setVolume(1.0);
+  }
+
   handler.player.play();
 }
 

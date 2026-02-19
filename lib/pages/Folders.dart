@@ -14,34 +14,85 @@ class Folders extends StatefulWidget {
 }
 
 class _FoldersState extends State<Folders> {
+  late Future<List<String>> _foldersFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _foldersFuture = OnAudioQuery.platform.queryAllPath();
+  }
+
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<List<String>>(
-      future: OnAudioQuery.platform.queryAllPath(),
+      future: _foldersFuture,
       builder: (context, snapshot) {
-        return GridView.count(
-          crossAxisCount: 3,
-          crossAxisSpacing: 2,
-          mainAxisSpacing: 2,
-          children: List.generate(
-            snapshot.data?.length ?? 0,
-            (index) => Container(
-              margin: const EdgeInsets.all(10),
-              child: InkWell(
-                onLongPress: () {
-                  showDeleteWindow("folder", snapshot.data![index], context);
-                },
-                child: Routes.animateTo(
-                  closedWidget: GridTile(
-                    child: folderArtwork(
-                      snapshot.data![index],
-                      snapshot.data?[index].split("/").last ?? "",
-                    ),
-                  ),
-                  openWidget: FolderSongs(path: snapshot.data?[index] ?? ""),
-                ),
-              ),
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator.adaptive());
+        } else if (snapshot.hasError) {
+          return Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.error_outline, size: 48,
+                    color: Theme.of(context).colorScheme.error),
+                const SizedBox(height: 12),
+                Text("Failed to load folders",
+                    style: Theme.of(context).textTheme.titleMedium),
+              ],
             ),
+          );
+        } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.folder_open, size: 64,
+                    color: Theme.of(context).colorScheme.onSurface
+                        .withValues(alpha: 0.3)),
+                const SizedBox(height: 12),
+                Text("No folders found",
+                    style: Theme.of(context).textTheme.titleMedium),
+              ],
+            ),
+          );
+        }
+
+        final folders = snapshot.data!;
+        return Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: GridView.builder(
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              crossAxisSpacing: 8,
+              mainAxisSpacing: 8,
+              childAspectRatio: 1.0,
+            ),
+            itemCount: folders.length,
+            itemBuilder: (context, index) {
+              final path = folders[index];
+              final folderName = path.split("/").last;
+              return InkWell(
+                onTap: () => Routes.scaleTo(
+                  FolderSongs(path: path),
+                  context,
+                ),
+                onLongPress: () {
+                  showDeleteWindow("folder", path, context);
+                },
+                child: Hero(
+                  tag: 'folder_$path',
+                  child: Card(
+                    elevation: 2,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: folderArtwork(path, folderName),
+                  ),
+                ),
+              );
+            },
           ),
         );
       },

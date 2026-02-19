@@ -47,18 +47,21 @@ class _GenreSongsState extends State<GenreSongs> {
                 expandedTitleScale: 70,
                 background: Stack(
                   children: [
-                    headerWidget(
-                      context.read<AppController>(),
-                      context,
-                      child: ArtworkWidget(
-                        borderRadius: BorderRadius.zero,
-                        size: 5000,
-                        quality: 100,
-                        width: MediaQuery.of(context).size.width,
-                        height: MediaQuery.of(context).size.width,
-                        songId: widget.genreId!,
-                        other: widget.genre,
-                        type: ArtworkType.GENRE,
+                    Hero(
+                      tag: 'genre_${widget.genreId}',
+                      child: headerWidget(
+                        context.read<AppController>(),
+                        context,
+                        child: ArtworkWidget(
+                          borderRadius: BorderRadius.zero,
+                          size: 5000,
+                          quality: 100,
+                          width: MediaQuery.of(context).size.width,
+                          height: MediaQuery.of(context).size.width,
+                          songId: widget.genreId!,
+                          other: widget.genre,
+                          type: ArtworkType.GENRE,
+                        ),
                       ),
                     ),
                     Positioned(
@@ -136,61 +139,62 @@ class SongLists extends StatefulWidget {
 
 class _SongListsState extends State<SongLists> {
   int _selected = -1;
+
   @override
   Widget build(BuildContext context) {
-    return widget.songs.isEmpty
-        ? Center(
-            child: Text(
-              "No songs found",
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-          )
-        : ListView.builder(
-            itemCount: widget.songs.length,
-            itemBuilder: (context, index) {
-              return Consumer<AppController>(
-                builder: (context, controller, ch) {
-                  return Container(
-                    decoration: commonDeration(controller, index, context),
-                    child: ListTile(
-                      selected: controller.songId == _selected,
-                      selectedTileColor: Theme.of(
-                        context,
-                      ).primaryColorLight.withValues(alpha: 0.1),
-                      selectedColor: Theme.of(context).primaryColorLight,
-                      title: Text(widget.songs[index].title),
-                      subtitle: Text(widget.songs[index].artist ?? "No Artist"),
-                      trailing: Text(
-                        "${formatTime(Duration(milliseconds: widget.songs[index].duration ?? 0))} | ${widget.songs[index].fileExtension}",
-                      ),
-                      onTap: () {
-                        setState(() {
-                          _selected = index;
-                        });
-                        controller.songs = widget.songs;
+    if (widget.songs.isEmpty) {
+      return Center(
+        child: Text(
+          "No songs found",
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+      );
+    }
 
-                        int songIndex = (controller.songs.indexWhere(
-                          (result) => result.title == widget.songs[index].title,
-                        ));
-                        controller.songId = songIndex;
-                        loadAudioSource(
-                          controller.handler,
-                          controller.songs[songIndex],
-                        );
-                        Routes.routeTo(const Player(), context);
-                      },
-                      // This Widget will query/load image.
-                      // You can use/create your own widget/method using [queryArtwork].
-                      leading: ArtworkWidget(
-                        songId: widget.songs[index].id,
-                        path: widget.songs[index].data,
-                        type: ArtworkType.AUDIO,
-                      ),
-                    ),
+    return Consumer<AppController>(
+      builder: (context, controller, _) {
+        return ListView.builder(
+          itemCount: widget.songs.length,
+          itemBuilder: (context, index) {
+            return Container(
+              decoration: commonDeration(controller, index, context),
+              child: ListTile(
+                selected: controller.songId == _selected,
+                selectedTileColor: Theme.of(
+                  context,
+                ).primaryColorLight.withValues(alpha: 0.1),
+                selectedColor: Theme.of(context).primaryColorLight,
+                title: Text(widget.songs[index].title),
+                subtitle: Text(widget.songs[index].artist ?? "No Artist"),
+                trailing: Text(
+                  "${formatTime(Duration(milliseconds: widget.songs[index].duration ?? 0))} | ${widget.songs[index].fileExtension}",
+                ),
+                onTap: () {
+                  setState(() {
+                    _selected = index;
+                  });
+                  controller.songs = widget.songs;
+
+                  int songIndex = (controller.songs.indexWhere(
+                    (result) => result.title == widget.songs[index].title,
+                  ));
+                  controller.songId = songIndex;
+                  loadAudioSource(
+                    controller.handler,
+                    controller.songs[songIndex],
                   );
+                  Routes.routeTo(const Player(), context);
                 },
-              );
-            },
-          );
+                leading: ArtworkWidget(
+                  songId: widget.songs[index].id,
+                  path: widget.songs[index].data,
+                  type: ArtworkType.AUDIO,
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 }

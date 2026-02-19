@@ -26,6 +26,17 @@ class PlaylistSongs extends StatefulWidget {
 }
 
 class _PlaylistSongsState extends State<PlaylistSongs> {
+  late Future<List<SongModel>> _songsFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _songsFuture = OnAudioQuery().queryAudiosFrom(
+      AudiosFromType.PLAYLIST,
+      widget.playlistId,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return NestedScrollView(
@@ -38,35 +49,32 @@ class _PlaylistSongsState extends State<PlaylistSongs> {
             elevation: 0,
             flexibleSpace: FlexibleSpaceBar(
               centerTitle: true,
-              background: Stack(
-                children: [
-                  StreamBuilder<List<SongModel>>(
-                    stream: Stream.fromFuture(
-                      OnAudioQuery().queryAudiosFrom(
-                        AudiosFromType.PLAYLIST,
-                        widget.playlistId,
-                      ),
+              background: Hero(
+                tag: 'playlist_${widget.playlistId}',
+                child: Stack(
+                  children: [
+                    FutureBuilder<List<SongModel>>(
+                      future: _songsFuture,
+                      builder: (context, snapshot) {
+                        return snapshot.hasData
+                            ? Consumer<AppController>(
+                                builder: (context, controller, child) {
+                                  return snapshot.data!.isNotEmpty
+                                      ? headerWidget(
+                                          controller,
+                                          context,
+                                          data: snapshot.data!,
+                                        )
+                                      : Container();
+                                },
+                              )
+                            : Container();
+                      },
                     ),
-                    builder: (context, snapshot) {
-                      return snapshot.hasData
-                          ? Consumer<AppController>(
-                              builder: (context, controller, child) {
-                                return snapshot.data!.isNotEmpty
-                                    ? headerWidget(
-                                        controller,
-                                        context,
-                                        data: snapshot.data!,
-                                      )
-                                    : Container();
-                              },
-                            )
-                          : Container();
-                    },
-                  ),
-                  Positioned(
-                    bottom: 45,
-                    left: 10,
-                    child: RichText(
+                    Positioned(
+                      bottom: 45,
+                      left: 10,
+                      child: RichText(
                       text: TextSpan(
                         children: [
                           TextSpan(
@@ -87,9 +95,9 @@ class _PlaylistSongsState extends State<PlaylistSongs> {
                       ),
                     ),
                   ),
-                ],
+                  ],
+                ),
               ),
-              // title: ,
             ),
           ),
         ];
@@ -106,10 +114,7 @@ class _PlaylistSongsState extends State<PlaylistSongs> {
                 body: Stack(
                   children: [
                     FutureBuilder(
-                      future: (OnAudioQuery().queryAudiosFrom(
-                        AudiosFromType.PLAYLIST,
-                        widget.playlistId,
-                      )),
+                      future: _songsFuture,
                       builder: (context, snap) {
                         return snap.hasData
                             ? PlaylistSongLists(
@@ -146,86 +151,86 @@ class PlaylistSongLists extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return songs.isEmpty
-        ? Center(
-            child: Text(
-              "No songs found",
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-          )
-        : ListView.builder(
-            itemCount: songs.length,
-            itemBuilder: (context, index) {
-              return Consumer<AppController>(
-                builder: (context, controller, ch) {
-                  return Container(
-                    margin: const EdgeInsets.only(left: 10, right: 10),
-                    decoration: commonDeration(controller, index, context),
-                    child: ListTile(
-                      selected: controller.songId == index,
-                      onLongPress: () {
-                        showModalBottomSheet(
-                          context: context,
-                          builder: (context) {
-                            return BottomSheet(
-                              onClosing: () {},
-                              builder: (context) {
-                                return PlayListEditor(
-                                  audioId: controller.songs[index].id,
-                                  song: controller.songs[index].title,
-                                  playlist: playlist,
-                                );
-                              },
-                            );
-                          },
-                        );
-                      },
-                      selectedTileColor: Theme.of(
-                        context,
-                      ).primaryColor.withValues(alpha: 0.1),
-                      selectedColor: Theme.of(context).primaryColorLight,
-                      title: Text(
-                        songs[index].title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodyMedium!,
-                      ),
-                      subtitle: Text(
-                        songs[index].artist ?? "No Artist",
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      trailing: Text(
-                        "${formatTime(Duration(milliseconds: songs[index].duration ?? 0))} | ${songs[index].fileExtension}",
-                      ),
-                      onTap: () {
-                        if (controller.songs.length != songs.length) {
-                          controller.songs = songs;
-                        }
-                        int songIndex = (controller.songs.indexWhere(
-                          (result) => result.title == songs[index].title,
-                        ));
-                        controller.songId = songIndex;
-                        loadAudioSource(
-                          controller.handler,
-                          controller.songs[songIndex],
-                        );
-                      },
-                      // This Widget will query/load image.
-                      // You can use/create your own widget/method using [queryArtwork].
-                      leading: ArtworkWidget(
-                        height: 60,
-                        width: 60,
-                        songId: songs[index].id,
-                        path: songs[index].data,
-                        type: ArtworkType.AUDIO,
-                      ),
-                    ),
+    if (songs.isEmpty) {
+      return Center(
+        child: Text(
+          "No songs found",
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+      );
+    }
+
+    return Consumer<AppController>(
+      builder: (context, controller, _) {
+        return ListView.builder(
+          itemCount: songs.length,
+          itemBuilder: (context, index) {
+            return Container(
+              margin: const EdgeInsets.only(left: 10, right: 10),
+              decoration: commonDeration(controller, index, context),
+              child: ListTile(
+                selected: controller.songId == index,
+                onLongPress: () {
+                  showModalBottomSheet(
+                    context: context,
+                    builder: (context) {
+                      return BottomSheet(
+                        onClosing: () {},
+                        builder: (context) {
+                          return PlayListEditor(
+                            audioId: controller.songs[index].id,
+                            song: controller.songs[index].title,
+                            playlist: playlist,
+                          );
+                        },
+                      );
+                    },
                   );
                 },
-              );
-            },
-          );
+                selectedTileColor: Theme.of(
+                  context,
+                ).primaryColor.withValues(alpha: 0.1),
+                selectedColor: Theme.of(context).primaryColorLight,
+                title: Text(
+                  songs[index].title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodyMedium!,
+                ),
+                subtitle: Text(
+                  songs[index].artist ?? "No Artist",
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                trailing: Text(
+                  "${formatTime(Duration(milliseconds: songs[index].duration ?? 0))} | ${songs[index].fileExtension}",
+                ),
+                onTap: () {
+                  if (controller.songs.length != songs.length) {
+                    controller.songs = songs;
+                  }
+                  int songIndex = (controller.songs.indexWhere(
+                    (result) => result.title == songs[index].title,
+                  ));
+                  controller.songId = songIndex;
+                  loadAudioSource(
+                    controller.handler,
+                    controller.songs[songIndex],
+                  );
+                },
+                leading: ArtworkWidget(
+                  height: 60,
+                  width: 60,
+                  songId: songs[index].id,
+                  path: songs[index].data,
+                  type: ArtworkType.AUDIO,
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 }
 

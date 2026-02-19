@@ -4,7 +4,6 @@ import '/Helpers/AudioVisualizer.dart';
 import '/Routes/routes.dart';
 import '/controllers/AppController.dart';
 import '/widgets/Body.dart';
-import '/widgets/HorizontalSlider.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:wiredash/wiredash.dart';
@@ -35,23 +34,21 @@ class _SettingsState extends State<Settings> {
                 forceMaterialTransparency: controller.isFancy,
                 title: const Text("Settings"),
               ),
-              body: Column(
+              body: ListView(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 children: [
-                  _buildLibraryTile(),
-                  _buildFancyThemeSwitch(controller),
-                  _buildPlayerBackgroundSettings(controller),
-                  _buildVisualizerSettings(controller),
-                  _buildBugReportTile(context),
-                  ListTile(
-                    leading: const Icon(Icons.info_rounded),
-                    title: const Text("About Hype Music"),
-                    subtitle:
-                        const Text("All you need to know about Hype Music"),
-                    onTap: () {
-                      showAboutAppDialog(context);
-                    },
-                  ),
-                  _buildExitTile(),
+                  _buildPlaybackSection(controller),
+                  const SizedBox(height: 12),
+                  _buildAudioEnhancementSection(controller),
+                  const SizedBox(height: 12),
+                  _buildAppearanceSection(controller),
+                  const SizedBox(height: 12),
+                  _buildVisualizerSection(controller),
+                  const SizedBox(height: 12),
+                  _buildLibrarySection(),
+                  const SizedBox(height: 12),
+                  _buildAboutSection(context),
+                  const SizedBox(height: 24),
                 ],
               ),
               bottomNavigationBar: service.data ?? false
@@ -63,9 +60,275 @@ class _SettingsState extends State<Settings> {
       );
     });
   }
-// import 'package:flutter/material.dart';
 
-  void showAboutAppDialog(BuildContext context) {
+  // -- Section builder helpers --
+
+  Widget _buildSectionHeader(IconData icon, String title) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 4, bottom: 8),
+      child: Row(
+        children: [
+          Icon(icon, size: 20, color: Theme.of(context).colorScheme.primary),
+          const SizedBox(width: 8),
+          Text(
+            title,
+            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  color: Theme.of(context).colorScheme.primary,
+                  fontWeight: FontWeight.w600,
+                ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSectionCard(List<Widget> children) {
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      color: Theme.of(context).colorScheme.surfaceContainerLow,
+      clipBehavior: Clip.antiAlias,
+      child: Column(children: children),
+    );
+  }
+
+  // -- Playback Section --
+
+  Widget _buildPlaybackSection(AppController controller) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionHeader(Icons.headphones, "Playback"),
+        _buildSectionCard([
+          SwitchListTile.adaptive(
+            value: controller.gaplessPlayback,
+            title: const Text("Gapless playback"),
+            subtitle: Text(controller.gaplessPlayback ? "Enabled" : "Disabled"),
+            onChanged: (enabled) => controller.gaplessPlayback = enabled,
+          ),
+          const Divider(height: 1, indent: 16, endIndent: 16),
+          ListTile(
+            title: const Text("Crossfade"),
+            subtitle: Text(
+              controller.crossfadeDuration == 0
+                  ? "Off"
+                  : "${controller.crossfadeDuration}s",
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              children: [
+                const Text("0s"),
+                Expanded(
+                  child: Slider.adaptive(
+                    value: controller.crossfadeDuration.toDouble(),
+                    min: 0,
+                    max: 12,
+                    divisions: 12,
+                    label: "${controller.crossfadeDuration}s",
+                    onChanged: (value) =>
+                        controller.crossfadeDuration = value.toInt(),
+                  ),
+                ),
+                const Text("12s"),
+              ],
+            ),
+          ),
+          const Divider(height: 1, indent: 16, endIndent: 16),
+          SwitchListTile.adaptive(
+            value: controller.replayGain,
+            title: const Text("Replay gain"),
+            subtitle: const Text("Volume normalization via ID3 tags"),
+            onChanged: (enabled) => controller.replayGain = enabled,
+          ),
+        ]),
+      ],
+    );
+  }
+
+  // -- Audio Enhancement Section --
+
+  Widget _buildAudioEnhancementSection(AppController controller) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionHeader(Icons.tune, "Audio Enhancement"),
+        _buildSectionCard([
+          SwitchListTile.adaptive(
+            value: controller.dvcEnabled,
+            title: const Text("Direct volume control"),
+            subtitle: const Text("Hardware loudness enhancer"),
+            onChanged: (enabled) => controller.dvcEnabled = enabled,
+          ),
+          if (controller.dvcEnabled) ...[
+            const Divider(height: 1, indent: 16, endIndent: 16),
+            ListTile(
+              title: const Text("DVC Gain"),
+              subtitle: Text("${controller.dvcGain.toStringAsFixed(1)} dB"),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
+                children: [
+                  const Text("-30"),
+                  Expanded(
+                    child: Slider.adaptive(
+                      value: controller.dvcGain,
+                      min: -30,
+                      max: 30,
+                      divisions: 60,
+                      label: "${controller.dvcGain.toStringAsFixed(1)} dB",
+                      onChanged: (value) => controller.dvcGain = value,
+                    ),
+                  ),
+                  const Text("+30"),
+                ],
+              ),
+            ),
+          ],
+        ]),
+      ],
+    );
+  }
+
+  // -- Appearance Section --
+
+  Widget _buildAppearanceSection(AppController controller) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionHeader(Icons.palette, "Appearance"),
+        _buildSectionCard([
+          SwitchListTile.adaptive(
+            value: controller.isFancy,
+            title: const Text("Fancy theme"),
+            subtitle:
+                Text(controller.isFancy ? "Fancy enabled" : "Fancy disabled"),
+            onChanged: (enabled) => controller.isFancy = enabled,
+          ),
+          const Divider(height: 1, indent: 16, endIndent: 16),
+          ListTile(
+            title: const Text("Player blur"),
+            subtitle: Text(
+              "${((controller.blur / 500) * 100).toStringAsFixed(0)}%",
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Slider.adaptive(
+              value: controller.blur,
+              min: 0,
+              max: 500,
+              onChanged: (value) => controller.blur = value,
+            ),
+          ),
+        ]),
+      ],
+    );
+  }
+
+  // -- Visualizer Section --
+
+  Widget _buildVisualizerSection(AppController controller) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionHeader(Icons.graphic_eq, "Visualizer"),
+        _buildSectionCard([
+          FutureBuilder<bool>(
+            future: Visualizers.getEnabled(),
+            builder: (context, snapshot) {
+              return SwitchListTile.adaptive(
+                value: controller.visuals,
+                title: const Text("Enable visualizer"),
+                subtitle:
+                    Text(controller.visuals ? "Enabled" : "Disabled"),
+                onChanged: (enabled) {
+                  controller.visuals = enabled;
+                  Visualizers.enableVisual(enabled);
+                },
+              );
+            },
+          ),
+          const Divider(height: 1, indent: 16, endIndent: 16),
+          SwitchListTile.adaptive(
+            value: controller.playerVisual,
+            title: const Text("Bottom player visualizer"),
+            subtitle:
+                Text(controller.playerVisual ? "Enabled" : "Disabled"),
+            onChanged: (enabled) => controller.playerVisual = enabled,
+          ),
+          const Divider(height: 1, indent: 16, endIndent: 16),
+          SwitchListTile.adaptive(
+            value: controller.isVisualInBackground,
+            title: const Text("Background visualizer"),
+            subtitle: Text(
+                controller.isVisualInBackground ? "Enabled" : "Disabled"),
+            onChanged: (enabled) =>
+                controller.isVisualInBackground = enabled,
+          ),
+        ]),
+      ],
+    );
+  }
+
+  // -- Library Section --
+
+  Widget _buildLibrarySection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionHeader(Icons.library_music, "Library"),
+        _buildSectionCard([
+          ListTile(
+            title: const Text("Rescan library"),
+            subtitle:
+                const Text("Tap to rescan assets in case of missing files"),
+            trailing: const Icon(Icons.refresh),
+            onTap: () => Navigator.pushNamed(context, Routes.loader),
+          ),
+        ]),
+      ],
+    );
+  }
+
+  // -- About & Support Section --
+
+  Widget _buildAboutSection(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionHeader(Icons.info_outline, "About & Support"),
+        _buildSectionCard([
+          ListTile(
+            title: const Text("About Hype Music"),
+            subtitle:
+                const Text("All you need to know about Hype Music"),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => _showAboutAppDialog(context),
+          ),
+          const Divider(height: 1, indent: 16, endIndent: 16),
+          ListTile(
+            title: const Text("Report a bug"),
+            trailing: const Icon(Icons.bug_report_rounded),
+            onTap: () =>
+                Wiredash.of(context).show(inheritMaterialTheme: true),
+          ),
+          const Divider(height: 1, indent: 16, endIndent: 16),
+          ListTile(
+            title: const Text("Exit"),
+            trailing: const Icon(Icons.exit_to_app),
+            onTap: () => _showExitConfirmationDialog(),
+          ),
+        ]),
+      ],
+    );
+  }
+
+  // -- Dialogs --
+
+  void _showAboutAppDialog(BuildContext context) {
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -84,94 +347,6 @@ class _SettingsState extends State<Settings> {
           ],
         );
       },
-    );
-  }
-
-  ListTile _buildLibraryTile() {
-    return ListTile(
-      leading: const Icon(Icons.my_library_music_rounded),
-      title: const Text("Library"),
-      subtitle: const Text("Tap to rescan assets in case of missing files"),
-      onTap: () => Navigator.pushNamed(context, Routes.loader),
-    );
-  }
-
-  SwitchListTile _buildFancyThemeSwitch(AppController controller) {
-    return SwitchListTile.adaptive(
-      value: controller.isFancy,
-      secondary: const Icon(Icons.light_mode),
-      subtitle: Text(controller.isFancy ? "Fancy enabled" : "Fancy disabled"),
-      title: const Text("Fancy theme"),
-      onChanged: (enabled) => controller.isFancy = enabled,
-    );
-  }
-
-  ExpansionTile _buildPlayerBackgroundSettings(AppController controller) {
-    return ExpansionTile(
-      leading: const Icon(Icons.phone_android),
-      title: const Text("Player Background"),
-      children: [
-        HorizontalSlider(
-          title: "Blur",
-          onChanged: (value) => controller.blur = value,
-          value: controller.blur,
-          max: 500,
-          min: 0,
-          dB: "${((controller.blur / 500) * 100).toStringAsFixed(1)} %",
-        ),
-      ],
-    );
-  }
-
-  ExpansionTile _buildVisualizerSettings(AppController controller) {
-    return ExpansionTile(
-      leading: const Icon(Icons.graphic_eq),
-      title: const Text("Visualizer"),
-      children: [
-        FutureBuilder<bool>(
-          future: Visualizers.getEnabled(),
-          builder: (context, snapshot) {
-            return SwitchListTile(
-              value: controller.visuals,
-              onChanged: (enabled) {
-                controller.visuals = enabled;
-                Visualizers.enableVisual(enabled);
-              },
-              subtitle: Text(controller.visuals ? "Enabled" : "Disabled"),
-              title: const Text("Enable visualizer"),
-            );
-          },
-        ),
-        SwitchListTile(
-          value: controller.playerVisual,
-          onChanged: (enabled) => controller.playerVisual = enabled,
-          subtitle: Text(controller.playerVisual ? "Enabled" : "Disabled"),
-          title: const Text("Enable bottom visualizer in player"),
-        ),
-        SwitchListTile(
-          value: controller.isVisualInBackground,
-          onChanged: (enabled) => controller.isVisualInBackground = enabled,
-          subtitle:
-              Text(controller.isVisualInBackground ? "Enabled" : "Disabled"),
-          title: const Text("Enable visualizer in background"),
-        ),
-      ],
-    );
-  }
-
-  ListTile _buildBugReportTile(BuildContext context) {
-    return ListTile(
-      title: const Text("Report a bug"),
-      leading: const Icon(Icons.bug_report_rounded),
-      onTap: () => Wiredash.of(context).show(inheritMaterialTheme: true),
-    );
-  }
-
-  ListTile _buildExitTile() {
-    return ListTile(
-      leading: const Icon(Icons.exit_to_app),
-      title: const Text("Exit"),
-      onTap: () => _showExitConfirmationDialog(),
     );
   }
 

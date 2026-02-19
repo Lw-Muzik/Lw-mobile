@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:eq_app/Global/index.dart';
@@ -5,6 +6,8 @@ import '/exports/exports.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../Helpers/AudioHandler.dart';
+import '../Helpers/Channel.dart';
+import '../Helpers/index.dart';
 
 class AppController with ChangeNotifier {
   List<int> bandValues = [0, 0, 0, 0, 0];
@@ -47,6 +50,66 @@ class AppController with ChangeNotifier {
   // bass freq
   double _bassFreq = 50;
   double _vocalFreq = 450;
+
+  // Audio feature settings
+  bool _gaplessPlayback = true;
+  int _crossfadeDuration = 0; // seconds, 0 = off
+  bool _replayGain = false;
+  bool _dvcEnabled = false;
+  double _dvcGain = 0.0; // dB, range -30 to +30
+
+  // Audio feature getters
+  bool get gaplessPlayback => _gaplessPlayback;
+  int get crossfadeDuration => _crossfadeDuration;
+  bool get replayGain => _replayGain;
+  bool get dvcEnabled => _dvcEnabled;
+  double get dvcGain => _dvcGain;
+
+  // Audio feature setters
+  set gaplessPlayback(bool value) {
+    _prefs.setBool("gaplessPlayback", value);
+    _gaplessPlayback = value;
+    if (value && _crossfadeDuration > 0) {
+      // Gapless and crossfade are mutually exclusive
+      crossfadeDuration = 0;
+    }
+    notifyListeners();
+  }
+
+  set crossfadeDuration(int value) {
+    _prefs.setInt("crossfadeDuration", value);
+    _crossfadeDuration = value;
+    if (value > 0 && _gaplessPlayback) {
+      // Crossfade > 0 forces gapless OFF
+      _gaplessPlayback = false;
+      _prefs.setBool("gaplessPlayback", false);
+    }
+    notifyListeners();
+  }
+
+  set replayGain(bool value) {
+    _prefs.setBool("replayGain", value);
+    _replayGain = value;
+    // Apply immediately if a song is loaded
+    if (!value) {
+      handler.player.setVolume(1.0);
+    }
+    notifyListeners();
+  }
+
+  set dvcEnabled(bool value) {
+    _prefs.setBool("dvcEnabled", value);
+    _dvcEnabled = value;
+    Channel.enableLoudnessEnhancer(value);
+    notifyListeners();
+  }
+
+  set dvcGain(double value) {
+    _prefs.setDouble("dvcGain", value);
+    _dvcGain = value;
+    Channel.setTargetGain((value * 100).toInt()); // API expects millibels
+    notifyListeners();
+  }
 
   // DSP getters
   bool get enableDSP => _enableDSP;
@@ -219,6 +282,9 @@ class AppController with ChangeNotifier {
   List<SongModel> _songs = [];
   List<SongModel> _shuffledSongs = [];
 
+  StreamSubscription<Duration>? _positionSub;
+  bool _isCrossfading = false;
+
   AppController(this._prefs, this._handler) {
     _loadSettings();
 
@@ -226,17 +292,100 @@ class AppController with ChangeNotifier {
     _handler.onSkipToNext = next;
     _handler.onSkipToPrevious = prev;
 
+    // Apply DVC state on startup
+    if (_dvcEnabled) {
+      Channel.enableLoudnessEnhancer(true);
+      Channel.setTargetGain((_dvcGain * 100).toInt());
+    }
+
     handler.player.processingStateStream.listen((event) {
       if (event == ProcessingState.completed) {
-        if (songId >= songs.length - 1) {
-          handler.player.stop();
-        } else {
-          songId += 1;
-          artWorkId = songs[songId].id;
-          loadAudioSource(handler, songs[songId]);
+        if (_gaplessPlayback && handler.player.audioSources.length > 1) {
+          // Gapless mode: just_audio handles advancement via ConcatenatingAudioSource
+          // If we've reached the end of the queue, stop
+          final idx = handler.player.currentIndex ?? 0;
+          if (idx >= songs.length - 1) {
+            handler.player.stop();
+          }
+        } else if (!_isCrossfading) {
+          if (songId >= songs.length - 1) {
+            handler.player.stop();
+          } else {
+            songId += 1;
+            artWorkId = songs[songId].id;
+            loadAudioSource(handler, songs[songId], replayGain: _replayGain);
+          }
         }
       }
     });
+
+    // Listen for index changes in gapless mode
+    handler.player.currentIndexStream.listen((index) {
+      if (index != null && _gaplessPlayback && songs.isNotEmpty && index < songs.length) {
+        _songId = index;
+        _artWorkId = songs[index].id;
+        _updateMediaItemForIndex(index);
+        notifyListeners();
+      }
+    });
+
+    // Crossfade position monitoring
+    _setupCrossfadeListener();
+  }
+
+  void _setupCrossfadeListener() {
+    _positionSub?.cancel();
+    _positionSub = handler.player.positionStream.listen((position) {
+      final duration = handler.player.duration;
+      if (_crossfadeDuration > 0 &&
+          !_isCrossfading &&
+          duration != null &&
+          duration.inSeconds > _crossfadeDuration &&
+          position >= duration - Duration(seconds: _crossfadeDuration) &&
+          songId < songs.length - 1) {
+        _beginCrossfade();
+      }
+    });
+  }
+
+  Future<void> _beginCrossfade() async {
+    if (_isCrossfading) return;
+    _isCrossfading = true;
+    final nextIdx = songId + 1;
+    final nextSong = songs[nextIdx];
+    await handler.beginCrossfade(
+      AudioSource.uri(Uri.parse(nextSong.data)),
+      nextSong,
+      Duration(seconds: _crossfadeDuration),
+      replayGain: _replayGain,
+    );
+    _songId = nextIdx;
+    _artWorkId = nextSong.id;
+    _isCrossfading = false;
+    notifyListeners();
+  }
+
+  Future<void> _updateMediaItemForIndex(int index) async {
+    if (index >= songs.length) return;
+    final song = songs[index];
+    final image = await fetchArtworkUrl(song.data, song.id);
+    handler.setCurrentMediaItem(MediaItem(
+      id: song.data,
+      album: song.album,
+      title: song.title,
+      artist: song.artist,
+      duration: Duration(milliseconds: song.duration ?? 0),
+      artUri: Uri.file(image),
+    ));
+  }
+
+  /// Build and load a queue for gapless playback
+  Future<void> loadGaplessQueue(int startIndex) async {
+    if (songs.isEmpty) return;
+    final sources = songs.map((s) => AudioSource.uri(Uri.parse(s.data))).toList();
+    await handler.player.setAudioSources(sources, initialIndex: startIndex);
+    await _updateMediaItemForIndex(startIndex);
+    handler.player.play();
   }
 
   void _loadSettings() {
@@ -268,6 +417,12 @@ class AppController with ChangeNotifier {
     _preGain = _prefs.getDouble("preGain") ?? 20.0;
     _kneeWidth = _prefs.getDouble("kneeWidth") ?? 0.4;
     _spkName = _prefs.getString("spkName") ?? "BEATS BY DRE";
+    // Audio features
+    _gaplessPlayback = _prefs.getBool("gaplessPlayback") ?? true;
+    _crossfadeDuration = _prefs.getInt("crossfadeDuration") ?? 0;
+    _replayGain = _prefs.getBool("replayGain") ?? false;
+    _dvcEnabled = _prefs.getBool("dvcEnabled") ?? false;
+    _dvcGain = _prefs.getDouble("dvcGain") ?? 0.0;
   }
 
   bool get isDark {
@@ -395,7 +550,11 @@ class AppController with ChangeNotifier {
       sample[j] = temp;
     }
     songId = 0;
-    loadAudioSource(handler, sample[0]);
+    if (_gaplessPlayback && _crossfadeDuration == 0) {
+      loadGaplessQueue(0);
+    } else {
+      loadAudioSource(handler, sample[0], replayGain: _replayGain);
+    }
   }
 
   set songId(int id) {
@@ -407,10 +566,12 @@ class AppController with ChangeNotifier {
     if (songId >= songs.length - 1) {
       songId = 0;
       handler.player.stop();
+    } else if (_gaplessPlayback && handler.player.audioSources.length > 1) {
+      handler.player.seekToNext();
     } else {
       songId += 1;
       artWorkId = songs[songId].id;
-      loadAudioSource(handler, songs[songId]);
+      loadAudioSource(handler, songs[songId], replayGain: _replayGain);
     }
   }
 
@@ -418,10 +579,12 @@ class AppController with ChangeNotifier {
     if (songId == 0) {
       songId = 0;
       handler.player.stop();
+    } else if (_gaplessPlayback && handler.player.audioSources.length > 1) {
+      handler.player.seekToPrevious();
     } else {
       songId -= 1;
       artWorkId = songs[songId].id;
-      loadAudioSource(handler, songs[songId]);
+      loadAudioSource(handler, songs[songId], replayGain: _replayGain);
     }
   }
 }

@@ -51,18 +51,21 @@ class _AlbumSongsState extends State<AlbumSongs> {
                 // expandedTitleScale: 70,
                 background: Stack(
                   children: [
-                    headerWidget(
-                      context.read<AppController>(),
-                      context,
-                      child: ArtworkWidget(
-                        borderRadius: BorderRadius.zero,
-                        size: 5000,
-                        quality: 100,
-                        width: MediaQuery.of(context).size.width,
-                        height: MediaQuery.of(context).size.width,
-                        songId: widget.albumId!,
-                        other: widget.album,
-                        type: ArtworkType.ALBUM,
+                    Hero(
+                      tag: 'album_${widget.albumId}',
+                      child: headerWidget(
+                        context.read<AppController>(),
+                        context,
+                        child: ArtworkWidget(
+                          borderRadius: BorderRadius.zero,
+                          size: 5000,
+                          quality: 100,
+                          width: MediaQuery.of(context).size.width,
+                          height: MediaQuery.of(context).size.width,
+                          songId: widget.albumId!,
+                          other: widget.album,
+                          type: ArtworkType.ALBUM,
+                        ),
                       ),
                     ),
                     Positioned(
@@ -137,71 +140,67 @@ class SongLists extends StatefulWidget {
 }
 
 class _SongListsState extends State<SongLists> {
-  @override
-  void dispose() {
-    super.dispose();
-  }
-
   int _selected = -1;
+
   @override
   Widget build(BuildContext context) {
-    return widget.songs.isEmpty
-        ? Center(
-            child: Text(
-              "No songs found",
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-          )
-        : ListView.builder(
-            itemCount: widget.songs.length,
-            itemBuilder: (context, index) {
-              return Consumer<AppController>(
-                builder: (context, controller, ch) {
-                  return Container(
-                    margin: const EdgeInsets.only(left: 10, right: 10),
-                    decoration: commonDeration(controller, _selected, context),
-                    child: ListTile(
-                      selected: controller.songId == _selected,
-                      selectedTileColor: Theme.of(
-                        context,
-                      ).primaryColorLight.withValues(alpha: 0.3),
-                      selectedColor: Theme.of(context).primaryColorLight,
-                      title: Text(widget.songs[index].title),
-                      subtitle: Text(widget.songs[index].artist ?? "No Artist"),
-                      trailing: Text(
-                        "${formatTime(Duration(milliseconds: widget.songs[index].duration ?? 0))} | ${widget.songs[index].fileExtension}",
-                      ),
-                      onTap: () {
-                        setState(() {
-                          _selected = index;
-                        });
+    if (widget.songs.isEmpty) {
+      return Center(
+        child: Text(
+          "No songs found",
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+      );
+    }
 
-                        controller.songs = widget.songs;
+    return Consumer<AppController>(
+      builder: (context, controller, _) {
+        return ListView.builder(
+          itemCount: widget.songs.length,
+          itemBuilder: (context, index) {
+            return Container(
+              margin: const EdgeInsets.only(left: 10, right: 10),
+              decoration: commonDeration(controller, _selected, context),
+              child: ListTile(
+                selected: controller.songId == _selected,
+                selectedTileColor: Theme.of(
+                  context,
+                ).primaryColorLight.withValues(alpha: 0.3),
+                selectedColor: Theme.of(context).primaryColorLight,
+                title: Text(widget.songs[index].title),
+                subtitle: Text(widget.songs[index].artist ?? "No Artist"),
+                trailing: Text(
+                  "${formatTime(Duration(milliseconds: widget.songs[index].duration ?? 0))} | ${widget.songs[index].fileExtension}",
+                ),
+                onTap: () {
+                  setState(() {
+                    _selected = index;
+                  });
 
-                        int songIndex = controller.songs.indexWhere(
-                          (result) => result.title == widget.songs[index].title,
-                        );
-                        controller.songId = songIndex;
+                  controller.songs = widget.songs;
 
-                        loadAudioSource(
-                          controller.handler,
-                          controller.songs[songIndex],
-                        );
-                      },
-                      // This Widget will query/load image.
-                      // You can use/create your own widget/method using [queryArtwork].
-                      leading: ArtworkWidget(
-                        height: 60,
-                        width: 60,
-                        path: widget.songs[index].data,
-                        songId: widget.songs[index].id,
-                        type: ArtworkType.AUDIO,
-                      ),
-                    ),
+                  int songIndex = controller.songs.indexWhere(
+                    (result) => result.title == widget.songs[index].title,
+                  );
+                  controller.songId = songIndex;
+
+                  loadAudioSource(
+                    controller.handler,
+                    controller.songs[songIndex],
                   );
                 },
-              );
-            },
-          );
+                leading: ArtworkWidget(
+                  height: 60,
+                  width: 60,
+                  path: widget.songs[index].data,
+                  songId: widget.songs[index].id,
+                  type: ArtworkType.AUDIO,
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 }

@@ -61,21 +61,24 @@ class _FolderSongsState extends State<FolderSongs> {
   }
 
   Widget _buildFlexibleSpaceBackground(BuildContext context) {
-    return Stack(
-      children: [
-        FutureBuilder<List<SongModel>>(
-          future: _songsFuture,
-          builder: (context, snapshot) {
-            if (!snapshot.hasData) return const SizedBox.shrink();
+    return Hero(
+      tag: 'folder_${widget.path}',
+      child: Stack(
+        children: [
+          FutureBuilder<List<SongModel>>(
+            future: _songsFuture,
+            builder: (context, snapshot) {
+              if (!snapshot.hasData) return const SizedBox.shrink();
 
-            return Consumer<AppController>(
-              builder: (context, controller, _) =>
-                  headerWidget(controller, context, data: snapshot.data!),
-            );
-          },
-        ),
-        Positioned(bottom: 45, left: 10, child: _buildFolderInfo(context)),
-      ],
+              return Consumer<AppController>(
+                builder: (context, controller, _) =>
+                    headerWidget(controller, context, data: snapshot.data!),
+              );
+            },
+          ),
+          Positioned(bottom: 45, left: 10, child: _buildFolderInfo(context)),
+        ],
+      ),
     );
   }
 

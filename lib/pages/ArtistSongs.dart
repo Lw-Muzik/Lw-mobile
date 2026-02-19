@@ -79,18 +79,21 @@ class _ArtistSongsState extends State<ArtistSongs> {
   Widget _buildArtistBackground() {
     return Stack(
       children: [
-        headerWidget(
-          context.read<AppController>(),
-          context,
-          child: ArtworkWidget(
-            borderRadius: BorderRadius.zero,
-            size: 5000,
-            quality: 100,
-            width: MediaQuery.of(context).size.width,
-            height: MediaQuery.of(context).size.width,
-            songId: widget.artistId!,
-            other: widget.artist,
-            type: ArtworkType.ARTIST,
+        Hero(
+          tag: 'artist_${widget.artistId}',
+          child: headerWidget(
+            context.read<AppController>(),
+            context,
+            child: ArtworkWidget(
+              borderRadius: BorderRadius.zero,
+              size: 5000,
+              quality: 100,
+              width: MediaQuery.of(context).size.width,
+              height: MediaQuery.of(context).size.width,
+              songId: widget.artistId!,
+              other: widget.artist,
+              type: ArtworkType.ARTIST,
+            ),
           ),
         ),
         Positioned(
@@ -164,68 +167,71 @@ class SongLists extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return songs.isEmpty
-        ? Center(
-            child: Text(
-              "No songs found",
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-          )
-        : ListView.builder(
-            itemCount: songs.length,
-            itemBuilder: (context, index) {
-              return _buildSongItem(context, index);
-            },
-          );
-  }
+    if (songs.isEmpty) {
+      return Center(
+        child: Text(
+          "No songs found",
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+      );
+    }
 
-  Widget _buildSongItem(BuildContext context, int index) {
     return Consumer<AppController>(
       builder: (context, controller, _) {
-        final song = songs[index];
-        return Routes.animateTo(
-          closedWidget: InkWell(
-            child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 10),
-              decoration: commonDeration(controller, index, context),
-              child: ListTile(
-                selected: controller.songId == index,
-                selectedTileColor: Theme.of(
-                  context,
-                ).primaryColor.withValues(alpha: 0.1),
-                selectedColor: Theme.of(context).primaryColorLight,
-                title: Text(
-                  song.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodyMedium!,
-                ),
-                subtitle: Text(
-                  song.artist ?? "No Artist",
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                trailing: Text(
-                  "${formatTime(Duration(milliseconds: song.duration ?? 0))} | ${song.fileExtension}",
-                ),
-                onTap: () {
-                  _playSelectedSong(controller, context, song);
-                },
-                onLongPress: () =>
-                    _showPlaylistOptions(context, controller, song),
-                leading: ArtworkWidget(
-                  height: 60,
-                  width: 60,
-                  songId: song.id,
-                  path: song.data,
-                  type: ArtworkType.AUDIO,
-                ),
-              ),
-            ),
-          ),
-          openWidget: const Player(),
+        return ListView.builder(
+          itemCount: songs.length,
+          itemBuilder: (context, index) {
+            return _buildSongItem(context, index, controller);
+          },
         );
       },
+    );
+  }
+
+  Widget _buildSongItem(
+      BuildContext context, int index, AppController controller) {
+    final song = songs[index];
+    return Routes.animateTo(
+      closedWidget: InkWell(
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 10),
+          decoration: commonDeration(controller, index, context),
+          child: ListTile(
+            selected: controller.songId == index,
+            selectedTileColor: Theme.of(
+              context,
+            ).primaryColor.withValues(alpha: 0.1),
+            selectedColor: Theme.of(context).primaryColorLight,
+            title: Text(
+              song.title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.bodyMedium!,
+            ),
+            subtitle: Text(
+              song.artist ?? "No Artist",
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            trailing: Text(
+              "${formatTime(Duration(milliseconds: song.duration ?? 0))} | ${song.fileExtension}",
+            ),
+            onTap: () {
+              _playSelectedSong(controller, context, song);
+            },
+            onLongPress: () =>
+                _showPlaylistOptions(context, controller, song),
+            leading: ArtworkWidget(
+              height: 60,
+              width: 60,
+              songId: song.id,
+              path: song.data,
+              type: ArtworkType.AUDIO,
+            ),
+          ),
+        ),
+      ),
+      openWidget: const Player(),
     );
   }
 

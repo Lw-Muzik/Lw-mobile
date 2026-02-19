@@ -3,8 +3,6 @@ import 'package:eq_app/extensions/index.dart';
 import 'package:eq_app/pages/GenreSongs.dart';
 import '/exports/exports.dart';
 
-import '../widgets/ArtworkWidget.dart';
-
 class Genres extends StatefulWidget {
   const Genres({super.key});
 
@@ -13,64 +11,137 @@ class Genres extends StatefulWidget {
 }
 
 class _GenresState extends State<Genres> {
+  late Future<List<GenreModel>> _genresFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _genresFuture = OnAudioQuery.platform.queryGenres();
+  }
+
+  Color _genreColor(String name) {
+    final hash = name.hashCode;
+    final hue = (hash % 360).abs().toDouble();
+    return HSLColor.fromAHSL(1.0, hue, 0.5, 0.35).toColor();
+  }
+
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<List<GenreModel>>(
-      future: OnAudioQuery.platform.queryGenres(),
+      future: _genresFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
+          return const Center(child: CircularProgressIndicator.adaptive());
         } else if (snapshot.hasError) {
-          return const Center(child: Text("Error loading genres"));
+          return Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.error_outline, size: 48,
+                    color: Theme.of(context).colorScheme.error),
+                const SizedBox(height: 12),
+                Text("Failed to load genres",
+                    style: Theme.of(context).textTheme.titleMedium),
+              ],
+            ),
+          );
         } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          return const Center(child: Text("No genres found"));
+          return Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.category, size: 64,
+                    color: Theme.of(context).colorScheme.onSurface
+                        .withValues(alpha: 0.3)),
+                const SizedBox(height: 12),
+                Text("No genres found",
+                    style: Theme.of(context).textTheme.titleMedium),
+              ],
+            ),
+          );
         }
 
+        final genres = snapshot.data!;
         return Padding(
-          padding: const EdgeInsets.all(16.0),
+          padding: const EdgeInsets.all(8.0),
           child: GridView.builder(
-            itemCount: snapshot.data!.length,
+            itemCount: genres.length,
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 3,
-              crossAxisSpacing: 20,
-              mainAxisSpacing: 20,
+              crossAxisCount: 2,
+              crossAxisSpacing: 8,
+              mainAxisSpacing: 8,
             ),
             itemBuilder: (context, index) {
-              final genre = snapshot.data![index];
-              return Routes.animateTo(
-                closedWidget: GridTile(
-                  footer: Card(
-                    color: Theme.of(context).cardColor.withValues(alpha: 0.4),
-                    child: SizedBox(
-                      height: 46,
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            genre.genre,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.labelMedium,
-                          ),
-                          Text(
-                            genre.numOfSongs.nSongs,
-                            textAlign: TextAlign.center,
-                            style: Theme.of(context).textTheme.titleSmall,
-                          ),
+              final genre = genres[index];
+              final baseColor = _genreColor(genre.genre);
+              return InkWell(
+                onTap: () => Routes.scaleTo(
+                  GenreSongs(
+                    genreId: genre.id,
+                    genre: genre.genre,
+                    songs: genre.numOfSongs,
+                  ),
+                  context,
+                ),
+                child: Hero(
+                  tag: 'genre_${genre.id}',
+                  child: Card(
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          baseColor,
+                          baseColor.withValues(alpha: 0.7),
                         ],
                       ),
                     ),
-                  ),
-                  child: ArtworkWidget(
-                    borderRadius: BorderRadius.circular(10),
-                    songId: genre.id,
-                    type: ArtworkType.GENRE,
-                    other: genre.genre,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.music_note,
+                            size: 36, color: Colors.white70),
+                        const SizedBox(height: 8),
+                        Padding(
+                          padding:
+                              const EdgeInsets.symmetric(horizontal: 8),
+                          child: Text(
+                            genre.genre,
+                            maxLines: 2,
+                            textAlign: TextAlign.center,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleMedium
+                                ?.copyWith(color: Colors.white),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            genre.numOfSongs.nSongs,
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodySmall
+                                ?.copyWith(color: Colors.white70),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-                openWidget: GenreSongs(
-                  genreId: genre.id,
-                  genre: genre.genre,
-                  songs: genre.numOfSongs,
                 ),
               );
             },

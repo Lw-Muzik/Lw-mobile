@@ -60,6 +60,25 @@ class Routes {
         openBuilder: (context, fn) => openWidget);
   }
 
+  /// Premium detail-page transition: shared-axis Z (scale + fade)
+  static void scaleTo(Widget page, BuildContext context) {
+    Navigator.of(context).push(
+      PageRouteBuilder(
+        transitionDuration: const Duration(milliseconds: 400),
+        reverseTransitionDuration: const Duration(milliseconds: 350),
+        pageBuilder: (context, animation, secondaryAnimation) => page,
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return SharedAxisTransition(
+            animation: animation,
+            secondaryAnimation: secondaryAnimation,
+            transitionType: SharedAxisTransitionType.scaled,
+            child: child,
+          );
+        },
+      ),
+    );
+  }
+
   static void pop(BuildContext context) {
     Navigator.of(context).pop();
   }
