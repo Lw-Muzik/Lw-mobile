@@ -1,9 +1,12 @@
+import 'dart:io';
 import 'dart:ui';
+
 import 'package:eq_app/Helpers/VisualizerWidget.dart';
 import 'package:eq_app/Helpers/index.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:audio_service/audio_service.dart';
+import 'package:http/http.dart' as http;
 import '/exports/exports.dart';
 
 import '../Helpers/AudioHandler.dart';
@@ -334,7 +337,16 @@ Widget headerWidget(
 }
 
 void loadAudioSource(HypeAudioHandler handler, SongModel song, {bool replayGain = false}) async {
-  String image = await fetchArtworkUrl(song.data, song.id);
+  final isCloud = song.data.startsWith('http');
+
+  // Artwork: cloud tracks store thumbnail URL in album field
+  String image;
+  if (isCloud && song.album != null && song.album!.startsWith('http')) {
+    image = await _downloadCloudArtwork(song.album!, song.id) ??
+        await fetchArtworkUrl(song.data, song.id);
+  } else {
+    image = await fetchArtworkUrl(song.data, song.id);
+  }
 
   MediaItem item = MediaItem(
     id: song.data,
@@ -342,13 +354,34 @@ void loadAudioSource(HypeAudioHandler handler, SongModel song, {bool replayGain 
     title: song.title,
     artist: song.artist,
     duration: Duration(milliseconds: song.duration ?? 0),
-    artUri: Uri.file(image),
+    artUri: image.startsWith('/') ? Uri.file(image) : Uri.parse(image),
   );
 
   handler.setCurrentMediaItem(item);
-  await handler.player.setAudioSource(AudioSource.uri(Uri.parse(item.id), tag: item));
 
-  if (replayGain) {
+  if (isCloud) {
+    final cache = AppController.instance.cloudCache;
+    final auth = AppController.instance.cloudAuth;
+    final fileId = song.id.toString();
+
+    AudioSource source;
+    if (cache.isCached(fileId)) {
+      cache.markAccessed(fileId);
+      source = AudioSource.file(cache.cacheFile(fileId).path, tag: item);
+    } else {
+      final headers = song.data.contains('googleapis.com')
+          ? await auth.getGoogleAuthHeaders()
+          : <String, String>{};
+      source = LockCachingAudioSource(Uri.parse(item.id),
+          cacheFile: cache.cacheFile(fileId), headers: headers, tag: item);
+    }
+    await handler.player.setAudioSource(source);
+  } else {
+    await handler.player.setAudioSource(AudioSource.uri(Uri.parse(item.id), tag: item));
+  }
+
+  // Replay gain only for local files (needs ID3 tags)
+  if (replayGain && !isCloud) {
     final gain = await HypeAudioHandler.computeReplayGainVolume(song.data);
     handler.player.setVolume(gain);
   } else {
@@ -356,6 +389,20 @@ void loadAudioSource(HypeAudioHandler handler, SongModel song, {bool replayGain 
   }
 
   handler.player.play();
+}
+
+Future<String?> _downloadCloudArtwork(String url, int songId) async {
+  try {
+    final tempDir = await getTemporaryDirectory();
+    final file = File('${tempDir.path}/cloud_art_$songId.png');
+    if (file.existsSync()) return file.path;
+    final response = await http.get(Uri.parse(url));
+    if (response.statusCode == 200) {
+      await file.writeAsBytes(response.bodyBytes);
+      return file.path;
+    }
+  } catch (_) {}
+  return null;
 }
 
 //  function to show track info

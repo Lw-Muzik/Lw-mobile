@@ -13,6 +13,7 @@ import '/pages/SearchPage.dart';
 import '/pages/Settings.dart';
 import '/pages/Songs.dart';
 import '/pages/Artists.dart';
+import '/pages/cloud/CloudView.dart';
 import '/widgets/Body.dart';
 import '/widgets/BottomPlayer.dart';
 import '../Helpers/Channel.dart';
@@ -27,7 +28,7 @@ class Home extends StatefulWidget {
 
 class _HomeState extends State<Home> with TickerProviderStateMixin {
   late final TabController _tabController;
-  static const int TAB_COUNT = 6;
+  static const int TAB_COUNT = 7;
 
   // Cache commonly used values
   late final AppController _appController;
@@ -40,6 +41,7 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
     _TabDef(Icons.album_rounded, 'Albums'),
     _TabDef(Icons.category_rounded, 'Genres'),
     _TabDef(Icons.music_note_rounded, 'Songs'),
+    _TabDef(Icons.cloud_rounded, 'Cloud'),
   ];
 
   static const List<Widget> _tabViews = [
@@ -49,6 +51,7 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
     Albums(),
     Genres(),
     AllSongs(),
+    CloudView(),
   ];
 
   @override

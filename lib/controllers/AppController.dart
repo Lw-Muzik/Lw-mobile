@@ -10,8 +10,28 @@ import '../Helpers/AudioHandler.dart';
 import '../Helpers/Channel.dart';
 import '../Helpers/index.dart';
 import '../models/eq_models.dart';
+import 'dart:io';
+
+import 'package:http/http.dart' as http;
+
+import '../services/cloud_auth_service.dart';
+import '../services/cloud_cache_service.dart';
+import '../services/google_drive_service.dart';
+import '../services/dropbox_service.dart';
 
 class AppController with ChangeNotifier {
+  static AppController? _instance;
+  static AppController get instance => _instance!;
+
+  // Cloud services
+  late final CloudAuthService cloudAuth;
+  late final CloudCacheService cloudCache;
+  late final GoogleDriveService googleDriveService;
+  late final DropboxService dropboxService;
+
+  bool get isGoogleConnected => cloudAuth.isGoogleConnected;
+  bool get isDropboxConnected => cloudAuth.isDropboxConnected;
+
   List<int> bandValues = [0, 0, 0, 0, 0];
   // app themes
   String _selectedTheme = "light";
@@ -521,6 +541,14 @@ class AppController with ChangeNotifier {
     _bindCurrentIndex();
     _setupCrossfadeListener();
     _bindAudioSessionId();
+
+    // Cloud services
+    _instance = this;
+    cloudAuth = CloudAuthService();
+    cloudCache = CloudCacheService(_prefs);
+    googleDriveService = GoogleDriveService(cloudAuth);
+    dropboxService = DropboxService(cloudAuth);
+    _initCloudServices();
   }
 
   /// Listen to audio session ID changes and rebind all native effects.
@@ -545,6 +573,9 @@ class AppController with ChangeNotifier {
   void _bindProcessingState() {
     _processingSub?.cancel();
     _processingSub = handler.player.processingStateStream.listen((event) {
+      if (event == ProcessingState.ready) {
+        preCacheNextCloudTracks();
+      }
       if (event == ProcessingState.completed) {
         if (_gaplessPlayback && handler.player.audioSources.length > 1) {
           final idx = handler.player.currentIndex ?? 0;
@@ -617,16 +648,27 @@ class AppController with ChangeNotifier {
     final nextIdx = songId + 1;
     final nextSong = songs[nextIdx];
 
-    // Update songId/artWorkId immediately so the deck switches.
-    // Don't call notifyListeners() here — handler.beginCrossfade will
-    // fire onCrossfadeStarted after the new track is loaded on the
-    // incoming player, at which point currentTrackPlayer returns the
-    // correct player for the waveform.
     _songId = nextIdx;
     _artWorkId = nextSong.id;
 
+    final AudioSource nextSource;
+    if (nextSong.data.startsWith('http')) {
+      final fileId = nextSong.id.toString();
+      if (cloudCache.isCached(fileId)) {
+        nextSource = AudioSource.file(cloudCache.cacheFile(fileId).path);
+      } else {
+        final headers = nextSong.data.contains('googleapis.com')
+            ? await cloudAuth.getGoogleAuthHeaders()
+            : <String, String>{};
+        nextSource = LockCachingAudioSource(Uri.parse(nextSong.data),
+            cacheFile: cloudCache.cacheFile(fileId), headers: headers);
+      }
+    } else {
+      nextSource = AudioSource.uri(Uri.parse(nextSong.data));
+    }
+
     await handler.beginCrossfade(
-      AudioSource.uri(Uri.parse(nextSong.data)),
+      nextSource,
       nextSong,
       Duration(seconds: _crossfadeDuration),
       replayGain: _replayGain,
@@ -637,15 +679,39 @@ class AppController with ChangeNotifier {
   Future<void> _updateMediaItemForIndex(int index) async {
     if (index >= songs.length) return;
     final song = songs[index];
-    final image = await fetchArtworkUrl(song.data, song.id);
+    Uri? artUri;
+    if (song.data.startsWith('http') &&
+        song.album != null &&
+        song.album!.startsWith('http')) {
+      final downloaded = await _downloadCloudArtwork(song.album!, song.id);
+      artUri = downloaded != null ? Uri.file(downloaded) : null;
+    } else {
+      final image = await fetchArtworkUrl(song.data, song.id);
+      artUri = Uri.file(image);
+    }
     handler.setCurrentMediaItem(MediaItem(
       id: song.data,
       album: song.album,
       title: song.title,
       artist: song.artist,
       duration: Duration(milliseconds: song.duration ?? 0),
-      artUri: Uri.file(image),
+      artUri: artUri,
     ));
+  }
+
+  Future<String?> _downloadCloudArtwork(String url, int songId) async {
+    try {
+      final tempDir = await getTemporaryDirectory();
+      final file =
+          File('${tempDir.path}/cloud_art_$songId.png');
+      if (file.existsSync()) return file.path;
+      final response = await http.get(Uri.parse(url));
+      if (response.statusCode == 200) {
+        await file.writeAsBytes(response.bodyBytes);
+        return file.path;
+      }
+    } catch (_) {}
+    return null;
   }
 
   /// Central method for playing a song selected from any list.
@@ -664,7 +730,23 @@ class AppController with ChangeNotifier {
   /// Build and load a queue for gapless playback
   Future<void> loadGaplessQueue(int startIndex) async {
     if (songs.isEmpty) return;
-    final sources = songs.map((s) => AudioSource.uri(Uri.parse(s.data))).toList();
+    final sources = <AudioSource>[];
+    for (final s in songs) {
+      if (s.data.startsWith('http')) {
+        final fileId = s.id.toString();
+        if (cloudCache.isCached(fileId)) {
+          sources.add(AudioSource.file(cloudCache.cacheFile(fileId).path));
+        } else {
+          final headers = s.data.contains('googleapis.com')
+              ? await cloudAuth.getGoogleAuthHeaders()
+              : <String, String>{};
+          sources.add(LockCachingAudioSource(Uri.parse(s.data),
+              cacheFile: cloudCache.cacheFile(fileId), headers: headers));
+        }
+      } else {
+        sources.add(AudioSource.uri(Uri.parse(s.data)));
+      }
+    }
     await handler.player.setAudioSources(sources, initialIndex: startIndex);
     await _updateMediaItemForIndex(startIndex);
     handler.player.play();
@@ -933,5 +1015,57 @@ class AppController with ChangeNotifier {
       artWorkId = songs[songId].id;
       loadAudioSource(handler, songs[songId], replayGain: _replayGain);
     }
+  }
+
+  // --- Cloud services ---
+
+  Future<void> _initCloudServices() async {
+    await cloudCache.init();
+    await cloudAuth.restoreGoogleSession();
+    await cloudAuth.restoreDropboxSession();
+    notifyListeners();
+  }
+
+  Future<bool> connectGoogle() async {
+    final result = await cloudAuth.signInGoogle();
+    notifyListeners();
+    return result;
+  }
+
+  Future<void> disconnectGoogle() async {
+    await cloudAuth.signOutGoogle();
+    notifyListeners();
+  }
+
+  Future<bool> connectDropbox() async {
+    final result = await cloudAuth.signInDropbox();
+    notifyListeners();
+    return result;
+  }
+
+  Future<void> disconnectDropbox() async {
+    await cloudAuth.signOutDropbox();
+    notifyListeners();
+  }
+
+  /// Pre-cache the next [count] cloud tracks in the queue.
+  void preCacheNextCloudTracks({int count = 2}) {
+    for (int i = songId + 1; i <= songId + count && i < songs.length; i++) {
+      final song = songs[i];
+      if (!song.data.startsWith('http')) continue;
+      final fileId = song.id.toString();
+      if (cloudCache.isCached(fileId)) continue;
+      // Fire-and-forget
+      _preCacheSingle(song, fileId);
+    }
+  }
+
+  Future<void> _preCacheSingle(SongModel song, String fileId) async {
+    try {
+      final headers = song.data.contains('googleapis.com')
+          ? await cloudAuth.getGoogleAuthHeaders()
+          : <String, String>{};
+      await cloudCache.preCacheTrack(song.data, fileId, headers);
+    } catch (_) {}
   }
 }

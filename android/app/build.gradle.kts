@@ -43,11 +43,7 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = 20
         versionName = "1.1.0"
-        //  externalNativeBuild {
-        //     cmake {
-        //         cppFlags '';
-        //     }
-        // }
+        manifestPlaceholders["appAuthRedirectScheme"] = "x.a.zix"
     }
     signingConfigs {
         create("release") {

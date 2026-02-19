@@ -51,6 +51,8 @@ class _SettingsState extends State<Settings> {
                   const SizedBox(height: 12),
                   _buildLibrarySection(),
                   const SizedBox(height: 12),
+                  _buildCloudStorageSection(controller),
+                  const SizedBox(height: 12),
                   _buildAboutSection(context),
                   const SizedBox(height: 24),
                 ],
@@ -491,6 +493,67 @@ class _SettingsState extends State<Settings> {
     if (value <= 0.18) return "Balanced";
     if (value <= 0.25) return "Responsive";
     return "Snappy";
+  }
+
+  // -- Cloud Storage Section --
+
+  Widget _buildCloudStorageSection(AppController controller) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionHeader(Icons.cloud_rounded, "Cloud Storage"),
+        _buildSectionCard([
+          ListTile(
+            leading: const Icon(Icons.cloud_rounded),
+            title: const Text("Google Drive"),
+            subtitle: Text(
+                controller.isGoogleConnected ? "Connected" : "Not connected"),
+            trailing: FilledButton.tonal(
+              onPressed: () async {
+                if (controller.isGoogleConnected) {
+                  await controller.disconnectGoogle();
+                } else {
+                  await controller.connectGoogle();
+                }
+              },
+              child: Text(
+                  controller.isGoogleConnected ? "Disconnect" : "Connect"),
+            ),
+          ),
+          const Divider(height: 1, indent: 16, endIndent: 16),
+          ListTile(
+            leading: const Icon(Icons.cloud_circle_rounded),
+            title: const Text("Dropbox"),
+            subtitle: Text(
+                controller.isDropboxConnected ? "Connected" : "Not connected"),
+            trailing: FilledButton.tonal(
+              onPressed: () async {
+                if (controller.isDropboxConnected) {
+                  await controller.disconnectDropbox();
+                } else {
+                  await controller.connectDropbox();
+                }
+              },
+              child: Text(
+                  controller.isDropboxConnected ? "Disconnect" : "Connect"),
+            ),
+          ),
+          const Divider(height: 1, indent: 16, endIndent: 16),
+          ListTile(
+            leading: const Icon(Icons.storage_rounded),
+            title: const Text("Audio cache"),
+            subtitle: Text(controller.cloudCache.currentSizeFormatted),
+            trailing: TextButton(
+              onPressed: () async {
+                await controller.cloudCache.clearCache();
+                setState(() {});
+              },
+              child: const Text("Clear"),
+            ),
+          ),
+        ]),
+      ],
+    );
   }
 
   // -- Library Section --
