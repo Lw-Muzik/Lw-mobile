@@ -1,7 +1,13 @@
+import 'package:flutter/services.dart';
+
 import '/exports/exports.dart';
 import '/Helpers/index.dart';
 import '../controllers/AppController.dart';
 import '../widgets/ArtworkWidget.dart';
+
+// ---------------------------------------------------------------------------
+// SongTile — list-mode row (scale 0)
+// ---------------------------------------------------------------------------
 
 class SongTile extends StatelessWidget {
   final SongModel song;
@@ -167,6 +173,132 @@ class SongTile extends StatelessWidget {
   }
 }
 
+// ---------------------------------------------------------------------------
+// _SongGridTile — grid-mode card (scale 1 & 2)
+// ---------------------------------------------------------------------------
+
+class _SongGridTile extends StatelessWidget {
+  final SongModel song;
+  final bool isCurrentTrack;
+  final VoidCallback onTap;
+  final VoidCallback? onLongPress;
+
+  const _SongGridTile({
+    required this.song,
+    required this.isCurrentTrack,
+    required this.onTap,
+    this.onLongPress,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final accentColor = theme.colorScheme.primary;
+    final onSurface = theme.colorScheme.onSurface;
+
+    return Material(
+      color: isCurrentTrack
+          ? accentColor.withValues(alpha: 0.10)
+          : Colors.transparent,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        onLongPress: onLongPress,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Artwork
+            Expanded(
+              child: Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.15),
+                      blurRadius: 8,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      ArtworkWidget(
+                        size: 400,
+                        quality: 80,
+                        songId: song.id,
+                        type: ArtworkType.AUDIO,
+                        path: song.data,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      if (isCurrentTrack)
+                        Positioned(
+                          bottom: 6,
+                          right: 6,
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              color: accentColor,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.bar_chart_rounded,
+                              color: Colors.white,
+                              size: 14,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 6),
+            // Title
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Text(
+                song.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: isCurrentTrack ? accentColor : onSurface,
+                  fontSize: 13,
+                  fontWeight:
+                      isCurrentTrack ? FontWeight.w600 : FontWeight.w500,
+                ),
+              ),
+            ),
+            // Artist
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Text(
+                song.artist ?? 'Unknown',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: isCurrentTrack
+                      ? accentColor.withValues(alpha: 0.6)
+                      : onSurface.withValues(alpha: 0.45),
+                  fontSize: 11,
+                ),
+              ),
+            ),
+            const SizedBox(height: 4),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// SongListView — pinch-to-zoom between list / 2-col / 3-col
+// ---------------------------------------------------------------------------
+
 class SongListView extends StatelessWidget {
   final List<SongModel> songs;
   final AppController controller;
@@ -180,7 +312,7 @@ class SongListView extends StatelessWidget {
     super.key,
     required this.songs,
     required this.controller,
-    this.showTrackNumbers = true,
+    this.showTrackNumbers = false,
     this.showDuration = true,
     this.showOptionsIcon = true,
     this.onTap,
@@ -198,32 +330,153 @@ class SongListView extends StatelessWidget {
       );
     }
 
+    // Listen to scale changes via Consumer so we don't need StatefulWidget.
+    return Consumer<AppController>(
+      builder: (context, ctrl, _) {
+        return _PinchZoomWrapper(
+          scale: ctrl.songGridScale,
+          onScaleChange: (s) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              ctrl.songGridScale = s;
+            });
+          },
+          child: _buildForScale(context, ctrl.songGridScale),
+        );
+      },
+    );
+  }
+
+  Widget _buildForScale(BuildContext context, int scale) {
     final currentSongId = controller.songId >= 0 &&
             controller.songId < controller.songs.length
         ? controller.songs[controller.songId].id
         : -1;
 
-    return ListView.builder(
+    // Scale 0 → list view
+    if (scale == 0) {
+      return ListView.builder(
+        itemCount: songs.length,
+        addAutomaticKeepAlives: false,
+        addRepaintBoundaries: true,
+        itemBuilder: (context, index) {
+          final song = songs[index];
+          final isCurrent = song.id == currentSongId;
+          return SongTile(
+            song: song,
+            index: index,
+            isCurrentTrack: isCurrent,
+            showTrackNumber: showTrackNumbers,
+            showDuration: showDuration,
+            showOptionsIcon: showOptionsIcon,
+            onTap: () => onTap?.call(song, index),
+            onLongPress: onLongPress != null
+                ? () => onLongPress!.call(song, index)
+                : null,
+          );
+        },
+      );
+    }
+
+    // Scale 1 → 2-col grid, scale 2 → 3-col grid
+    final columns = scale == 1 ? 2 : 3;
+    return GridView.builder(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: columns,
+        crossAxisSpacing: 10,
+        mainAxisSpacing: 10,
+        childAspectRatio: 0.78,
+      ),
       itemCount: songs.length,
-      addAutomaticKeepAlives: false,
-      addRepaintBoundaries: true,
       itemBuilder: (context, index) {
         final song = songs[index];
         final isCurrent = song.id == currentSongId;
-
-        return SongTile(
+        return _SongGridTile(
           song: song,
-          index: index,
           isCurrentTrack: isCurrent,
-          showTrackNumber: showTrackNumbers,
-          showDuration: showDuration,
-          showOptionsIcon: showOptionsIcon,
           onTap: () => onTap?.call(song, index),
           onLongPress: onLongPress != null
               ? () => onLongPress!.call(song, index)
               : null,
         );
       },
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// _PinchZoomWrapper — uses raw Listener to detect two-finger pinch without
+// competing with ListView/GridView scroll gestures.
+// ---------------------------------------------------------------------------
+
+class _PinchZoomWrapper extends StatefulWidget {
+  final int scale;
+  final ValueChanged<int> onScaleChange;
+  final Widget child;
+
+  const _PinchZoomWrapper({
+    required this.scale,
+    required this.onScaleChange,
+    required this.child,
+  });
+
+  @override
+  State<_PinchZoomWrapper> createState() => _PinchZoomWrapperState();
+}
+
+class _PinchZoomWrapperState extends State<_PinchZoomWrapper> {
+  final Map<int, Offset> _pointers = {};
+  double? _initialDistance;
+  bool _handled = false;
+
+  static const _pinchInRatio = 0.70;
+  static const _pinchOutRatio = 1.45;
+
+  void _onPointerDown(PointerDownEvent event) {
+    _pointers[event.pointer] = event.position;
+    if (_pointers.length == 2) {
+      _initialDistance = _distance();
+      _handled = false;
+    }
+  }
+
+  void _onPointerMove(PointerMoveEvent event) {
+    _pointers[event.pointer] = event.position;
+    if (_pointers.length != 2 || _initialDistance == null || _handled) return;
+
+    final ratio = _distance() / _initialDistance!;
+    if (ratio < _pinchInRatio && widget.scale < 2) {
+      _handled = true;
+      HapticFeedback.selectionClick();
+      widget.onScaleChange(widget.scale + 1);
+    } else if (ratio > _pinchOutRatio && widget.scale > 0) {
+      _handled = true;
+      HapticFeedback.selectionClick();
+      widget.onScaleChange(widget.scale - 1);
+    }
+  }
+
+  void _onPointerUpOrCancel(PointerEvent event) {
+    _pointers.remove(event.pointer);
+    if (_pointers.length < 2) {
+      _initialDistance = null;
+      _handled = false;
+    }
+  }
+
+  double _distance() {
+    final pts = _pointers.values.toList();
+    return (pts[0] - pts[1]).distance;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Listener(
+      onPointerDown: _onPointerDown,
+      onPointerMove: _onPointerMove,
+      onPointerUp: _onPointerUpOrCancel,
+      onPointerCancel: _onPointerUpOrCancel,
+      child: widget.child,
     );
   }
 }

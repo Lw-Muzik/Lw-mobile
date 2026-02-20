@@ -317,7 +317,6 @@ class _CardDeck extends StatelessWidget {
                       context,
                       controller,
                       songIndex: index,
-                      useHero: index == controller.songId,
                     ),
                   ),
                 );

@@ -186,39 +186,10 @@ Widget playerCard(
   BuildContext context,
   AppController controller, {
   int? songIndex,
-  bool useHero = false,
 }) {
   final idx = songIndex ?? controller.songId;
   if (idx < 0 || idx >= controller.songs.length) return const SizedBox.shrink();
   final song = controller.songs[idx];
-
-  Widget artwork = Container(
-    decoration: BoxDecoration(
-      borderRadius: BorderRadius.circular(18),
-      boxShadow: [
-        BoxShadow(
-          color: Colors.black.withValues(alpha: 0.4),
-          blurRadius: 30,
-          offset: const Offset(0, 12),
-        ),
-      ],
-    ),
-    child: ClipRRect(
-      borderRadius: BorderRadius.circular(18),
-      child: ArtworkWidget(
-        quality: 100,
-        borderRadius: BorderRadius.circular(18),
-        size: 1000,
-        songId: song.id,
-        type: ArtworkType.AUDIO,
-        path: song.data,
-      ),
-    ),
-  );
-
-  if (useHero) {
-    artwork = Hero(tag: 'player_artwork', child: artwork);
-  }
 
   return Align(
     alignment: const Alignment(0, -0.15),
@@ -231,7 +202,32 @@ Widget playerCard(
             padding: const EdgeInsets.symmetric(horizontal: 32),
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 420, maxHeight: 420),
-              child: AspectRatio(aspectRatio: 1.0, child: artwork),
+              child: AspectRatio(
+                aspectRatio: 1.0,
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(18),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.4),
+                        blurRadius: 30,
+                        offset: const Offset(0, 12),
+                      ),
+                    ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(18),
+                    child: ArtworkWidget(
+                      quality: 100,
+                      borderRadius: BorderRadius.circular(18),
+                      size: 1000,
+                      songId: song.id,
+                      type: ArtworkType.AUDIO,
+                      path: song.data,
+                    ),
+                  ),
+                ),
+              ),
             ),
           ),
         );

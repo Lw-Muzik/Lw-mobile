@@ -153,47 +153,37 @@ class _LyricsViewState extends State<LyricsView> with SingleTickerProviderStateM
           backgroundColor: Colors.transparent,
           body: Stack(
             children: [
-              // Hero artwork — flies from player card to full screen
-              Hero(
-                tag: 'player_artwork',
-                child: SizedBox(
+              // Blurred artwork background
+              SizedBox(
+                height: size.height,
+                width: size.width,
+                child: ArtworkWidget(
                   height: size.height,
                   width: size.width,
-                  child: ArtworkWidget(
-                    height: size.height,
-                    width: size.width,
-                    songId: song.id,
-                    size: 2000,
-                    type: ArtworkType.AUDIO,
-                    path: song.data,
-                  ),
+                  songId: song.id,
+                  size: 2000,
+                  type: ArtworkType.AUDIO,
+                  path: song.data,
                 ),
               ),
-              // Blur + gradient overlay — animates in with entrance
-              AnimatedBuilder(
-                animation: _entranceController,
-                builder: (context, _) {
-                  final t = _entranceController.value;
-                  return BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 30 * t, sigmaY: 30 * t),
-                    child: Container(
-                      height: size.height,
-                      width: size.width,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            Colors.black.withValues(alpha: 0.50 * t),
-                            Colors.black.withValues(alpha: 0.70 * t),
-                            Colors.black.withValues(alpha: 0.90 * t),
-                          ],
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          stops: const [0.0, 0.4, 1.0],
-                        ),
-                      ),
+              BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
+                child: Container(
+                  height: size.height,
+                  width: size.width,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        Colors.black.withValues(alpha: 0.50),
+                        Colors.black.withValues(alpha: 0.70),
+                        Colors.black.withValues(alpha: 0.90),
+                      ],
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      stops: const [0.0, 0.4, 1.0],
                     ),
-                  );
-                },
+                  ),
+                ),
               ),
               // Content
               FadeTransition(

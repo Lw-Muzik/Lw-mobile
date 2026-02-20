@@ -93,6 +93,9 @@ class AppController with ChangeNotifier {
   bool _dvcEnabled = false;
   double _dvcGain = 0.0; // dB, range -30 to +30
 
+  // Song list/grid zoom scale: 0=list, 1=2-col grid, 2=3-col grid
+  int _songGridScale = 0;
+
   // Configurable EQ band count (UI-layer only, native always 32)
   int _eqBandCount = 32;
 
@@ -106,6 +109,17 @@ class AppController with ChangeNotifier {
 
   // Parametric EQ state
   List<ParametricPoint> _parametricPoints = [];
+
+  // Song grid scale getters/setters
+  int get songGridScale => _songGridScale;
+  set songGridScale(int value) {
+    final clamped = value.clamp(0, 2);
+    if (clamped != _songGridScale) {
+      _songGridScale = clamped;
+      _prefs.setInt("songGridScale", clamped);
+      notifyListeners();
+    }
+  }
 
   // EQ band count getters/setters
   int get eqBandCount => _eqBandCount;
@@ -802,6 +816,8 @@ class AppController with ChangeNotifier {
     _replayGain = _prefs.getBool("replayGain") ?? false;
     _dvcEnabled = _prefs.getBool("dvcEnabled") ?? false;
     _dvcGain = _prefs.getDouble("dvcGain") ?? 0.0;
+    // Song grid scale
+    _songGridScale = (_prefs.getInt("songGridScale") ?? 0).clamp(0, 2);
     // EQ band count
     _eqBandCount = _prefs.getInt("eqBandCount") ?? 32;
     // 32-band Graphic EQ
