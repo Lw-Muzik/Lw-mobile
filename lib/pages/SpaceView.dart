@@ -171,8 +171,8 @@ class _SpaceViewState extends State<SpaceView> {
       physics: const NeverScrollableScrollPhysics(),
       padding: const EdgeInsets.all(8),
       itemCount: _reverbPresets.length,
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3,
+      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+        maxCrossAxisExtent: 140,
         mainAxisSpacing: 8,
         crossAxisSpacing: 8,
         childAspectRatio: 1.3,

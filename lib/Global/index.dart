@@ -18,6 +18,7 @@ import '../pages/VisualUI.dart';
 import '../player/widgets/NowPlaying.dart';
 import '../player/widgets/TrackInfo.dart';
 import '../pages/Equalizer.dart';
+import '../player/lyrics_view.dart';
 import '../widgets/ArtworkWidget.dart';
 
 SystemUiOverlayStyle overlay = const SystemUiOverlayStyle(
@@ -38,7 +39,9 @@ Widget playerVisual(AppController controller) {
       return fft.isNotEmpty
           ? CustomPaint(
               painter: MultiWaveVisualizer(
-                color: Theme.of(context).primaryColorLight.withValues(alpha: 0.1),
+                color: Theme.of(
+                  context,
+                ).primaryColorLight.withValues(alpha: 0.1),
                 waveData: fft,
                 // width: MediaQuery.of(context).size.width,
                 height: MediaQuery.of(context).size.height,
@@ -67,6 +70,34 @@ Widget playerActionBar(AppController controller, BuildContext context) {
           label: 'EQ',
           onTap: () =>
               Routes.routeTo(const Equalizer(), context, animate: true),
+        ),
+        _ActionItem(
+          icon: Icons.lyrics_rounded,
+          label: 'Lyrics',
+          onTap: () {
+            Navigator.of(context).push(
+              PageRouteBuilder(
+                opaque: false,
+                pageBuilder: (_, __, ___) => const LyricsView(),
+                transitionsBuilder: (_, anim, __, child) {
+                  return SlideTransition(
+                    position:
+                        Tween<Offset>(
+                          begin: const Offset(0, 1),
+                          end: Offset.zero,
+                        ).animate(
+                          CurvedAnimation(
+                            parent: anim,
+                            curve: Curves.easeOutCubic,
+                          ),
+                        ),
+                    child: child,
+                  );
+                },
+                transitionDuration: const Duration(milliseconds: 350),
+              ),
+            );
+          },
         ),
         _ActionItem(
           icon: Icons.graphic_eq_rounded,
@@ -155,10 +186,39 @@ Widget playerCard(
   BuildContext context,
   AppController controller, {
   int? songIndex,
+  bool useHero = false,
 }) {
   final idx = songIndex ?? controller.songId;
   if (idx < 0 || idx >= controller.songs.length) return const SizedBox.shrink();
   final song = controller.songs[idx];
+
+  Widget artwork = Container(
+    decoration: BoxDecoration(
+      borderRadius: BorderRadius.circular(18),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withValues(alpha: 0.4),
+          blurRadius: 30,
+          offset: const Offset(0, 12),
+        ),
+      ],
+    ),
+    child: ClipRRect(
+      borderRadius: BorderRadius.circular(18),
+      child: ArtworkWidget(
+        quality: 100,
+        borderRadius: BorderRadius.circular(18),
+        size: 1000,
+        songId: song.id,
+        type: ArtworkType.AUDIO,
+        path: song.data,
+      ),
+    ),
+  );
+
+  if (useHero) {
+    artwork = Hero(tag: 'player_artwork', child: artwork);
+  }
 
   return Align(
     alignment: const Alignment(0, -0.15),
@@ -171,32 +231,7 @@ Widget playerCard(
             padding: const EdgeInsets.symmetric(horizontal: 32),
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 420, maxHeight: 420),
-              child: AspectRatio(
-                aspectRatio: 1.0,
-                child: Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(18),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.4),
-                        blurRadius: 30,
-                        offset: const Offset(0, 12),
-                      ),
-                    ],
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(18),
-                    child: ArtworkWidget(
-                      quality: 100,
-                      borderRadius: BorderRadius.circular(18),
-                      size: 1000,
-                      songId: song.id,
-                      type: ArtworkType.AUDIO,
-                      path: song.data,
-                    ),
-                  ),
-                ),
-              ),
+              child: AspectRatio(aspectRatio: 1.0, child: artwork),
             ),
           ),
         );
@@ -204,7 +239,6 @@ Widget playerCard(
     ),
   );
 }
-
 
 Widget folderArtwork(String path, String title) {
   return FutureBuilder<List<SongModel>>(
@@ -231,7 +265,9 @@ Widget folderArtwork(String path, String title) {
                   bottom: -10,
                   child: Card(
                     margin: const EdgeInsets.all(10),
-                    color: Theme.of(context).primaryColorDark.withValues(alpha: 0.7),
+                    color: Theme.of(
+                      context,
+                    ).primaryColorDark.withValues(alpha: 0.7),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
                     ),
@@ -336,13 +372,18 @@ Widget headerWidget(
   );
 }
 
-void loadAudioSource(HypeAudioHandler handler, SongModel song, {bool replayGain = false}) async {
+void loadAudioSource(
+  HypeAudioHandler handler,
+  SongModel song, {
+  bool replayGain = false,
+}) async {
   final isCloud = song.data.startsWith('http');
 
   // Artwork: cloud tracks store thumbnail URL in album field
   String image;
   if (isCloud && song.album != null && song.album!.startsWith('http')) {
-    image = await _downloadCloudArtwork(song.album!, song.id) ??
+    image =
+        await _downloadCloudArtwork(song.album!, song.id) ??
         await fetchArtworkUrl(song.data, song.id);
   } else {
     image = await fetchArtworkUrl(song.data, song.id);
@@ -372,12 +413,18 @@ void loadAudioSource(HypeAudioHandler handler, SongModel song, {bool replayGain 
       final headers = song.data.contains('googleapis.com')
           ? await auth.getGoogleAuthHeaders()
           : <String, String>{};
-      source = LockCachingAudioSource(Uri.parse(item.id),
-          cacheFile: cache.cacheFile(fileId), headers: headers, tag: item);
+      source = LockCachingAudioSource(
+        Uri.parse(item.id),
+        cacheFile: cache.cacheFile(fileId),
+        headers: headers,
+        tag: item,
+      );
     }
     await handler.player.setAudioSource(source);
   } else {
-    await handler.player.setAudioSource(AudioSource.uri(Uri.parse(item.id), tag: item));
+    await handler.player.setAudioSource(
+      AudioSource.uri(Uri.parse(item.id), tag: item),
+    );
   }
 
   // Replay gain only for local files (needs ID3 tags)

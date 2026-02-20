@@ -9,7 +9,7 @@ import '/widgets/PlayListWidget.dart';
 import '/widgets/song_tile.dart';
 import '/exports/exports.dart';
 
-import '../player/PlayerUI.dart';
+import '../player/player_ui.dart';
 import '../widgets/ArtworkWidget.dart';
 import '../widgets/BottomPlayer.dart';
 
@@ -155,10 +155,8 @@ class _ArtistSongsState extends State<ArtistSongs> {
                       context: context,
                       builder: (context) => BottomSheet(
                         onClosing: () {},
-                        builder: (context) => PlaylistWidget(
-                          audioId: song.id,
-                          song: song.title,
-                        ),
+                        builder: (context) =>
+                            PlaylistWidget(audioId: song.id, song: song.title),
                       ),
                     );
                   },

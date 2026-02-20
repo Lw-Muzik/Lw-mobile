@@ -5,7 +5,7 @@ import '/widgets/song_tile.dart';
 import '/widgets/PlayListWidget.dart';
 import '/Routes/routes.dart';
 import '/controllers/AppController.dart';
-import '../player/PlayerUI.dart';
+import '../player/player_ui.dart';
 
 class Recents extends StatefulWidget {
   const Recents({super.key});
@@ -37,10 +37,8 @@ class _RecentsState extends State<Recents> {
                   context: context,
                   builder: (context) => BottomSheet(
                     onClosing: () {},
-                    builder: (context) => PlaylistWidget(
-                      audioId: song.id,
-                      song: song.title,
-                    ),
+                    builder: (context) =>
+                        PlaylistWidget(audioId: song.id, song: song.title),
                   ),
                 );
               },

@@ -5,8 +5,6 @@ import 'package:eq_app/controllers/AppController.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../widgets/RoundSlider.dart';
-
 class RoomEffects extends StatefulWidget {
   const RoomEffects({super.key});
 
@@ -16,7 +14,7 @@ class RoomEffects extends StatefulWidget {
 
 class _RoomEffectsState extends State<RoomEffects> {
   bool isEnabled = false;
-  int _reverbLevel = 100;
+  // int _reverbLevel = 100;
 
   final List<Map<String, dynamic>> presets = [
     {"name": "Small Room", "value": PresetReverb.SMALL_ROOM},
@@ -81,35 +79,35 @@ class _RoomEffectsState extends State<RoomEffects> {
     );
   }
 
-  Widget _buildReverbLevelSlider() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 120, vertical: 10),
-      child: StreamBuilder<int>(
-        stream: Stream.fromFuture(Channel.getReverbLevel()),
-        builder: (context, reverbLevel) {
-          int? level = reverbLevel.data;
-          if (level != null) {
-            _reverbLevel = level;
-          }
-          return RoundSlider(
-            width: 150,
-            height: 150,
-            title: "Reverb Mix",
-            value: _reverbLevel.toDouble(),
-            max: 20000,
-            min: -9000,
-            dB: ((_reverbLevel / 20000) * 100).toDouble(),
-            onChanged: (c) {
-              setState(() {
-                _reverbLevel = c.toInt();
-              });
-              Channel.setReverbLevel(c.toInt());
-            },
-          );
-        },
-      ),
-    );
-  }
+  // Widget _buildReverbLevelSlider() {
+  //   return Padding(
+  //     padding: const EdgeInsets.symmetric(horizontal: 120, vertical: 10),
+  //     child: StreamBuilder<int>(
+  //       stream: Stream.fromFuture(Channel.getReverbLevel()),
+  //       builder: (context, reverbLevel) {
+  //         int? level = reverbLevel.data;
+  //         if (level != null) {
+  //           _reverbLevel = level;
+  //         }
+  //         return RoundSlider(
+  //           width: 150,
+  //           height: 150,
+  //           title: "Reverb Mix",
+  //           value: _reverbLevel.toDouble(),
+  //           max: 20000,
+  //           min: -9000,
+  //           dB: ((_reverbLevel / 20000) * 100).toDouble(),
+  //           onChanged: (c) {
+  //             setState(() {
+  //               _reverbLevel = c.toInt();
+  //             });
+  //             Channel.setReverbLevel(c.toInt());
+  //           },
+  //         );
+  //       },
+  //     ),
+  //   );
+  // }
 
   Widget _buildDividerWithLabel(BuildContext context, String label) {
     return Row(
@@ -127,7 +125,9 @@ class _RoomEffectsState extends State<RoomEffects> {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(5),
             side: BorderSide(
-              color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.4),
+              color: Theme.of(
+                context,
+              ).colorScheme.primary.withValues(alpha: 0.4),
             ),
           ),
           child: Padding(
@@ -164,8 +164,8 @@ class _RoomEffectsState extends State<RoomEffects> {
             child: GridView.builder(
               padding: const EdgeInsets.all(10),
               itemCount: presets.length,
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 3,
+              gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                maxCrossAxisExtent: 140,
                 mainAxisSpacing: 10,
                 crossAxisSpacing: 10,
               ),
@@ -180,13 +180,15 @@ class _RoomEffectsState extends State<RoomEffects> {
                   child: Card(
                     color: isSelected
                         ? Theme.of(context).colorScheme.primary
-                        : Theme.of(context).primaryColorLight.withValues(alpha: 0.4),
+                        : Theme.of(
+                            context,
+                          ).primaryColorLight.withValues(alpha: 0.4),
                     child: Center(
                       child: Text(
                         preset['name'],
                         style: Theme.of(context).textTheme.labelLarge!.apply(
-                              color: isSelected ? Colors.black : Colors.white,
-                            ),
+                          color: isSelected ? Colors.black : Colors.white,
+                        ),
                       ),
                     ),
                   ),

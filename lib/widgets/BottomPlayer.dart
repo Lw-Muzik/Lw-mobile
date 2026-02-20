@@ -6,7 +6,7 @@ import 'package:eq_app/widgets/Globals.dart';
 import 'package:flutter/material.dart';
 
 import '../controllers/AppController.dart';
-import '../player/PlayerUI.dart';
+import '../player/player_ui.dart';
 
 class BottomPlayer extends StatefulWidget {
   final AppController controller;

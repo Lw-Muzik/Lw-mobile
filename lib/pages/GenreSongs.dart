@@ -7,7 +7,7 @@ import 'package:eq_app/extensions/index.dart';
 import 'package:eq_app/widgets/Body.dart';
 import '/exports/exports.dart';
 
-import '../player/PlayerUI.dart';
+import '../player/player_ui.dart';
 import '/widgets/ArtworkWidget.dart';
 import '/widgets/BottomPlayer.dart';
 import '/widgets/PlayListWidget.dart';
@@ -149,4 +149,3 @@ class _GenreSongsState extends State<GenreSongs> {
     );
   }
 }
-

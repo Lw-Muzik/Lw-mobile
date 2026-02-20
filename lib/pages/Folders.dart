@@ -62,8 +62,8 @@ class _FoldersState extends State<Folders> {
         return Padding(
           padding: const EdgeInsets.all(8.0),
           child: GridView.builder(
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
+            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+              maxCrossAxisExtent: 200,
               crossAxisSpacing: 8,
               mainAxisSpacing: 8,
               childAspectRatio: 1.0,

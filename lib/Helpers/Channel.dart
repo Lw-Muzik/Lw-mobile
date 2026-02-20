@@ -447,4 +447,20 @@ class Channel {
     _initLoudnessEnhancer(sessionId);
     await _invoke("init", {"sessionId": sessionId});
   }
+
+  // ==================== Lyrics ====================
+
+  /// Reads embedded USLT lyrics from an MP3 file via mp3agic native.
+  static Future<String?> readLyrics(String filePath) async {
+    return await _invoke<String>("readLyrics", {"filePath": filePath});
+  }
+
+  /// Writes lyrics text into the ID3v2 USLT frame of an MP3 file.
+  static Future<bool> writeLyrics(String filePath, String lyrics) async {
+    return await _invokeRequired<bool>(
+      "writeLyrics",
+      false,
+      {"filePath": filePath, "lyrics": lyrics},
+    );
+  }
 }

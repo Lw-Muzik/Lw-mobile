@@ -1,5 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:eq_app/controllers/drawer_controller.dart';
+
 import '/exports/exports.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -13,21 +15,22 @@ import '/pages/SearchPage.dart';
 import '/pages/Settings.dart';
 import '/pages/Songs.dart';
 import '/pages/Artists.dart';
-import '/pages/cloud/CloudView.dart';
+import 'cloud/cloud_view.dart';
 import '/widgets/Body.dart';
 import '/widgets/BottomPlayer.dart';
 import '../Helpers/Channel.dart';
 import '../controllers/AppController.dart';
 
 class Home extends StatefulWidget {
-  const Home({Key? key}) : super(key: key);
+  const Home({super.key});
 
   @override
-  _HomeState createState() => _HomeState();
+  State<Home> createState() => _HomeState();
 }
 
 class _HomeState extends State<Home> with TickerProviderStateMixin {
   late final TabController _tabController;
+  // ignore: constant_identifier_names
   static const int TAB_COUNT = 7;
 
   // Cache commonly used values
@@ -138,10 +141,7 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
             headerSliverBuilder: (context, innerBoxIsScrolled) => [
               _buildSliverAppBar(controller, innerBoxIsScrolled),
             ],
-            body: TabBarView(
-              controller: _tabController,
-              children: _tabViews,
-            ),
+            body: TabBarView(controller: _tabController, children: _tabViews),
           ),
           bottomNavigationBar: controller.handler.player.playing
               ? BottomPlayer(controller: controller)
@@ -151,25 +151,36 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildSliverAppBar(
-      AppController controller, bool innerBoxIsScrolled) {
+  Widget _buildSliverAppBar(AppController controller, bool innerBoxIsScrolled) {
     return SliverAppBar(
       floating: true,
       snap: true,
-      pinned: true,
+      pinned: false,
       forceMaterialTransparency: controller.isFancy,
       surfaceTintColor: Colors.transparent,
+      // leading: Icon(Icons.menu),
       expandedHeight: 120,
       toolbarHeight: 64,
       flexibleSpace: FlexibleSpaceBar(
         titlePadding: const EdgeInsets.only(left: 20, bottom: 52),
-        title: const Text(
-          'Hype Muzik',
-          style: TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.w700,
-            letterSpacing: -0.5,
-          ),
+        title: Row(
+          children: [
+            IconButton(
+              icon: const Icon(Icons.menu_rounded),
+              onPressed: () {
+                context.read<DrawerProvider>().toggleDrawer();
+              },
+            ),
+            const SizedBox(width: 4),
+            const Text(
+              'Hype Muzik',
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.w700,
+                letterSpacing: -0.5,
+              ),
+            ),
+          ],
         ),
         background: Container(color: Colors.transparent),
       ),
@@ -178,14 +189,14 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
           icon: Icons.search_rounded,
           onPressed: _handleSearch,
         ),
-        _buildActionButton(
-          icon: Icons.tune_rounded,
-          onPressed: () => Routes.routeTo(const Equalizer(), context),
-        ),
-        _buildActionButton(
-          icon: Icons.settings_rounded,
-          onPressed: () => Routes.routeTo(const Settings(), context),
-        ),
+        // _buildActionButton(
+        //   icon: Icons.tune_rounded,
+        //   onPressed: () => Routes.routeTo(const Equalizer(), context),
+        // ),
+        // _buildActionButton(
+        //   icon: Icons.settings_rounded,
+        //   onPressed: () => Routes.routeTo(const Settings(), context),
+        // ),
         const SizedBox(width: 8),
       ],
       bottom: PreferredSize(

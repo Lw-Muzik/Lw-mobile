@@ -66,8 +66,8 @@ class _ArtistsState extends State<Artists> {
 
           final artists = item.data!;
           return GridView.builder(
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 3,
+            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+              maxCrossAxisExtent: 140,
               crossAxisSpacing: 8,
               mainAxisSpacing: 12,
               childAspectRatio: 0.75,

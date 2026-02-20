@@ -20,6 +20,8 @@ import '../services/cloud_cache_service.dart';
 import '../services/cloud_metadata_service.dart';
 import '../services/google_drive_service.dart';
 import '../services/dropbox_service.dart';
+import '../services/lyrics_service.dart';
+import '../models/lyrics_model.dart';
 
 class AppController with ChangeNotifier {
   static AppController? _instance;
@@ -31,6 +33,14 @@ class AppController with ChangeNotifier {
   late final CloudMetadataService cloudMetadata;
   late final GoogleDriveService googleDriveService;
   late final DropboxService dropboxService;
+
+  // Lyrics
+  final LyricsService _lyricsService = LyricsService();
+  LyricsService get lyricsService => _lyricsService;
+  LyricsData? _currentLyrics;
+  LyricsData? get currentLyrics => _currentLyrics;
+  bool _lyricsLoading = false;
+  bool get lyricsLoading => _lyricsLoading;
 
   bool get isGoogleConnected => cloudAuth.isGoogleConnected;
   bool get isDropboxConnected => cloudAuth.isDropboxConnected;
@@ -994,6 +1004,28 @@ class AppController with ChangeNotifier {
   set songId(int id) {
     _songId = id;
     notifyListeners();
+    _loadLyricsForCurrentSong();
+  }
+
+  Future<void> _loadLyricsForCurrentSong() async {
+    if (songs.isEmpty || _songId < 0 || _songId >= songs.length) return;
+    _lyricsLoading = true;
+    _currentLyrics = null;
+    notifyListeners();
+    try {
+      _currentLyrics = await _lyricsService.loadLyrics(songs[_songId]);
+    } catch (_) {
+      _currentLyrics = null;
+    }
+    _lyricsLoading = false;
+    notifyListeners();
+  }
+
+  /// Reloads lyrics for the current song (e.g. after editing/saving).
+  Future<void> reloadCurrentLyrics() async {
+    if (songs.isEmpty || _songId < 0 || _songId >= songs.length) return;
+    _lyricsService.invalidateCache(songs[_songId].id);
+    await _loadLyricsForCurrentSong();
   }
 
   void next() {

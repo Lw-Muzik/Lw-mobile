@@ -1,3 +1,5 @@
+import '/controllers/drawer_controller.dart';
+
 import '/Helpers/AudioHandler.dart';
 import '/Routes/routes.dart';
 import '/Global/index.dart';
@@ -70,6 +72,7 @@ Future<void> main() async {
         ChangeNotifierProvider(create: (_) => PlaylistController()),
         Provider<HypeAudioHandler>.value(value: handler),
         ChangeNotifierProvider(create: (_) => PlayerController()),
+        ChangeNotifierProvider(create: (_) => DrawerProvider()),
         BlocProvider(create: (_) => BandController()),
       ],
       child: Wiredash(

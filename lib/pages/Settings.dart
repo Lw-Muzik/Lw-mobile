@@ -130,14 +130,14 @@ class _SettingsState extends State<Settings> {
                   child: Slider.adaptive(
                     value: controller.crossfadeDuration.toDouble(),
                     min: 0,
-                    max: 12,
-                    divisions: 12,
+                    max: 30,
+                    divisions: 30,
                     label: "${controller.crossfadeDuration}s",
                     onChanged: (value) =>
                         controller.crossfadeDuration = value.toInt(),
                   ),
                 ),
-                const Text("12s"),
+                const Text("30s"),
               ],
             ),
           ),

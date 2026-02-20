@@ -2,7 +2,7 @@ import 'package:eq_app/Routes/routes.dart';
 import '/exports/exports.dart';
 
 import '../controllers/AppController.dart';
-import '../player/PlayerUI.dart';
+import '../player/player_ui.dart';
 import '../widgets/song_tile.dart';
 
 class SearchPage extends SearchDelegate<SongModel> {

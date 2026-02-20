@@ -7,7 +7,7 @@ import '/exports/exports.dart';
 import '/Routes/routes.dart';
 import '../../controllers/AppController.dart';
 import '../../models/cloud_file.dart';
-import '../../player/PlayerUI.dart';
+import '../../player/player_ui.dart';
 import '../../widgets/BottomPlayer.dart';
 import '../../widgets/song_tile.dart';
 
@@ -64,8 +64,7 @@ class _CloudFolderSongsState extends State<CloudFolderSongs>
     final controller = Provider.of<AppController>(context, listen: false);
 
     // Reload files from cache to pick up any preloaded metadata.
-    final cachedList =
-        controller.cloudCache.loadFileList(widget.provider);
+    final cachedList = controller.cloudCache.loadFileList(widget.provider);
     final cachedMap = cachedList != null
         ? {for (final f in cachedList) f.fileId: f}
         : <String, CloudFile>{};
@@ -78,11 +77,13 @@ class _CloudFolderSongsState extends State<CloudFolderSongs>
         final enriched = cachedMap[file.fileId] ?? file;
         String? streamUrl;
         if (enriched.provider == CloudProvider.googleDrive) {
-          streamUrl =
-              controller.googleDriveService.getStreamUrl(enriched.fileId);
+          streamUrl = controller.googleDriveService.getStreamUrl(
+            enriched.fileId,
+          );
         } else {
-          streamUrl =
-              await controller.dropboxService.getTemporaryLink(enriched.fileId);
+          streamUrl = await controller.dropboxService.getTemporaryLink(
+            enriched.fileId,
+          );
         }
         if (streamUrl != null) {
           models.add(enriched.toSongModel(streamUrl));
@@ -160,8 +161,7 @@ class _CloudFolderSongsState extends State<CloudFolderSongs>
             artist = (artistFrames.first as TextInformation).value;
           }
           final albumFrames = tag.framesWithName('TALB');
-          if (albumFrames.isNotEmpty &&
-              albumFrames.first is TextInformation) {
+          if (albumFrames.isNotEmpty && albumFrames.first is TextInformation) {
             album = (albumFrames.first as TextInformation).value;
           }
 
@@ -213,8 +213,7 @@ class _CloudFolderSongsState extends State<CloudFolderSongs>
   Widget _buildAppBar(BuildContext context, AppController controller) {
     final theme = Theme.of(context);
     final accent = theme.colorScheme.primary;
-    final totalSize =
-        widget.files.fold<int>(0, (sum, f) => sum + f.size);
+    final totalSize = widget.files.fold<int>(0, (sum, f) => sum + f.size);
     final songCount = widget.files.length;
 
     return SliverAppBar(
@@ -247,8 +246,10 @@ class _CloudFolderSongsState extends State<CloudFolderSongs>
                 children: [
                   // Provider badge
                   Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: accent.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(20),
@@ -293,8 +294,9 @@ class _CloudFolderSongsState extends State<CloudFolderSongs>
                       Text(
                         '$songCount ${songCount == 1 ? 'song' : 'songs'}',
                         style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurface
-                              .withValues(alpha: 0.5),
+                          color: theme.colorScheme.onSurface.withValues(
+                            alpha: 0.5,
+                          ),
                         ),
                       ),
                       Padding(
@@ -303,8 +305,9 @@ class _CloudFolderSongsState extends State<CloudFolderSongs>
                           width: 3,
                           height: 3,
                           decoration: BoxDecoration(
-                            color: theme.colorScheme.onSurface
-                                .withValues(alpha: 0.3),
+                            color: theme.colorScheme.onSurface.withValues(
+                              alpha: 0.3,
+                            ),
                             shape: BoxShape.circle,
                           ),
                         ),
@@ -312,8 +315,9 @@ class _CloudFolderSongsState extends State<CloudFolderSongs>
                       Text(
                         _formatBytes(totalSize),
                         style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurface
-                              .withValues(alpha: 0.5),
+                          color: theme.colorScheme.onSurface.withValues(
+                            alpha: 0.5,
+                          ),
                         ),
                       ),
                       const Spacer(),
@@ -323,11 +327,13 @@ class _CloudFolderSongsState extends State<CloudFolderSongs>
                           onPressed: () {
                             final songs = _songModels!;
                             if (songs.isEmpty) return;
-                            final randomIndex =
-                                math.Random().nextInt(songs.length);
+                            final randomIndex = math.Random().nextInt(
+                              songs.length,
+                            );
                             final controller = Provider.of<AppController>(
-                                context,
-                                listen: false);
+                              context,
+                              listen: false,
+                            );
                             controller.playSongFromList(songs, randomIndex);
                             Routes.routeTo(const Player(), context);
                           },
@@ -335,7 +341,9 @@ class _CloudFolderSongsState extends State<CloudFolderSongs>
                           label: const Text('Shuffle'),
                           style: FilledButton.styleFrom(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 16, vertical: 8),
+                              horizontal: 16,
+                              vertical: 8,
+                            ),
                             textStyle: const TextStyle(fontSize: 13),
                           ),
                         ),
@@ -361,8 +369,9 @@ class _CloudFolderSongsState extends State<CloudFolderSongs>
               ? Colors.transparent
               : Theme.of(context).scaffoldBackgroundColor,
           body: _buildContent(controller),
-          bottomNavigationBar:
-              isPlaying ? BottomPlayer(controller: controller) : null,
+          bottomNavigationBar: isPlaying
+              ? BottomPlayer(controller: controller)
+              : null,
         );
       },
     );
@@ -383,27 +392,30 @@ class _CloudFolderSongsState extends State<CloudFolderSongs>
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Theme.of(context)
-                      .colorScheme
-                      .error
-                      .withValues(alpha: 0.1),
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.error.withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
-                child: Icon(Icons.cloud_off_rounded,
-                    size: 40, color: Theme.of(context).colorScheme.error),
+                child: Icon(
+                  Icons.cloud_off_rounded,
+                  size: 40,
+                  color: Theme.of(context).colorScheme.error,
+                ),
               ),
               const SizedBox(height: 16),
-              Text('Couldn\'t load songs',
-                  style: Theme.of(context).textTheme.titleMedium),
+              Text(
+                'Couldn\'t load songs',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
               const SizedBox(height: 6),
               Text(
                 'Check your connection and try again',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context)
-                          .colorScheme
-                          .onSurface
-                          .withValues(alpha: 0.5),
-                    ),
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurface.withValues(alpha: 0.5),
+                ),
               ),
               const SizedBox(height: 16),
               FilledButton.tonal(
@@ -428,15 +440,18 @@ class _CloudFolderSongsState extends State<CloudFolderSongs>
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.music_off_rounded,
-                size: 48,
-                color: Theme.of(context)
-                    .colorScheme
-                    .onSurface
-                    .withValues(alpha: 0.25)),
+            Icon(
+              Icons.music_off_rounded,
+              size: 48,
+              color: Theme.of(
+                context,
+              ).colorScheme.onSurface.withValues(alpha: 0.25),
+            ),
             const SizedBox(height: 12),
-            Text('No songs available',
-                style: Theme.of(context).textTheme.titleMedium),
+            Text(
+              'No songs available',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
           ],
         ),
       );
@@ -487,10 +502,7 @@ class _SkeletonSongTile extends StatelessWidget {
   final double shimmerValue;
   final int index;
 
-  const _SkeletonSongTile({
-    required this.shimmerValue,
-    required this.index,
-  });
+  const _SkeletonSongTile({required this.shimmerValue, required this.index});
 
   @override
   Widget build(BuildContext context) {

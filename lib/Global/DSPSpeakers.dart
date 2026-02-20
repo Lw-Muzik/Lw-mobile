@@ -185,8 +185,8 @@ class _DSPSpeakerWidgetState extends State<DSPSpeakerWidget> {
                   return widget.controller.dspSpeakerView
                       ? GridView.builder(
                           gridDelegate:
-                              const SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount: 3,
+                              const SliverGridDelegateWithMaxCrossAxisExtent(
+                                maxCrossAxisExtent: 140,
                               ),
                           itemCount: speakers.length,
                           itemBuilder: (context, index) =>

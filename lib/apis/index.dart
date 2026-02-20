@@ -30,6 +30,21 @@ class Apis {
     }
   }
 
+  /// Fetches lyrics text from the backend API. Returns null on failure.
+  static Future<String?> fetchLyricsData(String title, String artist) async {
+    try {
+      final uri = Uri.parse("$fetchLyrics${Uri.encodeComponent(title)}/${Uri.encodeComponent(artist)}");
+      final res = await _client.get(uri).timeout(_timeout);
+      if (res.statusCode == 200 && res.body.isNotEmpty) {
+        return res.body;
+      }
+      return null;
+    } catch (e) {
+      debugPrint('Error fetching lyrics: $e');
+      return null;
+    }
+  }
+
   static Future<void> downloadArtwork(
     String url,
     String path,

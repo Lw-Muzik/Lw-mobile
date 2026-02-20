@@ -4,7 +4,7 @@ import '/exports/exports.dart';
 import '/Routes/routes.dart';
 import '../../controllers/AppController.dart';
 import '../../models/cloud_file.dart';
-import 'CloudFolderSongs.dart';
+import 'cloud_folder_songs.dart';
 
 class CloudView extends StatefulWidget {
   const CloudView({super.key});
@@ -133,7 +133,9 @@ class _CloudViewState extends State<CloudView>
   }
 
   List<CloudFile> _mergeWithCachedMetadata(
-      List<CloudFile> fresh, List<CloudFile>? cached) {
+    List<CloudFile> fresh,
+    List<CloudFile>? cached,
+  ) {
     if (cached == null || cached.isEmpty) return fresh;
     final cachedMap = {for (final f in cached) f.fileId: f};
     return fresh.map((f) {
@@ -261,7 +263,8 @@ class _CloudViewState extends State<CloudView>
                 _loadFromCacheThenRefresh();
               } else if (!ok && mounted) {
                 _showError(
-                    controller.cloudAuth.lastError ?? 'Connection failed');
+                  controller.cloudAuth.lastError ?? 'Connection failed',
+                );
               }
             },
             onDisconnect: () async {
@@ -284,7 +287,8 @@ class _CloudViewState extends State<CloudView>
                 _loadFromCacheThenRefresh();
               } else if (!ok && mounted) {
                 _showError(
-                    controller.cloudAuth.lastError ?? 'Connection failed');
+                  controller.cloudAuth.lastError ?? 'Connection failed',
+                );
               }
             },
             onDisconnect: () async {
@@ -321,16 +325,14 @@ class _CloudViewState extends State<CloudView>
                 height: 10,
                 child: CircularProgressIndicator(
                   strokeWidth: 1.5,
-                  color:
-                      theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
                 ),
               ),
               const SizedBox(width: 8),
               Text(
                 'Syncing',
                 style: theme.textTheme.labelSmall?.copyWith(
-                  color:
-                      theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
                 ),
               ),
             ],
@@ -352,10 +354,14 @@ class _CloudViewState extends State<CloudView>
     AppController controller,
   ) {
     final sortedKeys = folders.keys.toList()..sort();
-    final totalSongs =
-        folders.values.fold<int>(0, (sum, list) => sum + list.length);
+    final totalSongs = folders.values.fold<int>(
+      0,
+      (sum, list) => sum + list.length,
+    );
     final totalSize = folders.values.fold<int>(
-        0, (sum, list) => sum + list.fold<int>(0, (s, f) => s + f.size));
+      0,
+      (sum, list) => sum + list.fold<int>(0, (s, f) => s + f.size),
+    );
     final theme = Theme.of(context);
     final accent = theme.colorScheme.primary;
 
@@ -382,8 +388,7 @@ class _CloudViewState extends State<CloudView>
                 Text(
                   '$totalSongs songs \u00B7 ${_formatBytes(totalSize)}',
                   style: theme.textTheme.labelSmall?.copyWith(
-                    color: theme.colorScheme.onSurface
-                        .withValues(alpha: 0.35),
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.35),
                   ),
                 ),
               ],
@@ -393,8 +398,8 @@ class _CloudViewState extends State<CloudView>
           GridView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
+            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+              maxCrossAxisExtent: 200,
               crossAxisSpacing: 10,
               mainAxisSpacing: 10,
               childAspectRatio: 1.0,
@@ -432,12 +437,14 @@ class _CloudViewState extends State<CloudView>
               color: theme.colorScheme.error.withValues(alpha: 0.08),
               shape: BoxShape.circle,
             ),
-            child: Icon(Icons.cloud_off_rounded,
-                size: 36, color: theme.colorScheme.error),
+            child: Icon(
+              Icons.cloud_off_rounded,
+              size: 36,
+              color: theme.colorScheme.error,
+            ),
           ),
           const SizedBox(height: 16),
-          Text('Failed to load files',
-              style: theme.textTheme.titleMedium),
+          Text('Failed to load files', style: theme.textTheme.titleMedium),
           const SizedBox(height: 6),
           Text(
             'Check your connection and try again',
@@ -446,8 +453,7 @@ class _CloudViewState extends State<CloudView>
             ),
           ),
           const SizedBox(height: 16),
-          FilledButton.tonal(
-              onPressed: _loadFiles, child: const Text('Retry')),
+          FilledButton.tonal(onPressed: _loadFiles, child: const Text('Retry')),
         ],
       ),
     );
@@ -460,12 +466,13 @@ class _CloudViewState extends State<CloudView>
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.cloud_off_rounded,
-              size: 56,
-              color: theme.colorScheme.onSurface.withValues(alpha: 0.2)),
+          Icon(
+            Icons.cloud_off_rounded,
+            size: 56,
+            color: theme.colorScheme.onSurface.withValues(alpha: 0.2),
+          ),
           const SizedBox(height: 16),
-          Text('Connect a cloud provider',
-              style: theme.textTheme.titleMedium),
+          Text('Connect a cloud provider', style: theme.textTheme.titleMedium),
           const SizedBox(height: 6),
           Text(
             'Stream music from Google Drive or Dropbox',
@@ -486,12 +493,13 @@ class _CloudViewState extends State<CloudView>
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.music_off_rounded,
-              size: 56,
-              color: theme.colorScheme.onSurface.withValues(alpha: 0.2)),
+          Icon(
+            Icons.music_off_rounded,
+            size: 56,
+            color: theme.colorScheme.onSurface.withValues(alpha: 0.2),
+          ),
           const SizedBox(height: 16),
-          Text('No audio files found',
-              style: theme.textTheme.titleMedium),
+          Text('No audio files found', style: theme.textTheme.titleMedium),
           const SizedBox(height: 6),
           Text(
             'Upload music files to your cloud storage',
@@ -538,8 +546,7 @@ class _CloudFolderCard extends StatelessWidget {
     final theme = Theme.of(context);
     final folderName = files.first.folderName;
     final songCount = files.length;
-    final gradientPair =
-        _folderGradients[colorIndex % _folderGradients.length];
+    final gradientPair = _folderGradients[colorIndex % _folderGradients.length];
 
     return Card(
       elevation: isFancy ? 0 : 2,
@@ -602,8 +609,10 @@ class _CloudFolderCard extends StatelessWidget {
               right: 0,
               bottom: 0,
               child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     begin: Alignment.topCenter,
@@ -686,10 +695,7 @@ class _ProviderChip extends StatelessWidget {
                 : theme.colorScheme.surfaceContainerLow,
             borderRadius: BorderRadius.circular(12),
             border: connected
-                ? Border.all(
-                    color: accent.withValues(alpha: 0.25),
-                    width: 1,
-                  )
+                ? Border.all(color: accent.withValues(alpha: 0.25), width: 1)
                 : null,
           ),
           child: Material(
@@ -698,8 +704,10 @@ class _ProviderChip extends StatelessWidget {
               borderRadius: BorderRadius.circular(12),
               onTap: connected ? onDisconnect : onConnect,
               child: Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 14,
+                ),
                 child: Row(
                   children: [
                     Icon(
@@ -707,8 +715,7 @@ class _ProviderChip extends StatelessWidget {
                       size: 22,
                       color: connected
                           ? accent
-                          : theme.colorScheme.onSurface
-                              .withValues(alpha: 0.35),
+                          : theme.colorScheme.onSurface.withValues(alpha: 0.35),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
@@ -732,8 +739,9 @@ class _ProviderChip extends StatelessWidget {
                                   shape: BoxShape.circle,
                                   color: connected
                                       ? const Color(0xFF4CAF50)
-                                      : theme.colorScheme.onSurface
-                                          .withValues(alpha: 0.2),
+                                      : theme.colorScheme.onSurface.withValues(
+                                          alpha: 0.2,
+                                        ),
                                 ),
                               ),
                               const SizedBox(width: 5),
@@ -741,10 +749,12 @@ class _ProviderChip extends StatelessWidget {
                                 connected ? 'Connected' : 'Tap to connect',
                                 style: theme.textTheme.labelSmall?.copyWith(
                                   color: connected
-                                      ? const Color(0xFF4CAF50)
-                                          .withValues(alpha: 0.8)
-                                      : theme.colorScheme.onSurface
-                                          .withValues(alpha: 0.35),
+                                      ? const Color(
+                                          0xFF4CAF50,
+                                        ).withValues(alpha: 0.8)
+                                      : theme.colorScheme.onSurface.withValues(
+                                          alpha: 0.35,
+                                        ),
                                   fontSize: 10,
                                 ),
                               ),
@@ -814,8 +824,8 @@ class _FolderGridSkeleton extends StatelessWidget {
             GridView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
+              gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                maxCrossAxisExtent: 200,
                 crossAxisSpacing: 10,
                 mainAxisSpacing: 10,
                 childAspectRatio: 1.0,

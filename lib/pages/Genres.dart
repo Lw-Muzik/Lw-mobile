@@ -66,8 +66,8 @@ class _GenresState extends State<Genres> {
           padding: const EdgeInsets.all(8.0),
           child: GridView.builder(
             itemCount: genres.length,
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
+            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+              maxCrossAxisExtent: 200,
               crossAxisSpacing: 8,
               mainAxisSpacing: 8,
             ),

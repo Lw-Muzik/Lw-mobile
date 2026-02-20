@@ -6,7 +6,7 @@ import 'package:provider/provider.dart';
 
 import '/Global/index.dart';
 import '/Routes/routes.dart';
-import '/player/PlayerBody.dart';
+import 'player_body.dart';
 import '/player/widgets/Controls.dart';
 import '/player/widgets/Header.dart';
 import '/controllers/AppController.dart';
@@ -14,6 +14,7 @@ import '/Helpers/AudioVisualizer.dart';
 import '/Helpers/index.dart';
 import '/widgets/common.dart';
 import 'swipe_animation.dart';
+import 'lyrics_view.dart';
 
 // Main Player Widget
 class Player extends StatefulWidget {
@@ -119,7 +120,7 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
   }
 }
 
-/// Main vertical layout of the player screen.
+/// Main layout of the player screen — portrait or landscape.
 class _PlayerLayout extends StatelessWidget {
   final AppController controller;
   final Animation<double> animation;
@@ -138,11 +139,20 @@ class _PlayerLayout extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final mq = MediaQuery.of(context);
+    final isLandscape = mq.orientation == Orientation.landscape;
+
+    if (isLandscape) {
+      return _buildLandscape(context, mq);
+    }
+    return _buildPortrait(context, mq);
+  }
+
+  // ── Portrait (original vertical stack) ──────────────────────────────────
+
+  Widget _buildPortrait(BuildContext context, MediaQueryData mq) {
     final topPadding = mq.padding.top;
     final bottomPadding = mq.padding.bottom;
     final h = mq.size.height;
-
-    // Responsive gap that scales with screen height
     final gap = (h * 0.015).clamp(6.0, 16.0);
 
     return SizedBox(
@@ -152,24 +162,88 @@ class _PlayerLayout extends StatelessWidget {
         children: [
           SizedBox(height: topPadding),
           const Header(),
-          // Card deck — Expanded, artwork aligns slightly above center
           _CardDeck(
             controller: controller,
             animation: animation,
             cardKey: cardKey,
           ),
-          // Track info (title + artist)
           _TrackInfo(controller: controller),
           SizedBox(height: gap),
-          // Waveform seek bar
           _WaveformProgress(controller: controller),
           SizedBox(height: gap * 1.4),
-          // Playback controls
           Controls(onNextPressed: onControlNext, onPrevPressed: onControlPrev),
           SizedBox(height: gap * 1.4),
-          // Action bar (visualizer, queue, more)
           playerActionBar(controller, context),
           SizedBox(height: bottomPadding + gap),
+        ],
+      ),
+    );
+  }
+
+  // ── Landscape (artwork left, controls right) ────────────────────────────
+
+  Widget _buildLandscape(BuildContext context, MediaQueryData mq) {
+    final topPadding = mq.padding.top;
+    final bottomPadding = mq.padding.bottom;
+    final leftPadding = mq.padding.left;
+    final rightPadding = mq.padding.right;
+    final h = mq.size.height;
+    final gap = (h * 0.02).clamp(6.0, 14.0);
+
+    return SizedBox(
+      height: h,
+      width: mq.size.width,
+      child: Column(
+        children: [
+          SizedBox(height: topPadding),
+          const Header(),
+          Expanded(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // ── Left: artwork card deck + track info ──
+                Expanded(
+                  flex: 5,
+                  child: Padding(
+                    padding: EdgeInsets.only(left: leftPadding + 8),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        _CardDeck(
+                          controller: controller,
+                          animation: animation,
+                          cardKey: cardKey,
+                          landscape: true,
+                        ),
+                        _TrackInfo(controller: controller),
+                      ],
+                    ),
+                  ),
+                ),
+                // ── Right: seekbar, controls, action bar ──
+                Expanded(
+                  flex: 5,
+                  child: Padding(
+                    padding: EdgeInsets.only(right: rightPadding + 8),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        _WaveformProgress(controller: controller),
+                        SizedBox(height: gap * 1.4),
+                        Controls(
+                          onNextPressed: onControlNext,
+                          onPrevPressed: onControlPrev,
+                        ),
+                        SizedBox(height: gap * 1.4),
+                        playerActionBar(controller, context),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          SizedBox(height: bottomPadding),
         ],
       ),
     );
@@ -181,44 +255,102 @@ class _CardDeck extends StatelessWidget {
   final AppController controller;
   final Animation<double> animation;
   final GlobalKey<AnimatedPlayerCardState> cardKey;
+  final bool landscape;
 
   const _CardDeck({
     required this.controller,
     required this.animation,
     required this.cardKey,
+    this.landscape = false,
   });
+
+  void _openLyrics(BuildContext context) {
+    Navigator.of(context).push(
+      PageRouteBuilder(
+        opaque: false,
+        pageBuilder: (_, __, ___) => const LyricsView(),
+        transitionsBuilder: (_, anim, __, child) {
+          return SlideTransition(
+            position: Tween<Offset>(begin: const Offset(0, 1), end: Offset.zero)
+                .animate(
+                  CurvedAnimation(parent: anim, curve: Curves.easeOutCubic),
+                ),
+            child: child,
+          );
+        },
+        transitionDuration: const Duration(milliseconds: 350),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Expanded(
-      child: AnimatedPlayerCard(
-        key: cardKey,
-        itemCount: controller.songs.length,
-        currentSongId: controller.songId,
-        onPageChanged: (page) {
-          if (page > controller.songId) {
-            controller.next();
-          } else {
-            controller.prev();
-          }
-        },
-        itemBuilder: (context, index, {bool isActive = false}) {
-          return InkWell(
-            onTap: () => Routes.pop(context),
-            onLongPress: () => showTrackInfo(context, controller),
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 300),
-              child: playerCard(
-                animation,
-                context,
-                controller,
-                songIndex: index,
+    final card = GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onVerticalDragEnd: (details) {
+        if (details.velocity.pixelsPerSecond.dy < -300) {
+          _openLyrics(context);
+        }
+      },
+      child: Column(
+        children: [
+          Expanded(
+            child: AnimatedPlayerCard(
+              key: cardKey,
+              itemCount: controller.songs.length,
+              currentSongId: controller.songId,
+              onPageChanged: (page) {
+                if (page > controller.songId) {
+                  controller.next();
+                } else {
+                  controller.prev();
+                }
+              },
+              itemBuilder: (context, index, {bool isActive = false}) {
+                return InkWell(
+                  onTap: () => Routes.pop(context),
+                  onLongPress: () => showTrackInfo(context, controller),
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 300),
+                    child: playerCard(
+                      animation,
+                      context,
+                      controller,
+                      songIndex: index,
+                      useHero: index == controller.songId,
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          if (controller.currentLyrics != null || controller.lyricsLoading)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Icon(
+                Icons.keyboard_arrow_up_rounded,
+                color: Colors.white.withValues(alpha: 0.25),
+                size: 20,
               ),
             ),
-          );
-        },
+        ],
       ),
     );
+
+    // In landscape the parent Column is centered — use a constrained size
+    // instead of Expanded so mainAxisAlignment: center can work.
+    if (landscape) {
+      final availableHeight =
+          MediaQuery.of(context).size.height -
+          MediaQuery.of(context).padding.top -
+          MediaQuery.of(context).padding.bottom -
+          48; // header height
+      // Card takes ~60% of available height, leaves room for track info
+      final cardHeight = (availableHeight * 0.65).clamp(120.0, 400.0);
+      return SizedBox(height: cardHeight, child: card);
+    }
+
+    return Expanded(child: card);
   }
 }
 
@@ -364,14 +496,15 @@ class _MarqueeTextState extends State<_MarqueeText>
     _anim?.dispose();
     // Speed: ~30px/s — adjust duration based on overflow distance.
     final durationMs = (maxScroll / 30 * 1000).round().clamp(2000, 15000);
-    _anim = AnimationController(
-      vsync: this,
-      duration: Duration(milliseconds: durationMs),
-    )..addListener(() {
-        if (_scrollController.hasClients) {
-          _scrollController.jumpTo(_anim!.value * maxScroll);
-        }
-      });
+    _anim =
+        AnimationController(
+          vsync: this,
+          duration: Duration(milliseconds: durationMs),
+        )..addListener(() {
+          if (_scrollController.hasClients) {
+            _scrollController.jumpTo(_anim!.value * maxScroll);
+          }
+        });
 
     // Pause 1.5s → scroll to end → pause 1.5s → jump back → repeat
     Future.doWhile(() async {
@@ -438,13 +571,17 @@ class _WaveformProgress extends StatelessWidget {
         final isPlaying = playingSnap.data ?? false;
         return StreamBuilder<PositionData>(
           key: ValueKey(streamKey),
-          stream: Rx.combineLatest3<Duration, Duration, Duration?, PositionData>(
-            trackPlayer.positionStream,
-            trackPlayer.bufferedPositionStream,
-            trackPlayer.durationStream,
-            (position, bufferedPosition, duration) =>
-                PositionData(position, bufferedPosition, duration ?? Duration.zero),
-          ),
+          stream:
+              Rx.combineLatest3<Duration, Duration, Duration?, PositionData>(
+                trackPlayer.positionStream,
+                trackPlayer.bufferedPositionStream,
+                trackPlayer.durationStream,
+                (position, bufferedPosition, duration) => PositionData(
+                  position,
+                  bufferedPosition,
+                  duration ?? Duration.zero,
+                ),
+              ),
           builder: (context, snapshot) {
             final data = snapshot.data;
             return WaveformSeekBar(

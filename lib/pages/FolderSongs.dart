@@ -2,7 +2,7 @@ import 'package:eq_app/Global/index.dart';
 import 'package:eq_app/Helpers/Files.dart';
 import '/exports/exports.dart';
 import '../controllers/AppController.dart';
-import '../player/PlayerUI.dart';
+import '../player/player_ui.dart';
 import '../widgets/BottomPlayer.dart';
 import '/widgets/PlayListWidget.dart';
 import '/widgets/song_tile.dart';
@@ -157,10 +157,8 @@ class _FolderSongsState extends State<FolderSongs> {
                   context: context,
                   builder: (context) => BottomSheet(
                     onClosing: () {},
-                    builder: (context) => PlaylistWidget(
-                      audioId: song.id,
-                      song: song.title,
-                    ),
+                    builder: (context) =>
+                        PlaylistWidget(audioId: song.id, song: song.title),
                   ),
                 );
               },

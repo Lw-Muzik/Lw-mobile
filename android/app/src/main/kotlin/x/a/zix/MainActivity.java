@@ -631,6 +631,21 @@ public class MainActivity extends AudioServiceFragmentActivity {
                             result.success(outputType);
                             break;
 
+                        // ==================== Lyrics ====================
+                        case "readLyrics": {
+                            String lyrFilePath = call.argument("filePath");
+                            String lyrText = LyricsManager.readLyrics(lyrFilePath);
+                            result.success(lyrText);
+                            break;
+                        }
+                        case "writeLyrics": {
+                            String lyrFilePath = call.argument("filePath");
+                            String lyrContent = call.argument("lyrics");
+                            boolean ok = LyricsManager.writeLyrics(lyrFilePath, lyrContent);
+                            result.success(ok);
+                            break;
+                        }
+
                         default:
                             result.notImplemented();
                             break;
