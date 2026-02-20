@@ -35,7 +35,7 @@ class DropboxService {
       body: json.encode({
         'path': '',
         'recursive': true,
-        'include_media_info': false,
+        'include_media_info': true,
         'include_deleted': false,
         'limit': 2000,
       }),
@@ -62,6 +62,26 @@ class DropboxService {
         final parentPath =
             pathLower.substring(0, pathLower.lastIndexOf('/'));
 
+        // Extract media metadata if available
+        String? trackTitle;
+        String? trackArtist;
+        String? albumName;
+        int? durationMs;
+
+        final mediaInfo = entry['media_info'];
+        if (mediaInfo is Map) {
+          final metadata = mediaInfo['metadata'];
+          if (metadata is Map) {
+            // Dropbox provides metadata for photos/videos; audio fields
+            // may appear in some cases depending on the file
+            trackTitle = metadata['title'] as String?;
+            trackArtist = metadata['artist'] as String?;
+            albumName = metadata['album'] as String?;
+            final dur = metadata['duration'];
+            if (dur is num) durationMs = dur.toInt();
+          }
+        }
+
         allFiles.add(CloudFile(
           provider: CloudProvider.dropbox,
           fileId: pathLower,
@@ -72,6 +92,10 @@ class DropboxService {
           modifiedDate: entry['server_modified'] != null
               ? DateTime.tryParse(entry['server_modified'] as String)
               : null,
+          trackTitle: trackTitle,
+          trackArtist: trackArtist,
+          albumName: albumName,
+          durationMs: durationMs,
         ));
       }
 

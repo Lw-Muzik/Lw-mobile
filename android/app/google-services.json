@@ -2,7 +2,7 @@
   "project_info": {
     "project_number": "618382337035",
     "project_id": "hype-muzik",
-    "storage_bucket": "hype-muzik.appspot.com"
+    "storage_bucket": "hype-muzik.firebasestorage.app"
   },
   "client": [
     {
@@ -12,7 +12,24 @@
           "package_name": "x.a.zix"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "618382337035-spnvbjat80jqr8v2r74829to4mh1qdr1.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "x.a.zix",
+            "certificate_hash": "866488edf0cc2c84c5a0aa56ebb3a32b35750830"
+          }
+        },
+        {
+          "client_id": "618382337035-u0kumsq379cie3tedndmegc2egn534ue.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "x.a.zix",
+            "certificate_hash": "57bfb278fd44d52d5a8110815bfd0bd0c5594f28"
+          }
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyDHcsmb7ik8VwYtpT61ufIrsQKwD_udHgg"

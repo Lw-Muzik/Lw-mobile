@@ -35,9 +35,13 @@ class CloudAuthService {
   Future<bool> signInGoogle() async {
     lastError = null;
     try {
-      _googleAccount = await _googleSignIn.signIn();
+      // Timeout after 30 seconds to prevent infinite hang
+      _googleAccount = await _googleSignIn.signIn()
+          .timeout(const Duration(seconds: 30), onTimeout: () => null);
       if (_googleAccount == null) {
-        lastError = 'Sign-in cancelled';
+        lastError = 'Sign-in cancelled or timed out. '
+            'Make sure your google-services.json has an OAuth client '
+            'registered with your SHA-1 fingerprint.';
         return false;
       }
 
@@ -49,7 +53,7 @@ class CloudAuthService {
         final granted =
             await _googleSignIn.requestScopes([_driveScope]);
         if (!granted) {
-          lastError = 'Drive permission denied';
+          lastError = 'Drive permission denied. Grant access to Google Drive.';
           await _googleSignIn.signOut();
           _googleAccount = null;
           return false;
@@ -67,7 +71,15 @@ class CloudAuthService {
 
       return true;
     } catch (e) {
-      lastError = 'Google sign-in failed: $e';
+      final msg = e.toString();
+      if (msg.contains('DEVELOPER_ERROR') || msg.contains('10:')) {
+        lastError = 'OAuth not configured. Add your SHA-1 fingerprint '
+            'to Firebase Console and re-download google-services.json.';
+      } else if (msg.contains('sign_in_canceled') || msg.contains('12501')) {
+        lastError = 'Sign-in was cancelled';
+      } else {
+        lastError = 'Google sign-in failed: $msg';
+      }
       dev.log('Google sign-in error: $e', name: 'CloudAuth');
       _googleAccount = null;
       return false;

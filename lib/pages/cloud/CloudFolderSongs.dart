@@ -1,3 +1,7 @@
+import 'dart:io';
+
+import 'package:http/http.dart' as http;
+import 'package:id3tag/id3tag.dart';
 import '/exports/exports.dart';
 import '/Routes/routes.dart';
 import '../../controllers/AppController.dart';
@@ -24,6 +28,7 @@ class CloudFolderSongs extends StatefulWidget {
 
 class _CloudFolderSongsState extends State<CloudFolderSongs> {
   List<SongModel>? _songModels;
+  List<String>? _streamUrls;
   bool _loading = true;
   String? _error;
 
@@ -38,6 +43,7 @@ class _CloudFolderSongsState extends State<CloudFolderSongs> {
 
     try {
       final models = <SongModel>[];
+      final urls = <String>[];
       for (final file in widget.files) {
         String? streamUrl;
         if (file.provider == CloudProvider.googleDrive) {
@@ -48,13 +54,17 @@ class _CloudFolderSongsState extends State<CloudFolderSongs> {
         }
         if (streamUrl != null) {
           models.add(file.toSongModel(streamUrl));
+          urls.add(streamUrl);
         }
       }
       if (mounted) {
         setState(() {
           _songModels = models;
+          _streamUrls = urls;
           _loading = false;
         });
+        // Start background metadata extraction
+        _extractMetadataInBackground();
       }
     } catch (e) {
       if (mounted) {
@@ -62,6 +72,110 @@ class _CloudFolderSongsState extends State<CloudFolderSongs> {
           _error = e.toString();
           _loading = false;
         });
+      }
+    }
+  }
+
+  Future<void> _extractMetadataInBackground() async {
+    if (_songModels == null || _streamUrls == null) return;
+
+    final controller = Provider.of<AppController>(context, listen: false);
+    final tempDir = await getTemporaryDirectory();
+
+    for (int i = 0; i < widget.files.length && i < _songModels!.length; i++) {
+      if (!mounted) break;
+
+      final file = widget.files[i];
+      final streamUrl = _streamUrls![i];
+      final songId = file.fileId.hashCode.abs();
+      final artPath = '${tempDir.path}/cloud_art_$songId.png';
+      final metaCachePath = '${tempDir.path}/cloud_meta_$songId.done';
+
+      // Skip if metadata already extracted in a previous session
+      if (File(metaCachePath).existsSync()) {
+        // Artwork was already saved — just refresh the tile if art exists
+        if (File(artPath).existsSync() && mounted) {
+          setState(() {});
+        }
+        continue;
+      }
+
+      try {
+        // Build headers (Google Drive needs auth, Dropbox temp links don't)
+        final headers = <String, String>{};
+        if (file.provider == CloudProvider.googleDrive) {
+          headers.addAll(await controller.cloudAuth.getGoogleAuthHeaders());
+        }
+        // Download only the first 512KB (enough for ID3v2 header + artwork)
+        headers['Range'] = 'bytes=0-524287';
+
+        final response = await http.get(Uri.parse(streamUrl), headers: headers);
+        if (response.statusCode != 200 && response.statusCode != 206) continue;
+
+        // Save partial download to temp file for ID3 parsing
+        final partialPath = '${tempDir.path}/cloud_partial_$songId.tmp';
+        final partialFile = File(partialPath);
+        await partialFile.writeAsBytes(response.bodyBytes);
+
+        // Parse ID3 tags
+        String? title, artist, album;
+        bool hasArtwork = false;
+
+        try {
+          final parser = ID3TagReader.path(partialPath);
+          final tag = await parser.readTag();
+
+          // Extract text metadata using framesWithName
+          final titleFrames = tag.framesWithName('TIT2');
+          if (titleFrames.isNotEmpty && titleFrames.first is TextInformation) {
+            title = (titleFrames.first as TextInformation).value;
+          }
+          final artistFrames = tag.framesWithName('TPE1');
+          if (artistFrames.isNotEmpty && artistFrames.first is TextInformation) {
+            artist = (artistFrames.first as TextInformation).value;
+          }
+          final albumFrames = tag.framesWithName('TALB');
+          if (albumFrames.isNotEmpty && albumFrames.first is TextInformation) {
+            album = (albumFrames.first as TextInformation).value;
+          }
+
+          // Extract and save artwork
+          if (tag.pictures.isNotEmpty) {
+            await File(artPath).writeAsBytes(tag.pictures.first.imageData);
+            hasArtwork = true;
+          }
+        } catch (_) {
+          // ID3 parsing failed (truncated file, no tags, etc.) — continue
+        }
+
+        // Cleanup partial file
+        if (partialFile.existsSync()) partialFile.deleteSync();
+
+        // Mark metadata as extracted so we skip next time
+        await File(metaCachePath).writeAsString('done');
+
+        // Update song model if metadata was found
+        if (mounted && (title != null || artist != null || hasArtwork)) {
+          final updatedFile = CloudFile(
+            provider: file.provider,
+            fileId: file.fileId,
+            name: file.name,
+            folderPath: file.folderPath,
+            size: file.size,
+            mimeType: file.mimeType,
+            thumbnailUrl: file.thumbnailUrl,
+            modifiedDate: file.modifiedDate,
+            trackTitle: title ?? file.trackTitle,
+            trackArtist: artist ?? file.trackArtist,
+            albumName: album ?? file.albumName,
+            durationMs: file.durationMs,
+          );
+          setState(() {
+            _songModels![i] = updatedFile.toSongModel(streamUrl);
+          });
+        }
+      } catch (_) {
+        // Failed for this file — continue with next
       }
     }
   }
