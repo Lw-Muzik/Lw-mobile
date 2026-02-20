@@ -76,16 +76,6 @@ class _AudioFxState extends State<AudioFx> {
                           Channel.setDSPXBass(x);
                         },
                       ),
-                      buildSlider(
-                        "Power Gain",
-                        controller.dspOutGain,
-                        0,
-                        15,
-                        (x) {
-                          controller.dspOutGain = x;
-                          Channel.setOutGain(x);
-                        },
-                      ),
                     ],
                   ),
                 ),
@@ -202,6 +192,5 @@ extension on AppController {
     Channel.setDSPTreble(0.0);
     Channel.setDSPPowerBass(0.0);
     Channel.setDSPXBass(0.0);
-    Channel.setOutGain(0.0);
   }
 }

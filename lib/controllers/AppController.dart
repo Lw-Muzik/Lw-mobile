@@ -399,7 +399,7 @@ class AppController with ChangeNotifier {
     _dvcEnabled = value;
     if (value) {
       Channel.enableDvc();
-      Channel.setDvcGain((_dvcGain * 100).toInt());
+      Channel.setDvcGain(_dvcGain);
     } else {
       Channel.disableDvc();
     }
@@ -409,7 +409,7 @@ class AppController with ChangeNotifier {
   set dvcGain(double value) {
     _prefs.setDouble("dvcGain", value);
     _dvcGain = value;
-    Channel.setDvcGain((value * 100).toInt()); // API expects millibels
+    Channel.setDvcGain(value);
     notifyListeners();
   }
 
@@ -614,7 +614,7 @@ class AppController with ChangeNotifier {
     // Apply DVC state on startup
     if (_dvcEnabled) {
       Channel.enableDvc();
-      Channel.setDvcGain((_dvcGain * 100).toInt());
+      Channel.setDvcGain(_dvcGain);
     }
 
     _bindDvcVolumeButtons();
@@ -657,7 +657,7 @@ class AppController with ChangeNotifier {
         // Re-apply DVC state after session change
         if (_dvcEnabled) {
           Channel.enableDvc();
-          Channel.setDvcGain((_dvcGain * 100).toInt());
+          Channel.setDvcGain(_dvcGain);
         }
         // Re-apply room effects
         if (_reverbEnabled) {

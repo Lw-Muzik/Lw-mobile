@@ -115,7 +115,6 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
     Channel.setDSPTreble(_appController.dspXTreble);
     Channel.setDSPPowerBass(_appController.dspPowerBass);
     Channel.setDSPXBass(_appController.dspXBass);
-    Channel.setOutGain(_appController.dspOutGain);
     // ]);
   }
 

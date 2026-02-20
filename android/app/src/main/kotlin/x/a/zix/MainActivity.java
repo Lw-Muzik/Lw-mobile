@@ -262,8 +262,8 @@ public class MainActivity extends AudioServiceFragmentActivity {
                             result.success(null);
                             break;
                         case "setDvcGain":
-                            int dvcGain = call.argument("gain");
-                            LoudnessControl.setTargetGain(dvcGain);
+                            double dvcGainDb = call.argument("gain");
+                            DvcController.setGain((float) dvcGainDb);
                             result.success(null);
                             break;
                         case "getDvcGain":
@@ -426,24 +426,11 @@ public class MainActivity extends AudioServiceFragmentActivity {
                             }
                             break;
 
-                        case "setOutGain":
-                            double limitGain = call.argument("outGain");
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                                DSPEngine.setOutGain(((float) limitGain));
-                            }
-                            break;
                         case "getVocalLevel":
                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                                 float vocalLevel = DSPEngine.getVocalLevel();
                                 result.success(vocalLevel);
                             }
-                            break;
-                        case "getOutGain":
-                            float lGain = 0;
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                                lGain = DSPEngine.getGainValue();
-                            }
-                            result.success(lGain);
                             break;
 
                         case "setDSPXBass":
@@ -509,30 +496,6 @@ public class MainActivity extends AudioServiceFragmentActivity {
                             }
                             break;
                         // -------------------------- compressor settings
-                        case "setThreshold":
-                            double dspThreshold = call.argument("dspThreshold");
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                                DSPEngine.setAudioThreshold((float) dspThreshold);
-                            }
-                            break;
-                        case "setReleaseTime":
-                            double releaseTime = call.argument("releaseTime");
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                                DSPEngine.setRelease((float) releaseTime);
-                            }
-                            break;
-                        case "setAttackTime":
-                            double attackTime = call.argument("attackTime");
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                                DSPEngine.setAttackTime((float) attackTime);
-                            }
-                            break;
-                        case "setRatio":
-                            double ratio = call.argument("ratio");
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                                DSPEngine.setAudioRatio((float) ratio);
-                            }
-                            break;
                         case "setPreGain":
                             double preGain = call.argument("preGain");
                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {

@@ -17,71 +17,6 @@ class DynamicsView extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       children: [
-        const SettingsHeader(title: "LIMITER"),
-        const SizedBox(height: 8),
-        FancyCard(
-          isFancy: controller.isFancy,
-          child: Column(
-            children: [
-              _buildSlider(
-                title: "Threshold",
-                min: -50,
-                max: 0,
-                value: controller.threshold,
-                onChanged: (val) {
-                  controller.threshold = val;
-                  Channel.setDSPThreshold(val);
-                },
-                dB: "${controller.threshold.toStringAsFixed(1)} dB",
-              ),
-              _buildSlider(
-                title: "Attack",
-                min: 0.1,
-                max: 100,
-                value: controller.attackTime,
-                onChanged: (val) {
-                  controller.attackTime = val;
-                  Channel.setAttackTime(val);
-                },
-                dB: "${controller.attackTime.toStringAsFixed(1)} ms",
-              ),
-              _buildSlider(
-                title: "Release",
-                min: 1,
-                max: 200,
-                value: controller.releaseTime,
-                onChanged: (val) {
-                  controller.releaseTime = val;
-                  Channel.setReleaseTime(val);
-                },
-                dB: "${controller.releaseTime.toStringAsFixed(1)} ms",
-              ),
-              _buildSlider(
-                title: "Ratio",
-                min: 1,
-                max: 100,
-                value: controller.ratio,
-                onChanged: (val) {
-                  controller.ratio = val;
-                  Channel.setRatio(val);
-                },
-                dB: "${controller.ratio.toStringAsFixed(1)}:1",
-              ),
-              _buildSlider(
-                title: "Output Gain",
-                min: -15,
-                max: 15,
-                value: controller.dspOutGain,
-                onChanged: (val) {
-                  controller.dspOutGain = val;
-                  Channel.setOutGain(val);
-                },
-                dB: controller.dspOutGain.dps,
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 16),
         const SettingsHeader(title: "COMPRESSOR"),
         const SizedBox(height: 8),
         FancyCard(
@@ -161,18 +96,6 @@ class DynamicsView extends StatelessWidget {
   }
 
   void _restoreDefaults(AppController controller) {
-    controller.threshold = -2.0;
-    Channel.setDSPThreshold(-2.0);
-
-    controller.attackTime = 1.0;
-    Channel.setAttackTime(1.0);
-
-    controller.releaseTime = 60.0;
-    Channel.setReleaseTime(60.0);
-
-    controller.ratio = 10.0;
-    Channel.setRatio(10.0);
-
     controller.kneeWidth = 0.4;
     Channel.setDspKneeWidth(0.4);
 
@@ -184,9 +107,6 @@ class DynamicsView extends StatelessWidget {
 
     controller.dspNoise = -10.0;
     Channel.setDspNoiseThreshold(-10.0);
-
-    controller.dspOutGain = 3.0;
-    Channel.setOutGain(3.0);
   }
 
   Widget _buildSlider({

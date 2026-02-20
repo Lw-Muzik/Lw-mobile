@@ -14,7 +14,6 @@ public class DSPEngine {
     private static DynamicsProcessing.Eq preEq;   // Graphic EQ (32 bands)
     private static DynamicsProcessing.Eq postEq;   // Parametric EQ (32 bands)
     private static DynamicsProcessing.Mbc dspMbc;
-    private static DynamicsProcessing.Limiter dspLimiter;
 
     public static final int GRAPHIC_BAND_COUNT = 32;
     public static final int PARAMETRIC_BAND_COUNT = 32;
@@ -55,7 +54,7 @@ public class DSPEngine {
     static int[] dsp_speakers = {31, 62, 85, 250, 500, 1000, 2000, 4000, 8000, 16000};
     static float[] dsp_gains = {4.8f, 3.6f, 3.0f, 5.0f, 5f, 3f, 5f, 6f, 4f, 7f};
 
-    // Engine config: 32-band Pre-EQ, 10-band MBC, 32-band Post-EQ, limiter
+    // Engine config: 32-band Pre-EQ, 10-band MBC, 32-band Post-EQ, no limiter
     private static DynamicsProcessing.Config buildConfig() {
         DynamicsProcessing.Config.Builder builder = new DynamicsProcessing.Config.Builder(
             0,                      // variant
@@ -66,7 +65,7 @@ public class DSPEngine {
             MBC_BAND_COUNT,         // MBC band count (10)
             true,                   // post-EQ enabled
             PARAMETRIC_BAND_COUNT,  // post-EQ band count (32)
-            true                    // limiter enabled
+            false                   // limiter disabled — auto-gain compensation instead
         );
         builder.setPreferredFrameDuration(20.0f);
         return builder.build();
@@ -130,18 +129,6 @@ public class DSPEngine {
             // MBC
             dspMbc = new DynamicsProcessing.Mbc(true, true, MBC_BAND_COUNT);
 
-            // Limiter — brick-wall at clipping, minimal coloration
-            dspLimiter = new DynamicsProcessing.Limiter(
-                true,               // enabled
-                true,               // in linear domain
-                10,                 // link channels
-                0.5f,               // attack time (ms) — fast catch
-                50.0f,              // release time (ms) — smooth recovery
-                20.0f,              // ratio — near brick-wall
-                -0.5f,              // threshold (dB) — only catches clipping
-                DEFAULT_OUT_GAIN    // output gain
-            );
-
             // Configure Pre-EQ with ISO frequencies and restore gains
             for (int b = 0; b < GRAPHIC_BAND_COUNT; b++) {
                 preEq.getBand(b).setCutoffFrequency(GRAPHIC_FREQUENCIES[b]);
@@ -159,13 +146,12 @@ public class DSPEngine {
             // Configure MBC bands
             initMbcDefaults();
 
-            // Apply to engine — use preamp gain if set, otherwise default
-            dspEngine.setInputGainAllChannelsTo(preampGain > 0 ? preampGain : DEFAULT_INPUT_GAIN);
+            // Apply to engine
             dspEngine.setPreEqAllChannelsTo(preEq);
             dspEngine.setPostEqAllChannelsTo(postEq);
             dspMbc.setEnabled(mbcEnabled);
             dspEngine.setMbcAllChannelsTo(dspMbc);
-            dspEngine.setLimiterAllChannelsTo(dspLimiter);
+            recomputeInputGain();
 
             // Restore enabled state
             if (wasEnabled) {
@@ -205,6 +191,7 @@ public class DSPEngine {
         try {
             preEq.getBand(band).setGain(gain);
             dspEngine.setPreEqBandAllChannelsTo(band, preEq.getBand(band));
+            recomputeInputGain();
         } catch (Exception e) {
             Log.e(TAG, "setGraphicBandGain error band=" + band, e);
         }
@@ -222,6 +209,7 @@ public class DSPEngine {
             preEq.getBand(i).setGain(gains[i]);
         }
         dspEngine.setPreEqAllChannelsTo(preEq);
+        recomputeInputGain();
     }
 
     public static float[] getGraphicAllBands() {
@@ -242,6 +230,7 @@ public class DSPEngine {
             postEq.getBand(band).setCutoffFrequency(freq);
             postEq.getBand(band).setGain(gain);
             dspEngine.setPostEqBandAllChannelsTo(band, postEq.getBand(band));
+            recomputeInputGain();
         } catch (Exception e) {
             Log.e(TAG, "setParametricBand error band=" + band, e);
         }
@@ -265,6 +254,7 @@ public class DSPEngine {
             postEq.getBand(i).setGain(gains[i]);
         }
         dspEngine.setPostEqAllChannelsTo(postEq);
+        recomputeInputGain();
     }
 
     // ======================== LEGACY DSP METHODS (backwards compat) ========================
@@ -318,13 +308,7 @@ public class DSPEngine {
 
     public static void setPreamp(float dB) {
         preampGain = Math.max(0.0f, Math.min(15.0f, dB));
-        if (dspEngine != null) {
-            try {
-                dspEngine.setInputGainAllChannelsTo(preampGain);
-            } catch (Exception e) {
-                Log.e(TAG, "setPreamp error", e);
-            }
-        }
+        recomputeInputGain();
     }
 
     public static float getPreamp() {
@@ -357,7 +341,6 @@ public class DSPEngine {
             if (preEq != null) preEq.setEnabled(enable);
             if (postEq != null) postEq.setEnabled(enable);
             if (dspMbc != null) dspMbc.setEnabled(mbcEnabled && enable);
-            if (dspLimiter != null) dspLimiter.setEnabled(enable);
         } catch (Exception e) {
             Log.e(TAG, "enableEngine error", e);
         }
@@ -375,50 +358,38 @@ public class DSPEngine {
             preEq = null;
             postEq = null;
             dspMbc = null;
-            dspLimiter = null;
             boundSessionId = -1;
         }
     }
 
-    // ======================== LIMITER ========================
+    // ======================== AUTO-GAIN COMPENSATION ========================
+    // Instead of a limiter, we reduce input gain by the peak EQ boost so the
+    // signal never clips.  preamp is added on top, so effective input gain =
+    // preampGain - peakBoost.
 
-    public static void setOutGain(float gain) {
-        if (dspEngine == null || dspLimiter == null) return;
-        try {
-            dspLimiter.setPostGain(gain);
-            dspEngine.setLimiterAllChannelsTo(dspLimiter);
-        } catch (Exception e) {
-            Log.e(TAG, "setOutGain error", e);
+    private static void recomputeInputGain() {
+        if (dspEngine == null) return;
+        float peakBoost = 0.0f;
+        if (preEq != null) {
+            for (int i = 0; i < GRAPHIC_BAND_COUNT; i++) {
+                float g = preEq.getBand(i).getGain();
+                if (g > peakBoost) peakBoost = g;
+            }
         }
-    }
-
-    public static float getGainValue() {
-        if (dspLimiter != null) return dspLimiter.getPostGain();
-        return 0.0f;
-    }
-
-    public static void setAudioThreshold(float threshold) {
-        if (dspEngine == null || dspLimiter == null) return;
-        dspLimiter.setThreshold(threshold);
-        dspEngine.setLimiterAllChannelsTo(dspLimiter);
-    }
-
-    public static void setRelease(float release) {
-        if (dspEngine == null || dspLimiter == null) return;
-        dspLimiter.setReleaseTime(release);
-        dspEngine.setLimiterAllChannelsTo(dspLimiter);
-    }
-
-    public static void setAttackTime(float attack) {
-        if (dspEngine == null || dspLimiter == null) return;
-        dspLimiter.setAttackTime(attack);
-        dspEngine.setLimiterAllChannelsTo(dspLimiter);
-    }
-
-    public static void setAudioRatio(float ratio) {
-        if (dspEngine == null || dspLimiter == null) return;
-        dspLimiter.setRatio(ratio);
-        dspEngine.setLimiterAllChannelsTo(dspLimiter);
+        if (postEq != null) {
+            for (int i = 0; i < PARAMETRIC_BAND_COUNT; i++) {
+                float g = postEq.getBand(i).getGain();
+                if (g > peakBoost) peakBoost = g;
+            }
+        }
+        // effective = preamp - peakBoost (never less than -15 dB)
+        float effective = preampGain - peakBoost;
+        effective = Math.max(-15.0f, effective);
+        try {
+            dspEngine.setInputGainAllChannelsTo(effective);
+        } catch (Exception e) {
+            Log.e(TAG, "recomputeInputGain error", e);
+        }
     }
 
     // ======================== MBC / COMPRESSOR ========================

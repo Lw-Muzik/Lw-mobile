@@ -177,9 +177,10 @@ class Channel {
     await _invoke("disableDvc", {});
   }
 
-  /// Set DVC internal gain in millibels (via LoudnessEnhancer)
-  static Future<void> setDvcGain(int millibels) async {
-    await _invoke("setDvcGain", {"gain": millibels});
+  /// Set DVC gain in dB. Native side handles system volume crossover
+  /// for true silence at the bottom of the range.
+  static Future<void> setDvcGain(double dB) async {
+    await _invoke("setDvcGain", {"gain": dB});
   }
 
   /// Get current DVC internal gain
@@ -335,13 +336,6 @@ class Channel {
     await _invoke("enableDSP", {"enableEngine": enable});
   }
 
-  static void setOutGain(double limit) async {
-    await _invoke("setOutGain", {"outGain": limit});
-  }
-
-  static Future<double> getOutGain() async {
-    return await _invokeRequired<double>("getOutGain", 0.0);
-  }
 
   static Future<double> setDSPVolume(double v) async {
     return await _invokeRequired<double>("setDSPVolume", 0.0, {"dspVolume": v});
@@ -367,23 +361,7 @@ class Channel {
     await _invoke("setDSPXTreble", {"trebleGain": treble});
   }
 
-  // ----------- DSP compressor ------------------
-
-  static void setDSPThreshold(double threshold) async {
-    await _invoke("setThreshold", {"dspThreshold": threshold});
-  }
-
-  static void setRatio(double ratio) async {
-    await _invoke("setRatio", {"ratio": ratio});
-  }
-
-  static void setAttackTime(double attackTime) async {
-    await _invoke("setAttackTime", {"attackTime": attackTime});
-  }
-
-  static void setReleaseTime(double release) async {
-    await _invoke("setReleaseTime", {"releaseTime": release});
-  }
+  // ----------- DSP compressor (MBC) ------------------
 
   static void setDspKneeWidth(double kneeWidth) async {
     await _invoke("kneeWidth", {"kneeWidth": kneeWidth});
@@ -505,6 +483,7 @@ class Channel {
   static Future<bool> isMbcEnabled() async {
     return await _invokeRequired<bool>("isMbcEnabled", false);
   }
+
 
   // ==================== Device Detection ====================
 
