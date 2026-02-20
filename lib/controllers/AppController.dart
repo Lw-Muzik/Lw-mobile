@@ -14,8 +14,10 @@ import 'dart:io';
 
 import 'package:http/http.dart' as http;
 
+import '../models/cloud_file.dart';
 import '../services/cloud_auth_service.dart';
 import '../services/cloud_cache_service.dart';
+import '../services/cloud_metadata_service.dart';
 import '../services/google_drive_service.dart';
 import '../services/dropbox_service.dart';
 
@@ -26,6 +28,7 @@ class AppController with ChangeNotifier {
   // Cloud services
   late final CloudAuthService cloudAuth;
   late final CloudCacheService cloudCache;
+  late final CloudMetadataService cloudMetadata;
   late final GoogleDriveService googleDriveService;
   late final DropboxService dropboxService;
 
@@ -548,6 +551,8 @@ class AppController with ChangeNotifier {
     cloudCache = CloudCacheService(_prefs);
     googleDriveService = GoogleDriveService(cloudAuth);
     dropboxService = DropboxService(cloudAuth);
+    cloudMetadata = CloudMetadataService(
+        cloudAuth, cloudCache, googleDriveService, dropboxService);
     _initCloudServices();
   }
 
@@ -1024,6 +1029,30 @@ class AppController with ChangeNotifier {
     await cloudAuth.restoreGoogleSession();
     await cloudAuth.restoreDropboxSession();
     notifyListeners();
+    // Kick off background metadata preload from cached file lists.
+    _preloadMetadataFromCache();
+  }
+
+  /// Start background ID3 extraction for any cached cloud file lists.
+  void _preloadMetadataFromCache() {
+    if (isGoogleConnected) {
+      final files = cloudCache.loadFileList(CloudProvider.googleDrive);
+      if (files != null && files.isNotEmpty) {
+        cloudMetadata.preloadAll(CloudProvider.googleDrive, files);
+      }
+    }
+    if (isDropboxConnected) {
+      final files = cloudCache.loadFileList(CloudProvider.dropbox);
+      if (files != null && files.isNotEmpty) {
+        cloudMetadata.preloadAll(CloudProvider.dropbox, files);
+      }
+    }
+  }
+
+  /// Trigger metadata preload for a provider's file list (called by CloudView
+  /// after an API refresh saves a fresh file list).
+  void preloadCloudMetadata(CloudProvider provider, List<CloudFile> files) {
+    cloudMetadata.preloadAll(provider, files);
   }
 
   Future<bool> connectGoogle() async {
@@ -1033,6 +1062,7 @@ class AppController with ChangeNotifier {
   }
 
   Future<void> disconnectGoogle() async {
+    cloudMetadata.cancel(CloudProvider.googleDrive);
     await cloudAuth.signOutGoogle();
     notifyListeners();
   }
@@ -1044,6 +1074,7 @@ class AppController with ChangeNotifier {
   }
 
   Future<void> disconnectDropbox() async {
+    cloudMetadata.cancel(CloudProvider.dropbox);
     await cloudAuth.signOutDropbox();
     notifyListeners();
   }

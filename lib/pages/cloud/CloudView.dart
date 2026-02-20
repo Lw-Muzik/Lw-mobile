@@ -101,6 +101,7 @@ class _CloudViewState extends State<CloudView>
         final merged = _mergeWithCachedMetadata(files, cached);
         cache.saveFileList(CloudProvider.googleDrive, merged);
         _gdriveFolders = _groupByFolder(merged);
+        controller.preloadCloudMetadata(CloudProvider.googleDrive, merged);
       } else {
         _gdriveFolders = {};
       }
@@ -111,6 +112,7 @@ class _CloudViewState extends State<CloudView>
         final merged = _mergeWithCachedMetadata(files, cached);
         cache.saveFileList(CloudProvider.dropbox, merged);
         _dropboxFolders = _groupByFolder(merged);
+        controller.preloadCloudMetadata(CloudProvider.dropbox, merged);
       } else {
         _dropboxFolders = {};
       }

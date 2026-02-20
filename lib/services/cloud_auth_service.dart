@@ -46,8 +46,13 @@ class CloudAuthService {
       }
 
       // Ensure Drive scope was granted
-      final hasScope =
-          await _googleSignIn.canAccessScopes([_driveScope]);
+      bool hasScope = true;
+      try {
+        hasScope = await _googleSignIn.canAccessScopes([_driveScope]);
+      } on UnimplementedError {
+        // canAccessScopes not available on this platform — assume granted
+        // since scopes were requested in GoogleSignIn constructor
+      }
       if (!hasScope) {
         // Request the scope explicitly (needed on Android with granular permissions)
         final granted =
@@ -96,12 +101,15 @@ class CloudAuthService {
       _googleAccount = await _googleSignIn.signInSilently();
       if (_googleAccount != null) {
         // Check the scope is still valid
-        final hasScope =
-            await _googleSignIn.canAccessScopes([_driveScope]);
-        if (!hasScope) {
-          // Don't request scopes silently — just mark as not connected
-          _googleAccount = null;
-          return false;
+        try {
+          final hasScope =
+              await _googleSignIn.canAccessScopes([_driveScope]);
+          if (!hasScope) {
+            _googleAccount = null;
+            return false;
+          }
+        } on UnimplementedError {
+          // canAccessScopes not available — assume granted
         }
       }
       return _googleAccount != null;

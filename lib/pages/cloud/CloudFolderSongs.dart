@@ -63,19 +63,29 @@ class _CloudFolderSongsState extends State<CloudFolderSongs>
   Future<void> _resolveStreamUrls() async {
     final controller = Provider.of<AppController>(context, listen: false);
 
+    // Reload files from cache to pick up any preloaded metadata.
+    final cachedList =
+        controller.cloudCache.loadFileList(widget.provider);
+    final cachedMap = cachedList != null
+        ? {for (final f in cachedList) f.fileId: f}
+        : <String, CloudFile>{};
+
     try {
       final models = <SongModel>[];
       final urls = <String>[];
       for (final file in widget.files) {
+        // Prefer cached version — may have preloaded ID3 metadata.
+        final enriched = cachedMap[file.fileId] ?? file;
         String? streamUrl;
-        if (file.provider == CloudProvider.googleDrive) {
-          streamUrl = controller.googleDriveService.getStreamUrl(file.fileId);
+        if (enriched.provider == CloudProvider.googleDrive) {
+          streamUrl =
+              controller.googleDriveService.getStreamUrl(enriched.fileId);
         } else {
           streamUrl =
-              await controller.dropboxService.getTemporaryLink(file.fileId);
+              await controller.dropboxService.getTemporaryLink(enriched.fileId);
         }
         if (streamUrl != null) {
-          models.add(file.toSongModel(streamUrl));
+          models.add(enriched.toSongModel(streamUrl));
           urls.add(streamUrl);
         }
       }

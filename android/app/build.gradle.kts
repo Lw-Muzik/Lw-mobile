@@ -41,8 +41,8 @@ android {
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
-        versionCode = 21
-        versionName = "1.1.1"
+        versionCode = 22
+        versionName = "1.1.2"
         manifestPlaceholders["appAuthRedirectScheme"] = "x.a.zix"
     }
     signingConfigs {

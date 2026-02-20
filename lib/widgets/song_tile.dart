@@ -55,14 +55,14 @@ class SongTile extends StatelessWidget {
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 4),
                 // Track number
                 if (showTrackNumber)
                   SizedBox(
-                    width: 28,
+                    width: 22,
                     child: isCurrentTrack
                         ? Icon(Icons.bar_chart_rounded,
-                            color: accentColor, size: 20)
+                            color: accentColor, size: 18)
                         : Text(
                             '${index + 1}',
                             textAlign: TextAlign.center,
@@ -73,7 +73,7 @@ class SongTile extends StatelessWidget {
                             ),
                           ),
                   ),
-                if (showTrackNumber) const SizedBox(width: 12),
+                if (showTrackNumber) const SizedBox(width: 8),
                 // Artwork
                 Container(
                   decoration: BoxDecoration(
