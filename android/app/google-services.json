@@ -14,6 +14,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "618382337035-g9das4nmj9n36v80ocpdup8qh96dm03r.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "x.a.zix",
+            "certificate_hash": "c3296d52712b8c79ae08f14a88277ee23ccecdc1"
+          }
+        },
+        {
           "client_id": "618382337035-spnvbjat80jqr8v2r74829to4mh1qdr1.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
