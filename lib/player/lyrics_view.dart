@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:ui';
+import 'package:vector_math/vector_math_64.dart' show Vector3;
 
 import '/exports/exports.dart';
 import 'package:rxdart/rxdart.dart';
@@ -82,21 +83,6 @@ class _LyricsViewState extends State<LyricsView> with SingleTickerProviderStateM
 
     if (idx != _currentLineIndex) {
       setState(() => _currentLineIndex = idx);
-      if (!_userScrolling && idx >= 0) {
-        _scrollToLine(idx);
-      }
-    }
-  }
-
-  void _scrollToLine(int index) {
-    // Estimate position: each line ~56px, center it
-    final targetOffset = (index * 56.0) - (MediaQuery.of(context).size.height * 0.3);
-    if (_scrollController.hasClients) {
-      _scrollController.animateTo(
-        targetOffset.clamp(0.0, _scrollController.position.maxScrollExtent),
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOutCubic,
-      );
     }
   }
 
@@ -105,6 +91,9 @@ class _LyricsViewState extends State<LyricsView> with SingleTickerProviderStateM
     _userScrollTimer?.cancel();
     _userScrollTimer = Timer(const Duration(seconds: 4), () {
       _userScrolling = false;
+      // Trigger a rebuild so _SyncedLyrics.didUpdateWidget sees
+      // userScrolling changed and can snap back to the current line.
+      if (mounted && _currentLineIndex >= 0) setState(() {});
     });
   }
 
@@ -300,6 +289,7 @@ class _LyricsViewState extends State<LyricsView> with SingleTickerProviderStateM
       return _SyncedLyrics(
         lyrics: lyrics,
         currentLineIndex: _currentLineIndex,
+        userScrolling: _userScrolling,
         scrollController: _scrollController,
         onUserScroll: _onUserScroll,
         onLineTap: _seekToLine,
@@ -404,9 +394,10 @@ class _Header extends StatelessWidget {
 // Synced lyrics display
 // ---------------------------------------------------------------------------
 
-class _SyncedLyrics extends StatelessWidget {
+class _SyncedLyrics extends StatefulWidget {
   final LyricsData lyrics;
   final int currentLineIndex;
+  final bool userScrolling;
   final ScrollController scrollController;
   final VoidCallback onUserScroll;
   final ValueChanged<int> onLineTap;
@@ -414,55 +405,201 @@ class _SyncedLyrics extends StatelessWidget {
   const _SyncedLyrics({
     required this.lyrics,
     required this.currentLineIndex,
+    required this.userScrolling,
     required this.scrollController,
     required this.onUserScroll,
     required this.onLineTap,
   });
 
   @override
-  Widget build(BuildContext context) {
-    return NotificationListener<ScrollNotification>(
-      onNotification: (notification) {
-        if (notification is UserScrollNotification) {
-          onUserScroll();
-        }
-        return false;
-      },
-      child: ListView.builder(
-        controller: scrollController,
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
-        itemCount: lyrics.lines.length,
-        itemBuilder: (context, index) {
-          final line = lyrics.lines[index];
-          final isCurrent = index == currentLineIndex;
-          final isPast = currentLineIndex >= 0 && index < currentLineIndex;
+  State<_SyncedLyrics> createState() => _SyncedLyricsState();
+}
 
-          return GestureDetector(
-            onTap: () => onLineTap(index),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 300),
-              curve: Curves.easeOutCubic,
-              padding: EdgeInsets.symmetric(
-                vertical: isCurrent ? 12 : 8,
-              ),
-              child: AnimatedDefaultTextStyle(
-                duration: const Duration(milliseconds: 300),
-                curve: Curves.easeOutCubic,
-                style: TextStyle(
-                  fontSize: isCurrent ? 24 : 18,
-                  fontWeight: isCurrent ? FontWeight.w700 : FontWeight.w400,
-                  color: isCurrent
-                      ? Colors.white
-                      : isPast
-                          ? Colors.white24
-                          : Colors.white54,
-                  height: 1.4,
-                ),
-                child: Text(line.text),
-              ),
-            ),
+class _SyncedLyricsState extends State<_SyncedLyrics> {
+  late List<GlobalKey> _lineKeys;
+
+  @override
+  void initState() {
+    super.initState();
+    _lineKeys = List.generate(
+      widget.lyrics.lines.length,
+      (_) => GlobalKey(),
+    );
+  }
+
+  @override
+  void didUpdateWidget(covariant _SyncedLyrics oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Recreate keys when lyrics change (different song)
+    if (widget.lyrics.lines.length != _lineKeys.length) {
+      _lineKeys = List.generate(
+        widget.lyrics.lines.length,
+        (_) => GlobalKey(),
+      );
+    }
+    // Auto-scroll when current line changes
+    if (widget.currentLineIndex != oldWidget.currentLineIndex &&
+        widget.currentLineIndex >= 0 &&
+        !widget.userScrolling) {
+      _scrollAfterLayout(widget.currentLineIndex);
+    }
+    // Snap back when user stops scrolling
+    if (oldWidget.userScrolling &&
+        !widget.userScrolling &&
+        widget.currentLineIndex >= 0) {
+      _scrollAfterLayout(widget.currentLineIndex);
+    }
+  }
+
+  void _scrollAfterLayout(int index) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _scrollToLine(index);
+    });
+  }
+
+  void _scrollToLine(int index) {
+    if (index < 0 || index >= _lineKeys.length) return;
+    if (!widget.scrollController.hasClients) return;
+
+    final ctx = _lineKeys[index].currentContext;
+    if (ctx == null) return;
+
+    Scrollable.ensureVisible(
+      ctx,
+      alignment: 0.5,
+      duration: const Duration(milliseconds: 600),
+      curve: Curves.easeInOutCubic,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final viewportHeight = MediaQuery.of(context).size.height;
+
+    return ShaderMask(
+      shaderCallback: (bounds) => const LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [
+          Colors.transparent,
+          Colors.white,
+          Colors.white,
+          Colors.transparent,
+        ],
+        stops: [0.0, 0.08, 0.86, 1.0],
+      ).createShader(bounds),
+      blendMode: BlendMode.dstIn,
+      child: NotificationListener<ScrollNotification>(
+        onNotification: (notification) {
+          if (notification is UserScrollNotification) {
+            widget.onUserScroll();
+          }
+          return false;
+        },
+        child: SingleChildScrollView(
+          controller: widget.scrollController,
+          padding: EdgeInsets.only(
+            left: 24,
+            right: 24,
+            top: viewportHeight * 0.45,
+            bottom: viewportHeight * 0.45,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: List.generate(widget.lyrics.lines.length, (index) {
+              final isCurrent = index == widget.currentLineIndex;
+              final isPast = widget.currentLineIndex >= 0 &&
+                  index < widget.currentLineIndex;
+              final distance = widget.currentLineIndex >= 0
+                  ? (index - widget.currentLineIndex).abs()
+                  : 0;
+
+              final double alpha;
+              if (isCurrent) {
+                alpha = 1.0;
+              } else if (isPast) {
+                alpha = distance <= 2 ? 0.25 : 0.12;
+              } else {
+                alpha = distance <= 1
+                    ? 0.55
+                    : distance <= 3
+                        ? 0.35
+                        : 0.2;
+              }
+
+              return _LyricLine(
+                key: _lineKeys[index],
+                text: widget.lyrics.lines[index].text,
+                isCurrent: isCurrent,
+                alpha: alpha,
+                onTap: () => widget.onLineTap(index),
+              );
+            }),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Individual lyric line — layered animations for Apple Music feel
+// ---------------------------------------------------------------------------
+
+class _LyricLine extends StatelessWidget {
+  final String text;
+  final bool isCurrent;
+  final double alpha;
+  final VoidCallback onTap;
+
+  const _LyricLine({
+    super.key,
+    required this.text,
+    required this.isCurrent,
+    required this.alpha,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: TweenAnimationBuilder<double>(
+        tween: Tween<double>(end: isCurrent ? 1.0 : 0.97),
+        duration: const Duration(milliseconds: 600),
+        curve: Curves.easeOutCubic,
+        builder: (context, scale, child) {
+          return Transform(
+            transform: Matrix4.identity()..scaleByVector3(Vector3(scale, scale, 1.0)),
+            alignment: Alignment.centerLeft,
+            child: child,
           );
         },
+        child: AnimatedPadding(
+          duration: const Duration(milliseconds: 600),
+          curve: Curves.easeOutCubic,
+          padding: EdgeInsets.symmetric(vertical: isCurrent ? 16 : 8),
+          child: AnimatedDefaultTextStyle(
+            duration: const Duration(milliseconds: 600),
+            curve: Curves.easeOutCubic,
+            style: TextStyle(
+              fontSize: isCurrent ? 28 : 20,
+              fontWeight: isCurrent ? FontWeight.w800 : FontWeight.w500,
+              color: Colors.white.withValues(alpha: alpha),
+              height: 1.3,
+              letterSpacing: isCurrent ? -0.5 : 0,
+              shadows: isCurrent
+                  ? [Shadow(
+                      color: Colors.white.withValues(alpha: 0.25),
+                      blurRadius: 24,
+                    )]
+                  : [const Shadow(color: Colors.transparent, blurRadius: 0)],
+            ),
+            child: Text(text),
+          ),
+        ),
       ),
     );
   }

@@ -39,12 +39,11 @@ class _AudioFxState extends State<AudioFx> {
                       const SizedBox.square(dimension: 20),
                       buildSlider(
                         "Preamp",
-                        controller.dspVolume,
-                        -15,
+                        controller.preampGain,
+                        0,
                         15,
                         (x) {
-                          controller.dspVolume = x;
-                          Channel.setDSPVolume(x);
+                          controller.preampGain = x;
                         },
                       ),
                       buildSlider(
@@ -195,15 +194,14 @@ class FancyCard extends StatelessWidget {
 // Extend AppController to include reset functionality.
 extension on AppController {
   void resetToDefaults() {
-    dspOutGain = 3.0;
-    dspPowerBass = 8.0;
-    dspXTreble = 3.0;
-    dspVolume = -6.0;
-    dspXBass = 11.0;
-    Channel.setDSPVolume(dspVolume);
-    Channel.setDSPTreble(dspXTreble);
-    Channel.setDSPPowerBass(dspPowerBass);
-    Channel.setDSPXBass(dspXBass);
-    Channel.setOutGain(dspOutGain);
+    preampGain = 0.0;
+    dspOutGain = 0.0;
+    dspPowerBass = 0.0;
+    dspXTreble = 0.0;
+    dspXBass = 0.0;
+    Channel.setDSPTreble(0.0);
+    Channel.setDSPPowerBass(0.0);
+    Channel.setDSPXBass(0.0);
+    Channel.setOutGain(0.0);
   }
 }

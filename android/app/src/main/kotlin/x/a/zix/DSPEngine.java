@@ -23,8 +23,8 @@ public class DSPEngine {
     public static final int priority = Integer.MAX_VALUE;
 
     // Default DSP values
-    private static final float DEFAULT_OUT_GAIN = 2.0f;
-    private static final float DEFAULT_INPUT_GAIN = -4.0f;
+    private static final float DEFAULT_OUT_GAIN = 0.0f;
+    private static final float DEFAULT_INPUT_GAIN = 0.0f;
     private static final float DEFAULT_POWER_BASS = 2.0f;
     private static final float DEFAULT_X_BASS = 3.0f;
     private static final float DEFAULT_X_BASS2 = 4.0f;
@@ -32,6 +32,8 @@ public class DSPEngine {
 
     static int audioSessionId = 0;
     private static int boundSessionId = -1; // session ID the engine was created with
+    private static float preampGain = 0.0f; // preamp boost in dB (0-15)
+    private static boolean mbcEnabled = false; // user toggle for MBC compressor
 
     // 32-band ISO 1/3 octave center frequencies (Hz)
     public static final int[] GRAPHIC_FREQUENCIES = {
@@ -60,7 +62,7 @@ public class DSPEngine {
             2,                      // channel count (stereo)
             true,                   // pre-EQ enabled
             GRAPHIC_BAND_COUNT,     // pre-EQ band count (32)
-            true,                   // MBC enabled
+            false,                  // MBC disabled by default (user toggle)
             MBC_BAND_COUNT,         // MBC band count (10)
             true,                   // post-EQ enabled
             PARAMETRIC_BAND_COUNT,  // post-EQ band count (32)
@@ -128,15 +130,15 @@ public class DSPEngine {
             // MBC
             dspMbc = new DynamicsProcessing.Mbc(true, true, MBC_BAND_COUNT);
 
-            // Limiter
+            // Limiter — brick-wall at clipping, minimal coloration
             dspLimiter = new DynamicsProcessing.Limiter(
                 true,               // enabled
                 true,               // in linear domain
                 10,                 // link channels
-                1.0f,               // attack time (ms)
-                30.0f,              // release time (ms)
-                6.0f,               // ratio
-                -1.0f,              // threshold (dB)
+                0.5f,               // attack time (ms) — fast catch
+                50.0f,              // release time (ms) — smooth recovery
+                20.0f,              // ratio — near brick-wall
+                -0.5f,              // threshold (dB) — only catches clipping
                 DEFAULT_OUT_GAIN    // output gain
             );
 
@@ -157,10 +159,11 @@ public class DSPEngine {
             // Configure MBC bands
             initMbcDefaults();
 
-            // Apply to engine
-            dspEngine.setInputGainAllChannelsTo(DEFAULT_INPUT_GAIN);
+            // Apply to engine — use preamp gain if set, otherwise default
+            dspEngine.setInputGainAllChannelsTo(preampGain > 0 ? preampGain : DEFAULT_INPUT_GAIN);
             dspEngine.setPreEqAllChannelsTo(preEq);
             dspEngine.setPostEqAllChannelsTo(postEq);
+            dspMbc.setEnabled(mbcEnabled);
             dspEngine.setMbcAllChannelsTo(dspMbc);
             dspEngine.setLimiterAllChannelsTo(dspLimiter);
 
@@ -188,8 +191,8 @@ public class DSPEngine {
             band.setThreshold(-18.0f);
             band.setNoiseGateThreshold(-70.0f);
             band.setExpanderRatio(2.0f);
-            band.setPreGain(3.0f);
-            band.setPostGain(2.0f);
+            band.setPreGain(0.0f);
+            band.setPostGain(0.0f);
             band.setEnabled(true);
         }
     }
@@ -311,6 +314,40 @@ public class DSPEngine {
         return 0;
     }
 
+    // ======================== PREAMP ========================
+
+    public static void setPreamp(float dB) {
+        preampGain = Math.max(0.0f, Math.min(15.0f, dB));
+        if (dspEngine != null) {
+            try {
+                dspEngine.setInputGainAllChannelsTo(preampGain);
+            } catch (Exception e) {
+                Log.e(TAG, "setPreamp error", e);
+            }
+        }
+    }
+
+    public static float getPreamp() {
+        return preampGain;
+    }
+
+    // ======================== MBC TOGGLE ========================
+
+    public static void enableMbc(boolean enable) {
+        mbcEnabled = enable;
+        if (dspEngine == null || dspMbc == null) return;
+        try {
+            dspMbc.setEnabled(enable);
+            dspEngine.setMbcAllChannelsTo(dspMbc);
+        } catch (Exception e) {
+            Log.e(TAG, "enableMbc error", e);
+        }
+    }
+
+    public static boolean isMbcEnabled() {
+        return mbcEnabled;
+    }
+
     // ======================== ENGINE CONTROL ========================
 
     public static void enableEngine(boolean enable) {
@@ -319,7 +356,7 @@ public class DSPEngine {
             dspEngine.setEnabled(enable);
             if (preEq != null) preEq.setEnabled(enable);
             if (postEq != null) postEq.setEnabled(enable);
-            if (dspMbc != null) dspMbc.setEnabled(enable);
+            if (dspMbc != null) dspMbc.setEnabled(mbcEnabled && enable);
             if (dspLimiter != null) dspLimiter.setEnabled(enable);
         } catch (Exception e) {
             Log.e(TAG, "enableEngine error", e);
@@ -436,8 +473,8 @@ public class DSPEngine {
     }
 
     public static void setDSPVolume(float volume) {
-        if (dspEngine == null) return;
-        dspEngine.setInputGainAllChannelsTo(volume);
+        // Legacy path — also updates preamp state
+        setPreamp(volume);
     }
 
     public static void setDSPTreble(float gain) {

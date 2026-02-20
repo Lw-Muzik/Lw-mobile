@@ -10,6 +10,7 @@ import '../Helpers/AudioHandler.dart';
 import '../Helpers/Channel.dart';
 import '../Helpers/index.dart';
 import '../models/eq_models.dart';
+import '../models/room_preset.dart';
 import 'dart:io';
 
 import 'package:http/http.dart' as http;
@@ -110,6 +111,31 @@ class AppController with ChangeNotifier {
   // Parametric EQ state
   List<ParametricPoint> _parametricPoints = [];
 
+  // Preamp & MBC state
+  double _preampGain = 0.0; // 0-15 dB
+  bool _mbcEnabled = false;
+
+  // Room effects state
+  bool _reverbEnabled = false;
+  int _reverbDecayTime = 100;
+  int _reverbRoomLevel = -9000;
+  int _reverbRoomHFLevel = 0;
+  int _reverbDecayHFRatio = 1000;
+  int _reverbReflectionsLevel = -9000;
+  int _reverbReflectionsDelay = 0;
+  int _reverbLevel = -9000;
+  int _reverbDelay = 0;
+  int _reverbDensity = 0;
+  int _reverbDiffusion = 0;
+  String _activeRoomPresetName = 'Off';
+
+  // Virtualizer mode: 2=BINAURAL (stereo expand), 3=TRANSAURAL (crossfeed)
+  bool _stereoExpandEnabled = false;
+  int _stereoWidth = 0; // 0-1000
+
+  bool _crossfeedEnabled = false;
+  int _crossfeedStrength = 600; // 0-1000
+
   // Song grid scale getters/setters
   int get songGridScale => _songGridScale;
   set songGridScale(int value) {
@@ -156,6 +182,22 @@ class AppController with ChangeNotifier {
   String get lastOutputDevice => _lastOutputDevice;
   bool get linkAllDevices => _linkAllDevices;
   List<ParametricPoint> get parametricPoints => _parametricPoints;
+  double get preampGain => _preampGain;
+  bool get mbcEnabled => _mbcEnabled;
+
+  set preampGain(double value) {
+    _preampGain = value.clamp(0.0, 15.0);
+    _prefs.setDouble("preampGain", _preampGain);
+    Channel.setPreamp(_preampGain);
+    notifyListeners();
+  }
+
+  set mbcEnabled(bool value) {
+    _mbcEnabled = value;
+    _prefs.setBool("mbcEnabled", value);
+    Channel.enableMbc(value);
+    notifyListeners();
+  }
 
   set graphicEqEnabled(bool value) {
     _prefs.setBool("graphicEqEnabled", value);
@@ -204,6 +246,7 @@ class AppController with ChangeNotifier {
       name: name,
       graphicGains: List<double>.from(_graphicBandGains),
       parametric: _parametricPoints.map((p) => p.copyWith()).toList(),
+      preamp: _preampGain,
       deviceType: _linkAllDevices ? null : _lastOutputDevice,
     );
     _prefs.setString("eqPresets", EqPreset.encodeList(_savedPresets));
@@ -216,6 +259,7 @@ class AppController with ChangeNotifier {
       setGraphicAllBands(preset.graphicGains);
       _parametricPoints = preset.parametric.map((p) => p.copyWith()).toList();
       _applyParametricToNative();
+      preampGain = preset.preamp;
       activePresetName = name;
     }
   }
@@ -234,11 +278,12 @@ class AppController with ChangeNotifier {
     notifyListeners();
   }
 
-  void updateParametricPoint(int index, {double? frequency, double? gain, bool? enabled}) {
+  void updateParametricPoint(int index, {double? frequency, double? gain, double? q, bool? enabled}) {
     if (index >= 0 && index < _parametricPoints.length) {
       _parametricPoints[index] = _parametricPoints[index].copyWith(
         frequency: frequency,
         gain: gain,
+        q: q,
         enabled: enabled,
       );
       _applyParametricToNative();
@@ -291,6 +336,7 @@ class AppController with ChangeNotifier {
         name: '_device_$_lastOutputDevice',
         graphicGains: List<double>.from(_graphicBandGains),
         parametric: _parametricPoints.map((p) => p.copyWith()).toList(),
+        preamp: _preampGain,
         deviceType: _lastOutputDevice,
       );
       _prefs.setString("eqPresets", EqPreset.encodeList(_savedPresets));
@@ -301,6 +347,7 @@ class AppController with ChangeNotifier {
         setGraphicAllBands(devicePreset.graphicGains);
         _parametricPoints = devicePreset.parametric.map((p) => p.copyWith()).toList();
         _applyParametricToNative();
+        preampGain = devicePreset.preamp;
       }
     }
     _lastOutputDevice = device;
@@ -350,14 +397,19 @@ class AppController with ChangeNotifier {
   set dvcEnabled(bool value) {
     _prefs.setBool("dvcEnabled", value);
     _dvcEnabled = value;
-    Channel.enableLoudnessEnhancer(value);
+    if (value) {
+      Channel.enableDvc();
+      Channel.setDvcGain((_dvcGain * 100).toInt());
+    } else {
+      Channel.disableDvc();
+    }
     notifyListeners();
   }
 
   set dvcGain(double value) {
     _prefs.setDouble("dvcGain", value);
     _dvcGain = value;
-    Channel.setTargetGain((value * 100).toInt()); // API expects millibels
+    Channel.setDvcGain((value * 100).toInt()); // API expects millibels
     notifyListeners();
   }
 
@@ -544,6 +596,7 @@ class AppController with ChangeNotifier {
   StreamSubscription<ProcessingState>? _processingSub;
   StreamSubscription<int?>? _indexSub;
   StreamSubscription<int?>? _sessionIdSub;
+  StreamSubscription<String>? _dvcVolumeSub;
 
   AppController(this._prefs, this._handler) {
     _loadSettings();
@@ -560,10 +613,11 @@ class AppController with ChangeNotifier {
 
     // Apply DVC state on startup
     if (_dvcEnabled) {
-      Channel.enableLoudnessEnhancer(true);
-      Channel.setTargetGain((_dvcGain * 100).toInt());
+      Channel.enableDvc();
+      Channel.setDvcGain((_dvcGain * 100).toInt());
     }
 
+    _bindDvcVolumeButtons();
     _bindProcessingState();
     _bindCurrentIndex();
     _setupCrossfadeListener();
@@ -587,12 +641,53 @@ class AppController with ChangeNotifier {
     _sessionIdSub = _handler.player.androidAudioSessionIdStream.listen((sessionId) {
       if (sessionId != null) {
         Channel.setSessionId(sessionId);
-        // Re-apply current graphic EQ bands to the new session
+        // Re-apply current state to the new session
         if (_graphicEqEnabled) {
           Channel.setGraphicAllBands(_graphicBandGains);
           Channel.enableEq(true);
           Channel.enableDSPEngine(true);
         }
+        // Re-apply preamp and MBC
+        if (_preampGain > 0) {
+          Channel.setPreamp(_preampGain);
+        }
+        if (_mbcEnabled) {
+          Channel.enableMbc(true);
+        }
+        // Re-apply DVC state after session change
+        if (_dvcEnabled) {
+          Channel.enableDvc();
+          Channel.setDvcGain((_dvcGain * 100).toInt());
+        }
+        // Re-apply room effects
+        if (_reverbEnabled) {
+          Channel.enableReverb(true);
+          _applyAllReverbParams();
+        }
+        // Re-apply virtualizer (stereo expand or crossfeed)
+        if (_stereoExpandEnabled) {
+          Channel.setVirtualizerMode(2);
+          Channel.setVirtualizerStrength(_stereoWidth);
+          Channel.enableVirtualizer(true);
+        } else if (_crossfeedEnabled) {
+          Channel.setVirtualizerMode(3);
+          Channel.setVirtualizerStrength(_crossfeedStrength);
+          Channel.enableVirtualizer(true);
+        }
+      }
+    });
+  }
+
+  /// Listen to hardware volume button events forwarded by DvcController.
+  /// Adjusts DVC internal gain instead of system volume.
+  void _bindDvcVolumeButtons() {
+    _dvcVolumeSub?.cancel();
+    _dvcVolumeSub = Channel.dvcVolumeButtonStream.listen((direction) {
+      if (!_dvcEnabled) return;
+      if (direction == "up") {
+        dvcGain = (_dvcGain + 1.5).clamp(-30.0, 30.0);
+      } else if (direction == "down") {
+        dvcGain = (_dvcGain - 1.5).clamp(-30.0, 30.0);
       }
     });
   }
@@ -820,6 +915,9 @@ class AppController with ChangeNotifier {
     _songGridScale = (_prefs.getInt("songGridScale") ?? 0).clamp(0, 2);
     // EQ band count
     _eqBandCount = _prefs.getInt("eqBandCount") ?? 32;
+    // Preamp & MBC
+    _preampGain = _prefs.getDouble("preampGain") ?? 0.0;
+    _mbcEnabled = _prefs.getBool("mbcEnabled") ?? false;
     // 32-band Graphic EQ
     _graphicEqEnabled = _prefs.getBool("graphicEqEnabled") ?? false;
     _activePresetName = _prefs.getString("activePresetName") ?? 'Flat';
@@ -852,6 +950,23 @@ class AppController with ChangeNotifier {
     _visualizerColor = _prefs.getInt("visualizerColor") ?? 0xFFFFFFFF;
     _visualizerFrameRate = _prefs.getInt("visualizerFrameRate") ?? 30;
     _visualizerReactivity = _prefs.getDouble("visualizerReactivity") ?? 0.15;
+    // Room effects
+    _reverbEnabled = _prefs.getBool("reverbEnabled") ?? false;
+    _reverbDecayTime = _prefs.getInt("reverbDecayTime") ?? 100;
+    _reverbRoomLevel = _prefs.getInt("reverbRoomLevel") ?? -9000;
+    _reverbRoomHFLevel = _prefs.getInt("reverbRoomHFLevel") ?? 0;
+    _reverbDecayHFRatio = _prefs.getInt("reverbDecayHFRatio") ?? 1000;
+    _reverbReflectionsLevel = _prefs.getInt("reverbReflectionsLevel") ?? -9000;
+    _reverbReflectionsDelay = _prefs.getInt("reverbReflectionsDelay") ?? 0;
+    _reverbLevel = _prefs.getInt("reverbLevel") ?? -9000;
+    _reverbDelay = _prefs.getInt("reverbDelay") ?? 0;
+    _reverbDensity = _prefs.getInt("reverbDensity") ?? 0;
+    _reverbDiffusion = _prefs.getInt("reverbDiffusion") ?? 0;
+    _activeRoomPresetName = _prefs.getString("activeRoomPresetName") ?? 'Off';
+    _stereoExpandEnabled = _prefs.getBool("stereoExpandEnabled") ?? false;
+    _stereoWidth = _prefs.getInt("stereoWidth") ?? 0;
+    _crossfeedEnabled = _prefs.getBool("crossfeedEnabled") ?? false;
+    _crossfeedStrength = _prefs.getInt("crossfeedStrength") ?? 600;
   }
 
   bool get isDark {
@@ -920,6 +1035,204 @@ class AppController with ChangeNotifier {
   set selectedRoomPreset(int x) {
     _prefs.setInt("selectedRoomPreset", x);
     _selectedRoomPreset = x;
+    notifyListeners();
+  }
+
+  // ==================== Room Effects Getters/Setters ====================
+
+  bool get reverbEnabled => _reverbEnabled;
+  set reverbEnabled(bool v) {
+    _prefs.setBool("reverbEnabled", v);
+    _reverbEnabled = v;
+    Channel.enableReverb(v);
+    notifyListeners();
+  }
+
+  int get reverbDecayTime => _reverbDecayTime;
+  set reverbDecayTime(int v) {
+    _prefs.setInt("reverbDecayTime", v);
+    _reverbDecayTime = v;
+    Channel.setDecayTime(v);
+    notifyListeners();
+  }
+
+  int get reverbRoomLevel => _reverbRoomLevel;
+  set reverbRoomLevel(int v) {
+    _prefs.setInt("reverbRoomLevel", v);
+    _reverbRoomLevel = v;
+    Channel.setRoomLevel(v);
+    notifyListeners();
+  }
+
+  int get reverbRoomHFLevel => _reverbRoomHFLevel;
+  set reverbRoomHFLevel(int v) {
+    _prefs.setInt("reverbRoomHFLevel", v);
+    _reverbRoomHFLevel = v;
+    Channel.setRoomHFLevel(v);
+    notifyListeners();
+  }
+
+  int get reverbDecayHFRatio => _reverbDecayHFRatio;
+  set reverbDecayHFRatio(int v) {
+    _prefs.setInt("reverbDecayHFRatio", v);
+    _reverbDecayHFRatio = v;
+    Channel.setDecayHFRatio(v);
+    notifyListeners();
+  }
+
+  int get reverbReflectionsLevel => _reverbReflectionsLevel;
+  set reverbReflectionsLevel(int v) {
+    _prefs.setInt("reverbReflectionsLevel", v);
+    _reverbReflectionsLevel = v;
+    Channel.setReflectionsDelayLevel(v);
+    notifyListeners();
+  }
+
+  int get reverbReflectionsDelay => _reverbReflectionsDelay;
+  set reverbReflectionsDelay(int v) {
+    _prefs.setInt("reverbReflectionsDelay", v);
+    _reverbReflectionsDelay = v;
+    Channel.setReflectionsDelay(v);
+    notifyListeners();
+  }
+
+  int get reverbLevel => _reverbLevel;
+  set reverbLevel(int v) {
+    _prefs.setInt("reverbLevel", v);
+    _reverbLevel = v;
+    Channel.setReverbLevel(v);
+    notifyListeners();
+  }
+
+  int get reverbDelay => _reverbDelay;
+  set reverbDelay(int v) {
+    _prefs.setInt("reverbDelay", v);
+    _reverbDelay = v;
+    Channel.setReverbDelay(v);
+    notifyListeners();
+  }
+
+  int get reverbDensity => _reverbDensity;
+  set reverbDensity(int v) {
+    _prefs.setInt("reverbDensity", v);
+    _reverbDensity = v;
+    Channel.setDensity(v);
+    notifyListeners();
+  }
+
+  int get reverbDiffusion => _reverbDiffusion;
+  set reverbDiffusion(int v) {
+    _prefs.setInt("reverbDiffusion", v);
+    _reverbDiffusion = v;
+    Channel.setDiffusion(v);
+    notifyListeners();
+  }
+
+  String get activeRoomPresetName => _activeRoomPresetName;
+  set activeRoomPresetName(String v) {
+    _prefs.setString("activeRoomPresetName", v);
+    _activeRoomPresetName = v;
+    notifyListeners();
+  }
+
+  bool get stereoExpandEnabled => _stereoExpandEnabled;
+  set stereoExpandEnabled(bool v) {
+    _prefs.setBool("stereoExpandEnabled", v);
+    _stereoExpandEnabled = v;
+    if (v) {
+      // Disable crossfeed — they share the Virtualizer
+      if (_crossfeedEnabled) {
+        _crossfeedEnabled = false;
+        _prefs.setBool("crossfeedEnabled", false);
+      }
+      Channel.setVirtualizerMode(2); // BINAURAL
+      Channel.setVirtualizerStrength(_stereoWidth);
+      Channel.enableVirtualizer(true);
+    } else {
+      Channel.enableVirtualizer(_crossfeedEnabled);
+    }
+    notifyListeners();
+  }
+
+  int get stereoWidth => _stereoWidth;
+  set stereoWidth(int v) {
+    _prefs.setInt("stereoWidth", v);
+    _stereoWidth = v;
+    if (_stereoExpandEnabled) {
+      Channel.setVirtualizerStrength(v);
+    }
+    notifyListeners();
+  }
+
+  bool get crossfeedEnabled => _crossfeedEnabled;
+  set crossfeedEnabled(bool v) {
+    _prefs.setBool("crossfeedEnabled", v);
+    _crossfeedEnabled = v;
+    if (v) {
+      // Disable stereo expand — they share the Virtualizer
+      if (_stereoExpandEnabled) {
+        _stereoExpandEnabled = false;
+        _prefs.setBool("stereoExpandEnabled", false);
+      }
+      Channel.setVirtualizerMode(3); // TRANSAURAL
+      Channel.setVirtualizerStrength(_crossfeedStrength);
+      Channel.enableVirtualizer(true);
+    } else {
+      Channel.enableVirtualizer(_stereoExpandEnabled);
+    }
+    notifyListeners();
+  }
+
+  int get crossfeedStrength => _crossfeedStrength;
+  set crossfeedStrength(int v) {
+    _prefs.setInt("crossfeedStrength", v);
+    _crossfeedStrength = v;
+    if (_crossfeedEnabled) {
+      Channel.setVirtualizerStrength(v);
+    }
+    notifyListeners();
+  }
+
+  /// Applies all current reverb parameters to the native layer.
+  void _applyAllReverbParams() {
+    Channel.setDecayTime(_reverbDecayTime);
+    Channel.setRoomLevel(_reverbRoomLevel);
+    Channel.setRoomHFLevel(_reverbRoomHFLevel);
+    Channel.setDecayHFRatio(_reverbDecayHFRatio);
+    Channel.setReflectionsDelayLevel(_reverbReflectionsLevel);
+    Channel.setReflectionsDelay(_reverbReflectionsDelay);
+    Channel.setReverbLevel(_reverbLevel);
+    Channel.setReverbDelay(_reverbDelay);
+    Channel.setDensity(_reverbDensity);
+    Channel.setDiffusion(_reverbDiffusion);
+  }
+
+  /// Applies a room preset, updating all parameters at once.
+  void applyRoomPreset(RoomPreset preset) {
+    _reverbDecayTime = preset.decayTime;
+    _reverbRoomLevel = preset.roomLevel;
+    _reverbRoomHFLevel = preset.roomHFLevel;
+    _reverbDecayHFRatio = preset.decayHFRatio;
+    _reverbReflectionsLevel = preset.reflectionsLevel;
+    _reverbReflectionsDelay = preset.reflectionsDelay;
+    _reverbLevel = preset.reverbLevel;
+    _reverbDelay = preset.reverbDelay;
+    _reverbDensity = preset.density;
+    _reverbDiffusion = preset.diffusion;
+    _activeRoomPresetName = preset.name;
+    // Persist all
+    _prefs.setInt("reverbDecayTime", _reverbDecayTime);
+    _prefs.setInt("reverbRoomLevel", _reverbRoomLevel);
+    _prefs.setInt("reverbRoomHFLevel", _reverbRoomHFLevel);
+    _prefs.setInt("reverbDecayHFRatio", _reverbDecayHFRatio);
+    _prefs.setInt("reverbReflectionsLevel", _reverbReflectionsLevel);
+    _prefs.setInt("reverbReflectionsDelay", _reverbReflectionsDelay);
+    _prefs.setInt("reverbLevel", _reverbLevel);
+    _prefs.setInt("reverbDelay", _reverbDelay);
+    _prefs.setInt("reverbDensity", _reverbDensity);
+    _prefs.setInt("reverbDiffusion", _reverbDiffusion);
+    _prefs.setString("activeRoomPresetName", _activeRoomPresetName);
+    _applyAllReverbParams();
     notifyListeners();
   }
 

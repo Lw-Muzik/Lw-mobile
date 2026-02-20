@@ -8,6 +8,7 @@ import android.media.AudioManager;
 import android.media.audiofx.Visualizer;
 import android.os.Build;
 import android.os.Bundle;
+import android.view.KeyEvent;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
@@ -21,6 +22,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import io.flutter.embedding.engine.FlutterEngine;
+import io.flutter.plugin.common.EventChannel;
 import io.flutter.plugin.common.MethodChannel;
 
 public class MainActivity extends AudioServiceFragmentActivity {
@@ -40,10 +42,27 @@ public class MainActivity extends AudioServiceFragmentActivity {
         new HeadphoneService();
     }
 
+    @Override
+    public boolean onKeyDown(int keyCode, KeyEvent event) {
+        if (keyCode == KeyEvent.KEYCODE_VOLUME_UP) {
+            if (DvcController.onVolumeButton("up")) return true;
+        } else if (keyCode == KeyEvent.KEYCODE_VOLUME_DOWN) {
+            if (DvcController.onVolumeButton("down")) return true;
+        }
+        return super.onKeyDown(keyCode, event);
+    }
+
     @SuppressLint("NewApi")
     @Override
     public void configureFlutterEngine(@NonNull FlutterEngine flutterEngine) {
         super.configureFlutterEngine(flutterEngine);
+
+        // DVC init & EventChannel
+        DvcController.init(this);
+        EventChannel dvcEventChannel = new EventChannel(
+                flutterEngine.getDartExecutor().getBinaryMessenger(), "eq_app/dvc_volume_button");
+        DvcController.setupEventChannel(dvcEventChannel);
+
         visualizerChannel = new MethodChannel(flutterEngine.getDartExecutor().getBinaryMessenger(), CHANNEL);
         visualizerChannel.setMethodCallHandler(
                 (call, result) -> {
@@ -97,55 +116,58 @@ public class MainActivity extends AudioServiceFragmentActivity {
                             break;
 
                         case "init":
+                            // Legacy CustomEq init — now routes to DSPEngine
                             int sessionId = call.argument("sessionId");
-
-                            CustomEq.init(sessionId);
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                                DSPEngine.setAudioSessionId(sessionId);
+                                DSPEngine.initDSPEngine();
+                            }
                             break;
 
                         case "enableEq":
                             boolean enableEq = call.argument("enable");
-                            CustomEq.enable(enableEq);
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                                DSPEngine.enableEngine(enableEq);
+                            }
                             break;
                         case "isEnabled":
-                            boolean isEnabled = CustomEq.isEnabled();
+                            boolean isEnabled = false;
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                                isEnabled = DSPEngine.isDynamicsProcessingAvailable();
+                            }
                             result.success(isEnabled);
                             break;
-                        case "getSettings":
-                            String settings = CustomEq.getSettings();
-                            result.success(settings);
+
+                        // ==================== Preamp ====================
+                        case "setPreamp":
+                            double preampGain = call.argument("gain");
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                                DSPEngine.setPreamp((float) preampGain);
+                            }
+                            result.success(null);
+                            break;
+                        case "getPreamp":
+                            float curPreamp = 0f;
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                                curPreamp = DSPEngine.getPreamp();
+                            }
+                            result.success((double) curPreamp);
                             break;
 
-                        case "getBandLevel":
-                            int _b = call.argument("_band");
-                            short _bb = (short) _b;
-                            int res = CustomEq.getBandLevel(_bb);
-                            result.success(res);
+                        // ==================== MBC Toggle ====================
+                        case "enableMbc":
+                            boolean mbcEnable = call.argument("enable");
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                                DSPEngine.enableMbc(mbcEnable);
+                            }
+                            result.success(null);
                             break;
-                        case "setBandLevel":
-                            int band = (int) call.argument("band");
-                            int level = (int) call.argument("level");// (int)(1500f / 100f
-                            CustomEq.setBandLevel(band, (100 * level));
-                            break;
-                        case "getBandLevelRange":
-                            ArrayList<Integer> bandLevels = CustomEq.getBandLevelRange();
-                            result.success(bandLevels);
-                            break;
-                        case "setSettings":
-                            int bands = call.argument("nBands");
-                            CustomEq.setSettings(bands);
-                            break;
-
-                        case "getBandFreq":
-                            ArrayList<Integer> freq = CustomEq.getCenterBandFreqs();
-                            result.success(freq);
-                            break;
-                        case "getPresetNames":
-                            ArrayList<String> preset = CustomEq.getPresetNames();
-                            result.success(preset);
-                            break;
-                        case "setPreset":
-                            String presetName = call.argument("preset");
-                            CustomEq.setPreset(presetName);
+                        case "isMbcEnabled":
+                            boolean mbcOn = false;
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                                mbcOn = DSPEngine.isMbcEnabled();
+                            }
+                            result.success(mbcOn);
                             break;
 
                         // virtualizer
@@ -176,6 +198,15 @@ public class MainActivity extends AudioServiceFragmentActivity {
                             result.success(VirtualizedControl.forceVirtualizationEnabled());
                             break;
 
+                        case "setVirtualizerMode":
+                            int vMode = call.argument("mode");
+                            VirtualizedControl.setMode(vMode);
+                            result.success(null);
+                            break;
+                        case "getVirtualizerMode":
+                            result.success(VirtualizedControl.getMode());
+                            break;
+
                         // bassboost
                         case "initBassBoost":
 
@@ -199,7 +230,7 @@ public class MainActivity extends AudioServiceFragmentActivity {
                             int strengthBB = call.argument("strength");
                             BassEq.setStrength(strengthBB);
                             break;
-                        // loudnessEnhancer
+                        // loudnessEnhancer (legacy init — still needed for session binding)
                         case "initLoudnessEnhancer":
                             int sessionIdL = call.argument("sessionId");
                             LoudnessControl.init(sessionIdL);
@@ -219,6 +250,34 @@ public class MainActivity extends AudioServiceFragmentActivity {
                         case "setLoudnessEnhancerStrength":
                             int strengthLL = call.argument("strength");
                             LoudnessControl.setTargetGain(strengthLL);
+                            break;
+
+                        // ==================== DVC (Direct Volume Control) ====================
+                        case "enableDvc":
+                            DvcController.enable(getApplicationContext());
+                            result.success(null);
+                            break;
+                        case "disableDvc":
+                            DvcController.disable(getApplicationContext());
+                            result.success(null);
+                            break;
+                        case "setDvcGain":
+                            int dvcGain = call.argument("gain");
+                            LoudnessControl.setTargetGain(dvcGain);
+                            result.success(null);
+                            break;
+                        case "getDvcGain":
+                            double dvcGainVal = (double) LoudnessControl.getTargetGain();
+                            result.success(dvcGainVal);
+                            break;
+                        case "isDvcActive":
+                            result.success(DvcController.isActive());
+                            break;
+                        case "getSystemVolume":
+                            result.success(DvcController.getCurrentSystemVolume());
+                            break;
+                        case "getSystemMaxVolume":
+                            result.success(DvcController.getMaxVolume());
                             break;
 
                         // reverb

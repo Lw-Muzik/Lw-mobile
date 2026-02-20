@@ -10,8 +10,8 @@ import '../models/eq_models.dart';
 import 'AudioFx.dart';
 
 const Color _kAccent = Color(0xFFD4A825);
-const double _kMinGain = -12.0;
-const double _kMaxGain = 12.0;
+const double _kMinGain = -15.0;
+const double _kMaxGain = 15.0;
 
 class GraphicEqView extends StatefulWidget {
   const GraphicEqView({super.key});
@@ -22,6 +22,7 @@ class GraphicEqView extends StatefulWidget {
 
 class _GraphicEqViewState extends State<GraphicEqView> {
   int _activeBand = -1;
+  int _curveDragBand = -1; // band being dragged on the curve
 
   @override
   Widget build(BuildContext context) {
@@ -34,7 +35,9 @@ class _GraphicEqViewState extends State<GraphicEqView> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _buildToggleRow(controller),
+          _buildHeaderRow(controller),
+          const SizedBox(height: 12),
+          _buildPreampSlider(controller),
           const SizedBox(height: 12),
           _buildCurveSection(controller, displayGains, mapping),
           const SizedBox(height: 16),
@@ -50,37 +53,107 @@ class _GraphicEqViewState extends State<GraphicEqView> {
   }
 
   // ---------------------------------------------------------------------------
-  // 1. Toggle switch row
+  // 1. Header row with power button and band count selector
   // ---------------------------------------------------------------------------
 
-  Widget _buildToggleRow(AppController controller) {
+  Widget _buildHeaderRow(AppController controller) {
+    return Row(
+      children: [
+        // Power button with glow
+        _EqPowerButton(
+          enabled: controller.graphicEqEnabled,
+          onToggle: () {
+            final newValue = !controller.graphicEqEnabled;
+            controller.graphicEqEnabled = newValue;
+            Channel.enableEq(newValue);
+            Channel.enableDSPEngine(newValue);
+            controller.enableDSP = newValue;
+          },
+        ),
+        const SizedBox(width: 12),
+        Text(
+          "Graphic EQ",
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+        ),
+        const Spacer(),
+        // Band count dropdown
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.07),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<int>(
+              value: controller.eqBandCount,
+              isDense: true,
+              dropdownColor: const Color(0xFF1E1E2E),
+              style: const TextStyle(color: Colors.white70, fontSize: 13),
+              items: BandMapping.supportedCounts
+                  .map((c) => DropdownMenuItem(
+                        value: c,
+                        child: Text('$c bands'),
+                      ))
+                  .toList(),
+              onChanged: (v) {
+                if (v != null) controller.eqBandCount = v;
+              },
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // 2. Preamp slider
+  // ---------------------------------------------------------------------------
+
+  Widget _buildPreampSlider(AppController controller) {
     return FancyCard(
       isFancy: controller.isFancy,
       child: Row(
         children: [
+          const Icon(Icons.volume_up, size: 18, color: _kAccent),
           const SizedBox(width: 8),
-          Text(
-            "Graphic EQ",
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          const Spacer(),
-          Text(
-            controller.activePresetName,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: _kAccent.withValues(alpha: 0.8),
-                ),
+          const Text(
+            "Preamp",
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
           ),
           const SizedBox(width: 8),
-          Switch.adaptive(
-            value: controller.graphicEqEnabled,
-            activeTrackColor: _kAccent,
-            activeThumbColor: _kAccent,
-            onChanged: (value) {
-              controller.graphicEqEnabled = value;
-              Channel.enableEq(value);
-              Channel.enableDSPEngine(value);
-              controller.enableDSP = value;
-            },
+          Expanded(
+            child: SliderTheme(
+              data: SliderThemeData(
+                trackHeight: 4,
+                activeTrackColor: _kAccent,
+                inactiveTrackColor: Colors.white12,
+                thumbColor: _kAccent,
+                overlayColor: _kAccent.withValues(alpha: 0.12),
+                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7),
+              ),
+              child: Slider(
+                value: controller.preampGain,
+                min: 0,
+                max: 15,
+                onChanged: (v) {
+                  controller.preampGain = v;
+                },
+              ),
+            ),
+          ),
+          SizedBox(
+            width: 52,
+            child: Text(
+              '+${controller.preampGain.toStringAsFixed(1)} dB',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: controller.preampGain > 0 ? _kAccent : Colors.white54,
+              ),
+              textAlign: TextAlign.right,
+            ),
           ),
         ],
       ),
@@ -88,7 +161,7 @@ class _GraphicEqViewState extends State<GraphicEqView> {
   }
 
   // ---------------------------------------------------------------------------
-  // 2. Frequency response curve (CustomPainter)
+  // 3. Touch-interactive frequency response curve
   // ---------------------------------------------------------------------------
 
   Widget _buildCurveSection(
@@ -103,22 +176,106 @@ class _GraphicEqViewState extends State<GraphicEqView> {
       isFancy: controller.isFancy,
       child: SizedBox(
         height: curveHeight,
-        child: RepaintBoundary(
-          child: CustomPaint(
-            painter: _FrequencyCurvePainter(
-              gains: gains,
-              frequencies: mapping.frequencies,
-              accent: _kAccent,
-            ),
-            size: Size.infinite,
-          ),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final width = constraints.maxWidth;
+            final height = curveHeight;
+
+            return GestureDetector(
+              onPanStart: (details) {
+                _curveDragBand = _findNearestBand(
+                  details.localPosition,
+                  gains,
+                  mapping.frequencies,
+                  width,
+                  height,
+                );
+                if (_curveDragBand >= 0) {
+                  _updateBandFromCurve(
+                    controller,
+                    _curveDragBand,
+                    details.localPosition,
+                    height,
+                  );
+                }
+              },
+              onPanUpdate: (details) {
+                if (_curveDragBand >= 0) {
+                  _updateBandFromCurve(
+                    controller,
+                    _curveDragBand,
+                    details.localPosition,
+                    height,
+                  );
+                }
+              },
+              onPanEnd: (_) {
+                _curveDragBand = -1;
+              },
+              child: RepaintBoundary(
+                child: CustomPaint(
+                  painter: _FrequencyCurvePainter(
+                    gains: gains,
+                    frequencies: mapping.frequencies,
+                    accent: _kAccent,
+                    activeBand: _curveDragBand,
+                  ),
+                  size: Size(width, height),
+                ),
+              ),
+            );
+          },
         ),
       ),
     );
   }
 
+  int _findNearestBand(
+    Offset pos,
+    List<double> gains,
+    List<double> frequencies,
+    double width,
+    double height,
+  ) {
+    const padLeft = 32.0;
+    const padRight = 8.0;
+    const padTop = 12.0;
+    const padBottom = 20.0;
+    final plotW = width - padLeft - padRight;
+
+    double bestDist = 40.0; // max hit distance in px
+    int bestBand = -1;
+
+    for (int i = 0; i < gains.length; i++) {
+      final x = padLeft + _FrequencyCurvePainter._logNormalize(frequencies[i]) * plotW;
+      final dist = (pos.dx - x).abs();
+      if (dist < bestDist) {
+        bestDist = dist;
+        bestBand = i;
+      }
+    }
+    return bestBand;
+  }
+
+  void _updateBandFromCurve(
+    AppController controller,
+    int band,
+    Offset pos,
+    double height,
+  ) {
+    const padTop = 12.0;
+    const padBottom = 20.0;
+    final plotH = height - padTop - padBottom;
+    final normY = ((pos.dy - padTop) / plotH).clamp(0.0, 1.0);
+    final gain = _kMaxGain - normY * (_kMaxGain - _kMinGain);
+    final rounded = (gain * 10).roundToDouble() / 10; // 0.1 dB precision
+    controller.setDisplayBandGain(band, rounded.clamp(_kMinGain, _kMaxGain));
+    controller.activePresetName = 'Custom';
+    setState(() {});
+  }
+
   // ---------------------------------------------------------------------------
-  // 3. Variable-count band sliders (responsive)
+  // 4. Band sliders with illuminated tracks
   // ---------------------------------------------------------------------------
 
   Widget _buildBandSlidersSection(
@@ -131,7 +288,6 @@ class _GraphicEqViewState extends State<GraphicEqView> {
     final bandCount = mapping.displayCount;
     final frequencies = mapping.frequencies;
 
-    // Label visibility: all at <=10, every 2nd at 16, every 4th at 20+
     bool showLabel(int i) {
       if (bandCount <= 10) return true;
       if (bandCount <= 16) return i % 2 == 0 || i == bandCount - 1;
@@ -146,7 +302,6 @@ class _GraphicEqViewState extends State<GraphicEqView> {
           builder: (context, constraints) {
             final availableWidth = constraints.maxWidth;
 
-            // <=10 bands: fill width evenly, no scroll
             if (bandCount <= 10) {
               final bandWidth = availableWidth / bandCount;
               return Row(
@@ -170,7 +325,6 @@ class _GraphicEqViewState extends State<GraphicEqView> {
               );
             }
 
-            // >10 bands: fixed width per slider with horizontal scroll
             const fixedBandWidth = 38.0;
             return SingleChildScrollView(
               scrollDirection: Axis.horizontal,
@@ -202,7 +356,7 @@ class _GraphicEqViewState extends State<GraphicEqView> {
   }
 
   // ---------------------------------------------------------------------------
-  // 4. Preset chips row
+  // 5. Preset chips
   // ---------------------------------------------------------------------------
 
   Widget _buildPresetChips(AppController controller) {
@@ -246,6 +400,7 @@ class _GraphicEqViewState extends State<GraphicEqView> {
         labelStyle: TextStyle(
           color: isSelected ? _kAccent : Colors.white70,
           fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+          fontSize: 12,
         ),
         side: BorderSide(
           color: isSelected ? _kAccent : Colors.white24,
@@ -266,7 +421,7 @@ class _GraphicEqViewState extends State<GraphicEqView> {
   }
 
   // ---------------------------------------------------------------------------
-  // 5. Save button
+  // 6. Save button
   // ---------------------------------------------------------------------------
 
   Widget _buildSaveButton(BuildContext context, AppController controller) {
@@ -335,7 +490,54 @@ class _GraphicEqViewState extends State<GraphicEqView> {
 }
 
 // =============================================================================
-// Band Slider Widget
+// EQ Power Button with glow
+// =============================================================================
+
+class _EqPowerButton extends StatelessWidget {
+  final bool enabled;
+  final VoidCallback onToggle;
+
+  const _EqPowerButton({required this.enabled, required this.onToggle});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onToggle,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 250),
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: enabled
+              ? _kAccent.withValues(alpha: 0.2)
+              : Colors.white.withValues(alpha: 0.06),
+          boxShadow: enabled
+              ? [
+                  BoxShadow(
+                    color: _kAccent.withValues(alpha: 0.4),
+                    blurRadius: 12,
+                    spreadRadius: 1,
+                  ),
+                ]
+              : [],
+          border: Border.all(
+            color: enabled ? _kAccent : Colors.white24,
+            width: 2,
+          ),
+        ),
+        child: Icon(
+          Icons.power_settings_new,
+          size: 20,
+          color: enabled ? _kAccent : Colors.white38,
+        ),
+      ),
+    );
+  }
+}
+
+// =============================================================================
+// Band Slider Widget with illuminated tracks
 // =============================================================================
 
 class _BandSlider extends StatelessWidget {
@@ -374,6 +576,13 @@ class _BandSlider extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final normalized = (gain - _kMinGain) / (_kMaxGain - _kMinGain);
+    // Glow intensity based on gain magnitude
+    final glowIntensity = (gain.abs() / _kMaxGain).clamp(0.0, 1.0);
+    final trackColor = gain > 0
+        ? _kAccent
+        : gain < 0
+            ? const Color(0xFF5EC4D4)
+            : Colors.white38;
 
     return SizedBox(
       width: width,
@@ -383,15 +592,13 @@ class _BandSlider extends StatelessWidget {
           if (isActive)
             Text(
               '${gain.toStringAsFixed(1)} dB',
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 9,
                 fontWeight: FontWeight.w600,
-                color: _kAccent,
+                color: trackColor,
               ),
             ),
-          if (!isActive)
-            const SizedBox(height: 14),
-
+          if (!isActive) const SizedBox(height: 14),
           SizedBox(
             height: height - 30,
             child: RotatedBox(
@@ -399,10 +606,12 @@ class _BandSlider extends StatelessWidget {
               child: SliderTheme(
                 data: SliderThemeData(
                   trackHeight: 3,
-                  activeTrackColor: _kAccent,
-                  inactiveTrackColor: Colors.white12,
-                  thumbColor: isActive ? _kAccent : Colors.white70,
-                  overlayColor: _kAccent.withValues(alpha: 0.12),
+                  activeTrackColor: trackColor.withValues(
+                    alpha: 0.5 + glowIntensity * 0.5,
+                  ),
+                  inactiveTrackColor: Colors.white.withValues(alpha: 0.08),
+                  thumbColor: isActive ? trackColor : Colors.white70,
+                  overlayColor: trackColor.withValues(alpha: 0.12),
                   thumbShape: const RoundSliderThumbShape(
                     enabledThumbRadius: 6,
                   ),
@@ -414,17 +623,16 @@ class _BandSlider extends StatelessWidget {
                   value: normalized,
                   onChangeStart: (_) => onDragStart(),
                   onChanged: (v) {
-                    final newGain =
-                        _kMinGain + v * (_kMaxGain - _kMinGain);
-                    final snapped = (newGain * 2).roundToDouble() / 2;
-                    onChanged(snapped.clamp(_kMinGain, _kMaxGain));
+                    final newGain = _kMinGain + v * (_kMaxGain - _kMinGain);
+                    // 0.1 dB precision (no snapping)
+                    final rounded = (newGain * 10).roundToDouble() / 10;
+                    onChanged(rounded.clamp(_kMinGain, _kMaxGain));
                   },
                   onChangeEnd: (_) => onDragEnd(),
                 ),
               ),
             ),
           ),
-
           SizedBox(
             height: 16,
             child: showLabel
@@ -446,18 +654,20 @@ class _BandSlider extends StatelessWidget {
 }
 
 // =============================================================================
-// Frequency Response Curve Painter
+// Frequency Response Curve Painter (±15 dB, interactive)
 // =============================================================================
 
 class _FrequencyCurvePainter extends CustomPainter {
   final List<double> gains;
   final List<double> frequencies;
   final Color accent;
+  final int activeBand;
 
   _FrequencyCurvePainter({
     required this.gains,
     required this.frequencies,
     required this.accent,
+    this.activeBand = -1,
   });
 
   @override
@@ -486,6 +696,7 @@ class _FrequencyCurvePainter extends CustomPainter {
 
     final curvePath = _catmullRomPath(points);
 
+    // Gradient fill under curve
     final fillPath = Path.from(curvePath)
       ..lineTo(points.last.dx, padTop + plotH)
       ..lineTo(points.first.dx, padTop + plotH)
@@ -502,6 +713,7 @@ class _FrequencyCurvePainter extends CustomPainter {
       );
     canvas.drawPath(fillPath, fillPaint);
 
+    // Curve stroke
     final curvePaint = Paint()
       ..color = accent
       ..style = PaintingStyle.stroke
@@ -510,9 +722,28 @@ class _FrequencyCurvePainter extends CustomPainter {
       ..isAntiAlias = true;
     canvas.drawPath(curvePath, curvePaint);
 
-    final dotPaint = Paint()..color = accent;
-    for (final pt in points) {
-      canvas.drawCircle(pt, 2.5, dotPaint);
+    // Control dots with glow on boosted/cut bands
+    for (int i = 0; i < points.length; i++) {
+      final pt = points[i];
+      final g = gains[i];
+      final isActive = i == activeBand;
+      final glowIntensity = (g.abs() / _kMaxGain).clamp(0.0, 1.0);
+
+      // Subtle glow for non-zero bands
+      if (glowIntensity > 0.05) {
+        final glowColor = g > 0 ? accent : const Color(0xFF5EC4D4);
+        canvas.drawCircle(
+          pt,
+          4 + glowIntensity * 4,
+          Paint()..color = glowColor.withValues(alpha: 0.25 * glowIntensity),
+        );
+      }
+
+      canvas.drawCircle(
+        pt,
+        isActive ? 4.0 : 2.5,
+        Paint()..color = isActive ? accent : accent.withValues(alpha: 0.8),
+      );
     }
 
     canvas.restore();
@@ -540,15 +771,19 @@ class _FrequencyCurvePainter extends CustomPainter {
       ..color = Colors.white.withValues(alpha: 0.08)
       ..strokeWidth = 0.5;
 
-    for (final dB in [-12.0, -6.0, 0.0, 6.0, 12.0]) {
+    for (final dB in [-15.0, -10.0, -5.0, 0.0, 5.0, 10.0, 15.0]) {
       final y = padTop + plotH * (1.0 - (dB - _kMinGain) / (_kMaxGain - _kMinGain));
       _drawDashedLine(
         canvas,
         Offset(padLeft, y),
         Offset(padLeft + plotW, y),
-        gridPaint,
-        dashWidth: 4,
-        gapWidth: 4,
+        dB == 0
+            ? (Paint()
+              ..color = Colors.white.withValues(alpha: 0.2)
+              ..strokeWidth = 1.0)
+            : gridPaint,
+        dashWidth: dB == 0 ? plotW : 4,
+        gapWidth: dB == 0 ? 0 : 4,
       );
     }
 
@@ -577,6 +812,7 @@ class _FrequencyCurvePainter extends CustomPainter {
     final dx = end.dx - start.dx;
     final dy = end.dy - start.dy;
     final len = math.sqrt(dx * dx + dy * dy);
+    if (len == 0) return;
     final ux = dx / len;
     final uy = dy / len;
 
@@ -607,7 +843,7 @@ class _FrequencyCurvePainter extends CustomPainter {
       fontSize: 9,
     );
 
-    for (final dB in [-12.0, -6.0, 0.0, 6.0, 12.0]) {
+    for (final dB in [-15.0, -10.0, -5.0, 0.0, 5.0, 10.0, 15.0]) {
       final y = padTop + plotH * (1.0 - (dB - _kMinGain) / (_kMaxGain - _kMinGain));
       final builder = ui.ParagraphBuilder(ui.ParagraphStyle(
         textAlign: TextAlign.right,
@@ -671,6 +907,7 @@ class _FrequencyCurvePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _FrequencyCurvePainter oldDelegate) {
+    if (activeBand != oldDelegate.activeBand) return true;
     if (gains.length != oldDelegate.gains.length) return true;
     if (frequencies.length != oldDelegate.frequencies.length) return true;
     for (int i = 0; i < gains.length; i++) {

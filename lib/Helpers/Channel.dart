@@ -136,7 +136,17 @@ class Channel {
     return await _invokeRequired<int>("virtualizerStrength", 0);
   }
 
-  /// Loudness enhancer
+  /// Set virtualizer mode: 2=BINAURAL (stereo expand), 3=TRANSAURAL (crossfeed)
+  static void setVirtualizerMode(int mode) async {
+    await _invoke("setVirtualizerMode", {"mode": mode});
+  }
+
+  /// Get current virtualizer mode
+  static Future<int> getVirtualizerMode() async {
+    return await _invokeRequired<int>("getVirtualizerMode", 3);
+  }
+
+  /// Loudness enhancer (session-aware init — used by both legacy and DVC)
   static void _initLoudnessEnhancer(int sessionId) async {
     await _invoke("initLoudnessEnhancer", {"sessionId": sessionId});
   }
@@ -145,7 +155,7 @@ class Channel {
     await _invoke("enableLoudnessEnhancer", {"enableLoud": enable});
   }
 
-  /// Sets the target gain
+  /// Sets the target gain (millibels)
   static void setTargetGain(int strength) async {
     await _invoke("setLoudnessEnhancerStrength", {"strength": strength});
   }
@@ -154,6 +164,53 @@ class Channel {
   static Future<double> getTargetGain() async {
     return await _invokeRequired<double>("loudnessEnhancerStrength", 0.0);
   }
+
+  // ==================== DVC (Direct Volume Control) ====================
+
+  /// Enable DVC: saves system volume, maxes STREAM_MUSIC, enables LoudnessEnhancer
+  static Future<void> enableDvc() async {
+    await _invoke("enableDvc", {});
+  }
+
+  /// Disable DVC: restores saved system volume, disables LoudnessEnhancer
+  static Future<void> disableDvc() async {
+    await _invoke("disableDvc", {});
+  }
+
+  /// Set DVC internal gain in millibels (via LoudnessEnhancer)
+  static Future<void> setDvcGain(int millibels) async {
+    await _invoke("setDvcGain", {"gain": millibels});
+  }
+
+  /// Get current DVC internal gain
+  static Future<double> getDvcGain() async {
+    return await _invokeRequired<double>("getDvcGain", 0.0);
+  }
+
+  /// Check if DVC is currently active
+  static Future<bool> isDvcActive() async {
+    return await _invokeRequired<bool>("isDvcActive", false);
+  }
+
+  /// Get current system music volume
+  static Future<int> getSystemVolume() async {
+    return await _invokeRequired<int>("getSystemVolume", 0);
+  }
+
+  /// Get maximum system music volume
+  static Future<int> getSystemMaxVolume() async {
+    return await _invokeRequired<int>("getSystemMaxVolume", 15);
+  }
+
+  /// EventChannel for hardware volume button events when DVC is active.
+  /// Emits "up" or "down" strings.
+  static const EventChannel _dvcVolumeButtonChannel =
+      EventChannel("eq_app/dvc_volume_button");
+
+  static Stream<String> get dvcVolumeButtonStream =>
+      _dvcVolumeButtonChannel
+          .receiveBroadcastStream()
+          .map((event) => event.toString());
 
   // Reverb effects
   static void _initReverb(int sessionId) async {
@@ -429,6 +486,26 @@ class Channel {
     await _invoke("setParametricAllBands", {"freqs": freqs, "gains": gains});
   }
 
+  // ==================== Preamp ====================
+
+  static Future<void> setPreamp(double gain) async {
+    await _invoke("setPreamp", {"gain": gain});
+  }
+
+  static Future<double> getPreamp() async {
+    return await _invokeRequired<double>("getPreamp", 0.0);
+  }
+
+  // ==================== MBC Toggle ====================
+
+  static Future<void> enableMbc(bool enable) async {
+    await _invoke("enableMbc", {"enable": enable});
+  }
+
+  static Future<bool> isMbcEnabled() async {
+    return await _invokeRequired<bool>("isMbcEnabled", false);
+  }
+
   // ==================== Device Detection ====================
 
   static Future<bool> isDynamicsProcessingAvailable() async {
@@ -445,6 +522,7 @@ class Channel {
     _initDSPEngine(sessionId);
     _initPresetReverb(sessionId);
     _initLoudnessEnhancer(sessionId);
+    // "init" still routes to DSPEngine on native side (CustomEq removed)
     await _invoke("init", {"sessionId": sessionId});
   }
 

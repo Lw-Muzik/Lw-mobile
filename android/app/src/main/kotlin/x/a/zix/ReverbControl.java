@@ -1,24 +1,44 @@
 package x.a.zix;
 
-import android.media.AudioManager;
 import android.media.audiofx.EnvironmentalReverb;
 
 public class ReverbControl {
     private static EnvironmentalReverb environmentalReverb;
-    private static final int m = Integer.MAX_VALUE;
+    private static int boundSessionId = 0;
+    private static final int PRIORITY = Integer.MAX_VALUE;
+
     public static void init(int sessionId) {
-        environmentalReverb = new EnvironmentalReverb(m, sessionId);
+        if (environmentalReverb != null && boundSessionId == sessionId) return;
+        try {
+            EnvironmentalReverb.Settings snapshot = null;
+            boolean wasEnabled = false;
+            if (environmentalReverb != null) {
+                wasEnabled = environmentalReverb.getEnabled();
+                try { snapshot = environmentalReverb.getProperties(); } catch (Exception ignored) {}
+                environmentalReverb.release();
+                environmentalReverb = null;
+            }
+            environmentalReverb = new EnvironmentalReverb(PRIORITY, sessionId);
+            boundSessionId = sessionId;
+            if (snapshot != null) {
+                try { environmentalReverb.setProperties(snapshot); } catch (Exception ignored) {}
+            }
+            if (wasEnabled) {
+                environmentalReverb.setEnabled(true);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     public static void enable(boolean enable) {
-        if (environmentalReverb != null){
+        if (environmentalReverb != null) {
             environmentalReverb.setEnabled(enable);
         }
-            
     }
 
     public static boolean isEnabled() {
-        if (environmentalReverb != null){
+        if (environmentalReverb != null) {
             return environmentalReverb.getEnabled();
         }
         return false;
@@ -37,23 +57,23 @@ public class ReverbControl {
 
     public static void setDensity(int density) {
         if (environmentalReverb != null)
-            environmentalReverb.setDensity((short)density);
+            environmentalReverb.setDensity((short) density);
     }
 
     public static int getDensity() {
         if (environmentalReverb != null)
-            return ((int)environmentalReverb.getDensity());
+            return ((int) environmentalReverb.getDensity());
         return 0;
     }
 
     public static void setDiffusion(int diffusion) {
         if (environmentalReverb != null)
-            environmentalReverb.setDiffusion((short)diffusion);
+            environmentalReverb.setDiffusion((short) diffusion);
     }
 
     public static int getDiffusion() {
         if (environmentalReverb != null)
-            return ((int)environmentalReverb.getDiffusion());
+            return ((int) environmentalReverb.getDiffusion());
         return 0;
     }
 
@@ -70,12 +90,12 @@ public class ReverbControl {
 
     public static void setReflectionsLevel(int reflectionsLevel) {
         if (environmentalReverb != null)
-            environmentalReverb.setReflectionsLevel(((short)reflectionsLevel));
+            environmentalReverb.setReflectionsLevel(((short) reflectionsLevel));
     }
 
     public static int getReflectionsLevel() {
         if (environmentalReverb != null)
-            return ((int)environmentalReverb.getReflectionsLevel());
+            return ((int) environmentalReverb.getReflectionsLevel());
         return 0;
     }
 
@@ -92,7 +112,7 @@ public class ReverbControl {
 
     public static void setReverbLevel(int reverbLevel) {
         if (environmentalReverb != null)
-            environmentalReverb.setReverbLevel((short)reverbLevel);
+            environmentalReverb.setReverbLevel((short) reverbLevel);
     }
 
     public static int getReverbLevel() {
@@ -103,41 +123,43 @@ public class ReverbControl {
 
     public static void setRoomHFLevel(int roomHFLevel) {
         if (environmentalReverb != null)
-            environmentalReverb.setRoomHFLevel((short)roomHFLevel);
+            environmentalReverb.setRoomHFLevel((short) roomHFLevel);
     }
 
     public static int getRoomHFLevel() {
         if (environmentalReverb != null)
-            return ((int)environmentalReverb.getRoomHFLevel());
+            return ((int) environmentalReverb.getRoomHFLevel());
         return 0;
     }
 
     public static void setRoomLevel(int roomLevel) {
         if (environmentalReverb != null)
-            environmentalReverb.setRoomLevel(((short)roomLevel));
+            environmentalReverb.setRoomLevel(((short) roomLevel));
     }
 
     public static int getRoomLevel() {
         if (environmentalReverb != null)
-            return ((int)environmentalReverb.getRoomLevel());
+            return ((int) environmentalReverb.getRoomLevel());
         return 0;
     }
 
     public static void setDecayHFRatioLevel(int decayHFRatio) {
         if (environmentalReverb != null)
-            environmentalReverb.setDecayHFRatio(((short)decayHFRatio));
+            environmentalReverb.setDecayHFRatio(((short) decayHFRatio));
     }
 
     public static int getDecayHFRatio() {
         if (environmentalReverb != null)
-            return ((int)environmentalReverb.getDecayHFRatio());
+            return ((int) environmentalReverb.getDecayHFRatio());
         return 0;
     }
+
     public static int getReflectionsDelayLevel() {
         if (environmentalReverb != null)
             return environmentalReverb.getReflectionsDelay();
         return 0;
     }
+
     public static void setProperties(EnvironmentalReverb.Settings settings) {
         if (environmentalReverb != null)
             environmentalReverb.setProperties(settings);
@@ -153,6 +175,7 @@ public class ReverbControl {
         if (environmentalReverb != null) {
             environmentalReverb.release();
             environmentalReverb = null;
+            boundSessionId = 0;
         }
     }
 }

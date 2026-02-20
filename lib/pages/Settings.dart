@@ -164,13 +164,24 @@ class _SettingsState extends State<Settings> {
           SwitchListTile.adaptive(
             value: controller.dvcEnabled,
             title: const Text("Direct volume control"),
-            subtitle: const Text("Hardware loudness enhancer"),
-            onChanged: (enabled) => controller.dvcEnabled = enabled,
+            subtitle: const Text(
+                "Bypasses system volume for higher fidelity audio output"),
+            onChanged: (enabled) {
+              if (enabled && !controller.dvcEnabled) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text("System volume will be set to maximum"),
+                    duration: Duration(seconds: 3),
+                  ),
+                );
+              }
+              controller.dvcEnabled = enabled;
+            },
           ),
           if (controller.dvcEnabled) ...[
             const Divider(height: 1, indent: 16, endIndent: 16),
             ListTile(
-              title: const Text("DVC Gain"),
+              title: const Text("DVC Volume"),
               subtitle: Text("${controller.dvcGain.toStringAsFixed(1)} dB"),
             ),
             Padding(
@@ -183,12 +194,39 @@ class _SettingsState extends State<Settings> {
                       value: controller.dvcGain,
                       min: -30,
                       max: 30,
-                      divisions: 60,
+                      divisions: 120,
                       label: "${controller.dvcGain.toStringAsFixed(1)} dB",
                       onChanged: (value) => controller.dvcGain = value,
                     ),
                   ),
                   const Text("+30"),
+                ],
+              ),
+            ),
+            const Divider(height: 1, indent: 16, endIndent: 16),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.info_outline,
+                      size: 16,
+                      color: Theme.of(context)
+                          .colorScheme
+                          .onSurface
+                          .withValues(alpha: 0.5)),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      "System volume set to MAX. Use hardware buttons or this slider to control volume.",
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onSurface
+                                .withValues(alpha: 0.5),
+                          ),
+                    ),
+                  ),
                 ],
               ),
             ),

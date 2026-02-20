@@ -23,13 +23,13 @@
 -keep class com.ryanheise.audioservice.** { *; }
 
 # Keep all your custom equalizer classes
--keep class x.a.zix.CustomEq { *; }
 -keep class x.a.zix.AudioVisualizer { *; }
 -keep class x.a.zix.BassEq { *; }
 -keep class x.a.zix.DSPEngine { *; }
 -keep class x.a.zix.ReverbControl { *; }
 -keep class x.a.zix.VirtualizedControl { *; }
 -keep class x.a.zix.LoudnessControl { *; }
+-keep class x.a.zix.DvcController { *; }
 -keep class x.a.zix.ReverbEngine { *; }
 -keep class x.a.zix.RoomEffects { *; }
 

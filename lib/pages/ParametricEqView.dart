@@ -9,6 +9,9 @@ import '/models/eq_models.dart';
 /// Accent color used throughout the parametric EQ view.
 const Color _kAccent = Color(0xFFD4A825);
 
+const double _kMinGain = -15.0;
+const double _kMaxGain = 15.0;
+
 /// A set of distinct hue-shifted colors for individual control points.
 const List<Color> _kPointColors = [
   Color(0xFFD4A825),
@@ -27,30 +30,26 @@ const List<double> _kFreqLabels = [
 ];
 
 /// dB tick marks for the Y-axis grid.
-const List<double> _kDbTicks = [-12, -6, 0, 6, 12];
+const List<double> _kDbTicks = [-15, -10, -5, 0, 5, 10, 15];
 
 // ---------------------------------------------------------------------------
 // Coordinate mapping helpers (logarithmic frequency, linear gain)
 // ---------------------------------------------------------------------------
 
-/// Convert a frequency (20-20000 Hz) to a normalized 0..1 position.
 double _freqToNorm(double freq) {
   return log(freq / 20.0) / log(1000.0);
 }
 
-/// Convert a normalized 0..1 position back to frequency.
 double _normToFreq(double norm) {
   return 20.0 * pow(1000.0, norm).toDouble();
 }
 
-/// Convert a gain (-12..+12 dB) to a normalized 0..1 position (top = +12).
 double _gainToNorm(double gain) {
-  return (12.0 - gain) / 24.0;
+  return (_kMaxGain - gain) / (_kMaxGain - _kMinGain);
 }
 
-/// Convert a normalized 0..1 Y position to gain.
 double _normToGain(double norm) {
-  return 12.0 - norm * 24.0;
+  return _kMaxGain - norm * (_kMaxGain - _kMinGain);
 }
 
 // ---------------------------------------------------------------------------
@@ -65,11 +64,9 @@ class ParametricEqView extends StatefulWidget {
 }
 
 class _ParametricEqViewState extends State<ParametricEqView> {
-  /// Index of the point currently being dragged, or -1 if none.
   int _dragIndex = -1;
-
-  /// Index of the currently selected point in the editor panel.
   int _selectedIndex = 0;
+  Offset? _dragPosition; // live position for floating readout
 
   @override
   Widget build(BuildContext context) {
@@ -77,7 +74,6 @@ class _ParametricEqViewState extends State<ParametricEqView> {
       builder: (context, controller, child) {
         final points = controller.parametricPoints;
 
-        // Keep selectedIndex in bounds.
         if (_selectedIndex >= points.length) {
           _selectedIndex = points.isEmpty ? 0 : points.length - 1;
         }
@@ -86,16 +82,16 @@ class _ParametricEqViewState extends State<ParametricEqView> {
           children: [
             // -- Canvas --
             Expanded(
-              flex: 55,
+              flex: 50,
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
                 child: _buildCanvas(controller, points),
               ),
             ),
 
-            // -- Point editor panel --
+            // -- Point editor panel with Q control --
             Expanded(
-              flex: 25,
+              flex: 30,
               child: _buildEditorPanel(controller, points),
             ),
 
@@ -133,21 +129,26 @@ class _ParametricEqViewState extends State<ParametricEqView> {
                   controller, details, canvasWidth, canvasHeight);
             },
             onPanEnd: (_) {
-              _dragIndex = -1;
+              setState(() {
+                _dragIndex = -1;
+                _dragPosition = null;
+              });
             },
             child: GestureDetector(
               onDoubleTapDown: (details) {
                 _handleDoubleTap(
                     controller, points, details, canvasWidth, canvasHeight);
               },
-              onDoubleTap: () {
-                // Required to register doubleTapDown.
-              },
+              onDoubleTap: () {},
               child: CustomPaint(
                 size: Size(canvasWidth, canvasHeight),
                 painter: _ParametricEqPainter(
                   points: points,
                   selectedIndex: _selectedIndex,
+                  dragIndex: _dragIndex,
+                  dragPosition: _dragPosition,
+                  canvasWidth: canvasWidth,
+                  canvasHeight: canvasHeight,
                 ),
               ),
             ),
@@ -157,7 +158,6 @@ class _ParametricEqViewState extends State<ParametricEqView> {
     );
   }
 
-  /// Long-press adds a new point at the touched location.
   void _handleLongPress(
     AppController controller,
     LongPressStartDetails details,
@@ -167,14 +167,13 @@ class _ParametricEqViewState extends State<ParametricEqView> {
     final normX = (details.localPosition.dx / width).clamp(0.0, 1.0);
     final normY = (details.localPosition.dy / height).clamp(0.0, 1.0);
     final freq = _normToFreq(normX).clamp(20.0, 20000.0);
-    final gain = _normToGain(normY).clamp(-12.0, 12.0);
+    final gain = _normToGain(normY).clamp(_kMinGain, _kMaxGain);
     controller.addParametricPoint(freq, gain);
     setState(() {
       _selectedIndex = controller.parametricPoints.length - 1;
     });
   }
 
-  /// Find the closest point to the touch and start dragging it.
   void _handleDragStart(
     List<ParametricPoint> points,
     DragStartDetails details,
@@ -197,11 +196,13 @@ class _ParametricEqViewState extends State<ParametricEqView> {
 
     _dragIndex = bestIndex;
     if (bestIndex >= 0) {
-      setState(() => _selectedIndex = bestIndex);
+      setState(() {
+        _selectedIndex = bestIndex;
+        _dragPosition = details.localPosition;
+      });
     }
   }
 
-  /// Move the dragged point to the new position.
   void _handleDragUpdate(
     AppController controller,
     DragUpdateDetails details,
@@ -213,16 +214,18 @@ class _ParametricEqViewState extends State<ParametricEqView> {
     final normX = (details.localPosition.dx / width).clamp(0.0, 1.0);
     final normY = (details.localPosition.dy / height).clamp(0.0, 1.0);
     final freq = _normToFreq(normX).clamp(20.0, 20000.0);
-    final gain = _normToGain(normY).clamp(-12.0, 12.0);
+    final gain = _normToGain(normY).clamp(_kMinGain, _kMaxGain);
 
     controller.updateParametricPoint(
       _dragIndex,
       frequency: freq,
       gain: gain,
     );
+    setState(() {
+      _dragPosition = details.localPosition;
+    });
   }
 
-  /// Double-tap on a point removes it.
   void _handleDoubleTap(
     AppController controller,
     List<ParametricPoint> points,
@@ -243,7 +246,7 @@ class _ParametricEqViewState extends State<ParametricEqView> {
   }
 
   // -------------------------------------------------------------------------
-  // Editor panel
+  // Editor panel with Q control
   // -------------------------------------------------------------------------
 
   Widget _buildEditorPanel(
@@ -270,7 +273,7 @@ class _ParametricEqViewState extends State<ParametricEqView> {
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               itemCount: points.length,
-              separatorBuilder: (_, _) => const SizedBox(width: 8),
+              separatorBuilder: (_, __) => const SizedBox(width: 8),
               itemBuilder: (context, index) {
                 final isSelected = index == _selectedIndex;
                 final color = _kPointColors[index % _kPointColors.length];
@@ -294,7 +297,7 @@ class _ParametricEqViewState extends State<ParametricEqView> {
           ),
           const SizedBox(height: 8),
 
-          // -- Selected point details --
+          // -- Selected point details + Q slider --
           if (_selectedIndex >= 0 && _selectedIndex < points.length)
             _buildPointDetail(controller, points[_selectedIndex]),
         ],
@@ -309,102 +312,163 @@ class _ParametricEqViewState extends State<ParametricEqView> {
         : "${point.frequency.toStringAsFixed(0)} Hz";
     final gainLabel = "${point.gain >= 0 ? "+" : ""}${point.gain.toStringAsFixed(1)} dB";
 
-    return Row(
+    return Column(
       children: [
-        // Frequency readout
-        Expanded(
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.07),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  "FREQ",
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.4),
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 1.2,
-                  ),
+        Row(
+          children: [
+            // Frequency readout
+            Expanded(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.07),
+                  borderRadius: BorderRadius.circular(8),
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  freqLabel,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w500,
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      "FREQ",
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.4),
+                        fontSize: 9,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                    Text(
+                      freqLabel,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
-          ),
-        ),
-        const SizedBox(width: 8),
+            const SizedBox(width: 6),
 
-        // Gain readout
-        Expanded(
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.07),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  "GAIN",
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.4),
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 1.2,
-                  ),
+            // Gain readout
+            Expanded(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.07),
+                  borderRadius: BorderRadius.circular(8),
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  gainLabel,
-                  style: TextStyle(
-                    color: point.gain > 0
-                        ? _kAccent
-                        : point.gain < 0
-                            ? const Color(0xFF5EC4D4)
-                            : Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w500,
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      "GAIN",
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.4),
+                        fontSize: 9,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                    Text(
+                      gainLabel,
+                      style: TextStyle(
+                        color: point.gain > 0
+                            ? _kAccent
+                            : point.gain < 0
+                                ? const Color(0xFF5EC4D4)
+                                : Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
-          ),
-        ),
-        const SizedBox(width: 8),
+            const SizedBox(width: 6),
 
-        // Enable / disable toggle
-        Container(
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.07),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: IconButton(
-            icon: Icon(
-              point.enabled ? Icons.visibility : Icons.visibility_off,
-              color: point.enabled
-                  ? _kAccent
-                  : Colors.white.withValues(alpha: 0.3),
+            // Enable/disable toggle
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.07),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: IconButton(
+                icon: Icon(
+                  point.enabled ? Icons.visibility : Icons.visibility_off,
+                  color: point.enabled
+                      ? _kAccent
+                      : Colors.white.withValues(alpha: 0.3),
+                  size: 20,
+                ),
+                onPressed: () {
+                  controller.updateParametricPoint(index, enabled: !point.enabled);
+                },
+                tooltip: point.enabled ? "Disable point" : "Enable point",
+              ),
             ),
-            onPressed: () {
-              controller.updateParametricPoint(index, enabled: !point.enabled);
-            },
-            tooltip: point.enabled ? "Disable point" : "Enable point",
-          ),
+          ],
+        ),
+        const SizedBox(height: 6),
+
+        // Q / Bandwidth slider
+        Row(
+          children: [
+            Text(
+              "Q",
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.5),
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Text(
+              point.q.toStringAsFixed(1),
+              style: const TextStyle(
+                color: _kAccent,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            Expanded(
+              child: SliderTheme(
+                data: SliderThemeData(
+                  trackHeight: 3,
+                  activeTrackColor: _kAccent,
+                  inactiveTrackColor: Colors.white12,
+                  thumbColor: _kAccent,
+                  overlayColor: _kAccent.withValues(alpha: 0.1),
+                  thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+                ),
+                child: Slider(
+                  value: point.q.clamp(0.3, 10.0),
+                  min: 0.3,
+                  max: 10.0,
+                  onChanged: (v) {
+                    controller.updateParametricPoint(
+                      index,
+                      q: (v * 10).roundToDouble() / 10,
+                    );
+                  },
+                ),
+              ),
+            ),
+            SizedBox(
+              width: 50,
+              child: Text(
+                point.q < 1.0 ? "Wide" : point.q > 5.0 ? "Narrow" : "",
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.3),
+                  fontSize: 10,
+                ),
+                textAlign: TextAlign.right,
+              ),
+            ),
+          ],
         ),
       ],
     );
@@ -424,7 +488,6 @@ class _ParametricEqViewState extends State<ParametricEqView> {
             icon: Icons.add_circle_outline,
             label: "Add Point",
             onTap: () {
-              // Add a point at 1 kHz, 0 dB by default.
               controller.addParametricPoint(1000.0, 0.0);
               setState(() {
                 _selectedIndex = controller.parametricPoints.length - 1;
@@ -487,28 +550,18 @@ class _ParametricEqViewState extends State<ParametricEqView> {
     );
   }
 
-  /// Derive parametric points from the 32-band graphic EQ gains.
-  ///
-  /// We sample the graphic bands at a reduced set of peak/valley positions
-  /// so the parametric curve approximates the graphic shape.
   void _copyFromGraphic(AppController controller) {
     final gains = controller.graphicBandGains;
     if (gains.isEmpty) return;
 
-    // Reset existing points first.
     controller.resetParametricPoints();
 
-    // The 32 graphic bands are evenly spaced on a log scale from 20-20000 Hz.
     final int bandCount = gains.length;
-
-    // Pick the bands that represent local extrema (peaks and valleys)
-    // plus the first and last bands for anchoring.
     final List<int> keyBands = [0];
     for (int i = 1; i < bandCount - 1; i++) {
       final prev = gains[i - 1];
       final curr = gains[i];
       final next = gains[i + 1];
-      // Local peak or valley, or significant absolute value.
       if ((curr >= prev && curr >= next) ||
           (curr <= prev && curr <= next) ||
           curr.abs() > 3.0) {
@@ -519,16 +572,14 @@ class _ParametricEqViewState extends State<ParametricEqView> {
     }
     keyBands.add(bandCount - 1);
 
-    // Remove duplicates and limit to 8 points max.
     final uniqueBands = keyBands.toSet().toList()..sort();
     final selected = uniqueBands.length <= 8
         ? uniqueBands
         : _evenlySpacedSubset(uniqueBands, 8);
 
     for (final band in selected) {
-      // Map band index to log frequency.
       final freq = 20.0 * pow(20000.0 / 20.0, band / (bandCount - 1));
-      final gain = gains[band].clamp(-12.0, 12.0);
+      final gain = gains[band].clamp(_kMinGain, _kMaxGain);
       if (gain.abs() > 0.1) {
         controller.addParametricPoint(freq.toDouble(), gain);
       }
@@ -537,7 +588,6 @@ class _ParametricEqViewState extends State<ParametricEqView> {
     setState(() => _selectedIndex = 0);
   }
 
-  /// Pick [count] evenly-spaced items from a sorted list.
   List<int> _evenlySpacedSubset(List<int> items, int count) {
     if (items.length <= count) return items;
     final result = <int>[];
@@ -550,16 +600,24 @@ class _ParametricEqViewState extends State<ParametricEqView> {
 }
 
 // ---------------------------------------------------------------------------
-// CustomPainter for the frequency response canvas
+// CustomPainter — with crosshair, floating readout, Q-aware bell curves
 // ---------------------------------------------------------------------------
 
 class _ParametricEqPainter extends CustomPainter {
   final List<ParametricPoint> points;
   final int selectedIndex;
+  final int dragIndex;
+  final Offset? dragPosition;
+  final double canvasWidth;
+  final double canvasHeight;
 
   _ParametricEqPainter({
     required this.points,
     required this.selectedIndex,
+    this.dragIndex = -1,
+    this.dragPosition,
+    required this.canvasWidth,
+    required this.canvasHeight,
   });
 
   @override
@@ -568,12 +626,12 @@ class _ParametricEqPainter extends CustomPainter {
     _drawGrid(canvas, size);
     _drawBellCurves(canvas, size);
     _drawCombinedCurve(canvas, size);
+    _drawCrosshair(canvas, size);
     _drawControlPoints(canvas, size);
+    _drawFloatingReadout(canvas, size);
     _drawFrequencyLabels(canvas, size);
     _drawDbLabels(canvas, size);
   }
-
-  // -- Background --
 
   void _drawBackground(Canvas canvas, Size size) {
     final paint = Paint()
@@ -591,8 +649,6 @@ class _ParametricEqPainter extends CustomPainter {
     );
   }
 
-  // -- Grid --
-
   void _drawGrid(Canvas canvas, Size size) {
     final linePaint = Paint()
       ..color = Colors.white.withValues(alpha: 0.08)
@@ -601,7 +657,6 @@ class _ParametricEqPainter extends CustomPainter {
       ..color = Colors.white.withValues(alpha: 0.2)
       ..strokeWidth = 1.0;
 
-    // Horizontal dB lines (dashed).
     for (final db in _kDbTicks) {
       final y = _gainToNorm(db) * size.height;
       final paint = db == 0 ? zeroPaint : linePaint;
@@ -615,7 +670,6 @@ class _ParametricEqPainter extends CustomPainter {
       );
     }
 
-    // Vertical frequency lines.
     for (final freq in _kFreqLabels) {
       final x = _freqToNorm(freq) * size.width;
       _drawDashedLine(
@@ -657,7 +711,7 @@ class _ParametricEqPainter extends CustomPainter {
     }
   }
 
-  // -- Individual bell curves --
+  // -- Bell curves using per-point Q --
 
   void _drawBellCurves(Canvas canvas, Size size) {
     for (int i = 0; i < points.length; i++) {
@@ -677,7 +731,7 @@ class _ParametricEqPainter extends CustomPainter {
       for (int s = 0; s <= steps; s++) {
         final norm = s / steps;
         final freq = _normToFreq(norm);
-        final gain = _bellGain(pt.frequency, pt.gain, freq);
+        final gain = _bellGain(pt.frequency, pt.gain, pt.q, freq);
         final x = norm * size.width;
         final y = _gainToNorm(gain) * size.height;
         path.lineTo(x, y);
@@ -688,8 +742,6 @@ class _ParametricEqPainter extends CustomPainter {
       canvas.drawPath(path, fillPaint);
     }
   }
-
-  // -- Combined response curve --
 
   void _drawCombinedCurve(Canvas canvas, Size size) {
     if (points.isEmpty) return;
@@ -711,9 +763,9 @@ class _ParametricEqPainter extends CustomPainter {
       double totalGain = 0;
       for (final pt in points) {
         if (!pt.enabled) continue;
-        totalGain += _bellGain(pt.frequency, pt.gain, freq);
+        totalGain += _bellGain(pt.frequency, pt.gain, pt.q, freq);
       }
-      totalGain = totalGain.clamp(-12.0, 12.0);
+      totalGain = totalGain.clamp(_kMinGain, _kMaxGain);
 
       final x = norm * size.width;
       final y = _gainToNorm(totalGain) * size.height;
@@ -729,7 +781,26 @@ class _ParametricEqPainter extends CustomPainter {
     canvas.drawPath(path, curvePaint);
   }
 
-  // -- Control points --
+  // -- Crosshair on dragged/selected point --
+
+  void _drawCrosshair(Canvas canvas, Size size) {
+    final idx = dragIndex >= 0 ? dragIndex : selectedIndex;
+    if (idx < 0 || idx >= points.length) return;
+
+    final pt = points[idx];
+    final cx = _freqToNorm(pt.frequency) * size.width;
+    final cy = _gainToNorm(pt.gain) * size.height;
+    final color = _kPointColors[idx % _kPointColors.length];
+
+    final paint = Paint()
+      ..color = color.withValues(alpha: 0.3)
+      ..strokeWidth = 0.8;
+
+    // Horizontal
+    canvas.drawLine(Offset(0, cy), Offset(size.width, cy), paint);
+    // Vertical
+    canvas.drawLine(Offset(cx, 0), Offset(cx, size.height), paint);
+  }
 
   void _drawControlPoints(Canvas canvas, Size size) {
     for (int i = 0; i < points.length; i++) {
@@ -738,10 +809,10 @@ class _ParametricEqPainter extends CustomPainter {
       final cx = _freqToNorm(pt.frequency) * size.width;
       final cy = _gainToNorm(pt.gain) * size.height;
       final isSelected = i == selectedIndex;
-      final radius = isSelected ? 11.0 : 9.0;
+      final isDragging = i == dragIndex;
+      final radius = isDragging ? 13.0 : isSelected ? 11.0 : 9.0;
 
-      // Outer glow for selected.
-      if (isSelected) {
+      if (isSelected || isDragging) {
         canvas.drawCircle(
           Offset(cx, cy),
           18,
@@ -749,13 +820,11 @@ class _ParametricEqPainter extends CustomPainter {
         );
       }
 
-      // Filled circle.
       final fillPaint = Paint()
         ..color = pt.enabled ? color : color.withValues(alpha: 0.3)
         ..style = PaintingStyle.fill;
       canvas.drawCircle(Offset(cx, cy), radius, fillPaint);
 
-      // White border.
       final borderPaint = Paint()
         ..color = pt.enabled
             ? Colors.white.withValues(alpha: 0.9)
@@ -764,7 +833,6 @@ class _ParametricEqPainter extends CustomPainter {
         ..strokeWidth = isSelected ? 2.5 : 1.5;
       canvas.drawCircle(Offset(cx, cy), radius, borderPaint);
 
-      // Point number label.
       final textPainter = TextPainter(
         text: TextSpan(
           text: "${i + 1}",
@@ -783,7 +851,46 @@ class _ParametricEqPainter extends CustomPainter {
     }
   }
 
-  // -- Axis labels --
+  // -- Floating readout near dragged point --
+
+  void _drawFloatingReadout(Canvas canvas, Size size) {
+    if (dragIndex < 0 || dragIndex >= points.length) return;
+
+    final pt = points[dragIndex];
+    final cx = _freqToNorm(pt.frequency) * size.width;
+    final cy = _gainToNorm(pt.gain) * size.height;
+
+    final freqStr = pt.frequency >= 1000
+        ? "${(pt.frequency / 1000).toStringAsFixed(1)}kHz"
+        : "${pt.frequency.toStringAsFixed(0)}Hz";
+    final gainStr = "${pt.gain >= 0 ? "+" : ""}${pt.gain.toStringAsFixed(1)}dB";
+    final label = "$freqStr  $gainStr";
+
+    final tp = TextPainter(
+      text: TextSpan(
+        text: label,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 10,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+
+    // Position above the point, flip if near top
+    double rx = cx - tp.width / 2;
+    double ry = cy - 28;
+    if (ry < 4) ry = cy + 18;
+    rx = rx.clamp(2.0, size.width - tp.width - 2);
+
+    final bg = RRect.fromRectAndRadius(
+      Rect.fromLTWH(rx - 4, ry - 2, tp.width + 8, tp.height + 4),
+      const Radius.circular(4),
+    );
+    canvas.drawRRect(bg, Paint()..color = const Color(0xCC1A1A2E));
+    tp.paint(canvas, Offset(rx, ry));
+  }
 
   void _drawFrequencyLabels(Canvas canvas, Size size) {
     for (final freq in _kFreqLabels) {
@@ -822,19 +929,13 @@ class _ParametricEqPainter extends CustomPainter {
     }
   }
 
-  // -- Bell curve math --
-
-  /// Compute the gain contribution of a single bell filter at [queryFreq].
-  ///
-  /// Uses a Gaussian bell on the log-frequency axis.
-  /// The bandwidth is fixed at ~1 octave (Q ~ 1.4) which looks natural on
-  /// the logarithmic grid.
+  /// Gaussian bell on octave axis, using per-point Q for bandwidth.
+  /// Higher Q = narrower bell, lower Q = wider bell.
+  /// bandwidth (in octaves) = 1 / Q approximately.
   static double _bellGain(
-      double centerFreq, double peakGain, double queryFreq) {
-    // Distance in log-frequency space (octaves).
+      double centerFreq, double peakGain, double q, double queryFreq) {
     final logDist = log(queryFreq / centerFreq) / ln2;
-    // Bandwidth in octaves. A value of ~1.0 gives a musically useful Q.
-    const bandwidth = 1.0;
+    final bandwidth = 1.0 / q;
     final exponent = -(logDist * logDist) / (2.0 * bandwidth * bandwidth);
     return peakGain * exp(exponent);
   }
@@ -842,12 +943,15 @@ class _ParametricEqPainter extends CustomPainter {
   @override
   bool shouldRepaint(_ParametricEqPainter oldDelegate) {
     if (oldDelegate.selectedIndex != selectedIndex) return true;
+    if (oldDelegate.dragIndex != dragIndex) return true;
+    if (oldDelegate.dragPosition != dragPosition) return true;
     if (oldDelegate.points.length != points.length) return true;
     for (int i = 0; i < points.length; i++) {
       final a = oldDelegate.points[i];
       final b = points[i];
       if (a.frequency != b.frequency ||
           a.gain != b.gain ||
+          a.q != b.q ||
           a.enabled != b.enabled) {
         return true;
       }
