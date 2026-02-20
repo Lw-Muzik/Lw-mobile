@@ -11,9 +11,9 @@ import android.os.Bundle;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
-import androidx.core.view.WindowCompat;
+import androidx.activity.EdgeToEdge;
 
-import com.ryanheise.audioservice.AudioServiceActivity;
+import com.ryanheise.audioservice.AudioServiceFragmentActivity;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -23,7 +23,7 @@ import java.util.Map;
 import io.flutter.embedding.engine.FlutterEngine;
 import io.flutter.plugin.common.MethodChannel;
 
-public class MainActivity extends AudioServiceActivity {
+public class MainActivity extends AudioServiceFragmentActivity {
     // static {
     // System.loadLibrary("eq_app");
     // }
@@ -35,8 +35,8 @@ public class MainActivity extends AudioServiceActivity {
 
     @Override
     protected void onCreate(Bundle savedInstance) {
+        EdgeToEdge.enable(this);
         super.onCreate(savedInstance);
-        WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
         new HeadphoneService();
     }
 
