@@ -26,12 +26,10 @@
 -keep class x.a.zix.AudioVisualizer { *; }
 -keep class x.a.zix.BassEq { *; }
 -keep class x.a.zix.DSPEngine { *; }
--keep class x.a.zix.ReverbControl { *; }
--keep class x.a.zix.VirtualizedControl { *; }
 -keep class x.a.zix.LoudnessControl { *; }
 -keep class x.a.zix.DvcController { *; }
 -keep class x.a.zix.ReverbEngine { *; }
--keep class x.a.zix.RoomEffects { *; }
+-keep class x.a.zix.RoomEffectsProcessor { *; }
 
 # Keep classes used by Flutter method channels
 -keepclassmembers class * {

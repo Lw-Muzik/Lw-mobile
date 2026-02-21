@@ -13,10 +13,7 @@ class BassControl extends StatefulWidget {
 }
 
 class _BassControlState extends State<BassControl> {
-  double bass = 0;
-  double stereo = 0;
   double tGain = 0;
-  bool eq = false;
   bool ebass = false;
 
   @override
@@ -37,20 +34,8 @@ class _BassControlState extends State<BassControl> {
         Padding(
           padding: const EdgeInsets.all(8.0),
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const SizedBox(width: 10),
-              _buildSlider(
-                title: "Virtualizer",
-                stream: Stream.fromFuture(Channel.getVirtualizerStrength()),
-                value: stereo,
-                max: 1000,
-                onChanged: (value) {
-                  stereo = value;
-                  Channel.setVirtualizerStrength(value.toInt());
-                },
-              ),
-              const SizedBox.square(dimension: 10),
               _buildSlider(
                 title: "Vocal Boost",
                 stream: Stream.fromFuture(Channel.getTargetGain()),
@@ -69,31 +54,16 @@ class _BassControlState extends State<BassControl> {
   }
 
   Widget _buildEffectsSwitch() {
-    return StreamBuilder<bool>(
-      stream: Stream.fromFuture(Channel.getVirtualizerEnabled()),
-      builder: (context, snapshot) {
-        if (snapshot.hasError) {
-          return SwitchListTile.adaptive(
-            title: const Text("Effects"),
-            subtitle: const Text("Error loading"),
-            value: ebass,
-            onChanged: null,
-          );
-        }
-        ebass = snapshot.data ?? ebass;
-        return SwitchListTile.adaptive(
-          title: const Text("Effects"),
-          subtitle: Text(ebass ? "enabled" : "disabled"),
-          value: ebass,
-          onChanged: (value) {
-            setState(() {
-              ebass = value;
-              context.read<AppController>().enableEffects = ebass;
-            });
-            Channel.enableVirtualizer(value);
-            Channel.enableLoudnessEnhancer(value);
-          },
-        );
+    return SwitchListTile.adaptive(
+      title: const Text("Effects"),
+      subtitle: Text(ebass ? "enabled" : "disabled"),
+      value: ebass,
+      onChanged: (value) {
+        setState(() {
+          ebass = value;
+          context.read<AppController>().enableEffects = ebass;
+        });
+        Channel.enableLoudnessEnhancer(value);
       },
     );
   }
