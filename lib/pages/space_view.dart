@@ -3,7 +3,7 @@ import 'package:eq_app/models/room_preset.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import 'AudioFx.dart';
+import 'audio_fx.dart';
 
 class SpaceView extends StatefulWidget {
   const SpaceView({super.key});
@@ -51,7 +51,8 @@ class _SpaceViewState extends State<SpaceView> {
                   value: controller.dspRoomSize,
                   min: 0.0,
                   max: 1.0,
-                  displayValue: "${(controller.dspRoomSize * 100).toStringAsFixed(0)}%",
+                  displayValue:
+                      "${(controller.dspRoomSize * 100).toStringAsFixed(0)}%",
                   onChanged: (v) {
                     controller.dspRoomSize = v;
                     _markCustomPreset(controller);
@@ -65,7 +66,8 @@ class _SpaceViewState extends State<SpaceView> {
                   value: controller.dspDecay,
                   min: 0.0,
                   max: 1.0,
-                  displayValue: "${(controller.dspDecay * 100).toStringAsFixed(0)}%",
+                  displayValue:
+                      "${(controller.dspDecay * 100).toStringAsFixed(0)}%",
                   onChanged: (v) {
                     controller.dspDecay = v;
                     _markCustomPreset(controller);
@@ -79,7 +81,8 @@ class _SpaceViewState extends State<SpaceView> {
                   value: controller.dspDamping,
                   min: 0.0,
                   max: 1.0,
-                  displayValue: "${(controller.dspDamping * 100).toStringAsFixed(0)}%",
+                  displayValue:
+                      "${(controller.dspDamping * 100).toStringAsFixed(0)}%",
                   onChanged: (v) {
                     controller.dspDamping = v;
                     _markCustomPreset(controller);
@@ -93,7 +96,8 @@ class _SpaceViewState extends State<SpaceView> {
                   value: controller.dspPreDelay,
                   min: 0.0,
                   max: 200.0,
-                  displayValue: "${controller.dspPreDelay.toStringAsFixed(0)} ms",
+                  displayValue:
+                      "${controller.dspPreDelay.toStringAsFixed(0)} ms",
                   onChanged: (v) {
                     controller.dspPreDelay = v;
                     _markCustomPreset(controller);
@@ -107,7 +111,8 @@ class _SpaceViewState extends State<SpaceView> {
                   value: controller.dspDiffusion,
                   min: 0.0,
                   max: 1.0,
-                  displayValue: "${(controller.dspDiffusion * 100).toStringAsFixed(0)}%",
+                  displayValue:
+                      "${(controller.dspDiffusion * 100).toStringAsFixed(0)}%",
                   onChanged: (v) {
                     controller.dspDiffusion = v;
                     _markCustomPreset(controller);
@@ -121,7 +126,8 @@ class _SpaceViewState extends State<SpaceView> {
                   value: controller.dspWetDry,
                   min: 0.0,
                   max: 1.0,
-                  displayValue: "${(controller.dspWetDry * 100).toStringAsFixed(0)}%",
+                  displayValue:
+                      "${(controller.dspWetDry * 100).toStringAsFixed(0)}%",
                   onChanged: (v) {
                     controller.dspWetDry = v;
                     _markCustomPreset(controller);
@@ -161,9 +167,14 @@ class _SpaceViewState extends State<SpaceView> {
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: Row(
                     children: [
-                      Text("Mono", style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
-                      )),
+                      Text(
+                        "Mono",
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurface.withValues(
+                            alpha: 0.5,
+                          ),
+                        ),
+                      ),
                       Expanded(
                         child: Slider(
                           value: controller.stereoWidth,
@@ -174,15 +185,22 @@ class _SpaceViewState extends State<SpaceView> {
                           onChanged: (v) => controller.stereoWidth = v,
                         ),
                       ),
-                      Text("Wide", style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
-                      )),
+                      Text(
+                        "Wide",
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurface.withValues(
+                            alpha: 0.5,
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                 ),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                  child: _StereoFieldIndicator(width: controller.stereoWidth / 2.0),
+                  child: _StereoFieldIndicator(
+                    width: controller.stereoWidth / 2.0,
+                  ),
                 ),
               ],
             ],
@@ -221,7 +239,8 @@ class _SpaceViewState extends State<SpaceView> {
                     children: [
                       _CrossfeedPresetChip(
                         label: "Light",
-                        cutoff: 700, feed: 4.5,
+                        cutoff: 700,
+                        feed: 4.5,
                         currentFeed: controller.crossfeedFeed,
                         onTap: () {
                           controller.crossfeedCutoff = 700;
@@ -230,7 +249,8 @@ class _SpaceViewState extends State<SpaceView> {
                       ),
                       _CrossfeedPresetChip(
                         label: "Normal",
-                        cutoff: 700, feed: 6.0,
+                        cutoff: 700,
+                        feed: 6.0,
                         currentFeed: controller.crossfeedFeed,
                         onTap: () {
                           controller.crossfeedCutoff = 700;
@@ -239,7 +259,8 @@ class _SpaceViewState extends State<SpaceView> {
                       ),
                       _CrossfeedPresetChip(
                         label: "Strong",
-                        cutoff: 650, feed: 9.5,
+                        cutoff: 650,
+                        feed: 9.5,
                         currentFeed: controller.crossfeedFeed,
                         onTap: () {
                           controller.crossfeedCutoff = 650;
@@ -258,7 +279,8 @@ class _SpaceViewState extends State<SpaceView> {
                   value: controller.crossfeedFeed,
                   min: 1.0,
                   max: 15.0,
-                  displayValue: "${controller.crossfeedFeed.toStringAsFixed(1)} dB",
+                  displayValue:
+                      "${controller.crossfeedFeed.toStringAsFixed(1)} dB",
                   onChanged: (v) => controller.crossfeedFeed = v,
                 ),
                 _buildReverbSlider(
@@ -269,7 +291,8 @@ class _SpaceViewState extends State<SpaceView> {
                   value: controller.crossfeedCutoff,
                   min: 100.0,
                   max: 2000.0,
-                  displayValue: "${controller.crossfeedCutoff.toStringAsFixed(0)} Hz",
+                  displayValue:
+                      "${controller.crossfeedCutoff.toStringAsFixed(0)} Hz",
                   onChanged: (v) => controller.crossfeedCutoff = v,
                 ),
                 Padding(
@@ -345,24 +368,34 @@ class _SpaceViewState extends State<SpaceView> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(label, style: theme.textTheme.bodyMedium),
-              Text(displayValue, style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.primary,
-                fontWeight: FontWeight.w600,
-              )),
+              Text(
+                displayValue,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.primary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ],
           ),
           Row(
             children: [
-              Text(leftLabel, style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
-                fontSize: 11,
-              )),
+              Text(
+                leftLabel,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
+                  fontSize: 11,
+                ),
+              ),
               Expanded(
                 child: SliderTheme(
                   data: SliderTheme.of(context).copyWith(
                     trackHeight: 3,
-                    thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7),
-                    overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
+                    thumbShape: const RoundSliderThumbShape(
+                      enabledThumbRadius: 7,
+                    ),
+                    overlayShape: const RoundSliderOverlayShape(
+                      overlayRadius: 14,
+                    ),
                   ),
                   child: Slider(
                     value: value.clamp(min, max),
@@ -372,10 +405,13 @@ class _SpaceViewState extends State<SpaceView> {
                   ),
                 ),
               ),
-              Text(rightLabel, style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
-                fontSize: 11,
-              )),
+              Text(
+                rightLabel,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
+                  fontSize: 11,
+                ),
+              ),
             ],
           ),
         ],
@@ -504,7 +540,10 @@ class _StereoFieldPainter extends CustomPainter {
     )..layout();
 
     lPainter.paint(canvas, Offset(4, centerY - lPainter.height / 2));
-    rPainter.paint(canvas, Offset(size.width - rPainter.width - 4, centerY - rPainter.height / 2));
+    rPainter.paint(
+      canvas,
+      Offset(size.width - rPainter.width - 4, centerY - rPainter.height / 2),
+    );
   }
 
   @override
@@ -544,9 +583,7 @@ class _CrossfeedPresetChip extends StatelessWidget {
             : theme.colorScheme.onSurface,
         fontSize: 13,
       ),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
     );
   }
 }

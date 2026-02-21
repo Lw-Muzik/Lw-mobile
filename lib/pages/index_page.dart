@@ -1,5 +1,5 @@
 import 'package:eq_app/exports/exports.dart';
-import 'package:eq_app/pages/Home.dart';
+import 'package:eq_app/pages/home.dart';
 import 'package:flutter_zoom_drawer/flutter_zoom_drawer.dart';
 
 import '../controllers/drawer_controller.dart';

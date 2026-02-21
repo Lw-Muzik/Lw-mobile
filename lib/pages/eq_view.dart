@@ -5,7 +5,7 @@ import '../Helpers/Eq.dart';
 import '../controllers/AppController.dart';
 import '/widgets/EqPresets.dart';
 import 'package:flutter/material.dart';
-import 'BassControl.dart';
+import 'bass_control.dart';
 import '../Helpers/Channel.dart';
 
 class EqView extends StatefulWidget {
@@ -96,10 +96,7 @@ class _EqViewState extends State<EqView> {
       padding: const EdgeInsets.all(18.0),
       child: Align(
         alignment: Alignment.centerLeft,
-        child: Text(
-          "Presets",
-          style: Theme.of(context).textTheme.titleMedium,
-        ),
+        child: Text("Presets", style: Theme.of(context).textTheme.titleMedium),
       ),
     );
   }

@@ -1,6 +1,6 @@
 import 'package:eq_app/Routes/routes.dart';
 import 'package:eq_app/extensions/index.dart';
-import 'package:eq_app/pages/GenreSongs.dart';
+import 'package:eq_app/pages/genre_songs.dart';
 import '/exports/exports.dart';
 
 class Genres extends StatefulWidget {
@@ -37,11 +37,16 @@ class _GenresState extends State<Genres> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.error_outline, size: 48,
-                    color: Theme.of(context).colorScheme.error),
+                Icon(
+                  Icons.error_outline,
+                  size: 48,
+                  color: Theme.of(context).colorScheme.error,
+                ),
                 const SizedBox(height: 12),
-                Text("Failed to load genres",
-                    style: Theme.of(context).textTheme.titleMedium),
+                Text(
+                  "Failed to load genres",
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
               ],
             ),
           );
@@ -50,12 +55,18 @@ class _GenresState extends State<Genres> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.category, size: 64,
-                    color: Theme.of(context).colorScheme.onSurface
-                        .withValues(alpha: 0.3)),
+                Icon(
+                  Icons.category,
+                  size: 64,
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurface.withValues(alpha: 0.3),
+                ),
                 const SizedBox(height: 12),
-                Text("No genres found",
-                    style: Theme.of(context).textTheme.titleMedium),
+                Text(
+                  "No genres found",
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
               ],
             ),
           );
@@ -86,62 +97,59 @@ class _GenresState extends State<Genres> {
                 child: Hero(
                   tag: 'genre_${genre.id}',
                   child: Card(
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  clipBehavior: Clip.antiAlias,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          baseColor,
-                          baseColor.withValues(alpha: 0.7),
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [baseColor, baseColor.withValues(alpha: 0.7)],
+                        ),
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(
+                            Icons.music_note,
+                            size: 36,
+                            color: Colors.white70,
+                          ),
+                          const SizedBox(height: 8),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            child: Text(
+                              genre.genre,
+                              maxLines: 2,
+                              textAlign: TextAlign.center,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.titleMedium
+                                  ?.copyWith(color: Colors.white),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              genre.numOfSongs.nSongs,
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(color: Colors.white70),
+                            ),
+                          ),
                         ],
                       ),
                     ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(Icons.music_note,
-                            size: 36, color: Colors.white70),
-                        const SizedBox(height: 8),
-                        Padding(
-                          padding:
-                              const EdgeInsets.symmetric(horizontal: 8),
-                          child: Text(
-                            genre.genre,
-                            maxLines: 2,
-                            textAlign: TextAlign.center,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleMedium
-                                ?.copyWith(color: Colors.white),
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.2),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            genre.numOfSongs.nSongs,
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodySmall
-                                ?.copyWith(color: Colors.white70),
-                          ),
-                        ),
-                      ],
-                    ),
                   ),
-                ),
                 ),
               );
             },

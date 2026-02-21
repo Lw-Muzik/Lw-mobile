@@ -1,10 +1,9 @@
-import '/Helpers/index.dart';
-import '/Routes/routes.dart';
-
-import '/pages/FolderSongs.dart';
+import '../Helpers/index.dart';
+import '../Routes/routes.dart';
 import '/exports/exports.dart';
 
 import '../Global/index.dart';
+import 'folder_songs.dart';
 
 class Folders extends StatefulWidget {
   const Folders({super.key});
@@ -34,11 +33,16 @@ class _FoldersState extends State<Folders> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.error_outline, size: 48,
-                    color: Theme.of(context).colorScheme.error),
+                Icon(
+                  Icons.error_outline,
+                  size: 48,
+                  color: Theme.of(context).colorScheme.error,
+                ),
                 const SizedBox(height: 12),
-                Text("Failed to load folders",
-                    style: Theme.of(context).textTheme.titleMedium),
+                Text(
+                  "Failed to load folders",
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
               ],
             ),
           );
@@ -47,12 +51,18 @@ class _FoldersState extends State<Folders> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.folder_open, size: 64,
-                    color: Theme.of(context).colorScheme.onSurface
-                        .withValues(alpha: 0.3)),
+                Icon(
+                  Icons.folder_open,
+                  size: 64,
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurface.withValues(alpha: 0.3),
+                ),
                 const SizedBox(height: 12),
-                Text("No folders found",
-                    style: Theme.of(context).textTheme.titleMedium),
+                Text(
+                  "No folders found",
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
               ],
             ),
           );
@@ -73,10 +83,7 @@ class _FoldersState extends State<Folders> {
               final path = folders[index];
               final folderName = path.split("/").last;
               return InkWell(
-                onTap: () => Routes.scaleTo(
-                  FolderSongs(path: path),
-                  context,
-                ),
+                onTap: () => Routes.scaleTo(FolderSongs(path: path), context),
                 onLongPress: () {
                   showDeleteWindow("folder", path, context);
                 },

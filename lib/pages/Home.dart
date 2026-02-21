@@ -3,18 +3,14 @@ import 'dart:io';
 import 'package:eq_app/controllers/drawer_controller.dart';
 
 import '/exports/exports.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
-import '/Routes/routes.dart';
-import '/pages/Albums.dart';
-import '/pages/Equalizer.dart';
-import '/pages/Folders.dart';
-import '/pages/Genres.dart';
-import '/pages/Playlist.dart';
-import '/pages/SearchPage.dart';
-import '/pages/Settings.dart';
-import '/pages/Songs.dart';
-import '/pages/Artists.dart';
+import 'albums.dart';
+import 'folders.dart';
+import 'genres.dart';
+import 'playlist.dart';
+import 'search_page.dart';
+import 'songs.dart';
+import 'artists.dart';
 import 'cloud/cloud_view.dart';
 import '/widgets/Body.dart';
 import '/widgets/BottomPlayer.dart';

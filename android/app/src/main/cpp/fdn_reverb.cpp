@@ -215,12 +215,13 @@ void FDNReverb::process(float* left, float* right, int numFrames) {
             // Hadamard mixing (multiplies echo count by 8 per step)
             hadamard8(mixed);
 
-            // Write input + mixed output to delay line
+            // Proper Schroeder allpass: y = delayed - g*input, write(input + g*delayed)
+            // This preserves energy (|H(z)| = 1 for all frequencies)
             for (int ch = 0; ch < NUM_CHANNELS; ch++) {
                 float input = channels[ch];
-                float output = mixed[ch];
-                diffusionDelays_[step][ch].write(input + output * diffMix);
-                channels[ch] = input * (1.0f - diffMix) + output * diffMix;
+                float delayed = mixed[ch];
+                diffusionDelays_[step][ch].write(input + diffMix * delayed);
+                channels[ch] = delayed - diffMix * input;
             }
         }
 
@@ -241,7 +242,11 @@ void FDNReverb::process(float* left, float* right, int numFrames) {
         wetR *= 0.5f;
 
         // Wet/dry mix
-        left[i]  = dryL * (1.0f - wetDry_) + wetL * wetDry_;
-        right[i] = dryR * (1.0f - wetDry_) + wetR * wetDry_;
+        float outL = dryL * (1.0f - wetDry_) + wetL * wetDry_;
+        float outR = dryR * (1.0f - wetDry_) + wetR * wetDry_;
+
+        // Safety clamp to prevent NaN/Inf from crashing the audio pipeline
+        left[i]  = std::clamp(outL, -4.0f, 4.0f);
+        right[i] = std::clamp(outR, -4.0f, 4.0f);
     }
 }

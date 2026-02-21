@@ -2,12 +2,12 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:eq_app/Routes/routes.dart';
-import 'package:eq_app/pages/ArtistSongs.dart';
+import 'package:eq_app/pages/artist_songs.dart';
 import 'package:eq_app/widgets/ArtworkWidget.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 
 import '../../controllers/AppController.dart';
-import '../../pages/AlbumSongs.dart';
+import '../../pages/album_songs.dart';
 import '../../widgets/PlayListWidget.dart';
 import 'ArtworkFetch.dart';
 
@@ -210,8 +210,10 @@ class _TrackHeader extends StatelessWidget {
                       song.album ?? 'Unknown Album',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style:
-                          const TextStyle(color: Colors.white30, fontSize: 12),
+                      style: const TextStyle(
+                        color: Colors.white30,
+                        fontSize: 12,
+                      ),
                     ),
                     const SizedBox(width: 6),
                     Container(
@@ -225,8 +227,10 @@ class _TrackHeader extends StatelessWidget {
                     const SizedBox(width: 6),
                     Text(
                       _formatDuration(song.duration),
-                      style:
-                          const TextStyle(color: Colors.white30, fontSize: 12),
+                      style: const TextStyle(
+                        color: Colors.white30,
+                        fontSize: 12,
+                      ),
                     ),
                   ],
                 ),

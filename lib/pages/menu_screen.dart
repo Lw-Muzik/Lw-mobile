@@ -7,11 +7,11 @@ import 'package:wiredash/wiredash.dart';
 import '../Routes/routes.dart';
 import '../controllers/AppController.dart';
 import '../controllers/drawer_controller.dart';
-import 'Equalizer.dart';
+import 'equalizer.dart';
 import 'Settings.dart';
 import 'cloud/cloud_view.dart';
 import '../player/lyrics_view.dart';
-import '../pages/VisualUI.dart';
+import 'visual_ui.dart';
 
 class MenuScreen extends StatefulWidget {
   const MenuScreen({super.key});

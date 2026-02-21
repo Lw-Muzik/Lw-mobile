@@ -2,7 +2,7 @@ import 'package:animations/animations.dart';
 import '/pages/index_page.dart';
 import 'package:flutter/material.dart';
 
-import '../pages/Equalizer.dart';
+import '../pages/equalizer.dart';
 import '../pages/loader.dart';
 import '../player/player_ui.dart';
 

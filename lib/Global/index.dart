@@ -14,10 +14,10 @@ import '../Helpers/Files.dart';
 import '../Routes/routes.dart';
 import '../Visualizers/MultiwaveVisualizer.dart';
 import '../controllers/AppController.dart';
-import '../pages/VisualUI.dart';
+import '../pages/visual_ui.dart';
 import '../player/widgets/NowPlaying.dart';
 import '../player/widgets/TrackInfo.dart';
-import '../pages/Equalizer.dart';
+import '../pages/equalizer.dart';
 import '../player/lyrics_view.dart';
 import '../widgets/ArtworkWidget.dart';
 

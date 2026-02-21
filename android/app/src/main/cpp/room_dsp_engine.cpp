@@ -1,5 +1,6 @@
 #include "room_dsp_engine.h"
 #include <cstring>
+#include <algorithm>
 
 RoomDSPEngine::RoomDSPEngine()
     : sampleRate_(48000), channels_(2) {
@@ -65,10 +66,10 @@ void RoomDSPEngine::process(float* buffer, int numFrames) {
         reverb_.process(left, right, numFrames);
     }
 
-    // Re-interleave back to [L0,R0,L1,R1,...]
+    // Re-interleave back to [L0,R0,L1,R1,...] with safety clamp
     for (int i = 0; i < numFrames; i++) {
-        buffer[i * 2]     = left[i];
-        buffer[i * 2 + 1] = right[i];
+        buffer[i * 2]     = std::clamp(left[i],  -4.0f, 4.0f);
+        buffer[i * 2 + 1] = std::clamp(right[i], -4.0f, 4.0f);
     }
 
     delete[] heapBuf;

@@ -7,7 +7,7 @@ import 'package:provider/provider.dart';
 import '../controllers/AppController.dart';
 import '../Helpers/Channel.dart';
 import '../models/eq_models.dart';
-import 'AudioFx.dart';
+import 'audio_fx.dart';
 
 const Color _kAccent = Color(0xFFD4A825);
 const double _kMinGain = -15.0;
@@ -73,9 +73,9 @@ class _GraphicEqViewState extends State<GraphicEqView> {
         const SizedBox(width: 12),
         Text(
           "Graphic EQ",
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
+          style: Theme.of(
+            context,
+          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
         ),
         const Spacer(),
         // Band count dropdown
@@ -92,10 +92,9 @@ class _GraphicEqViewState extends State<GraphicEqView> {
               dropdownColor: const Color(0xFF1E1E2E),
               style: const TextStyle(color: Colors.white70, fontSize: 13),
               items: BandMapping.supportedCounts
-                  .map((c) => DropdownMenuItem(
-                        value: c,
-                        child: Text('$c bands'),
-                      ))
+                  .map(
+                    (c) => DropdownMenuItem(value: c, child: Text('$c bands')),
+                  )
                   .toList(),
               onChanged: (v) {
                 if (v != null) controller.eqBandCount = v;
@@ -239,15 +238,17 @@ class _GraphicEqViewState extends State<GraphicEqView> {
   ) {
     const padLeft = 32.0;
     const padRight = 8.0;
-    const padTop = 12.0;
-    const padBottom = 20.0;
+    // const _ = 12.0;
+    // const _ = 20.0;
     final plotW = width - padLeft - padRight;
 
     double bestDist = 40.0; // max hit distance in px
     int bestBand = -1;
 
     for (int i = 0; i < gains.length; i++) {
-      final x = padLeft + _FrequencyCurvePainter._logNormalize(frequencies[i]) * plotW;
+      final x =
+          padLeft +
+          _FrequencyCurvePainter._logNormalize(frequencies[i]) * plotW;
       final dist = (pos.dx - x).abs();
       if (dist < bestDist) {
         bestDist = dist;
@@ -370,10 +371,7 @@ class _GraphicEqViewState extends State<GraphicEqView> {
       children: [
         Padding(
           padding: const EdgeInsets.only(left: 4, bottom: 6),
-          child: Text(
-            "Presets",
-            style: Theme.of(context).textTheme.titleSmall,
-          ),
+          child: Text("Presets", style: Theme.of(context).textTheme.titleSmall),
         ),
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
@@ -381,7 +379,9 @@ class _GraphicEqViewState extends State<GraphicEqView> {
           child: Row(
             children: [
               ...presetNames.map((name) => _presetChip(name, controller)),
-              ...savedNames.map((name) => _presetChip(name, controller, isUser: true)),
+              ...savedNames.map(
+                (name) => _presetChip(name, controller, isUser: true),
+              ),
             ],
           ),
         ),
@@ -389,7 +389,11 @@ class _GraphicEqViewState extends State<GraphicEqView> {
     );
   }
 
-  Widget _presetChip(String name, AppController controller, {bool isUser = false}) {
+  Widget _presetChip(
+    String name,
+    AppController controller, {
+    bool isUser = false,
+  }) {
     final isSelected = controller.activePresetName == name;
     return Padding(
       padding: const EdgeInsets.only(right: 8),
@@ -402,12 +406,14 @@ class _GraphicEqViewState extends State<GraphicEqView> {
           fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
           fontSize: 12,
         ),
-        side: BorderSide(
-          color: isSelected ? _kAccent : Colors.white24,
-        ),
+        side: BorderSide(color: isSelected ? _kAccent : Colors.white24),
         backgroundColor: Colors.transparent,
         avatar: isUser
-            ? Icon(Icons.person, size: 16, color: isSelected ? _kAccent : Colors.white38)
+            ? Icon(
+                Icons.person,
+                size: 16,
+                color: isSelected ? _kAccent : Colors.white38,
+              )
             : null,
         onSelected: (_) {
           if (isUser) {
@@ -570,7 +576,9 @@ class _BandSlider extends StatelessWidget {
           ? '${k.round()}k'
           : '${k.toStringAsFixed(1)}k';
     }
-    return frequency >= 100 ? '${frequency.round()}' : frequency.toStringAsFixed(1);
+    return frequency >= 100
+        ? '${frequency.round()}'
+        : frequency.toStringAsFixed(1);
   }
 
   @override
@@ -581,8 +589,8 @@ class _BandSlider extends StatelessWidget {
     final trackColor = gain > 0
         ? _kAccent
         : gain < 0
-            ? const Color(0xFF5EC4D4)
-            : Colors.white38;
+        ? const Color(0xFF5EC4D4)
+        : Colors.white38;
 
     return SizedBox(
       width: width,
@@ -690,7 +698,9 @@ class _FrequencyCurvePainter extends CustomPainter {
     final points = <Offset>[];
     for (int i = 0; i < gains.length; i++) {
       final x = padLeft + _logNormalize(frequencies[i]) * plotW;
-      final y = padTop + plotH * (1.0 - (gains[i] - _kMinGain) / (_kMaxGain - _kMinGain));
+      final y =
+          padTop +
+          plotH * (1.0 - (gains[i] - _kMinGain) / (_kMaxGain - _kMinGain));
       points.add(Offset(x, y));
     }
 
@@ -706,10 +716,7 @@ class _FrequencyCurvePainter extends CustomPainter {
       ..shader = ui.Gradient.linear(
         Offset(size.width / 2, padTop),
         Offset(size.width / 2, padTop + plotH),
-        [
-          accent.withValues(alpha: 0.35),
-          accent.withValues(alpha: 0.02),
-        ],
+        [accent.withValues(alpha: 0.35), accent.withValues(alpha: 0.02)],
       );
     canvas.drawPath(fillPath, fillPaint);
 
@@ -748,7 +755,16 @@ class _FrequencyCurvePainter extends CustomPainter {
 
     canvas.restore();
 
-    _drawAxisLabels(canvas, size, padLeft, padRight, padTop, padBottom, plotW, plotH);
+    _drawAxisLabels(
+      canvas,
+      size,
+      padLeft,
+      padRight,
+      padTop,
+      padBottom,
+      plotW,
+      plotH,
+    );
   }
 
   static double _logNormalize(double freq) {
@@ -772,15 +788,16 @@ class _FrequencyCurvePainter extends CustomPainter {
       ..strokeWidth = 0.5;
 
     for (final dB in [-15.0, -10.0, -5.0, 0.0, 5.0, 10.0, 15.0]) {
-      final y = padTop + plotH * (1.0 - (dB - _kMinGain) / (_kMaxGain - _kMinGain));
+      final y =
+          padTop + plotH * (1.0 - (dB - _kMinGain) / (_kMaxGain - _kMinGain));
       _drawDashedLine(
         canvas,
         Offset(padLeft, y),
         Offset(padLeft + plotW, y),
         dB == 0
             ? (Paint()
-              ..color = Colors.white.withValues(alpha: 0.2)
-              ..strokeWidth = 1.0)
+                ..color = Colors.white.withValues(alpha: 0.2)
+                ..strokeWidth = 1.0)
             : gridPaint,
         dashWidth: dB == 0 ? plotW : 4,
         gapWidth: dB == 0 ? 0 : 4,
@@ -844,27 +861,34 @@ class _FrequencyCurvePainter extends CustomPainter {
     );
 
     for (final dB in [-15.0, -10.0, -5.0, 0.0, 5.0, 10.0, 15.0]) {
-      final y = padTop + plotH * (1.0 - (dB - _kMinGain) / (_kMaxGain - _kMinGain));
-      final builder = ui.ParagraphBuilder(ui.ParagraphStyle(
-        textAlign: TextAlign.right,
-        maxLines: 1,
-      ))
-        ..pushStyle(labelStyle)
-        ..addText(dB >= 0 ? '+${dB.round()}' : '${dB.round()}');
-      final paragraph = builder.build()..layout(const ui.ParagraphConstraints(width: 26));
+      final y =
+          padTop + plotH * (1.0 - (dB - _kMinGain) / (_kMaxGain - _kMinGain));
+      final builder =
+          ui.ParagraphBuilder(
+              ui.ParagraphStyle(textAlign: TextAlign.right, maxLines: 1),
+            )
+            ..pushStyle(labelStyle)
+            ..addText(dB >= 0 ? '+${dB.round()}' : '${dB.round()}');
+      final paragraph = builder.build()
+        ..layout(const ui.ParagraphConstraints(width: 26));
       canvas.drawParagraph(paragraph, Offset(2, y - paragraph.height / 2));
     }
 
-    final freqLabels = <double, String>{100.0: '100', 1000.0: '1k', 10000.0: '10k'};
+    final freqLabels = <double, String>{
+      100.0: '100',
+      1000.0: '1k',
+      10000.0: '10k',
+    };
     for (final entry in freqLabels.entries) {
       final x = padLeft + _logNormalize(entry.key) * plotW;
-      final builder = ui.ParagraphBuilder(ui.ParagraphStyle(
-        textAlign: TextAlign.center,
-        maxLines: 1,
-      ))
-        ..pushStyle(labelStyle)
-        ..addText(entry.value);
-      final paragraph = builder.build()..layout(const ui.ParagraphConstraints(width: 30));
+      final builder =
+          ui.ParagraphBuilder(
+              ui.ParagraphStyle(textAlign: TextAlign.center, maxLines: 1),
+            )
+            ..pushStyle(labelStyle)
+            ..addText(entry.value);
+      final paragraph = builder.build()
+        ..layout(const ui.ParagraphConstraints(width: 30));
       canvas.drawParagraph(paragraph, Offset(x - 15, padTop + plotH + 4));
     }
   }
@@ -887,12 +911,14 @@ class _FrequencyCurvePainter extends CustomPainter {
         final tt = t * t;
         final ttt = tt * t;
 
-        final x = 0.5 *
+        final x =
+            0.5 *
             ((2 * p1.dx) +
                 (-p0.dx + p2.dx) * t +
                 (2 * p0.dx - 5 * p1.dx + 4 * p2.dx - p3.dx) * tt +
                 (-p0.dx + 3 * p1.dx - 3 * p2.dx + p3.dx) * ttt);
-        final y = 0.5 *
+        final y =
+            0.5 *
             ((2 * p1.dy) +
                 (-p0.dy + p2.dy) * t +
                 (2 * p0.dy - 5 * p1.dy + 4 * p2.dy - p3.dy) * tt +

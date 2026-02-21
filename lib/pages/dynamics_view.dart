@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../controllers/AppController.dart';
-import 'AudioFx.dart';
+import 'audio_fx.dart';
 
 class DynamicsView extends StatelessWidget {
   const DynamicsView({super.key});

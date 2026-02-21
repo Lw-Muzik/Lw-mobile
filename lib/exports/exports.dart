@@ -11,3 +11,4 @@ export 'package:flutter_shaders/flutter_shaders.dart';
 export 'package:swipable_stack/swipable_stack.dart';
 export 'package:audio_service/audio_service.dart';
 export '/extensions/build_context_extension.dart';
+export 'package:shared_preferences/shared_preferences.dart';

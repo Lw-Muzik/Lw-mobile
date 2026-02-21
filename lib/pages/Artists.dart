@@ -3,7 +3,7 @@ import 'package:eq_app/extensions/index.dart';
 import '/exports/exports.dart';
 
 import '../widgets/ArtworkWidget.dart';
-import 'ArtistSongs.dart';
+import 'artist_songs.dart';
 
 class Artists extends StatefulWidget {
   const Artists({super.key});
@@ -40,11 +40,16 @@ class _ArtistsState extends State<Artists> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.error_outline, size: 48,
-                      color: Theme.of(context).colorScheme.error),
+                  Icon(
+                    Icons.error_outline,
+                    size: 48,
+                    color: Theme.of(context).colorScheme.error,
+                  ),
                   const SizedBox(height: 12),
-                  Text("Failed to load artists",
-                      style: Theme.of(context).textTheme.titleMedium),
+                  Text(
+                    "Failed to load artists",
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
                 ],
               ),
             );
@@ -53,12 +58,18 @@ class _ArtistsState extends State<Artists> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.person_off, size: 64,
-                      color: Theme.of(context).colorScheme.onSurface
-                          .withValues(alpha: 0.3)),
+                  Icon(
+                    Icons.person_off,
+                    size: 64,
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withValues(alpha: 0.3),
+                  ),
                   const SizedBox(height: 12),
-                  Text("No artists found",
-                      style: Theme.of(context).textTheme.titleMedium),
+                  Text(
+                    "No artists found",
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
                 ],
               ),
             );
@@ -75,8 +86,7 @@ class _ArtistsState extends State<Artists> {
             itemCount: artists.length,
             itemBuilder: (context, index) {
               final artist = artists[index];
-              final artistName =
-                  "${artist.getMap['artist'] ?? 'Unknown'}";
+              final artistName = "${artist.getMap['artist'] ?? 'Unknown'}";
               return InkWell(
                 onTap: () => Routes.scaleTo(
                   ArtistSongs(
@@ -112,9 +122,9 @@ class _ArtistsState extends State<Artists> {
                       maxLines: 2,
                       textAlign: TextAlign.center,
                       overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontSize: 12,
-                      ),
+                      style: Theme.of(
+                        context,
+                      ).textTheme.titleMedium?.copyWith(fontSize: 12),
                     ),
                     Text(
                       (artist.numberOfTracks ?? 0).nSongs,

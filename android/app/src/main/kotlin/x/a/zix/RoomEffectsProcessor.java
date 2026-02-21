@@ -43,7 +43,9 @@ public class RoomEffectsProcessor implements AudioProcessor {
     private AudioFormat inputFormat = AudioFormat.NOT_SET;
     private boolean inputEnded = false;
 
-    // Output buffer
+    // Processing buffer (persistent, reused across calls to avoid allocation per frame)
+    private ByteBuffer processingBuffer = EMPTY_BUFFER;
+    // Output buffer (swapped with EMPTY_BUFFER on each getOutput())
     private ByteBuffer outputBuffer = EMPTY_BUFFER;
 
     private RoomEffectsProcessor() {
@@ -90,26 +92,27 @@ public class RoomEffectsProcessor implements AudioProcessor {
             return;
         }
 
-        // Ensure output buffer is large enough
-        if (outputBuffer.capacity() < remaining) {
-            outputBuffer = ByteBuffer.allocateDirect(remaining).order(ByteOrder.nativeOrder());
+        // Reuse persistent processing buffer to avoid allocation per frame
+        if (processingBuffer.capacity() < remaining) {
+            processingBuffer = ByteBuffer.allocateDirect(remaining).order(ByteOrder.nativeOrder());
         } else {
-            outputBuffer.clear();
+            processingBuffer.clear();
         }
 
-        // Copy input to output, then process in-place
-        outputBuffer.put(inputBuffer);
-        outputBuffer.flip();
+        // Copy input to processing buffer, then process in-place
+        processingBuffer.put(inputBuffer);
+        processingBuffer.flip();
         inputBuffer.position(inputBuffer.limit());
 
         // Process through native DSP engine
         if (nativeHandle != 0) {
             if (encoding == C.ENCODING_PCM_FLOAT) {
-                nativeProcessFloat(nativeHandle, outputBuffer, numFrames);
+                nativeProcessFloat(nativeHandle, processingBuffer, numFrames);
             } else {
-                nativeProcessShort(nativeHandle, outputBuffer, numFrames);
+                nativeProcessShort(nativeHandle, processingBuffer, numFrames);
             }
         }
+        outputBuffer = processingBuffer;
     }
 
     @Override
@@ -133,6 +136,7 @@ public class RoomEffectsProcessor implements AudioProcessor {
     @Override
     public void flush() {
         outputBuffer = EMPTY_BUFFER;
+        // Note: processingBuffer is intentionally kept for reuse
         inputEnded = false;
         inputFormat = pendingInputFormat;
 
