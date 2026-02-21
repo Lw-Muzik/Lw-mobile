@@ -5,7 +5,6 @@ import 'package:eq_app/Helpers/VisualizerWidget.dart';
 import 'package:eq_app/Helpers/index.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
-import 'package:audio_service/audio_service.dart';
 import 'package:http/http.dart' as http;
 import '/exports/exports.dart';
 

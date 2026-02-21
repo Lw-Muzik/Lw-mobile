@@ -37,8 +37,8 @@ class LyricsService {
       result ??= await _loadFromNative(filePath);
     }
 
-    // 4. API fallback
-    result ??= await _loadFromApi(song.title, song.artist ?? '');
+    // 4. API fallback (backend + LRCLIB)
+    result ??= await _loadFromApi(song, isLocalFile);
 
     if (result != null) {
       _cache[song.id] = result;
@@ -94,17 +94,53 @@ class LyricsService {
     return null;
   }
 
-  /// Fetches lyrics from the backend API.
-  Future<LyricsData?> _loadFromApi(String title, String artist) async {
+  /// Fetches lyrics from APIs: backend first, then LRCLIB fallback.
+  /// Auto-saves to .lrc sidecar when found online for offline persistence.
+  Future<LyricsData?> _loadFromApi(SongModel song, bool isLocalFile) async {
+    final title = song.title;
+    final artist = song.artist ?? '';
+
+    // 4a. Try existing backend
     try {
       final text = await Apis.fetchLyricsData(title, artist);
       if (text != null && text.isNotEmpty) {
-        return parseLrc(text);
+        final data = parseLrc(text);
+        if (isLocalFile) _autoSaveToLrc(song.data, data);
+        return data;
       }
     } catch (e) {
-      debugPrint('LyricsService: error fetching lyrics from API: $e');
+      debugPrint('LyricsService: error fetching lyrics from backend: $e');
     }
+
+    // 4b. Try LRCLIB
+    try {
+      final text = await Apis.fetchLyricsFromLrclib(
+        title: title,
+        artist: artist,
+        durationMs: song.duration,
+      );
+      if (text != null && text.isNotEmpty) {
+        final data = parseLrc(text);
+        if (isLocalFile) _autoSaveToLrc(song.data, data);
+        return data;
+      }
+    } catch (e) {
+      debugPrint('LyricsService: error fetching lyrics from LRCLIB: $e');
+    }
+
     return null;
+  }
+
+  /// Fire-and-forget save to .lrc sidecar for fetched lyrics.
+  /// Silently fails for non-writable paths (e.g. scoped storage on Android 11+).
+  Future<void> _autoSaveToLrc(String audioPath, LyricsData data) async {
+    try {
+      final lrcPath = _lrcPathFor(audioPath);
+      await File(lrcPath).writeAsString(encodeLrc(data));
+    } catch (_) {
+      // Non-writable path (scoped storage restriction) — lyrics still
+      // display fine, they just won't persist as a sidecar file.
+    }
   }
 
   /// Saves lyrics to a .lrc sidecar file next to the audio file.
