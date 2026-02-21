@@ -5,7 +5,7 @@ import 'graphic_eq_view.dart';
 import 'parametric_eq_view.dart';
 import 'space_view.dart';
 
-const Color _kAccent = Color(0xFFD4A825);
+// const Color _kAccent = Color(0xFFD4A825);
 
 class Equalizer extends StatefulWidget {
   const Equalizer({super.key});
@@ -86,9 +86,9 @@ class _EqualizerState extends State<Equalizer> with TickerProviderStateMixin {
       ).colorScheme.onSurface.withValues(alpha: 0.6),
       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
       tabs: const [
-        Tab(icon: Icon(Icons.equalizer, size: 15), text: "Graphic"),
-        Tab(icon: Icon(Icons.show_chart, size: 15), text: "Parametric"),
-        Tab(icon: Icon(Icons.surround_sound, size: 15), text: "Space"),
+        Tab(icon: Icon(Icons.equalizer, size: 15), child: Text("Graphic")),
+        Tab(icon: Icon(Icons.show_chart, size: 15), child: Text("Parametric")),
+        Tab(icon: Icon(Icons.surround_sound, size: 15), child: Text("Space")),
       ],
     );
   }

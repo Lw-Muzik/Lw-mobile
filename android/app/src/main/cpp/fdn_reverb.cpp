@@ -1,79 +1,81 @@
 #include "fdn_reverb.h"
-#include "hadamard.h"
 #include <cmath>
 #include <algorithm>
 
-// Diffusion delay times (ms) for each step x channel.
-// Chosen as mutually non-divisible values for maximum echo density.
-// Each step roughly doubles the delay range.
-const float FDNReverb::kDiffusionDelayMs[NUM_DIFFUSION_STEPS][NUM_CHANNELS] = {
-    { 1.03f, 1.09f, 1.21f, 1.37f, 1.49f, 1.63f, 1.79f, 1.93f },
-    { 2.11f, 2.27f, 2.53f, 2.71f, 3.01f, 3.19f, 3.41f, 3.67f },
-    { 4.13f, 4.37f, 4.79f, 5.17f, 5.53f, 5.89f, 6.23f, 6.71f },
-    { 8.09f, 8.53f, 9.11f, 9.71f,10.31f,10.97f,11.59f,12.23f },
+// Jezar's original comb tuning values at 44100 Hz.
+// R channel offsets by +23 samples for stereo decorrelation.
+const int FDNReverb::kCombTuningL[NUM_COMBS] = {
+    1116, 1188, 1277, 1356, 1422, 1491, 1557, 1617
+};
+const int FDNReverb::kCombTuningR[NUM_COMBS] = {
+    1139, 1211, 1300, 1379, 1445, 1514, 1580, 1640
 };
 
-// Feedback delay times (ms) — base values scaled by room size.
-const float FDNReverb::kFeedbackDelayMs[NUM_CHANNELS] = {
-    25.31f, 27.47f, 30.13f, 33.79f, 37.43f, 41.17f, 45.29f, 49.51f
-};
-
-// Fixed polarity flips per diffusion step for phase diversity.
-const bool FDNReverb::kDiffusionPolarity[NUM_DIFFUSION_STEPS][NUM_CHANNELS] = {
-    { true, false, true,  true,  false, true,  false, true  },
-    { false, true, true,  false, true,  false, true,  false },
-    { true,  true, false, true,  false, false, true,  true  },
-    { false, false, true, false, true,  true,  false, false },
-};
+// Allpass tuning values at 44100 Hz.
+const int FDNReverb::kAllpassTuningL[NUM_ALLPASSES] = { 556, 441, 341, 225 };
+const int FDNReverb::kAllpassTuningR[NUM_ALLPASSES] = { 579, 464, 364, 248 };
 
 FDNReverb::FDNReverb()
-    : sampleRate_(48000)
+    : sampleRate_(44100)
     , roomSize_(0.5f), roomSizeTarget_(0.5f)
     , decay_(0.5f), decayTarget_(0.5f)
     , damping_(0.3f), dampingTarget_(0.3f)
     , preDelayMs_(10.0f), preDelayMsTarget_(10.0f)
-    , diffusion_(0.7f), diffusionTarget_(0.7f)
+    , diffusion_(0.5f), diffusionTarget_(0.5f)
     , wetDry_(0.3f), wetDryTarget_(0.3f)
+    , feedback_(0.84f)
+    , damp_(0.12f)
     , preDelaySamples_(0)
-    , decayGain_(0.85f)
 {
 }
 
 void FDNReverb::init(int sampleRate) {
     sampleRate_ = sampleRate;
-    int maxDelay = static_cast<int>(sampleRate * 0.25f); // 250ms max
+    float scale = static_cast<float>(sampleRate) / kReferenceSampleRate;
 
-    preDelayL_.resize(maxDelay);
-    preDelayR_.resize(maxDelay);
-
-    for (int step = 0; step < NUM_DIFFUSION_STEPS; step++) {
-        for (int ch = 0; ch < NUM_CHANNELS; ch++) {
-            diffusionDelays_[step][ch].resize(static_cast<int>(sampleRate * 0.015f)); // 15ms max
-            diffusionPolarity_[step][ch] = kDiffusionPolarity[step][ch];
-        }
+    // Initialize comb filters with scaled tuning
+    // Room size scales delay lengths: 0.5x to 2.0x
+    float sizeScale = 0.5f + 1.5f * roomSize_;
+    for (int i = 0; i < NUM_COMBS; i++) {
+        int sizeL = std::max(1, static_cast<int>(kCombTuningL[i] * scale * sizeScale));
+        int sizeR = std::max(1, static_cast<int>(kCombTuningR[i] * scale * sizeScale));
+        // Allocate max size (2x base) to allow runtime room size changes
+        int maxL = static_cast<int>(kCombTuningL[i] * scale * 2.0f) + 16;
+        int maxR = static_cast<int>(kCombTuningR[i] * scale * 2.0f) + 16;
+        combsL_[i].init(maxL);
+        combsR_[i].init(maxR);
     }
 
-    for (int ch = 0; ch < NUM_CHANNELS; ch++) {
-        feedbackDelays_[ch].resize(maxDelay);
+    // Initialize allpass filters with scaled tuning
+    for (int i = 0; i < NUM_ALLPASSES; i++) {
+        int sizeL = std::max(1, static_cast<int>(kAllpassTuningL[i] * scale));
+        int sizeR = std::max(1, static_cast<int>(kAllpassTuningR[i] * scale));
+        allpassesL_[i].init(sizeL);
+        allpassesR_[i].init(sizeR);
+        allpassesL_[i].setFeedback(diffusion_);
+        allpassesR_[i].setFeedback(diffusion_);
     }
 
-    updateDelayTimes();
-    updateDecayGain();
+    // Pre-delay (max 250ms)
+    int maxPreDelay = static_cast<int>(sampleRate * 0.25f) + 16;
+    preDelayL_.init(maxPreDelay);
+    preDelayR_.init(maxPreDelay);
+
+    updateParams();
     reset();
 }
 
 void FDNReverb::reset() {
+    for (int i = 0; i < NUM_COMBS; i++) {
+        combsL_[i].clear();
+        combsR_[i].clear();
+    }
+    for (int i = 0; i < NUM_ALLPASSES; i++) {
+        allpassesL_[i].clear();
+        allpassesR_[i].clear();
+    }
     preDelayL_.clear();
     preDelayR_.clear();
-    for (int step = 0; step < NUM_DIFFUSION_STEPS; step++) {
-        for (int ch = 0; ch < NUM_CHANNELS; ch++) {
-            diffusionDelays_[step][ch].clear();
-        }
-    }
-    for (int ch = 0; ch < NUM_CHANNELS; ch++) {
-        feedbackDelays_[ch].clear();
-        dampingFilters_[ch].clear();
-    }
 }
 
 void FDNReverb::setRoomSize(float size) {
@@ -100,51 +102,53 @@ void FDNReverb::setWetDry(float mix) {
     wetDryTarget_ = std::clamp(mix, 0.0f, 1.0f);
 }
 
-void FDNReverb::updateDelayTimes() {
-    float sizeScale = 0.3f + 0.7f * roomSize_;
+void FDNReverb::updateParams() {
+    // Map decay (0-1) to feedback (0.7 - 0.98)
+    // Using Freeverb's proven mapping: feedback = decay * scaleRoom + offsetRoom
+    feedback_ = decay_ * kScaleRoom + kOffsetRoom;
+    feedback_ = std::clamp(feedback_, 0.0f, 0.98f);
 
-    for (int step = 0; step < NUM_DIFFUSION_STEPS; step++) {
-        for (int ch = 0; ch < NUM_CHANNELS; ch++) {
-            diffusionDelaySamples_[step][ch] = std::max(1,
-                static_cast<int>(kDiffusionDelayMs[step][ch] * 0.001f * sampleRate_ * sizeScale));
-        }
-    }
+    // Map damping (0-1) to filter coefficient
+    damp_ = damping_ * kScaleDamp;
 
-    for (int ch = 0; ch < NUM_CHANNELS; ch++) {
-        feedbackDelaySamples_[ch] = std::max(1,
-            static_cast<int>(kFeedbackDelayMs[ch] * 0.001f * sampleRate_ * sizeScale));
-    }
-
+    // Pre-delay in samples
     preDelaySamples_ = static_cast<int>(preDelayMs_ * 0.001f * sampleRate_);
-}
 
-void FDNReverb::updateDecayGain() {
-    // Map decay (0-1) to RT60 (0.1s - 15s) with exponential curve
-    float rt60 = 0.1f * powf(150.0f, decay_);
-
-    // Compute per-loop decay gain from RT60
-    // Average feedback delay in seconds
-    float avgDelayMs = 0.0f;
-    for (int ch = 0; ch < NUM_CHANNELS; ch++) {
-        avgDelayMs += kFeedbackDelayMs[ch];
+    // Apply to comb filters
+    for (int i = 0; i < NUM_COMBS; i++) {
+        combsL_[i].setFeedback(feedback_);
+        combsR_[i].setFeedback(feedback_);
+        combsL_[i].setDamp(damp_);
+        combsR_[i].setDamp(damp_);
     }
-    avgDelayMs /= NUM_CHANNELS;
-    float sizeScale = 0.3f + 0.7f * roomSize_;
-    float avgDelaySec = avgDelayMs * 0.001f * sizeScale;
 
-    // How many loops to reach -60dB
-    float loopsPerRt60 = rt60 / avgDelaySec;
-    float dbPerLoop = -60.0f / loopsPerRt60;
-    decayGain_ = powf(10.0f, dbPerLoop * 0.05f);
-    decayGain_ = std::clamp(decayGain_, 0.0f, 0.9995f);
+    // Map diffusion (0-1) to allpass feedback (0.3 - 0.7)
+    float apFeedback = 0.3f + diffusion_ * 0.4f;
+    for (int i = 0; i < NUM_ALLPASSES; i++) {
+        allpassesL_[i].setFeedback(apFeedback);
+        allpassesR_[i].setFeedback(apFeedback);
+    }
 }
 
 void FDNReverb::process(float* left, float* right, int numFrames) {
-    // Parameter smoothing rate (per-sample exponential approach)
-    constexpr float smoothRate = 0.0005f;
+    // Enable flush-to-zero to prevent denormals in feedback paths.
+    // Without this, IIR filter tails decay into denormal range causing
+    // up to 100x CPU slowdown on ARM scalar FPU, leading to audio dropout.
+#if defined(__aarch64__)
+    uint64_t oldFpcr;
+    __asm__ __volatile__("mrs %0, fpcr" : "=r"(oldFpcr));
+    __asm__ __volatile__("msr fpcr, %0" : : "r"(oldFpcr | (1ULL << 24)));
+#elif defined(__arm__)
+    unsigned int oldFpscr;
+    __asm__ __volatile__("vmrs %0, fpscr" : "=r"(oldFpscr));
+    __asm__ __volatile__("vmsr fpscr, %0" : : "r"(oldFpscr | (1 << 24)));
+#endif
+
+    // Per-sample parameter smoothing rate
+    constexpr float smoothRate = 0.001f;
 
     for (int i = 0; i < numFrames; i++) {
-        // Smooth parameters
+        // Smooth parameters toward targets
         roomSize_ += smoothRate * (roomSizeTarget_ - roomSize_);
         decay_    += smoothRate * (decayTarget_ - decay_);
         damping_  += smoothRate * (dampingTarget_ - damping_);
@@ -152,101 +156,50 @@ void FDNReverb::process(float* left, float* right, int numFrames) {
         diffusion_ += smoothRate * (diffusionTarget_ - diffusion_);
         wetDry_   += smoothRate * (wetDryTarget_ - wetDry_);
 
-        // Update derived values periodically (every 32 samples)
+        // Update derived values every 32 samples
         if ((i & 31) == 0) {
-            updateDelayTimes();
-            updateDecayGain();
-            for (int ch = 0; ch < NUM_CHANNELS; ch++) {
-                dampingFilters_[ch].setCoefficient(damping_);
-            }
+            updateParams();
         }
 
-        // Store dry signal
         float dryL = left[i];
         float dryR = right[i];
 
         // Pre-delay
-        preDelayL_.write(dryL);
-        preDelayR_.write(dryR);
-        float pdL = preDelayL_.read(std::max(1, preDelaySamples_));
-        float pdR = preDelayR_.read(std::max(1, preDelaySamples_));
+        float pdL = preDelayL_.process(dryL, preDelaySamples_);
+        float pdR = preDelayR_.process(dryR, preDelaySamples_);
 
-        // Distribute stereo input to 8 channels
-        // Even channels get L, odd channels get R
-        float channels[NUM_CHANNELS];
-        float inputGain = 0.25f; // Prevent buildup
-        for (int ch = 0; ch < NUM_CHANNELS; ch++) {
-            channels[ch] = ((ch & 1) == 0 ? pdL : pdR) * inputGain;
+        // Mix to mono and apply input gain (standard Freeverb)
+        float input = (pdL + pdR) * kFixedGain;
+
+        // 8 parallel comb filters per channel
+        float outL = 0.0f, outR = 0.0f;
+        for (int c = 0; c < NUM_COMBS; c++) {
+            outL += combsL_[c].process(input);
+            outR += combsR_[c].process(input);
         }
 
-        // Read feedback delay outputs and add to input
-        float feedback[NUM_CHANNELS];
-        for (int ch = 0; ch < NUM_CHANNELS; ch++) {
-            feedback[ch] = feedbackDelays_[ch].read(feedbackDelaySamples_[ch]);
+        // 4 series allpass filters per channel
+        for (int a = 0; a < NUM_ALLPASSES; a++) {
+            outL = allpassesL_[a].process(outL);
+            outR = allpassesR_[a].process(outR);
         }
-
-        // Mix feedback with Householder matrix (energy-preserving)
-        householder<NUM_CHANNELS>(feedback);
-
-        // Apply damping and decay
-        for (int ch = 0; ch < NUM_CHANNELS; ch++) {
-            feedback[ch] = dampingFilters_[ch].process(feedback[ch]) * decayGain_;
-        }
-
-        // Add input to feedback
-        for (int ch = 0; ch < NUM_CHANNELS; ch++) {
-            channels[ch] += feedback[ch];
-        }
-
-        // Diffusion stages (controlled by diffusion parameter)
-        float diffMix = diffusion_;
-        int activeSteps = static_cast<int>(diffusion_ * NUM_DIFFUSION_STEPS + 0.5f);
-        activeSteps = std::clamp(activeSteps, 1, NUM_DIFFUSION_STEPS);
-
-        for (int step = 0; step < activeSteps; step++) {
-            float mixed[NUM_CHANNELS];
-            for (int ch = 0; ch < NUM_CHANNELS; ch++) {
-                // Read from diffusion delay
-                float delayed = diffusionDelays_[step][ch].read(diffusionDelaySamples_[step][ch]);
-                // Apply polarity flip
-                mixed[ch] = diffusionPolarity_[step][ch] ? delayed : -delayed;
-            }
-
-            // Hadamard mixing (multiplies echo count by 8 per step)
-            hadamard8(mixed);
-
-            // Proper Schroeder allpass: y = delayed - g*input, write(input + g*delayed)
-            // This preserves energy (|H(z)| = 1 for all frequencies)
-            for (int ch = 0; ch < NUM_CHANNELS; ch++) {
-                float input = channels[ch];
-                float delayed = mixed[ch];
-                diffusionDelays_[step][ch].write(input + diffMix * delayed);
-                channels[ch] = delayed - diffMix * input;
-            }
-        }
-
-        // Write to feedback delay lines
-        for (int ch = 0; ch < NUM_CHANNELS; ch++) {
-            feedbackDelays_[ch].write(channels[ch]);
-        }
-
-        // Sum channels to stereo output
-        // Even channels -> L, odd channels -> R, with decorrelation signs
-        float wetL = 0.0f, wetR = 0.0f;
-        for (int ch = 0; ch < NUM_CHANNELS; ch += 2) {
-            float sign = ((ch / 2) & 1) ? -1.0f : 1.0f;
-            wetL += channels[ch] * sign;
-            wetR += channels[ch + 1] * sign;
-        }
-        wetL *= 0.5f;
-        wetR *= 0.5f;
 
         // Wet/dry mix
-        float outL = dryL * (1.0f - wetDry_) + wetL * wetDry_;
-        float outR = dryR * (1.0f - wetDry_) + wetR * wetDry_;
+        float wetL = outL;
+        float wetR = outR;
 
-        // Safety clamp to prevent NaN/Inf from crashing the audio pipeline
-        left[i]  = std::clamp(outL, -4.0f, 4.0f);
-        right[i] = std::clamp(outR, -4.0f, 4.0f);
+        float outSampleL = dryL * (1.0f - wetDry_) + wetL * wetDry_;
+        float outSampleR = dryR * (1.0f - wetDry_) + wetR * wetDry_;
+
+        // Safety clamp
+        left[i]  = std::clamp(outSampleL, -4.0f, 4.0f);
+        right[i] = std::clamp(outSampleR, -4.0f, 4.0f);
     }
+
+    // Restore flush-to-zero state
+#if defined(__aarch64__)
+    __asm__ __volatile__("msr fpcr, %0" : : "r"(oldFpcr));
+#elif defined(__arm__)
+    __asm__ __volatile__("vmsr fpscr, %0" : : "r"(oldFpscr));
+#endif
 }

@@ -4,17 +4,20 @@ import android.util.Log;
 import androidx.annotation.NonNull;
 import androidx.media3.common.C;
 import androidx.media3.common.audio.AudioProcessor;
-import androidx.media3.common.Format;
+import androidx.media3.common.audio.BaseAudioProcessor;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
 /**
  * Media3 AudioProcessor that processes PCM audio through a native C++ DSP engine.
- * Supports reverb (FDN), stereo expansion (M/S), and crossfeed (BS2B).
+ * Supports reverb (Freeverb), stereo expansion (M/S), and crossfeed (BS2B).
+ *
+ * Extends BaseAudioProcessor which handles all buffer management correctly
+ * (replaceOutputBuffer, getOutput, hasPendingOutput, etc.)
  *
  * Singleton — registered once during app init, discovered by just_audio via reflection.
  */
-public class RoomEffectsProcessor implements AudioProcessor {
+public class RoomEffectsProcessor extends BaseAudioProcessor {
     private static final String TAG = "RoomEffectsProcessor";
 
     static {
@@ -38,24 +41,15 @@ public class RoomEffectsProcessor implements AudioProcessor {
     // Native engine handle
     private long nativeHandle = 0;
 
-    // Audio format state
-    private AudioFormat pendingInputFormat = AudioFormat.NOT_SET;
-    private AudioFormat inputFormat = AudioFormat.NOT_SET;
-    private boolean inputEnded = false;
-
-    // Processing buffer (persistent, reused across calls to avoid allocation per frame)
-    private ByteBuffer processingBuffer = EMPTY_BUFFER;
-    // Output buffer (swapped with EMPTY_BUFFER on each getOutput())
-    private ByteBuffer outputBuffer = EMPTY_BUFFER;
-
     private RoomEffectsProcessor() {
         // Singleton
     }
 
-    // ---- AudioProcessor interface ----
+    // ---- BaseAudioProcessor overrides ----
 
     @Override
-    public AudioFormat configure(AudioFormat inputAudioFormat) throws UnhandledAudioFormatException {
+    protected AudioFormat onConfigure(AudioFormat inputAudioFormat)
+            throws UnhandledAudioFormatException {
         int encoding = inputAudioFormat.encoding;
         if (encoding != C.ENCODING_PCM_16BIT && encoding != C.ENCODING_PCM_FLOAT) {
             throw new UnhandledAudioFormatException(inputAudioFormat);
@@ -63,19 +57,13 @@ public class RoomEffectsProcessor implements AudioProcessor {
         if (inputAudioFormat.channelCount != 2) {
             // Only process stereo; pass through other channel counts
             Log.w(TAG, "Non-stereo audio (" + inputAudioFormat.channelCount + "ch), passing through");
-            pendingInputFormat = AudioFormat.NOT_SET;
-            return inputAudioFormat;
+            return AudioFormat.NOT_SET;
         }
 
-        pendingInputFormat = inputAudioFormat;
         Log.i(TAG, "Configured: " + inputAudioFormat.sampleRate + "Hz, " +
             inputAudioFormat.channelCount + "ch, encoding=" + encoding);
-        return inputAudioFormat; // Output format matches input
-    }
-
-    @Override
-    public boolean isActive() {
-        return pendingInputFormat != AudioFormat.NOT_SET;
+        // Output format matches input (in-place processing)
+        return inputAudioFormat;
     }
 
     @Override
@@ -83,7 +71,7 @@ public class RoomEffectsProcessor implements AudioProcessor {
         if (!inputBuffer.hasRemaining()) return;
 
         int remaining = inputBuffer.remaining();
-        int encoding = inputFormat.encoding;
+        int encoding = inputAudioFormat.encoding;
         int bytesPerSample = (encoding == C.ENCODING_PCM_FLOAT) ? 4 : 2;
         int numFrames = remaining / (bytesPerSample * 2); // stereo = 2 channels
 
@@ -92,69 +80,39 @@ public class RoomEffectsProcessor implements AudioProcessor {
             return;
         }
 
-        // Reuse persistent processing buffer to avoid allocation per frame
-        if (processingBuffer.capacity() < remaining) {
-            processingBuffer = ByteBuffer.allocateDirect(remaining).order(ByteOrder.nativeOrder());
-        } else {
-            processingBuffer.clear();
-        }
+        // Use BaseAudioProcessor's buffer management: allocates or reuses internal buffer
+        ByteBuffer outputBuffer = replaceOutputBuffer(remaining);
 
-        // Copy input to processing buffer, then process in-place
-        processingBuffer.put(inputBuffer);
-        processingBuffer.flip();
-        inputBuffer.position(inputBuffer.limit());
+        // Copy input to output buffer
+        outputBuffer.put(inputBuffer);
+        outputBuffer.flip();
 
-        // Process through native DSP engine
+        // Process through native DSP engine (in-place on outputBuffer)
         if (nativeHandle != 0) {
             if (encoding == C.ENCODING_PCM_FLOAT) {
-                nativeProcessFloat(nativeHandle, processingBuffer, numFrames);
+                nativeProcessFloat(nativeHandle, outputBuffer, numFrames);
             } else {
-                nativeProcessShort(nativeHandle, processingBuffer, numFrames);
+                nativeProcessShort(nativeHandle, outputBuffer, numFrames);
             }
         }
-        outputBuffer = processingBuffer;
     }
 
     @Override
-    public void queueEndOfStream() {
-        inputEnded = true;
-    }
-
-    @Override
-    @NonNull
-    public ByteBuffer getOutput() {
-        ByteBuffer out = outputBuffer;
-        outputBuffer = EMPTY_BUFFER;
-        return out;
-    }
-
-    @Override
-    public boolean isEnded() {
-        return inputEnded && outputBuffer == EMPTY_BUFFER;
-    }
-
-    @Override
-    public void flush() {
-        outputBuffer = EMPTY_BUFFER;
-        // Note: processingBuffer is intentionally kept for reuse
-        inputEnded = false;
-        inputFormat = pendingInputFormat;
-
+    protected void onFlush() {
         // (Re)initialize native engine with current format
-        if (inputFormat != AudioFormat.NOT_SET) {
+        if (inputAudioFormat != AudioFormat.NOT_SET) {
             if (nativeHandle != 0) {
-                nativeReinit(nativeHandle, inputFormat.sampleRate, inputFormat.channelCount);
+                nativeReinit(nativeHandle, inputAudioFormat.sampleRate,
+                    inputAudioFormat.channelCount);
             } else {
-                nativeHandle = nativeCreate(inputFormat.sampleRate, inputFormat.channelCount);
+                nativeHandle = nativeCreate(inputAudioFormat.sampleRate,
+                    inputAudioFormat.channelCount);
             }
         }
     }
 
     @Override
-    public void reset() {
-        flush();
-        pendingInputFormat = AudioFormat.NOT_SET;
-        inputFormat = AudioFormat.NOT_SET;
+    protected void onReset() {
         if (nativeHandle != 0) {
             nativeDestroy(nativeHandle);
             nativeHandle = 0;
