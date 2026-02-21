@@ -86,9 +86,9 @@ class _EqualizerState extends State<Equalizer> with TickerProviderStateMixin {
       ).colorScheme.onSurface.withValues(alpha: 0.6),
       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
       tabs: const [
-        Tab(icon: Icon(Icons.equalizer, size: 15), child: Text("Graphic")),
-        Tab(icon: Icon(Icons.show_chart, size: 15), child: Text("Parametric")),
-        Tab(icon: Icon(Icons.surround_sound, size: 15), child: Text("Space")),
+        Tab(icon: Icon(Icons.equalizer, size: 20)),
+        Tab(icon: Icon(Icons.show_chart, size: 20)),
+        Tab(icon: Icon(Icons.surround_sound, size: 20)),
       ],
     );
   }

@@ -1,16 +1,23 @@
 package x.a.zix;
 
 import android.annotation.SuppressLint;
+import android.app.Activity;
+import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.media.AudioManager;
 import android.media.audiofx.Visualizer;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.provider.MediaStore;
 import android.view.KeyEvent;
 import android.widget.Toast;
 
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.IntentSenderRequest;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.activity.EdgeToEdge;
 
@@ -18,6 +25,7 @@ import com.ryanheise.audioservice.AudioServiceFragmentActivity;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -34,6 +42,12 @@ public class MainActivity extends AudioServiceFragmentActivity {
     private final AudioVisualizer visualizer = AudioVisualizer.getInstance();
     private MethodChannel visualizerChannel; // Define the MethodChannel here
 
+    // Scoped-storage lyrics write state
+    private ActivityResultLauncher<IntentSenderRequest> writeRequestLauncher;
+    private MethodChannel.Result pendingWriteResult;
+    private Uri pendingWriteUri;
+    private File pendingModifiedFile;
+
     @Override
     protected void onCreate(Bundle savedInstance) {
         EdgeToEdge.enable(this);
@@ -41,6 +55,25 @@ public class MainActivity extends AudioServiceFragmentActivity {
         new HeadphoneService();
         // Initialize RoomEffectsProcessor singleton so just_audio can discover it
         RoomEffectsProcessor.getInstance();
+
+        // Register launcher for MediaStore write-permission dialog (Android 11+)
+        writeRequestLauncher = registerForActivityResult(
+                new ActivityResultContracts.StartIntentSenderForResult(),
+                activityResult -> {
+                    if (pendingWriteResult == null) return;
+                    boolean ok = false;
+                    if (activityResult.getResultCode() == Activity.RESULT_OK
+                            && pendingModifiedFile != null && pendingWriteUri != null) {
+                        ok = LyricsManager.writeToUri(
+                                getContentResolver(), pendingWriteUri, pendingModifiedFile);
+                    }
+                    if (pendingModifiedFile != null) pendingModifiedFile.delete();
+                    pendingWriteResult.success(ok);
+                    pendingWriteResult = null;
+                    pendingWriteUri = null;
+                    pendingModifiedFile = null;
+                }
+        );
     }
 
     @Override
@@ -559,8 +592,46 @@ public class MainActivity extends AudioServiceFragmentActivity {
                         case "writeLyrics": {
                             String lyrFilePath = call.argument("filePath");
                             String lyrContent = call.argument("lyrics");
-                            boolean ok = LyricsManager.writeLyrics(lyrFilePath, lyrContent);
-                            result.success(ok);
+
+                            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+                                // Android 9 and below: direct file access
+                                result.success(LyricsManager.writeLyricsDirect(lyrFilePath, lyrContent));
+                            } else if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+                                // Android 10: requestLegacyExternalStorage=true allows direct access
+                                result.success(LyricsManager.writeLyricsDirect(lyrFilePath, lyrContent));
+                            } else {
+                                // Android 11+: MediaStore + createWriteRequest
+                                File modified = LyricsManager.prepareModifiedFile(
+                                        getCacheDir(), lyrFilePath, lyrContent);
+                                if (modified == null) {
+                                    result.success(false);
+                                    break;
+                                }
+                                Uri uri = LyricsManager.getMediaUri(getContentResolver(), lyrFilePath);
+                                if (uri == null) {
+                                    modified.delete();
+                                    result.success(false);
+                                    break;
+                                }
+                                // Store pending state and request write permission
+                                pendingWriteResult = result;
+                                pendingWriteUri = uri;
+                                pendingModifiedFile = modified;
+                                try {
+                                    PendingIntent pi = MediaStore.createWriteRequest(
+                                            getContentResolver(), Collections.singletonList(uri));
+                                    IntentSenderRequest req = new IntentSenderRequest.Builder(
+                                            pi.getIntentSender()).build();
+                                    writeRequestLauncher.launch(req);
+                                } catch (Exception e) {
+                                    e.printStackTrace();
+                                    modified.delete();
+                                    pendingWriteResult = null;
+                                    pendingWriteUri = null;
+                                    pendingModifiedFile = null;
+                                    result.success(false);
+                                }
+                            }
                             break;
                         }
 
