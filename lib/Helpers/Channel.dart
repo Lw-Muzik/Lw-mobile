@@ -220,12 +220,6 @@ class Channel {
   static Future<void> dspSetCrossfeedParams(double cutoffHz, double feedLevelDb) async {
     await _invoke("dspSetCrossfeedParams", {"cutoff": cutoffHz, "feed": feedLevelDb});
   }
-
-  /// Bypass DSP processing during crossfade to prevent singleton corruption
-  static Future<void> dspSetCrossfadeBypass(bool enabled) async {
-    await _invoke("dspSetCrossfadeBypass", {"enabled": enabled});
-  }
-
   /// Initialize DSP engine
   static void _initDSPEngine(int audioSessionId) async {
     await _invoke("initDSPEngine", {"dspId": audioSessionId});

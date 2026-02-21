@@ -450,74 +450,68 @@ public class MainActivity extends AudioServiceFragmentActivity {
                         // ==================== Custom DSP Room Effects ====================
                         case "dspSetReverbEnabled": {
                             boolean en = call.argument("enabled");
-                            RoomEffectsProcessor.getInstance().setReverbEnabled(en);
+                            RoomEffectsProcessor.broadcastReverbEnabled(en);
                             result.success(null);
                             break;
                         }
                         case "dspSetRoomSize": {
                             double v = call.argument("value");
-                            RoomEffectsProcessor.getInstance().setRoomSize((float) v);
+                            RoomEffectsProcessor.broadcastRoomSize((float) v);
                             result.success(null);
                             break;
                         }
                         case "dspSetDecay": {
                             double v = call.argument("value");
-                            RoomEffectsProcessor.getInstance().setDecay((float) v);
+                            RoomEffectsProcessor.broadcastDecay((float) v);
                             result.success(null);
                             break;
                         }
                         case "dspSetDamping": {
                             double v = call.argument("value");
-                            RoomEffectsProcessor.getInstance().setDamping((float) v);
+                            RoomEffectsProcessor.broadcastDamping((float) v);
                             result.success(null);
                             break;
                         }
                         case "dspSetPreDelay": {
                             double v = call.argument("value");
-                            RoomEffectsProcessor.getInstance().setPreDelay((float) v);
+                            RoomEffectsProcessor.broadcastPreDelay((float) v);
                             result.success(null);
                             break;
                         }
                         case "dspSetDiffusion": {
                             double v = call.argument("value");
-                            RoomEffectsProcessor.getInstance().setDiffusion((float) v);
+                            RoomEffectsProcessor.broadcastDiffusion((float) v);
                             result.success(null);
                             break;
                         }
                         case "dspSetReverbWetDry": {
                             double v = call.argument("value");
-                            RoomEffectsProcessor.getInstance().setReverbWetDry((float) v);
+                            RoomEffectsProcessor.broadcastReverbWetDry((float) v);
                             result.success(null);
                             break;
                         }
                         case "dspSetStereoExpandEnabled": {
                             boolean en = call.argument("enabled");
-                            RoomEffectsProcessor.getInstance().setStereoExpandEnabled(en);
+                            RoomEffectsProcessor.broadcastStereoExpandEnabled(en);
                             result.success(null);
                             break;
                         }
                         case "dspSetStereoWidth": {
                             double v = call.argument("value");
-                            RoomEffectsProcessor.getInstance().setStereoWidth((float) v);
+                            RoomEffectsProcessor.broadcastStereoWidth((float) v);
                             result.success(null);
                             break;
                         }
                         case "dspSetCrossfeedEnabled": {
                             boolean en = call.argument("enabled");
-                            RoomEffectsProcessor.getInstance().setCrossfeedEnabled(en);
+                            RoomEffectsProcessor.broadcastCrossfeedEnabled(en);
                             result.success(null);
                             break;
                         }
                         case "dspSetCrossfeedParams": {
                             double cutoff = call.argument("cutoff");
                             double feed = call.argument("feed");
-                            RoomEffectsProcessor.getInstance().setCrossfeedParams((float) cutoff, (float) feed);
-                            result.success(null);
-                            break;
-                        }
-                        case "dspSetCrossfadeBypass": {
-                            boolean bypass = call.argument("enabled");
-                            RoomEffectsProcessor.getInstance().setCrossfadeBypass(bypass);
+                            RoomEffectsProcessor.broadcastCrossfeedParams((float) cutoff, (float) feed);
                             result.success(null);
                             break;
                         }

@@ -7,44 +7,59 @@ import androidx.media3.common.audio.AudioProcessor;
 import androidx.media3.common.audio.BaseAudioProcessor;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Media3 AudioProcessor that taps PCM audio for visualization (projectM).
- * Passes audio through unchanged — only copies data to an AtomicReference
+ * Passes audio through unchanged — only copies data to a shared AtomicReference
  * for lock-free consumption by the projectM render thread.
  *
- * Singleton — discovered by just_audio via reflection alongside RoomEffectsProcessor.
+ * Each ExoPlayer gets its own instance via {@link #createPlayerInstance()} for
+ * independent buffer management (critical during crossfade). The PCM tap data
+ * is shared across instances via a static AtomicReference.
  */
 public class VisualizerTapProcessor extends BaseAudioProcessor {
     private static final String TAG = "VisualizerTap";
 
-    // Singleton
-    private static VisualizerTapProcessor instance;
+    // All player-attached instances
+    private static final CopyOnWriteArrayList<VisualizerTapProcessor> playerInstances =
+            new CopyOnWriteArrayList<>();
+
+    // Shared PCM buffer across all instances — render thread reads from here
+    private static final AtomicReference<float[]> latestPcm = new AtomicReference<>(null);
+
+    // Shared tap state — broadcast to all instances
+    private static volatile boolean tapEnabledGlobal = false;
+
+    // Singleton kept for ProjectMRenderer to call getLatestPcm() / setTapEnabled()
+    private static VisualizerTapProcessor singleton;
 
     public static VisualizerTapProcessor getInstance() {
-        if (instance == null) {
-            instance = new VisualizerTapProcessor();
+        if (singleton == null) {
+            singleton = new VisualizerTapProcessor();
         }
-        return instance;
+        return singleton;
     }
 
     public static boolean hasInstance() {
-        return instance != null;
+        return !playerInstances.isEmpty();
     }
 
-    // Lock-free PCM buffer for render thread consumption
-    // Interleaved stereo float samples: [L0, R0, L1, R1, ...]
-    private final AtomicReference<float[]> latestPcm = new AtomicReference<>(null);
-
-    // Whether visualization is actively consuming data
-    private volatile boolean tapEnabled = false;
+    /**
+     * Called by just_audio's AudioPlayer.java via reflection.
+     * Each ExoPlayer gets its own instance with independent buffer state.
+     */
+    public static VisualizerTapProcessor createPlayerInstance() {
+        VisualizerTapProcessor p = new VisualizerTapProcessor();
+        playerInstances.add(p);
+        Log.i(TAG, "Player instance created, total: " + playerInstances.size());
+        return p;
+    }
 
     private int sampleRate = 44100;
 
-    private VisualizerTapProcessor() {
-        // Singleton
-    }
+    private VisualizerTapProcessor() {}
 
     // ---- BaseAudioProcessor overrides ----
 
@@ -85,7 +100,7 @@ public class VisualizerTapProcessor extends BaseAudioProcessor {
         outputBuffer.flip();
 
         // If tap is enabled, copy PCM data for projectM render thread
-        if (tapEnabled) {
+        if (tapEnabledGlobal) {
             int totalSamples = numFrames * 2; // stereo interleaved
             float[] pcm = new float[totalSamples];
 
@@ -114,7 +129,7 @@ public class VisualizerTapProcessor extends BaseAudioProcessor {
 
     @Override
     protected void onReset() {
-        latestPcm.set(null);
+        // Don't clear latestPcm — it's shared static state
     }
 
     // ---- Public API ----
@@ -127,9 +142,9 @@ public class VisualizerTapProcessor extends BaseAudioProcessor {
         return latestPcm.getAndSet(null);
     }
 
-    /** Enable/disable PCM tap. When disabled, no copying overhead. */
+    /** Enable/disable PCM tap. Broadcasts to all player instances. */
     public void setTapEnabled(boolean enabled) {
-        tapEnabled = enabled;
+        tapEnabledGlobal = enabled;
         if (!enabled) {
             latestPcm.set(null);
         }
@@ -137,7 +152,7 @@ public class VisualizerTapProcessor extends BaseAudioProcessor {
     }
 
     public boolean isTapEnabled() {
-        return tapEnabled;
+        return tapEnabledGlobal;
     }
 
     public int getSampleRate() {

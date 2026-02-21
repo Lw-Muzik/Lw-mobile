@@ -783,26 +783,28 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
             java.util.List<AudioProcessor> discoveredProcessors = new java.util.ArrayList<>();
 
             // RoomEffectsProcessor (DSP: reverb, stereo, crossfeed)
+            // Each player gets its own instance to avoid shared buffer corruption during crossfade
             try {
                 Class<?> procClass = Class.forName("x.a.zix.RoomEffectsProcessor");
-                java.lang.reflect.Method getInstance = procClass.getMethod("getInstance");
-                Object proc = getInstance.invoke(null);
+                java.lang.reflect.Method createInstance = procClass.getMethod("createPlayerInstance");
+                Object proc = createInstance.invoke(null);
                 if (proc instanceof AudioProcessor) {
                     discoveredProcessors.add((AudioProcessor) proc);
-                    Log.d("just_audio", "AudioProcessor discovered: " + procClass.getSimpleName());
+                    Log.d("just_audio", "AudioProcessor created: " + procClass.getSimpleName());
                 }
             } catch (Exception e) {
                 // Not available
             }
 
             // VisualizerTapProcessor (PCM tap for projectM visualizer)
+            // Each player gets its own instance for independent buffer management
             try {
                 Class<?> tapClass = Class.forName("x.a.zix.VisualizerTapProcessor");
-                java.lang.reflect.Method getInstance = tapClass.getMethod("getInstance");
-                Object tap = getInstance.invoke(null);
+                java.lang.reflect.Method createInstance = tapClass.getMethod("createPlayerInstance");
+                Object tap = createInstance.invoke(null);
                 if (tap instanceof AudioProcessor) {
                     discoveredProcessors.add((AudioProcessor) tap);
-                    Log.d("just_audio", "AudioProcessor discovered: " + tapClass.getSimpleName());
+                    Log.d("just_audio", "AudioProcessor created: " + tapClass.getSimpleName());
                 }
             } catch (Exception e) {
                 // Not available

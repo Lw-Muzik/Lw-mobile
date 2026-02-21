@@ -815,20 +815,12 @@ class AppController with ChangeNotifier {
       nextSource = AudioSource.uri(Uri.parse(nextSong.data));
     }
 
-    // Bypass DSP processing during crossfade: the RoomEffectsProcessor is a
-    // singleton shared by both ExoPlayer instances. Without bypass, the
-    // incoming player's onFlush reinits the native engine (clearing reverb
-    // state) and concurrent queueInput calls corrupt shared buffers.
-    await Channel.dspSetCrossfadeBypass(true);
-
     await handler.beginCrossfade(
       nextSource,
       nextSong,
       Duration(seconds: _crossfadeDuration),
       replayGain: _replayGain,
     );
-
-    await Channel.dspSetCrossfadeBypass(false);
     _isCrossfading = false;
   }
 

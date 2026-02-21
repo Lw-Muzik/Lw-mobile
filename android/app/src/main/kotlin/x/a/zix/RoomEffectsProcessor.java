@@ -7,15 +7,20 @@ import androidx.media3.common.audio.AudioProcessor;
 import androidx.media3.common.audio.BaseAudioProcessor;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * Media3 AudioProcessor that processes PCM audio through a native C++ DSP engine.
  * Supports reverb (Freeverb), stereo expansion (M/S), and crossfeed (BS2B).
  *
- * Extends BaseAudioProcessor which handles all buffer management correctly
- * (replaceOutputBuffer, getOutput, hasPendingOutput, etc.)
+ * Each ExoPlayer instance gets its own processor via {@link #createPlayerInstance()},
+ * ensuring independent buffer management and native DSP state. This is critical for
+ * crossfade where two players process audio concurrently — a shared singleton would
+ * corrupt BaseAudioProcessor's internal buffer and the native engine state.
  *
- * Singleton — registered once during app init, discovered by just_audio via reflection.
+ * Parameter changes from the UI are broadcast to all player instances via the
+ * static broadcast methods. Cached params are applied when a new native handle
+ * is created (in onFlush) so late-initialized players get current settings.
  */
 public class RoomEffectsProcessor extends BaseAudioProcessor {
     private static final String TAG = "RoomEffectsProcessor";
@@ -24,36 +29,54 @@ public class RoomEffectsProcessor extends BaseAudioProcessor {
         System.loadLibrary("eq_app");
     }
 
-    // Singleton
-    private static RoomEffectsProcessor instance;
+    // All player-attached instances — each ExoPlayer gets its own
+    private static final CopyOnWriteArrayList<RoomEffectsProcessor> playerInstances =
+            new CopyOnWriteArrayList<>();
 
+    // Cached params — applied to new native handles on creation
+    private static volatile boolean cachedReverbEnabled = false;
+    private static volatile float cachedRoomSize = 0.5f;
+    private static volatile float cachedDecay = 0.5f;
+    private static volatile float cachedDamping = 0.5f;
+    private static volatile float cachedPreDelay = 0f;
+    private static volatile float cachedDiffusion = 0.5f;
+    private static volatile float cachedReverbWetDry = 0.3f;
+    private static volatile boolean cachedStereoExpandEnabled = false;
+    private static volatile float cachedStereoWidth = 1.0f;
+    private static volatile boolean cachedCrossfeedEnabled = false;
+    private static volatile float cachedCrossfeedCutoff = 700f;
+    private static volatile float cachedCrossfeedFeed = 4.5f;
+
+    /**
+     * Called from MainActivity.onCreate() to ensure the native library is loaded.
+     * No longer creates a singleton used in the audio pipeline.
+     */
     public static RoomEffectsProcessor getInstance() {
-        if (instance == null) {
-            instance = new RoomEffectsProcessor();
-        }
-        return instance;
+        // Just ensure class is loaded (static block loads native lib).
+        // Return a dummy instance for backward compat — not used in audio pipeline.
+        return new RoomEffectsProcessor();
     }
 
     public static boolean hasInstance() {
-        return instance != null;
+        return !playerInstances.isEmpty();
     }
 
-    // Native engine handle
+    /**
+     * Called by just_audio's AudioPlayer.java via reflection.
+     * Each ExoPlayer gets its own processor with independent buffer state
+     * and native DSP engine handle.
+     */
+    public static RoomEffectsProcessor createPlayerInstance() {
+        RoomEffectsProcessor p = new RoomEffectsProcessor();
+        playerInstances.add(p);
+        Log.i(TAG, "Player instance created, total: " + playerInstances.size());
+        return p;
+    }
+
+    // Native engine handle — unique per instance
     private long nativeHandle = 0;
 
-    // When true, queueInput passes audio through without native processing
-    // and onFlush skips reinit. Used during crossfade to prevent two ExoPlayer
-    // instances from concurrently corrupting the shared singleton's state.
-    private volatile boolean crossfadeBypass = false;
-
-    private RoomEffectsProcessor() {
-        // Singleton
-    }
-
-    public void setCrossfadeBypass(boolean bypass) {
-        this.crossfadeBypass = bypass;
-        Log.i(TAG, "Crossfade bypass: " + bypass);
-    }
+    private RoomEffectsProcessor() {}
 
     // ---- BaseAudioProcessor overrides ----
 
@@ -65,14 +88,12 @@ public class RoomEffectsProcessor extends BaseAudioProcessor {
             throw new UnhandledAudioFormatException(inputAudioFormat);
         }
         if (inputAudioFormat.channelCount != 2) {
-            // Only process stereo; pass through other channel counts
             Log.w(TAG, "Non-stereo audio (" + inputAudioFormat.channelCount + "ch), passing through");
             return AudioFormat.NOT_SET;
         }
 
         Log.i(TAG, "Configured: " + inputAudioFormat.sampleRate + "Hz, " +
             inputAudioFormat.channelCount + "ch, encoding=" + encoding);
-        // Output format matches input (in-place processing)
         return inputAudioFormat;
     }
 
@@ -81,15 +102,6 @@ public class RoomEffectsProcessor extends BaseAudioProcessor {
         if (!inputBuffer.hasRemaining()) return;
 
         int remaining = inputBuffer.remaining();
-
-        // During crossfade bypass, pass audio through untouched
-        if (crossfadeBypass) {
-            ByteBuffer outputBuffer = replaceOutputBuffer(remaining);
-            outputBuffer.put(inputBuffer);
-            outputBuffer.flip();
-            return;
-        }
-
         int encoding = inputAudioFormat.encoding;
         int bytesPerSample = (encoding == C.ENCODING_PCM_FLOAT) ? 4 : 2;
         int numFrames = remaining / (bytesPerSample * 2); // stereo = 2 channels
@@ -99,14 +111,11 @@ public class RoomEffectsProcessor extends BaseAudioProcessor {
             return;
         }
 
-        // Use BaseAudioProcessor's buffer management: allocates or reuses internal buffer
         ByteBuffer outputBuffer = replaceOutputBuffer(remaining);
-
-        // Copy input to output buffer
         outputBuffer.put(inputBuffer);
         outputBuffer.flip();
 
-        // Process through native DSP engine (in-place on outputBuffer)
+        // Process through this instance's native DSP engine
         if (nativeHandle != 0) {
             if (encoding == C.ENCODING_PCM_FLOAT) {
                 nativeProcessFloat(nativeHandle, outputBuffer, numFrames);
@@ -118,11 +127,6 @@ public class RoomEffectsProcessor extends BaseAudioProcessor {
 
     @Override
     protected void onFlush() {
-        // During crossfade bypass, skip reinit to preserve reverb state
-        // for the active player that's still fading out.
-        if (crossfadeBypass) return;
-
-        // (Re)initialize native engine with current format
         if (inputAudioFormat != AudioFormat.NOT_SET) {
             if (nativeHandle != 0) {
                 nativeReinit(nativeHandle, inputAudioFormat.sampleRate,
@@ -131,6 +135,8 @@ public class RoomEffectsProcessor extends BaseAudioProcessor {
                 nativeHandle = nativeCreate(inputAudioFormat.sampleRate,
                     inputAudioFormat.channelCount);
             }
+            // Apply current cached params to this instance's native handle
+            applyCachedParams();
         }
     }
 
@@ -142,7 +148,23 @@ public class RoomEffectsProcessor extends BaseAudioProcessor {
         }
     }
 
-    // ---- Public API (called from MainActivity via MethodChannel) ----
+    /** Apply all cached params to this instance's native handle. */
+    private void applyCachedParams() {
+        if (nativeHandle == 0) return;
+        nativeSetReverbEnabled(nativeHandle, cachedReverbEnabled);
+        nativeSetRoomSize(nativeHandle, cachedRoomSize);
+        nativeSetDecay(nativeHandle, cachedDecay);
+        nativeSetDamping(nativeHandle, cachedDamping);
+        nativeSetPreDelay(nativeHandle, cachedPreDelay);
+        nativeSetDiffusion(nativeHandle, cachedDiffusion);
+        nativeSetReverbWetDry(nativeHandle, cachedReverbWetDry);
+        nativeSetStereoExpandEnabled(nativeHandle, cachedStereoExpandEnabled);
+        nativeSetStereoWidth(nativeHandle, cachedStereoWidth);
+        nativeSetCrossfeedEnabled(nativeHandle, cachedCrossfeedEnabled);
+        nativeSetCrossfeedParams(nativeHandle, cachedCrossfeedCutoff, cachedCrossfeedFeed);
+    }
+
+    // ---- Instance methods (called on specific instance) ----
 
     public void setReverbEnabled(boolean enabled) {
         if (nativeHandle != 0) nativeSetReverbEnabled(nativeHandle, enabled);
@@ -186,6 +208,64 @@ public class RoomEffectsProcessor extends BaseAudioProcessor {
 
     public void setCrossfeedParams(float cutoffHz, float feedLevelDb) {
         if (nativeHandle != 0) nativeSetCrossfeedParams(nativeHandle, cutoffHz, feedLevelDb);
+    }
+
+    // ---- Static broadcast methods (called from MainActivity via MethodChannel) ----
+
+    public static void broadcastReverbEnabled(boolean enabled) {
+        cachedReverbEnabled = enabled;
+        for (RoomEffectsProcessor p : playerInstances) p.setReverbEnabled(enabled);
+    }
+
+    public static void broadcastRoomSize(float v) {
+        cachedRoomSize = v;
+        for (RoomEffectsProcessor p : playerInstances) p.setRoomSize(v);
+    }
+
+    public static void broadcastDecay(float v) {
+        cachedDecay = v;
+        for (RoomEffectsProcessor p : playerInstances) p.setDecay(v);
+    }
+
+    public static void broadcastDamping(float v) {
+        cachedDamping = v;
+        for (RoomEffectsProcessor p : playerInstances) p.setDamping(v);
+    }
+
+    public static void broadcastPreDelay(float ms) {
+        cachedPreDelay = ms;
+        for (RoomEffectsProcessor p : playerInstances) p.setPreDelay(ms);
+    }
+
+    public static void broadcastDiffusion(float v) {
+        cachedDiffusion = v;
+        for (RoomEffectsProcessor p : playerInstances) p.setDiffusion(v);
+    }
+
+    public static void broadcastReverbWetDry(float v) {
+        cachedReverbWetDry = v;
+        for (RoomEffectsProcessor p : playerInstances) p.setReverbWetDry(v);
+    }
+
+    public static void broadcastStereoExpandEnabled(boolean enabled) {
+        cachedStereoExpandEnabled = enabled;
+        for (RoomEffectsProcessor p : playerInstances) p.setStereoExpandEnabled(enabled);
+    }
+
+    public static void broadcastStereoWidth(float width) {
+        cachedStereoWidth = width;
+        for (RoomEffectsProcessor p : playerInstances) p.setStereoWidth(width);
+    }
+
+    public static void broadcastCrossfeedEnabled(boolean enabled) {
+        cachedCrossfeedEnabled = enabled;
+        for (RoomEffectsProcessor p : playerInstances) p.setCrossfeedEnabled(enabled);
+    }
+
+    public static void broadcastCrossfeedParams(float cutoffHz, float feedLevelDb) {
+        cachedCrossfeedCutoff = cutoffHz;
+        cachedCrossfeedFeed = feedLevelDb;
+        for (RoomEffectsProcessor p : playerInstances) p.setCrossfeedParams(cutoffHz, feedLevelDb);
     }
 
     // ---- Native methods ----
