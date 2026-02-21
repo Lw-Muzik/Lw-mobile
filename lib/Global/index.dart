@@ -1,9 +1,11 @@
+import 'dart:io';
 import 'dart:ui';
+
 import 'package:eq_app/Helpers/VisualizerWidget.dart';
 import 'package:eq_app/Helpers/index.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
-import 'package:audio_service/audio_service.dart';
+import 'package:http/http.dart' as http;
 import '/exports/exports.dart';
 
 import '../Helpers/AudioHandler.dart';
@@ -11,10 +13,11 @@ import '../Helpers/Files.dart';
 import '../Routes/routes.dart';
 import '../Visualizers/MultiwaveVisualizer.dart';
 import '../controllers/AppController.dart';
-import '../pages/VisualUI.dart';
+import '../pages/visual_ui.dart';
 import '../player/widgets/NowPlaying.dart';
 import '../player/widgets/TrackInfo.dart';
-import '../pages/Equalizer.dart';
+import '../pages/equalizer.dart';
+import '../player/lyrics_view.dart';
 import '../widgets/ArtworkWidget.dart';
 
 SystemUiOverlayStyle overlay = const SystemUiOverlayStyle(
@@ -35,7 +38,9 @@ Widget playerVisual(AppController controller) {
       return fft.isNotEmpty
           ? CustomPaint(
               painter: MultiWaveVisualizer(
-                color: Theme.of(context).primaryColorLight.withValues(alpha: 0.1),
+                color: Theme.of(
+                  context,
+                ).primaryColorLight.withValues(alpha: 0.1),
                 waveData: fft,
                 // width: MediaQuery.of(context).size.width,
                 height: MediaQuery.of(context).size.height,
@@ -64,6 +69,34 @@ Widget playerActionBar(AppController controller, BuildContext context) {
           label: 'EQ',
           onTap: () =>
               Routes.routeTo(const Equalizer(), context, animate: true),
+        ),
+        _ActionItem(
+          icon: Icons.lyrics_rounded,
+          label: 'Lyrics',
+          onTap: () {
+            Navigator.of(context).push(
+              PageRouteBuilder(
+                opaque: false,
+                pageBuilder: (_, __, ___) => const LyricsView(),
+                transitionsBuilder: (_, anim, __, child) {
+                  return SlideTransition(
+                    position:
+                        Tween<Offset>(
+                          begin: const Offset(0, 1),
+                          end: Offset.zero,
+                        ).animate(
+                          CurvedAnimation(
+                            parent: anim,
+                            curve: Curves.easeOutCubic,
+                          ),
+                        ),
+                    child: child,
+                  );
+                },
+                transitionDuration: const Duration(milliseconds: 350),
+              ),
+            );
+          },
         ),
         _ActionItem(
           icon: Icons.graphic_eq_rounded,
@@ -154,6 +187,7 @@ Widget playerCard(
   int? songIndex,
 }) {
   final idx = songIndex ?? controller.songId;
+  if (idx < 0 || idx >= controller.songs.length) return const SizedBox.shrink();
   final song = controller.songs[idx];
 
   return Align(
@@ -201,21 +235,6 @@ Widget playerCard(
   );
 }
 
-Decoration commonDeration(
-  AppController controller,
-  int listIndex,
-  BuildContext context,
-) {
-  return BoxDecoration(
-    borderRadius: BorderRadius.circular(10),
-    color: controller.songId == listIndex && controller.handler.player.playing
-        ? Theme.of(context).brightness == Brightness.light
-              ? Theme.of(context).primaryColor.withValues(alpha: 0.41)
-              : Theme.of(context).colorScheme.primary.withValues(alpha: 0.31)
-        : null,
-  );
-}
-
 Widget folderArtwork(String path, String title) {
   return FutureBuilder<List<SongModel>>(
     future: Files.queryFromFolder(path),
@@ -241,7 +260,9 @@ Widget folderArtwork(String path, String title) {
                   bottom: -10,
                   child: Card(
                     margin: const EdgeInsets.all(10),
-                    color: Theme.of(context).primaryColorDark.withValues(alpha: 0.7),
+                    color: Theme.of(
+                      context,
+                    ).primaryColorDark.withValues(alpha: 0.7),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
                     ),
@@ -320,11 +341,7 @@ Widget headerWidget(
             onTap: () {
               List<SongModel> s = data;
               if (s.isNotEmpty) {
-                controller.songs.clear();
-                controller.songs = s;
-                controller.songId = 0;
-
-                loadAudioSource(controller.handler, s[0]);
+                controller.playSongFromList(s, 0);
               }
             },
             child: Card(
@@ -350,8 +367,22 @@ Widget headerWidget(
   );
 }
 
-void loadAudioSource(HypeAudioHandler handler, SongModel song, {bool replayGain = false}) async {
-  String image = await fetchArtworkUrl(song.data, song.id);
+void loadAudioSource(
+  HypeAudioHandler handler,
+  SongModel song, {
+  bool replayGain = false,
+}) async {
+  final isCloud = song.data.startsWith('http');
+
+  // Artwork: cloud tracks store thumbnail URL in album field
+  String image;
+  if (isCloud && song.album != null && song.album!.startsWith('http')) {
+    image =
+        await _downloadCloudArtwork(song.album!, song.id) ??
+        await fetchArtworkUrl(song.data, song.id);
+  } else {
+    image = await fetchArtworkUrl(song.data, song.id);
+  }
 
   MediaItem item = MediaItem(
     id: song.data,
@@ -359,13 +390,40 @@ void loadAudioSource(HypeAudioHandler handler, SongModel song, {bool replayGain 
     title: song.title,
     artist: song.artist,
     duration: Duration(milliseconds: song.duration ?? 0),
-    artUri: Uri.file(image),
+    artUri: image.startsWith('/') ? Uri.file(image) : Uri.parse(image),
   );
 
   handler.setCurrentMediaItem(item);
-  await handler.player.setAudioSource(AudioSource.uri(Uri.parse(item.id), tag: item));
 
-  if (replayGain) {
+  if (isCloud) {
+    final cache = AppController.instance.cloudCache;
+    final auth = AppController.instance.cloudAuth;
+    final fileId = song.id.toString();
+
+    AudioSource source;
+    if (cache.isCached(fileId)) {
+      cache.markAccessed(fileId);
+      source = AudioSource.file(cache.cacheFile(fileId).path, tag: item);
+    } else {
+      final headers = song.data.contains('googleapis.com')
+          ? await auth.getGoogleAuthHeaders()
+          : <String, String>{};
+      source = LockCachingAudioSource(
+        Uri.parse(item.id),
+        cacheFile: cache.cacheFile(fileId),
+        headers: headers,
+        tag: item,
+      );
+    }
+    await handler.player.setAudioSource(source);
+  } else {
+    await handler.player.setAudioSource(
+      AudioSource.uri(Uri.parse(item.id), tag: item),
+    );
+  }
+
+  // Replay gain only for local files (needs ID3 tags)
+  if (replayGain && !isCloud) {
     final gain = await HypeAudioHandler.computeReplayGainVolume(song.data);
     handler.player.setVolume(gain);
   } else {
@@ -373,6 +431,20 @@ void loadAudioSource(HypeAudioHandler handler, SongModel song, {bool replayGain 
   }
 
   handler.player.play();
+}
+
+Future<String?> _downloadCloudArtwork(String url, int songId) async {
+  try {
+    final tempDir = await getTemporaryDirectory();
+    final file = File('${tempDir.path}/cloud_art_$songId.png');
+    if (file.existsSync()) return file.path;
+    final response = await http.get(Uri.parse(url));
+    if (response.statusCode == 200) {
+      await file.writeAsBytes(response.bodyBytes);
+      return file.path;
+    }
+  } catch (_) {}
+  return null;
 }
 
 //  function to show track info

@@ -119,6 +119,14 @@ Future<ImageProvider<Object>> savedImage(
   var tempDir = await getTemporaryDirectory();
   tempPath = tempDir.path;
 
+  // Cloud files: use stable cloud_art_{id}.png naming
+  if (path.startsWith('http')) {
+    imagePath = "$tempPath/cloud_art_$id.png";
+    return File(imagePath).existsSync()
+        ? FileImage(File(imagePath))
+        : const AssetImage("assets/audio.jpeg") as ImageProvider;
+  }
+
   String getArtworkImagePath() {
     if (path.isEmpty && other.isNotEmpty) {
       return "$tempPath/${other.replaceAll(RegExp(r'[ /|:]'), '_')}.png";
@@ -159,6 +167,20 @@ Future<String> fetchArtworkUrl(
 }) async {
   final tempDir = await getTemporaryDirectory();
   final tempPath = tempDir.path;
+
+  // Cloud files: use stable cloud_art_{id}.png naming
+  if (path.startsWith('http')) {
+    final cloudArt = "$tempPath/cloud_art_$id.png";
+    final dirD = Directory("$tempPath/Default");
+    if (!dirD.existsSync()) {
+      await dirD.create(recursive: true);
+      final defaultImg = await rootBundle.load("assets/audio.jpeg");
+      await File("${dirD.path}/default.png")
+          .writeAsBytes(defaultImg.buffer.asUint8List());
+    }
+    return File(cloudArt).existsSync() ? cloudArt : "${dirD.path}/default.png";
+  }
+
   String imagePath = "";
 
   String getArtworkImagePath() {

@@ -32,21 +32,21 @@ class _ArtworkFetchState extends State<ArtworkFetch> {
         child: FutureBuilder(
           builder: (context, snap) {
             return snap.hasData && snap.data?.results != null
-                ? GridView.count(
-                    crossAxisCount: 3,
-                    mainAxisSpacing: 20,
-                    crossAxisSpacing: 20,
-                    children: List.generate(
-                      snap.data!.results.length,
-                      (i) => InkWell(
-                        onTap: () => Apis.downloadArtwork(
-                            snap.data!.results[i].url, widget.path, context),
-                        child: Image.network(snap.data!.results[i].url,
-                            width: 100, height: 100, fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) {
-                          return const Icon(Icons.image_not_supported_outlined);
-                        }),
-                      ),
+                ? GridView.builder(
+                    gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                      maxCrossAxisExtent: 140,
+                      mainAxisSpacing: 20,
+                      crossAxisSpacing: 20,
+                    ),
+                    itemCount: snap.data!.results.length,
+                    itemBuilder: (context, i) => InkWell(
+                      onTap: () => Apis.downloadArtwork(
+                          snap.data!.results[i].url, widget.path, context),
+                      child: Image.network(snap.data!.results[i].url,
+                          width: 100, height: 100, fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                        return const Icon(Icons.image_not_supported_outlined);
+                      }),
                     ),
                   )
                 : const Center(

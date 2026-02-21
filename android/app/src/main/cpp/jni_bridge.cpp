@@ -1,0 +1,166 @@
+#include <jni.h>
+#include <android/log.h>
+#include "room_dsp_engine.h"
+
+#define LOG_TAG "HypeDSP"
+#define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
+#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
+
+extern "C" {
+
+JNIEXPORT jlong JNICALL
+Java_x_a_zix_RoomEffectsProcessor_nativeCreate(JNIEnv* env, jobject, jint sampleRate, jint channels) {
+    auto* engine = new RoomDSPEngine();
+    engine->init(sampleRate, channels);
+    LOGI("DSP engine created: %dHz, %dch", sampleRate, channels);
+    return reinterpret_cast<jlong>(engine);
+}
+
+JNIEXPORT void JNICALL
+Java_x_a_zix_RoomEffectsProcessor_nativeDestroy(JNIEnv* env, jobject, jlong handle) {
+    auto* engine = reinterpret_cast<RoomDSPEngine*>(handle);
+    delete engine;
+    LOGI("DSP engine destroyed");
+}
+
+JNIEXPORT void JNICALL
+Java_x_a_zix_RoomEffectsProcessor_nativeReset(JNIEnv* env, jobject, jlong handle) {
+    auto* engine = reinterpret_cast<RoomDSPEngine*>(handle);
+    if (engine) engine->reset();
+}
+
+JNIEXPORT void JNICALL
+Java_x_a_zix_RoomEffectsProcessor_nativeReinit(JNIEnv* env, jobject, jlong handle, jint sampleRate, jint channels) {
+    auto* engine = reinterpret_cast<RoomDSPEngine*>(handle);
+    if (engine) engine->init(sampleRate, channels);
+}
+
+// --- Process ---
+
+JNIEXPORT void JNICALL
+Java_x_a_zix_RoomEffectsProcessor_nativeProcessFloat(JNIEnv* env, jobject, jlong handle,
+                                                       jobject buffer, jint numFrames) {
+    auto* engine = reinterpret_cast<RoomDSPEngine*>(handle);
+    if (!engine) return;
+
+    auto* data = static_cast<float*>(env->GetDirectBufferAddress(buffer));
+    if (!data) return;
+
+    engine->process(data, numFrames);
+}
+
+JNIEXPORT void JNICALL
+Java_x_a_zix_RoomEffectsProcessor_nativeProcessShort(JNIEnv* env, jobject, jlong handle,
+                                                       jobject buffer, jint numFrames) {
+    auto* engine = reinterpret_cast<RoomDSPEngine*>(handle);
+    if (!engine) return;
+
+    auto* data = static_cast<short*>(env->GetDirectBufferAddress(buffer));
+    if (!data) return;
+
+    int totalSamples = numFrames * 2; // stereo
+    constexpr int STACK_LIMIT = 4096;
+    float stackBuf[STACK_LIMIT];
+    float* floatBuf;
+    float* heapBuf = nullptr;
+
+    if (totalSamples <= STACK_LIMIT) {
+        floatBuf = stackBuf;
+    } else {
+        heapBuf = new float[totalSamples];
+        floatBuf = heapBuf;
+    }
+
+    // Convert short to float (-1.0 to 1.0)
+    constexpr float toFloat = 1.0f / 32768.0f;
+    for (int i = 0; i < totalSamples; i++) {
+        floatBuf[i] = data[i] * toFloat;
+    }
+
+    engine->process(floatBuf, numFrames);
+
+    // Convert float back to short with clipping
+    for (int i = 0; i < totalSamples; i++) {
+        float v = floatBuf[i] * 32768.0f;
+        if (v > 32767.0f) v = 32767.0f;
+        if (v < -32768.0f) v = -32768.0f;
+        data[i] = static_cast<short>(v);
+    }
+
+    delete[] heapBuf;
+}
+
+// --- Reverb controls ---
+
+JNIEXPORT void JNICALL
+Java_x_a_zix_RoomEffectsProcessor_nativeSetReverbEnabled(JNIEnv*, jobject, jlong handle, jboolean enabled) {
+    auto* engine = reinterpret_cast<RoomDSPEngine*>(handle);
+    if (engine) engine->setReverbEnabled(enabled);
+}
+
+JNIEXPORT void JNICALL
+Java_x_a_zix_RoomEffectsProcessor_nativeSetRoomSize(JNIEnv*, jobject, jlong handle, jfloat v) {
+    auto* engine = reinterpret_cast<RoomDSPEngine*>(handle);
+    if (engine) engine->setRoomSize(v);
+}
+
+JNIEXPORT void JNICALL
+Java_x_a_zix_RoomEffectsProcessor_nativeSetDecay(JNIEnv*, jobject, jlong handle, jfloat v) {
+    auto* engine = reinterpret_cast<RoomDSPEngine*>(handle);
+    if (engine) engine->setDecay(v);
+}
+
+JNIEXPORT void JNICALL
+Java_x_a_zix_RoomEffectsProcessor_nativeSetDamping(JNIEnv*, jobject, jlong handle, jfloat v) {
+    auto* engine = reinterpret_cast<RoomDSPEngine*>(handle);
+    if (engine) engine->setDamping(v);
+}
+
+JNIEXPORT void JNICALL
+Java_x_a_zix_RoomEffectsProcessor_nativeSetPreDelay(JNIEnv*, jobject, jlong handle, jfloat ms) {
+    auto* engine = reinterpret_cast<RoomDSPEngine*>(handle);
+    if (engine) engine->setPreDelay(ms);
+}
+
+JNIEXPORT void JNICALL
+Java_x_a_zix_RoomEffectsProcessor_nativeSetDiffusion(JNIEnv*, jobject, jlong handle, jfloat v) {
+    auto* engine = reinterpret_cast<RoomDSPEngine*>(handle);
+    if (engine) engine->setDiffusion(v);
+}
+
+JNIEXPORT void JNICALL
+Java_x_a_zix_RoomEffectsProcessor_nativeSetReverbWetDry(JNIEnv*, jobject, jlong handle, jfloat v) {
+    auto* engine = reinterpret_cast<RoomDSPEngine*>(handle);
+    if (engine) engine->setReverbWetDry(v);
+}
+
+// --- Stereo expander controls ---
+
+JNIEXPORT void JNICALL
+Java_x_a_zix_RoomEffectsProcessor_nativeSetStereoExpandEnabled(JNIEnv*, jobject, jlong handle, jboolean enabled) {
+    auto* engine = reinterpret_cast<RoomDSPEngine*>(handle);
+    if (engine) engine->setStereoExpandEnabled(enabled);
+}
+
+JNIEXPORT void JNICALL
+Java_x_a_zix_RoomEffectsProcessor_nativeSetStereoWidth(JNIEnv*, jobject, jlong handle, jfloat width) {
+    auto* engine = reinterpret_cast<RoomDSPEngine*>(handle);
+    if (engine) engine->setStereoWidth(width);
+}
+
+// --- Crossfeed controls ---
+
+JNIEXPORT void JNICALL
+Java_x_a_zix_RoomEffectsProcessor_nativeSetCrossfeedEnabled(JNIEnv*, jobject, jlong handle, jboolean enabled) {
+    auto* engine = reinterpret_cast<RoomDSPEngine*>(handle);
+    if (engine) engine->setCrossfeedEnabled(enabled);
+}
+
+JNIEXPORT void JNICALL
+Java_x_a_zix_RoomEffectsProcessor_nativeSetCrossfeedParams(JNIEnv*, jobject, jlong handle,
+                                                            jfloat cutoffHz, jfloat feedLevelDb) {
+    auto* engine = reinterpret_cast<RoomDSPEngine*>(handle);
+    if (engine) engine->setCrossfeedParams(cutoffHz, feedLevelDb);
+}
+
+} // extern "C"

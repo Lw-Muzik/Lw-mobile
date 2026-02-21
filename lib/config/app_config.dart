@@ -58,4 +58,14 @@ class AppConfig {
     'API_BASE_URL',
     defaultValue: 'http://94.72.116.178:5054',
   );
+
+  // Dropbox OAuth
+  static const String dropboxAppKey = String.fromEnvironment(
+    'DROPBOX_APP_KEY',
+    defaultValue: '1d0mou7l0x19mas',
+  );
+  static const String dropboxRedirectUri = String.fromEnvironment(
+    'DROPBOX_REDIRECT_URI',
+    defaultValue: 'x.a.zix://oauth2/dropbox',
+  );
 }

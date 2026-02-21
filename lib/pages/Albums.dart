@@ -2,7 +2,7 @@ import '/exports/exports.dart';
 
 import '/Routes/routes.dart';
 import '/extensions/index.dart';
-import 'package:eq_app/pages/AlbumSongs.dart';
+import '/pages/album_songs.dart';
 
 import '../widgets/ArtworkWidget.dart';
 
@@ -34,11 +34,16 @@ class _AlbumsState extends State<Albums> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.error_outline, size: 48,
-                    color: Theme.of(context).colorScheme.error),
+                Icon(
+                  Icons.error_outline,
+                  size: 48,
+                  color: Theme.of(context).colorScheme.error,
+                ),
                 const SizedBox(height: 12),
-                Text("Failed to load albums",
-                    style: Theme.of(context).textTheme.titleMedium),
+                Text(
+                  "Failed to load albums",
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
               ],
             ),
           );
@@ -47,12 +52,18 @@ class _AlbumsState extends State<Albums> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.album, size: 64,
-                    color: Theme.of(context).colorScheme.onSurface
-                        .withValues(alpha: 0.3)),
+                Icon(
+                  Icons.album,
+                  size: 64,
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurface.withValues(alpha: 0.3),
+                ),
                 const SizedBox(height: 12),
-                Text("No albums found",
-                    style: Theme.of(context).textTheme.titleMedium),
+                Text(
+                  "No albums found",
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
               ],
             ),
           );
@@ -62,8 +73,8 @@ class _AlbumsState extends State<Albums> {
         return Padding(
           padding: const EdgeInsets.all(8.0),
           child: GridView.builder(
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
+            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+              maxCrossAxisExtent: 200,
               crossAxisSpacing: 12,
               mainAxisSpacing: 12,
               childAspectRatio: 0.75,
@@ -71,8 +82,7 @@ class _AlbumsState extends State<Albums> {
             itemCount: albums.length,
             itemBuilder: (context, index) {
               final album = albums[index];
-              final albumName =
-                  "${album.getMap['album'] ?? 'Unknown'}";
+              final albumName = "${album.getMap['album'] ?? 'Unknown'}";
               return InkWell(
                 onTap: () => Routes.scaleTo(
                   AlbumSongs(
@@ -114,8 +124,9 @@ class _AlbumsState extends State<Albums> {
                           albumName,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.titleMedium
-                              ?.copyWith(fontSize: 13),
+                          style: Theme.of(
+                            context,
+                          ).textTheme.titleMedium?.copyWith(fontSize: 13),
                         ),
                       ),
                       Padding(

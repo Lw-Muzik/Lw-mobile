@@ -6,7 +6,10 @@ public class LoudnessControl {
     private static LoudnessEnhancer loudnessEnhancer;
 
     public static void init(int sessionId) {
-        loudnessEnhancer = new LoudnessEnhancer(0);
+        if (loudnessEnhancer != null) {
+            try { loudnessEnhancer.release(); } catch (Exception ignored) {}
+        }
+        loudnessEnhancer = new LoudnessEnhancer(sessionId > 0 ? sessionId : 0);
     }
 
     public static void enable(boolean enable) {

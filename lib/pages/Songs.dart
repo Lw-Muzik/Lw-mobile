@@ -1,7 +1,11 @@
 import '/exports/exports.dart';
 
 import '/Helpers/Files.dart';
-import 'ArtistSongs.dart';
+import '/widgets/song_tile.dart';
+import '/widgets/PlayListWidget.dart';
+import '/Routes/routes.dart';
+import '/controllers/AppController.dart';
+import '../player/player_ui.dart';
 
 class AllSongs extends StatefulWidget {
   const AllSongs({super.key});
@@ -38,8 +42,11 @@ class _AllSongsState extends State<AllSongs> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.error_outline, size: 48,
-                    color: Theme.of(context).colorScheme.error),
+                Icon(
+                  Icons.error_outline,
+                  size: 48,
+                  color: Theme.of(context).colorScheme.error,
+                ),
                 const SizedBox(height: 12),
                 Text(
                   "Failed to load songs. Please try again.",
@@ -53,26 +60,54 @@ class _AllSongsState extends State<AllSongs> {
             children: [
               Padding(
                 padding: const EdgeInsets.symmetric(
-                    horizontal: 16, vertical: 8),
+                  horizontal: 16,
+                  vertical: 8,
+                ),
                 child: Row(
                   children: [
-                    Icon(Icons.music_note,
-                        size: 18,
-                        color: Theme.of(context).colorScheme.primary),
+                    Icon(
+                      Icons.music_note,
+                      size: 18,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
                     const SizedBox(width: 8),
                     Text(
                       "${snap.data!.length} songs",
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Theme.of(context)
-                            .colorScheme
-                            .onSurface
-                            .withValues(alpha: 0.6),
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.onSurface.withValues(alpha: 0.6),
                       ),
                     ),
                   ],
                 ),
               ),
-              Expanded(child: SongLists(songs: snap.data!)),
+              Expanded(
+                child: Consumer<AppController>(
+                  builder: (context, controller, _) {
+                    return SongListView(
+                      songs: snap.data!,
+                      controller: controller,
+                      onTap: (song, index) {
+                        controller.playSongFromList(snap.data!, index);
+                        Routes.routeTo(const Player(), context);
+                      },
+                      onLongPress: (song, index) {
+                        showModalBottomSheet(
+                          context: context,
+                          builder: (context) => BottomSheet(
+                            onClosing: () {},
+                            builder: (context) => PlaylistWidget(
+                              audioId: song.id,
+                              song: song.title,
+                            ),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
             ],
           );
         } else {
@@ -80,9 +115,13 @@ class _AllSongsState extends State<AllSongs> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.music_off, size: 64,
-                    color: Theme.of(context).colorScheme.onSurface
-                        .withValues(alpha: 0.3)),
+                Icon(
+                  Icons.music_off,
+                  size: 64,
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurface.withValues(alpha: 0.3),
+                ),
                 const SizedBox(height: 12),
                 Text(
                   "No songs available.",

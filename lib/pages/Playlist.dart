@@ -2,7 +2,7 @@ import 'package:eq_app/Helpers/index.dart';
 import 'package:eq_app/Routes/routes.dart';
 import 'package:eq_app/controllers/AppController.dart';
 import 'package:eq_app/extensions/index.dart';
-import 'package:eq_app/pages/PlaylistSongs.dart';
+import 'package:eq_app/pages/playlist_songs.dart';
 import '/exports/exports.dart';
 
 class PlayListView extends StatefulWidget {
@@ -26,11 +26,11 @@ class _PlayListViewState extends State<PlayListView> {
     _playlistFuture = OnAudioQuery().queryPlaylists();
   }
 
-  void _refresh() {
-    setState(() {
-      _loadPlaylists();
-    });
-  }
+  // void _refresh() {
+  //   setState(() {
+  //     _loadPlaylists();
+  //   });
+  // }
 
   @override
   void dispose() {
@@ -53,11 +53,16 @@ class _PlayListViewState extends State<PlayListView> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.error_outline, size: 48,
-                        color: Theme.of(context).colorScheme.error),
+                    Icon(
+                      Icons.error_outline,
+                      size: 48,
+                      color: Theme.of(context).colorScheme.error,
+                    ),
                     const SizedBox(height: 12),
-                    Text("Failed to load playlists",
-                        style: Theme.of(context).textTheme.titleMedium),
+                    Text(
+                      "Failed to load playlists",
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
                   ],
                 ),
               );
@@ -66,15 +71,23 @@ class _PlayListViewState extends State<PlayListView> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.playlist_play, size: 64,
-                        color: Theme.of(context).colorScheme.onSurface
-                            .withValues(alpha: 0.3)),
+                    Icon(
+                      Icons.playlist_play,
+                      size: 64,
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withValues(alpha: 0.3),
+                    ),
                     const SizedBox(height: 12),
-                    Text("No playlists yet",
-                        style: Theme.of(context).textTheme.titleMedium),
+                    Text(
+                      "No playlists yet",
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
                     const SizedBox(height: 4),
-                    Text("Tap + to create one",
-                        style: Theme.of(context).textTheme.bodySmall),
+                    Text(
+                      "Tap + to create one",
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
                   ],
                 ),
               );
@@ -88,7 +101,9 @@ class _PlayListViewState extends State<PlayListView> {
                 final playlist = playlists[index];
                 return Padding(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 12, vertical: 4),
+                    horizontal: 12,
+                    vertical: 4,
+                  ),
                   child: Card(
                     elevation: 0,
                     shape: RoundedRectangleBorder(
@@ -96,19 +111,25 @@ class _PlayListViewState extends State<PlayListView> {
                     ),
                     child: ListTile(
                       contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 4),
+                        horizontal: 12,
+                        vertical: 4,
+                      ),
                       leading: Hero(
                         tag: 'playlist_${playlist.id}',
                         child: Container(
                           width: 48,
                           height: 48,
                           decoration: BoxDecoration(
-                            color: Theme.of(context).colorScheme.primaryContainer,
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.primaryContainer,
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Icon(
                             Icons.playlist_play,
-                            color: Theme.of(context).colorScheme.onPrimaryContainer,
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onPrimaryContainer,
                             size: 28,
                           ),
                         ),
@@ -151,11 +172,8 @@ class _PlayListViewState extends State<PlayListView> {
           bottom: 50,
           right: 40,
           child: FloatingActionButton(
-            onPressed: () => showAddPlaylist(
-              textController,
-              controller,
-              context,
-            ),
+            onPressed: () =>
+                showAddPlaylist(textController, controller, context),
             child: const Icon(Icons.add),
           ),
         ),

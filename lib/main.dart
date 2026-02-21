@@ -1,3 +1,5 @@
+import '/controllers/drawer_controller.dart';
+
 import '/Helpers/AudioHandler.dart';
 import '/Routes/routes.dart';
 import '/Global/index.dart';
@@ -22,6 +24,7 @@ import 'config/app_config.dart';
 import 'controllers/PlayerController.dart';
 import 'controllers/PlaylistController.dart';
 import 'firebase_options.dart';
+import 'widgets/DvcVolumeOverlay.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -55,10 +58,10 @@ Future<void> main() async {
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge, overlays: []);
   SystemChrome.setSystemUIOverlayStyle(overlay);
   // prevent the app from turning to landscape
-  SystemChrome.setPreferredOrientations([
-    DeviceOrientation.portraitUp,
-    DeviceOrientation.portraitDown,
-  ]);
+  // SystemChrome.setPreferredOrientations([
+  //   DeviceOrientation.portraitUp,
+  //   DeviceOrientation.portraitDown,
+  // ]);
 
   // Initialize SharedPreferences once before the app starts
   final prefs = await SharedPreferences.getInstance();
@@ -70,6 +73,7 @@ Future<void> main() async {
         ChangeNotifierProvider(create: (_) => PlaylistController()),
         Provider<HypeAudioHandler>.value(value: handler),
         ChangeNotifierProvider(create: (_) => PlayerController()),
+        ChangeNotifierProvider(create: (_) => DrawerProvider()),
         BlocProvider(create: (_) => BandController()),
       ],
       child: Wiredash(
@@ -80,6 +84,14 @@ Future<void> main() async {
           theme: AppThemes.fancyTheme,
           initialRoute: Routes.loader,
           routes: Routes.routes(),
+          builder: (context, child) {
+            return Stack(
+              children: [
+                child!,
+                const DvcVolumeOverlay(),
+              ],
+            );
+          },
         ),
       ),
     ),

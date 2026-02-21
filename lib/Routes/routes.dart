@@ -1,10 +1,10 @@
 import 'package:animations/animations.dart';
+import '/pages/index_page.dart';
 import 'package:flutter/material.dart';
 
-import '../pages/Equalizer.dart';
-import '../pages/Home.dart';
+import '../pages/equalizer.dart';
 import '../pages/loader.dart';
-import '../player/PlayerUI.dart';
+import '../player/player_ui.dart';
 
 class Routes {
   static String home = "/";
@@ -12,15 +12,19 @@ class Routes {
   static String equalizer = "/equalizer";
   static String loader = "/assetLoader";
 
-  static void routeTo(Widget page, BuildContext context,
-      {bool animate = true}) {
+  static void routeTo(
+    Widget page,
+    BuildContext context, {
+    bool animate = true,
+  }) {
     if (!animate) {
       Navigator.of(context).push(
         MaterialPageRoute(
-            builder: (context) {
-              return page;
-            },
-            fullscreenDialog: true),
+          builder: (context) {
+            return page;
+          },
+          fullscreenDialog: true,
+        ),
       );
     } else {
       Navigator.of(context).push(
@@ -30,14 +34,10 @@ class Routes {
           pageBuilder: (context, animation, secondaryAnimation) {
             return DualTransitionBuilder(
               animation: animation,
-              forwardBuilder: (context, anim, x) => FadeTransition(
-                opacity: animation,
-                child: page,
-              ),
-              reverseBuilder: (context, reverse, y) => ScaleTransition(
-                scale: reverse,
-                child: page,
-              ),
+              forwardBuilder: (context, anim, x) =>
+                  FadeTransition(opacity: animation, child: page),
+              reverseBuilder: (context, reverse, y) =>
+                  ScaleTransition(scale: reverse, child: page),
             );
           },
         ),
@@ -45,19 +45,21 @@ class Routes {
     }
   }
 
-  static Widget animateTo(
-      {required Widget closedWidget,
-      required Widget openWidget,
-      Duration duration = const Duration(milliseconds: 500)}) {
+  static Widget animateTo({
+    required Widget closedWidget,
+    required Widget openWidget,
+    Duration duration = const Duration(milliseconds: 500),
+  }) {
     return OpenContainer(
-        closedElevation: 0,
-        openElevation: 0,
-        closedColor: Colors.transparent,
-        openColor: Colors.transparent,
-        transitionDuration: duration,
-        transitionType: ContainerTransitionType.fadeThrough,
-        closedBuilder: (context, fn) => closedWidget,
-        openBuilder: (context, fn) => openWidget);
+      closedElevation: 0,
+      openElevation: 0,
+      closedColor: Colors.transparent,
+      openColor: Colors.black,
+      transitionDuration: duration,
+      transitionType: ContainerTransitionType.fade,
+      closedBuilder: (context, fn) => closedWidget,
+      openBuilder: (context, fn) => openWidget,
+    );
   }
 
   /// Premium detail-page transition: shared-axis Z (scale + fade)
@@ -87,7 +89,7 @@ class Routes {
     return {
       player: (context) => const Player(),
       equalizer: (context) => const Equalizer(),
-      home: (context) => const Home(),
+      home: (context) => const IndexPage(),
       loader: (context) => const AssetLoader(),
     };
   }

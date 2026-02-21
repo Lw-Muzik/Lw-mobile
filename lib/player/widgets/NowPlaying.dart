@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:eq_app/Global/index.dart';
 import 'package:eq_app/controllers/AppController.dart';
 import 'package:eq_app/widgets/ArtworkWidget.dart';
 import 'package:on_audio_query/on_audio_query.dart';
@@ -133,10 +132,7 @@ class _NowPlayingState extends State<NowPlaying> {
                   index: i,
                   isCurrent: i == currentId,
                   onTap: () {
-                    setState(() {
-                      widget.controller.songId = i;
-                    });
-                    loadAudioSource(widget.controller.handler, songs[i]);
+                    widget.controller.playSongFromList(songs, i);
                   },
                   onDismissed: () {
                     setState(() {
@@ -210,14 +206,24 @@ class _QueueItem extends StatelessWidget {
       ),
       child: Material(
         color: isCurrent
-            ? accentColor.withValues(alpha: 0.1)
+            ? accentColor.withValues(alpha: 0.08)
             : Colors.transparent,
         child: InkWell(
           onTap: onTap,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
             child: Row(
               children: [
+                // Accent bar for active track
+                Container(
+                  width: 3,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: isCurrent ? accentColor : Colors.transparent,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(width: 8),
                 // Track number or playing indicator
                 SizedBox(
                   width: 28,
@@ -238,19 +244,19 @@ class _QueueItem extends StatelessWidget {
                 const SizedBox(width: 12),
                 // Artwork thumbnail
                 ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(10),
                   child: SizedBox(
-                    width: 46,
-                    height: 46,
+                    width: 48,
+                    height: 48,
                     child: ArtworkWidget(
-                      width: 46,
-                      height: 46,
+                      width: 48,
+                      height: 48,
                       size: 200,
                       quality: 50,
                       songId: song.id,
                       type: ArtworkType.AUDIO,
                       path: song.data,
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(10),
                     ),
                   ),
                 ),
@@ -268,9 +274,9 @@ class _QueueItem extends StatelessWidget {
                           color: isCurrent
                               ? accentColor
                               : theme.colorScheme.onSurface,
-                          fontSize: 14,
+                          fontSize: 15,
                           fontWeight:
-                              isCurrent ? FontWeight.w600 : FontWeight.w400,
+                              isCurrent ? FontWeight.w600 : FontWeight.w500,
                         ),
                       ),
                       const SizedBox(height: 2),
@@ -282,8 +288,8 @@ class _QueueItem extends StatelessWidget {
                           color: isCurrent
                               ? accentColor.withValues(alpha: 0.6)
                               : theme.colorScheme.onSurface
-                                  .withValues(alpha: 0.4),
-                          fontSize: 12,
+                                  .withValues(alpha: 0.5),
+                          fontSize: 13,
                         ),
                       ),
                     ],
