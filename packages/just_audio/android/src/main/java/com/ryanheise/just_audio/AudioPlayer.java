@@ -779,24 +779,39 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
 
     private void ensurePlayerInitialized() {
         if (player == null) {
-            // Discover custom AudioProcessor via reflection (e.g. RoomEffectsProcessor)
-            AudioProcessor customProcessor = null;
+            // Discover custom AudioProcessors via reflection
+            java.util.List<AudioProcessor> discoveredProcessors = new java.util.ArrayList<>();
+
+            // RoomEffectsProcessor (DSP: reverb, stereo, crossfeed)
             try {
                 Class<?> procClass = Class.forName("x.a.zix.RoomEffectsProcessor");
                 java.lang.reflect.Method getInstance = procClass.getMethod("getInstance");
                 Object proc = getInstance.invoke(null);
                 if (proc instanceof AudioProcessor) {
-                    customProcessor = (AudioProcessor) proc;
-                    Log.d("just_audio", "Custom AudioProcessor discovered: " + procClass.getSimpleName());
+                    discoveredProcessors.add((AudioProcessor) proc);
+                    Log.d("just_audio", "AudioProcessor discovered: " + procClass.getSimpleName());
                 }
             } catch (Exception e) {
-                // No custom processor registered, use defaults
+                // Not available
             }
 
-            final AudioProcessor finalProcessor = customProcessor;
+            // VisualizerTapProcessor (PCM tap for projectM visualizer)
+            try {
+                Class<?> tapClass = Class.forName("x.a.zix.VisualizerTapProcessor");
+                java.lang.reflect.Method getInstance = tapClass.getMethod("getInstance");
+                Object tap = getInstance.invoke(null);
+                if (tap instanceof AudioProcessor) {
+                    discoveredProcessors.add((AudioProcessor) tap);
+                    Log.d("just_audio", "AudioProcessor discovered: " + tapClass.getSimpleName());
+                }
+            } catch (Exception e) {
+                // Not available
+            }
+
+            final AudioProcessor[] processors = discoveredProcessors.toArray(new AudioProcessor[0]);
             RenderersFactory renderersFactory = (eventHandler, videoListener, audioListener, textOutput, metadataOutput) -> {
                 DefaultRenderersFactory factory;
-                if (finalProcessor != null) {
+                if (processors.length > 0) {
                     factory = new DefaultRenderersFactory(context) {
                         @Override
                         protected AudioSink buildAudioSink(
@@ -806,7 +821,7 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
                             return new DefaultAudioSink.Builder(ctx)
                                 .setEnableFloatOutput(enableFloatOutput)
                                 .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
-                                .setAudioProcessors(new AudioProcessor[]{ finalProcessor })
+                                .setAudioProcessors(processors)
                                 .build();
                         }
                     };

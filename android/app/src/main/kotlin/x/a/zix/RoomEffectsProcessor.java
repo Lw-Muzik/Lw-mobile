@@ -41,8 +41,18 @@ public class RoomEffectsProcessor extends BaseAudioProcessor {
     // Native engine handle
     private long nativeHandle = 0;
 
+    // When true, queueInput passes audio through without native processing
+    // and onFlush skips reinit. Used during crossfade to prevent two ExoPlayer
+    // instances from concurrently corrupting the shared singleton's state.
+    private volatile boolean crossfadeBypass = false;
+
     private RoomEffectsProcessor() {
         // Singleton
+    }
+
+    public void setCrossfadeBypass(boolean bypass) {
+        this.crossfadeBypass = bypass;
+        Log.i(TAG, "Crossfade bypass: " + bypass);
     }
 
     // ---- BaseAudioProcessor overrides ----
@@ -71,6 +81,15 @@ public class RoomEffectsProcessor extends BaseAudioProcessor {
         if (!inputBuffer.hasRemaining()) return;
 
         int remaining = inputBuffer.remaining();
+
+        // During crossfade bypass, pass audio through untouched
+        if (crossfadeBypass) {
+            ByteBuffer outputBuffer = replaceOutputBuffer(remaining);
+            outputBuffer.put(inputBuffer);
+            outputBuffer.flip();
+            return;
+        }
+
         int encoding = inputAudioFormat.encoding;
         int bytesPerSample = (encoding == C.ENCODING_PCM_FLOAT) ? 4 : 2;
         int numFrames = remaining / (bytesPerSample * 2); // stereo = 2 channels
@@ -99,6 +118,10 @@ public class RoomEffectsProcessor extends BaseAudioProcessor {
 
     @Override
     protected void onFlush() {
+        // During crossfade bypass, skip reinit to preserve reverb state
+        // for the active player that's still fading out.
+        if (crossfadeBypass) return;
+
         // (Re)initialize native engine with current format
         if (inputAudioFormat != AudioFormat.NOT_SET) {
             if (nativeHandle != 0) {

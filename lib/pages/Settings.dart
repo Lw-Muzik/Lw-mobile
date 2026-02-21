@@ -329,6 +329,7 @@ class _SettingsState extends State<Settings> {
   static const _visualizerStyles = {
     'circular': ('Circular', Icons.circle_outlined),
     'bars': ('Spectrum', Icons.bar_chart_rounded),
+    'milkdrop': ('MilkDrop', Icons.blur_on_rounded),
     'sphere': ('Sphere', Icons.radio_button_unchecked),
     'flower': ('Plasma', Icons.blur_circular),
     'fabric': ('Fabric', Icons.texture),
@@ -535,8 +536,100 @@ class _SettingsState extends State<Settings> {
             ),
           ),
         ]),
+
+        // MilkDrop settings (shown when milkdrop style is active)
+        if (controller.visualizerStyle == 'milkdrop') ...[
+          const SizedBox(height: 12),
+          _buildSectionHeader(Icons.blur_on_rounded, "MilkDrop"),
+          _buildSectionCard([
+            ListTile(
+              title: const Text("Render FPS"),
+              subtitle: Text("${controller.milkdropFps} fps"),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
+                children: [
+                  const Text("15"),
+                  Expanded(
+                    child: Slider.adaptive(
+                      value: controller.milkdropFps.toDouble(),
+                      min: 15,
+                      max: 60,
+                      divisions: 9,
+                      label: "${controller.milkdropFps} fps",
+                      onChanged: (v) {
+                        controller.milkdropFps = v.toInt();
+                      },
+                    ),
+                  ),
+                  const Text("60"),
+                ],
+              ),
+            ),
+            const Divider(height: 1, indent: 16, endIndent: 16),
+            ListTile(
+              title: const Text("Beat sensitivity"),
+              subtitle: Text(_beatSensitivityLabel(controller.milkdropBeatSensitivity)),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
+                children: [
+                  const Text("Low"),
+                  Expanded(
+                    child: Slider.adaptive(
+                      value: controller.milkdropBeatSensitivity,
+                      min: 0.2,
+                      max: 3.0,
+                      divisions: 14,
+                      onChanged: (v) {
+                        controller.milkdropBeatSensitivity = v;
+                      },
+                    ),
+                  ),
+                  const Text("High"),
+                ],
+              ),
+            ),
+            const Divider(height: 1, indent: 16, endIndent: 16),
+            ListTile(
+              title: const Text("Preset auto-cycle"),
+              subtitle: Text(controller.milkdropPresetDuration > 0
+                  ? "${controller.milkdropPresetDuration.toInt()}s"
+                  : "Manual only"),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+              child: Row(
+                children: [
+                  const Text("Off"),
+                  Expanded(
+                    child: Slider.adaptive(
+                      value: controller.milkdropPresetDuration,
+                      min: 0,
+                      max: 120,
+                      divisions: 12,
+                      onChanged: (v) {
+                        controller.milkdropPresetDuration = v;
+                      },
+                    ),
+                  ),
+                  const Text("120s"),
+                ],
+              ),
+            ),
+          ]),
+        ],
       ],
     );
+  }
+
+  String _beatSensitivityLabel(double value) {
+    if (value <= 0.5) return "Low";
+    if (value <= 1.0) return "Normal";
+    if (value <= 2.0) return "High";
+    return "Very high";
   }
 
   String _reactivityLabel(double value) {

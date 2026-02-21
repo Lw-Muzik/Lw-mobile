@@ -125,30 +125,40 @@ class Apis {
       for (final r in results) {
         if (r['instrumental'] == true) continue;
 
-        int score = 0;
         final rArtist = (r['artistName'] as String? ?? '').toLowerCase();
         final rTitle = (r['trackName'] as String? ?? '').toLowerCase();
 
-        // Title match
+        // Title MUST match — skip entirely if no title relevance
+        bool titleMatched = false;
+        int score = 0;
         if (rTitle == titleLower) {
           score += 10;
-        } else if (rTitle.contains(titleLower) || titleLower.contains(rTitle)) {
+          titleMatched = true;
+        } else if (rTitle.contains(titleLower) ||
+            titleLower.contains(rTitle)) {
           score += 5;
+          titleMatched = true;
         }
+        if (!titleMatched) continue;
 
-        // Artist match
+        // Artist match (required when artist info is available)
+        bool artistMatched = artistLower.isEmpty;
         if (artistLower.isNotEmpty) {
           if (rArtist == artistLower) {
             score += 10;
+            artistMatched = true;
           } else if (rArtist.contains(artistLower) ||
               artistLower.contains(rArtist)) {
             score += 5;
+            artistMatched = true;
           }
         }
+        if (!artistMatched) continue;
 
         // Duration proximity
         if (durationSec != null && r['duration'] != null) {
-          final diff = ((r['duration'] as num).toDouble() - durationSec).abs();
+          final diff =
+              ((r['duration'] as num).toDouble() - durationSec).abs();
           if (diff <= 2) {
             score += 5;
           } else if (diff <= 5) {
@@ -159,7 +169,7 @@ class Apis {
         }
 
         // Synced lyrics bonus
-        if (r['syncedLyrics'] != null) score += 5;
+        if (r['syncedLyrics'] != null) score += 3;
 
         if (score > bestScore) {
           bestScore = score;
@@ -167,8 +177,9 @@ class Apis {
         }
       }
 
-      if (best == null || bestScore < 5) return null;
-      return best['syncedLyrics'] as String? ?? best['plainLyrics'] as String?;
+      if (best == null) return null;
+      return best['syncedLyrics'] as String? ??
+          best['plainLyrics'] as String?;
     } catch (e) {
       debugPrint('LRCLIB search error: $e');
     }

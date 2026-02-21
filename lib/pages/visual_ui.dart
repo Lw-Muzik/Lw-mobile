@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../Visualizers/wave-visualizer.dart';
 import '/controllers/AppController.dart';
 import '/Helpers/AudioVisualizer.dart';
+import '/Helpers/ProjectMController.dart';
 import '/Helpers/VisualizerWidget.dart';
 import '/Routes/routes.dart';
 import '/widgets/Body.dart';
@@ -19,6 +20,11 @@ class _VisualUIState extends State<VisualUI>
   late AnimationController _controller;
   bool _isPanelOpen = false;
 
+  // projectM state
+  final ProjectMController _projectM = ProjectMController();
+  bool _projectMInitialized = false;
+  String _presetName = '';
+
   static const _visualizers = {
     'circular': _VisualPreset(
       name: 'Circular',
@@ -30,35 +36,10 @@ class _VisualUIState extends State<VisualUI>
       icon: Icons.bar_chart_rounded,
       description: 'Classic analyzer',
     ),
-    'sphere': _VisualPreset(
-      name: 'Sphere',
-      icon: Icons.radio_button_unchecked,
-      description: '3D reactive sphere',
-    ),
-    'flower': _VisualPreset(
-      name: 'Plasma',
-      icon: Icons.blur_circular,
-      description: 'Flowing plasma',
-    ),
-    'fabric': _VisualPreset(
-      name: 'Fabric',
-      icon: Icons.texture,
-      description: 'Flowing fabric',
-    ),
-    'sea': _VisualPreset(
-      name: 'Ocean',
-      icon: Icons.water,
-      description: 'Ocean waves',
-    ),
-    'cube': _VisualPreset(
-      name: 'Cube',
-      icon: Icons.view_in_ar,
-      description: '3D cube',
-    ),
-    'ripple': _VisualPreset(
-      name: 'Ripple',
-      icon: Icons.waves,
-      description: 'Ripple rings',
+    'milkdrop': _VisualPreset(
+      name: 'MilkDrop',
+      icon: Icons.blur_on_rounded,
+      description: 'MilkDrop presets',
     ),
   };
 
@@ -83,12 +64,61 @@ class _VisualUIState extends State<VisualUI>
     final ctrl = context.read<AppController>();
     Visualizers.setFrameRate(ctrl.visualizerFrameRate);
     Visualizers.scaleVisualizer(true);
+
+    // If starting with milkdrop style, initialize immediately
+    if (ctrl.visualizerStyle == 'milkdrop') {
+      _initProjectM();
+    }
   }
 
   @override
   void dispose() {
+    _stopProjectM();
     _controller.dispose();
     super.dispose();
+  }
+
+  Future<void> _initProjectM() async {
+    if (_projectMInitialized) return;
+
+    final size = MediaQuery.of(context).size;
+    final w = size.width.toInt();
+    final h = size.height.toInt();
+
+    final textureId = await _projectM.init(w, h);
+    if (textureId != null) {
+      final ctrl = context.read<AppController>();
+      await _projectM.setFps(ctrl.milkdropFps);
+      await _projectM.setBeatSensitivity(ctrl.milkdropBeatSensitivity);
+      await _projectM.setPresetDuration(ctrl.milkdropPresetDuration);
+      await _projectM.setPresetLocked(ctrl.milkdropPresetLocked);
+      await _projectM.start();
+      final name = await _projectM.getCurrentPreset();
+      if (mounted) {
+        setState(() {
+          _projectMInitialized = true;
+          _presetName = name;
+        });
+      }
+    }
+  }
+
+  Future<void> _stopProjectM() async {
+    if (!_projectMInitialized) return;
+    await _projectM.release();
+    _projectMInitialized = false;
+  }
+
+  void _onStyleChanged(String style) {
+    final ctrl = context.read<AppController>();
+    final wasMillkdrop = ctrl.visualizerStyle == 'milkdrop';
+    ctrl.visualizerStyle = style;
+
+    if (style == 'milkdrop' && !wasMillkdrop) {
+      _initProjectM();
+    } else if (style != 'milkdrop' && wasMillkdrop) {
+      _stopProjectM();
+    }
   }
 
   void _togglePanel() {
@@ -109,6 +139,7 @@ class _VisualUIState extends State<VisualUI>
         builder: (context, controller, child) {
           if (controller.visuals) Visualizers.enableVisual(true);
           final size = MediaQuery.of(context).size;
+          final isMilkDrop = controller.visualizerStyle == 'milkdrop';
 
           return Scaffold(
             backgroundColor: controller.isFancy
@@ -126,11 +157,52 @@ class _VisualUIState extends State<VisualUI>
                       Routes.pop(context);
                     }
                   },
+                  // Swipe left/right for preset switching in milkdrop mode
+                  onHorizontalDragEnd: isMilkDrop
+                      ? (details) async {
+                          if (details.primaryVelocity == null) return;
+                          String name;
+                          if (details.primaryVelocity! < -200) {
+                            name = await _projectM.nextPreset();
+                          } else if (details.primaryVelocity! > 200) {
+                            name = await _projectM.previousPreset();
+                          } else {
+                            return;
+                          }
+                          setState(() => _presetName = name);
+                        }
+                      : null,
                   behavior: HitTestBehavior.opaque,
                   child: mounted
-                      ? _buildVisualizer(size.width, size.height)
+                      ? isMilkDrop
+                          ? _buildMilkDropVisualizer()
+                          : _buildVisualizer(size.width, size.height)
                       : const SizedBox(),
                 ),
+
+                // Preset name overlay for MilkDrop
+                if (isMilkDrop && _presetName.isNotEmpty)
+                  Positioned(
+                    top: MediaQuery.of(context).padding.top + 16,
+                    left: 16,
+                    right: 16,
+                    child: IgnorePointer(
+                      child: Text(
+                        _presetName,
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.6),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          shadows: const [
+                            Shadow(blurRadius: 8, color: Colors.black),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
 
                 // Bottom controls overlay
                 Positioned(
@@ -145,11 +217,15 @@ class _VisualUIState extends State<VisualUI>
                     visualizers: _visualizers,
                     bottomPadding: bottomPadding,
                     onTogglePanel: _togglePanel,
-                    onSelectVisual: (key) =>
-                        controller.visualizerStyle = key,
+                    onSelectVisual: _onStyleChanged,
                     onSelectColor: (color) =>
                         controller.visualizerColor = color.toARGB32(),
                     onClose: () => Routes.pop(context),
+                    projectM: _projectM,
+                    currentPreset: _presetName,
+                    onPresetSelected: (name) {
+                      setState(() => _presetName = name);
+                    },
                   ),
                 ),
               ],
@@ -158,6 +234,18 @@ class _VisualUIState extends State<VisualUI>
         },
       ),
     );
+  }
+
+  Widget _buildMilkDropVisualizer() {
+    if (!_projectMInitialized || _projectM.textureId == null) {
+      return const Center(
+        child: CircularProgressIndicator(
+          color: Color(0xFFD4A825),
+          strokeWidth: 2,
+        ),
+      );
+    }
+    return Texture(textureId: _projectM.textureId!);
   }
 
   Widget _buildVisualizer(double width, double height) {
@@ -212,6 +300,9 @@ class _BottomOverlay extends StatelessWidget {
   final ValueChanged<String> onSelectVisual;
   final ValueChanged<Color> onSelectColor;
   final VoidCallback onClose;
+  final ProjectMController projectM;
+  final String currentPreset;
+  final ValueChanged<String> onPresetSelected;
 
   const _BottomOverlay({
     required this.controller,
@@ -224,6 +315,9 @@ class _BottomOverlay extends StatelessWidget {
     required this.onSelectVisual,
     required this.onSelectColor,
     required this.onClose,
+    required this.projectM,
+    required this.currentPreset,
+    required this.onPresetSelected,
   });
 
   @override
@@ -255,6 +349,9 @@ class _BottomOverlay extends StatelessWidget {
               visualizers: visualizers,
               onSelectVisual: onSelectVisual,
               onSelectColor: onSelectColor,
+              projectM: projectM,
+              currentPreset: currentPreset,
+              onPresetSelected: onPresetSelected,
             ),
             crossFadeState: isPanelOpen
                 ? CrossFadeState.showSecond
@@ -303,9 +400,7 @@ class _BottomOverlay extends StatelessWidget {
                 const SizedBox(width: 12),
                 // Settings toggle
                 _CircleButton(
-                  icon: isPanelOpen
-                      ? Icons.close_rounded
-                      : Icons.tune_rounded,
+                  icon: isPanelOpen ? Icons.close_rounded : Icons.tune_rounded,
                   onTap: onTogglePanel,
                   accent: isPanelOpen,
                 ),
@@ -318,13 +413,16 @@ class _BottomOverlay extends StatelessWidget {
   }
 }
 
-/// Settings panel with visualizer selector + color picker.
+/// Settings panel with visualizer selector + color picker + preset picker.
 class _SettingsPanel extends StatelessWidget {
   final String selectedVisual;
   final Color visualColor;
   final Map<String, _VisualPreset> visualizers;
   final ValueChanged<String> onSelectVisual;
   final ValueChanged<Color> onSelectColor;
+  final ProjectMController projectM;
+  final String currentPreset;
+  final ValueChanged<String> onPresetSelected;
 
   static const _accentColor = Color(0xFFD4A825);
 
@@ -334,10 +432,15 @@ class _SettingsPanel extends StatelessWidget {
     required this.visualizers,
     required this.onSelectVisual,
     required this.onSelectColor,
+    required this.projectM,
+    required this.currentPreset,
+    required this.onPresetSelected,
   });
 
   @override
   Widget build(BuildContext context) {
+    final isMilkDrop = selectedVisual == 'milkdrop';
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
       child: Column(
@@ -368,7 +471,9 @@ class _SettingsPanel extends StatelessWidget {
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 200),
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 10),
+                        horizontal: 14,
+                        vertical: 10,
+                      ),
                       decoration: BoxDecoration(
                         color: isSelected
                             ? _accentColor.withValues(alpha: 0.2)
@@ -393,8 +498,7 @@ class _SettingsPanel extends StatelessWidget {
                           Text(
                             entry.value.name,
                             style: TextStyle(
-                              color:
-                                  isSelected ? _accentColor : Colors.white70,
+                              color: isSelected ? _accentColor : Colors.white70,
                               fontSize: 13,
                               fontWeight: isSelected
                                   ? FontWeight.w600
@@ -410,55 +514,447 @@ class _SettingsPanel extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 20),
-          // Section: Color palette
-          const Text(
-            'COLOR',
-            style: TextStyle(
-              color: Colors.white38,
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 1.0,
+          // Section: Color palette (hidden for milkdrop — projectM handles its own colors)
+          if (!isMilkDrop) ...[
+            const Text(
+              'COLOR',
+              style: TextStyle(
+                color: Colors.white38,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 1.0,
+              ),
             ),
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: _VisualUIState._colorPalette.map((pair) {
-              final color = pair.$2;
-              final isSelected = visualColor.toARGB32() == color.toARGB32();
+            const SizedBox(height: 10),
+            Row(
+              children: _VisualUIState._colorPalette.map((pair) {
+                final color = pair.$2;
+                final isSelected = visualColor.toARGB32() == color.toARGB32();
 
-              return Padding(
-                padding: const EdgeInsets.only(right: 12),
-                child: GestureDetector(
-                  onTap: () => onSelectColor(color),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    width: 32,
-                    height: 32,
-                    decoration: BoxDecoration(
-                      color: color,
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: isSelected
-                            ? Colors.white
-                            : Colors.transparent,
-                        width: 2.5,
+                return Padding(
+                  padding: const EdgeInsets.only(right: 12),
+                  child: GestureDetector(
+                    onTap: () => onSelectColor(color),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: color,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: isSelected ? Colors.white : Colors.transparent,
+                          width: 2.5,
+                        ),
+                        boxShadow: isSelected
+                            ? [
+                                BoxShadow(
+                                  color: color.withValues(alpha: 0.4),
+                                  blurRadius: 12,
+                                  spreadRadius: 2,
+                                ),
+                              ]
+                            : null,
                       ),
-                      boxShadow: isSelected
-                          ? [
-                              BoxShadow(
-                                color: color.withValues(alpha: 0.4),
-                                blurRadius: 12,
-                                spreadRadius: 2,
-                              ),
-                            ]
-                          : null,
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 16),
+          ],
+          // Section: Preset selector for MilkDrop
+          if (isMilkDrop) ...[
+            const Text(
+              'PRESET',
+              style: TextStyle(
+                color: Colors.white38,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 1.0,
+              ),
+            ),
+            const SizedBox(height: 10),
+            GestureDetector(
+              onTap: () => _openPresetPicker(context),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.12),
+                    width: 1,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.blur_on_rounded,
+                      color: currentPreset.isNotEmpty
+                          ? _accentColor
+                          : Colors.white38,
+                      size: 18,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        currentPreset.isNotEmpty
+                            ? currentPreset
+                            : 'Select a preset...',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: currentPreset.isNotEmpty
+                              ? Colors.white
+                              : Colors.white38,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                    const Icon(
+                      Icons.search_rounded,
+                      color: Colors.white38,
+                      size: 18,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            // Prev / Next row
+            Row(
+              children: [
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () async {
+                      final name = await projectM.previousPreset();
+                      onPresetSelected(name);
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.06),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.skip_previous_rounded,
+                              color: Colors.white54, size: 18),
+                          SizedBox(width: 4),
+                          Text('Prev',
+                              style: TextStyle(
+                                  color: Colors.white54, fontSize: 12)),
+                        ],
+                      ),
                     ),
                   ),
                 ),
-              );
-            }).toList(),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () async {
+                      final name = await projectM.nextPreset();
+                      onPresetSelected(name);
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.06),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text('Next',
+                              style: TextStyle(
+                                  color: Colors.white54, fontSize: 12)),
+                          SizedBox(width: 4),
+                          Icon(Icons.skip_next_rounded,
+                              color: Colors.white54, size: 18),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+          ],
+        ],
+      ),
+    );
+  }
+
+  void _openPresetPicker(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _PresetPickerSheet(
+        projectM: projectM,
+        currentPreset: currentPreset,
+        onSelected: onPresetSelected,
+      ),
+    );
+  }
+}
+
+/// Searchable bottom sheet for browsing and selecting MilkDrop presets.
+class _PresetPickerSheet extends StatefulWidget {
+  final ProjectMController projectM;
+  final String currentPreset;
+  final ValueChanged<String> onSelected;
+
+  const _PresetPickerSheet({
+    required this.projectM,
+    required this.currentPreset,
+    required this.onSelected,
+  });
+
+  @override
+  State<_PresetPickerSheet> createState() => _PresetPickerSheetState();
+}
+
+class _PresetPickerSheetState extends State<_PresetPickerSheet> {
+  static const _accentColor = Color(0xFFD4A825);
+
+  List<String> _allPresets = [];
+  List<String> _filtered = [];
+  String _query = '';
+  bool _loading = true;
+  late String _activePreset;
+  final _searchController = TextEditingController();
+  final _scrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    _activePreset = widget.currentPreset;
+    _loadPresets();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadPresets() async {
+    final presets = await widget.projectM.listPresets();
+    if (mounted) {
+      setState(() {
+        _allPresets = presets;
+        _filtered = presets;
+        _loading = false;
+      });
+      // Scroll to current preset
+      _scrollToActive();
+    }
+  }
+
+  void _scrollToActive() {
+    if (_activePreset.isEmpty) return;
+    final idx = _filtered.indexOf(_activePreset);
+    if (idx > 0 && _scrollController.hasClients) {
+      // Each item is ~48px tall
+      _scrollController.animateTo(
+        (idx * 48.0).clamp(0, _scrollController.position.maxScrollExtent),
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
+    }
+  }
+
+  void _onSearch(String query) {
+    setState(() {
+      _query = query;
+      if (query.isEmpty) {
+        _filtered = _allPresets;
+      } else {
+        final lower = query.toLowerCase();
+        _filtered = _allPresets
+            .where((p) => p.toLowerCase().contains(lower))
+            .toList();
+      }
+    });
+  }
+
+  Future<void> _selectPreset(String name) async {
+    final idx = _allPresets.indexOf(name);
+    if (idx < 0) return;
+    final loaded = await widget.projectM.loadPresetByIndex(idx);
+    setState(() => _activePreset = loaded);
+    widget.onSelected(loaded);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+    final screenHeight = MediaQuery.of(context).size.height;
+
+    return Container(
+      height: screenHeight * 0.65,
+      decoration: const BoxDecoration(
+        color: Color(0xFF1A1A1A),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      child: Column(
+        children: [
+          // Drag handle
+          Center(
+            child: Container(
+              margin: const EdgeInsets.only(top: 10, bottom: 6),
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.white24,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
           ),
-          const SizedBox(height: 16),
+          // Title + count
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+            child: Row(
+              children: [
+                const Icon(Icons.blur_on_rounded,
+                    color: _accentColor, size: 20),
+                const SizedBox(width: 8),
+                const Text(
+                  'MilkDrop Presets',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const Spacer(),
+                if (!_loading)
+                  Text(
+                    '${_filtered.length} preset${_filtered.length == 1 ? '' : 's'}',
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.4),
+                      fontSize: 12,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          // Search field
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: TextField(
+              controller: _searchController,
+              onChanged: _onSearch,
+              style: const TextStyle(color: Colors.white, fontSize: 14),
+              decoration: InputDecoration(
+                hintText: 'Search presets...',
+                hintStyle: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.3), fontSize: 14),
+                prefixIcon: Icon(Icons.search_rounded,
+                    color: Colors.white.withValues(alpha: 0.3), size: 20),
+                suffixIcon: _query.isNotEmpty
+                    ? GestureDetector(
+                        onTap: () {
+                          _searchController.clear();
+                          _onSearch('');
+                        },
+                        child: Icon(Icons.close_rounded,
+                            color: Colors.white.withValues(alpha: 0.3),
+                            size: 18),
+                      )
+                    : null,
+                filled: true,
+                fillColor: Colors.white.withValues(alpha: 0.08),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+          ),
+          // Preset list
+          Expanded(
+            child: _loading
+                ? const Center(
+                    child: CircularProgressIndicator(
+                        color: _accentColor, strokeWidth: 2))
+                : _filtered.isEmpty
+                    ? Center(
+                        child: Text(
+                          _query.isEmpty
+                              ? 'No presets available'
+                              : 'No matches',
+                          style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.4)),
+                        ),
+                      )
+                    : ListView.builder(
+                        controller: _scrollController,
+                        itemCount: _filtered.length,
+                        padding: EdgeInsets.only(bottom: bottomInset + 16),
+                        itemBuilder: (context, index) {
+                          final name = _filtered[index];
+                          final isActive = name == _activePreset;
+
+                          return InkWell(
+                            onTap: () async {
+                              await _selectPreset(name);
+                              if (mounted) Navigator.pop(context);
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 12),
+                              color: isActive
+                                  ? _accentColor.withValues(alpha: 0.1)
+                                  : null,
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    isActive
+                                        ? Icons.play_circle_filled_rounded
+                                        : Icons.blur_on_rounded,
+                                    color: isActive
+                                        ? _accentColor
+                                        : Colors.white.withValues(alpha: 0.25),
+                                    size: 20,
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Text(
+                                      name,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        color: isActive
+                                            ? _accentColor
+                                            : Colors.white.withValues(
+                                                alpha: 0.8),
+                                        fontSize: 13,
+                                        fontWeight: isActive
+                                            ? FontWeight.w600
+                                            : FontWeight.normal,
+                                      ),
+                                    ),
+                                  ),
+                                  if (isActive)
+                                    const Icon(Icons.check_rounded,
+                                        color: _accentColor, size: 18),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+          ),
         ],
       ),
     );

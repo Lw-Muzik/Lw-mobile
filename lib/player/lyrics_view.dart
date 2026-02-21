@@ -275,12 +275,7 @@ class _LyricsViewState extends State<LyricsView> with SingleTickerProviderStateM
     required AppController controller,
   }) {
     if (loading) {
-      return const Center(
-        child: CircularProgressIndicator(
-          color: Colors.white54,
-          strokeWidth: 2,
-        ),
-      );
+      return const _LyricsSkeleton();
     }
     if (lyrics == null) {
       return _EmptyState(onAdd: () => _openEditor(controller));
@@ -746,5 +741,78 @@ class _MiniControls extends StatelessWidget {
     );
   }
 
+}
+
+class _LyricsSkeleton extends StatefulWidget {
+  const _LyricsSkeleton();
+
+  @override
+  State<_LyricsSkeleton> createState() => _LyricsSkeletonState();
+}
+
+class _LyricsSkeletonState extends State<_LyricsSkeleton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _shimmer;
+
+  // Widths as fractions to mimic varied lyric line lengths
+  static const _lines = [0.75, 0.55, 0.85, 0.6, 0.7, 0.5, 0.8, 0.45, 0.65, 0.55];
+
+  @override
+  void initState() {
+    super.initState();
+    _shimmer = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1400),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _shimmer.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _shimmer,
+      builder: (context, _) {
+        final t = _shimmer.value;
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (int i = 0; i < _lines.length; i++)
+                Padding(
+                  padding: EdgeInsets.only(bottom: i == 2 ? 20 : 12),
+                  child: _bar(_lines[i], i, t),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _bar(double widthFrac, int index, double t) {
+    // Stagger the shimmer per line
+    final phase = ((t + index * 0.08) % 1.0);
+    final opacity = 0.06 + 0.08 * (0.5 + 0.5 * (1 - (2 * phase - 1).abs()));
+    final height = index == 0 ? 26.0 : 18.0;
+    final radius = height / 2;
+
+    return FractionallySizedBox(
+      alignment: Alignment.centerLeft,
+      widthFactor: widthFrac,
+      child: Container(
+        height: height,
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: opacity),
+          borderRadius: BorderRadius.circular(radius),
+        ),
+      ),
+    );
+  }
 }
 

@@ -8,8 +8,25 @@ add_library(${CMAKE_PROJECT_NAME} SHARED
     eq_app.cpp
     fdn_reverb.cpp
     room_dsp_engine.cpp
-    jni_bridge.cpp)
+    jni_bridge.cpp
+    projectm_bridge.cpp)
+
+# Prebuilt projectM-4 shared library
+add_library(projectM-4 SHARED IMPORTED)
+set_target_properties(projectM-4 PROPERTIES
+    IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/../jniLibs/${ANDROID_ABI}/libprojectM-4.so)
+
+# Include paths for projectM headers
+target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
+    ${CMAKE_SOURCE_DIR}
+    ${CMAKE_SOURCE_DIR}/projectm-include)
+
+find_library(GLES3_LIB GLESv3)
+find_library(EGL_LIB EGL)
 
 target_link_libraries(${CMAKE_PROJECT_NAME}
     android
-    log)
+    log
+    projectM-4
+    ${GLES3_LIB}
+    ${EGL_LIB})

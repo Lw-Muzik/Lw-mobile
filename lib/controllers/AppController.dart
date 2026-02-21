@@ -42,6 +42,7 @@ class AppController with ChangeNotifier {
   LyricsData? get currentLyrics => _currentLyrics;
   bool _lyricsLoading = false;
   bool get lyricsLoading => _lyricsLoading;
+  int? _lyricsLoadTarget; // songId index currently being loaded
 
   bool get isGoogleConnected => cloudAuth.isGoogleConnected;
   bool get isDropboxConnected => cloudAuth.isDropboxConnected;
@@ -585,6 +586,12 @@ class AppController with ChangeNotifier {
   int _visualizerColor = 0xFFFFFFFF; // white
   int _visualizerFrameRate = 30;
   double _visualizerReactivity = 0.15; // smoothing attack factor
+
+  // projectM MilkDrop settings
+  int _milkdropFps = 30;
+  double _milkdropBeatSensitivity = 1.0;
+  double _milkdropPresetDuration = 30.0; // seconds, 0 = manual only
+  bool _milkdropPresetLocked = false;
   int _songId = 0;
   int _artWorkId = 0;
   // Main method.
@@ -751,6 +758,7 @@ class AppController with ChangeNotifier {
         _artWorkId = songs[index].id;
         _updateMediaItemForIndex(index);
         notifyListeners();
+        _loadLyricsForCurrentSong();
       }
     });
   }
@@ -789,6 +797,7 @@ class AppController with ChangeNotifier {
 
     _songId = nextIdx;
     _artWorkId = nextSong.id;
+    _loadLyricsForCurrentSong();
 
     final AudioSource nextSource;
     if (nextSong.data.startsWith('http')) {
@@ -806,12 +815,20 @@ class AppController with ChangeNotifier {
       nextSource = AudioSource.uri(Uri.parse(nextSong.data));
     }
 
+    // Bypass DSP processing during crossfade: the RoomEffectsProcessor is a
+    // singleton shared by both ExoPlayer instances. Without bypass, the
+    // incoming player's onFlush reinits the native engine (clearing reverb
+    // state) and concurrent queueInput calls corrupt shared buffers.
+    await Channel.dspSetCrossfadeBypass(true);
+
     await handler.beginCrossfade(
       nextSource,
       nextSong,
       Duration(seconds: _crossfadeDuration),
       replayGain: _replayGain,
     );
+
+    await Channel.dspSetCrossfadeBypass(false);
     _isCrossfading = false;
   }
 
@@ -966,6 +983,12 @@ class AppController with ChangeNotifier {
     _visualizerColor = _prefs.getInt("visualizerColor") ?? 0xFFFFFFFF;
     _visualizerFrameRate = _prefs.getInt("visualizerFrameRate") ?? 30;
     _visualizerReactivity = _prefs.getDouble("visualizerReactivity") ?? 0.15;
+
+    // projectM MilkDrop settings
+    _milkdropFps = _prefs.getInt("milkdropFps") ?? 30;
+    _milkdropBeatSensitivity = _prefs.getDouble("milkdropBeatSensitivity") ?? 1.0;
+    _milkdropPresetDuration = _prefs.getDouble("milkdropPresetDuration") ?? 30.0;
+    _milkdropPresetLocked = _prefs.getBool("milkdropPresetLocked") ?? false;
     // Room effects (custom DSP)
     _reverbEnabled = _prefs.getBool("reverbEnabled") ?? false;
     _dspRoomSize = _prefs.getDouble("dspRoomSize") ?? 0.5;
@@ -1039,6 +1062,35 @@ class AppController with ChangeNotifier {
   set visualizerReactivity(double r) {
     _prefs.setDouble("visualizerReactivity", r);
     _visualizerReactivity = r;
+    notifyListeners();
+  }
+
+  // projectM MilkDrop getters/setters
+  int get milkdropFps => _milkdropFps;
+  set milkdropFps(int v) {
+    _prefs.setInt("milkdropFps", v);
+    _milkdropFps = v;
+    notifyListeners();
+  }
+
+  double get milkdropBeatSensitivity => _milkdropBeatSensitivity;
+  set milkdropBeatSensitivity(double v) {
+    _prefs.setDouble("milkdropBeatSensitivity", v);
+    _milkdropBeatSensitivity = v;
+    notifyListeners();
+  }
+
+  double get milkdropPresetDuration => _milkdropPresetDuration;
+  set milkdropPresetDuration(double v) {
+    _prefs.setDouble("milkdropPresetDuration", v);
+    _milkdropPresetDuration = v;
+    notifyListeners();
+  }
+
+  bool get milkdropPresetLocked => _milkdropPresetLocked;
+  set milkdropPresetLocked(bool v) {
+    _prefs.setBool("milkdropPresetLocked", v);
+    _milkdropPresetLocked = v;
     notifyListeners();
   }
 
@@ -1314,14 +1366,22 @@ class AppController with ChangeNotifier {
 
   Future<void> _loadLyricsForCurrentSong() async {
     if (songs.isEmpty || _songId < 0 || _songId >= songs.length) return;
+    final targetId = _songId;
+    // Skip if already loading for the same song (prevents double-call flicker)
+    if (_lyricsLoadTarget == targetId) return;
+    _lyricsLoadTarget = targetId;
     _lyricsLoading = true;
     _currentLyrics = null;
     notifyListeners();
     try {
-      _currentLyrics = await _lyricsService.loadLyrics(songs[_songId]);
+      final result = await _lyricsService.loadLyrics(songs[targetId]);
+      if (_songId != targetId) return;
+      _currentLyrics = result;
     } catch (_) {
+      if (_songId != targetId) return;
       _currentLyrics = null;
     }
+    _lyricsLoadTarget = null;
     _lyricsLoading = false;
     notifyListeners();
   }
@@ -1330,6 +1390,7 @@ class AppController with ChangeNotifier {
   Future<void> reloadCurrentLyrics() async {
     if (songs.isEmpty || _songId < 0 || _songId >= songs.length) return;
     _lyricsService.invalidateCache(songs[_songId].id);
+    _lyricsLoadTarget = null; // force reload even if same song
     await _loadLyricsForCurrentSong();
   }
 

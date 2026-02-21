@@ -41,6 +41,7 @@ public class MainActivity extends AudioServiceFragmentActivity {
     private static final String CHANNEL = "eq_app";
     private final AudioVisualizer visualizer = AudioVisualizer.getInstance();
     private MethodChannel visualizerChannel; // Define the MethodChannel here
+    private ProjectMRenderer projectMRenderer;
 
     // Scoped-storage lyrics write state
     private ActivityResultLauncher<IntentSenderRequest> writeRequestLauncher;
@@ -53,8 +54,9 @@ public class MainActivity extends AudioServiceFragmentActivity {
         EdgeToEdge.enable(this);
         super.onCreate(savedInstance);
         new HeadphoneService();
-        // Initialize RoomEffectsProcessor singleton so just_audio can discover it
+        // Initialize AudioProcessor singletons so just_audio can discover them
         RoomEffectsProcessor.getInstance();
+        VisualizerTapProcessor.getInstance();
 
         // Register launcher for MediaStore write-permission dialog (Android 11+)
         writeRequestLauncher = registerForActivityResult(
@@ -96,6 +98,9 @@ public class MainActivity extends AudioServiceFragmentActivity {
         EventChannel dvcEventChannel = new EventChannel(
                 flutterEngine.getDartExecutor().getBinaryMessenger(), "eq_app/dvc_volume_button");
         DvcController.setupEventChannel(dvcEventChannel);
+
+        // projectM renderer init
+        projectMRenderer = new ProjectMRenderer(this, flutterEngine.getRenderer());
 
         visualizerChannel = new MethodChannel(flutterEngine.getDartExecutor().getBinaryMessenger(), CHANNEL);
         visualizerChannel.setMethodCallHandler(
@@ -510,6 +515,12 @@ public class MainActivity extends AudioServiceFragmentActivity {
                             result.success(null);
                             break;
                         }
+                        case "dspSetCrossfadeBypass": {
+                            boolean bypass = call.argument("enabled");
+                            RoomEffectsProcessor.getInstance().setCrossfadeBypass(bypass);
+                            result.success(null);
+                            break;
+                        }
 
                         // ==================== 32-Band Graphic EQ ====================
                         case "setGraphicBandGain":
@@ -632,6 +643,91 @@ public class MainActivity extends AudioServiceFragmentActivity {
                                     result.success(false);
                                 }
                             }
+                            break;
+                        }
+
+                        // ==================== projectM Visualizer ====================
+                        case "projectm_init": {
+                            int pmWidth = call.argument("width");
+                            int pmHeight = call.argument("height");
+                            long textureId = projectMRenderer.init(pmWidth, pmHeight);
+                            result.success(textureId);
+                            break;
+                        }
+                        case "projectm_start": {
+                            projectMRenderer.start();
+                            result.success(null);
+                            break;
+                        }
+                        case "projectm_stop": {
+                            projectMRenderer.stop();
+                            result.success(null);
+                            break;
+                        }
+                        case "projectm_release": {
+                            projectMRenderer.release();
+                            result.success(null);
+                            break;
+                        }
+                        case "projectm_set_preset": {
+                            String presetPath = call.argument("path");
+                            projectMRenderer.loadPreset(presetPath);
+                            result.success(null);
+                            break;
+                        }
+                        case "projectm_next_preset": {
+                            projectMRenderer.nextPreset();
+                            result.success(projectMRenderer.getCurrentPresetName());
+                            break;
+                        }
+                        case "projectm_prev_preset": {
+                            projectMRenderer.previousPreset();
+                            result.success(projectMRenderer.getCurrentPresetName());
+                            break;
+                        }
+                        case "projectm_load_preset_index": {
+                            int pmIndex = call.argument("index");
+                            projectMRenderer.loadPresetByIndex(pmIndex);
+                            result.success(projectMRenderer.getCurrentPresetName());
+                            break;
+                        }
+                        case "projectm_list_presets": {
+                            result.success(new ArrayList<>(projectMRenderer.getPresetNames()));
+                            break;
+                        }
+                        case "projectm_current_preset": {
+                            result.success(projectMRenderer.getCurrentPresetName());
+                            break;
+                        }
+                        case "projectm_set_fps": {
+                            int pmFps = call.argument("fps");
+                            projectMRenderer.setFps(pmFps);
+                            result.success(null);
+                            break;
+                        }
+                        case "projectm_set_beat_sensitivity": {
+                            double pmSens = call.argument("sensitivity");
+                            projectMRenderer.setBeatSensitivity((float) pmSens);
+                            result.success(null);
+                            break;
+                        }
+                        case "projectm_set_preset_duration": {
+                            double pmDur = call.argument("duration");
+                            projectMRenderer.setPresetDuration(pmDur);
+                            result.success(null);
+                            break;
+                        }
+                        case "projectm_set_preset_locked": {
+                            boolean pmLocked = call.argument("locked");
+                            projectMRenderer.setPresetLocked(pmLocked);
+                            result.success(null);
+                            break;
+                        }
+                        case "projectm_set_size": {
+                            int pmW = call.argument("width");
+                            int pmH = call.argument("height");
+                            projectMRenderer.setSize(pmW, pmH);
+                            result.success(null);
                             break;
                         }
 
