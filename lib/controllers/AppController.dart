@@ -93,6 +93,7 @@ class AppController with ChangeNotifier {
   bool _replayGain = false;
   bool _dvcEnabled = false;
   double _dvcGain = 0.0; // dB, range -30 to +30
+  bool _dvcFineSteps = false; // false=1.5dB (5%), true=0.3dB (1%)
 
   // Song list/grid zoom scale: 0=list, 1=2-col grid, 2=3-col grid
   int _songGridScale = 0;
@@ -359,6 +360,7 @@ class AppController with ChangeNotifier {
   bool get replayGain => _replayGain;
   bool get dvcEnabled => _dvcEnabled;
   double get dvcGain => _dvcGain;
+  bool get dvcFineSteps => _dvcFineSteps;
 
   // Audio feature setters
   set gaplessPlayback(bool value) {
@@ -408,6 +410,12 @@ class AppController with ChangeNotifier {
     _prefs.setDouble("dvcGain", value);
     _dvcGain = value;
     Channel.setDvcGain(value);
+    notifyListeners();
+  }
+
+  set dvcFineSteps(bool value) {
+    _prefs.setBool("dvcFineSteps", value);
+    _dvcFineSteps = value;
     notifyListeners();
   }
 
@@ -596,6 +604,25 @@ class AppController with ChangeNotifier {
   StreamSubscription<int?>? _sessionIdSub;
   StreamSubscription<String>? _dvcVolumeSub;
 
+  // DVC volume overlay state
+  bool _showDvcOverlay = false;
+  Timer? _dvcOverlayTimer;
+
+  bool get showDvcOverlay => _showDvcOverlay;
+
+  /// DVC gain as 0–100 percentage (−30 dB = 0%, 0 dB = 100%).
+  int get dvcVolumePercent => ((_dvcGain + 30) / 30 * 100).round().clamp(0, 100);
+
+  void _showDvcVolumeOverlay() {
+    _showDvcOverlay = true;
+    _dvcOverlayTimer?.cancel();
+    _dvcOverlayTimer = Timer(const Duration(seconds: 2), () {
+      _showDvcOverlay = false;
+      notifyListeners();
+    });
+    notifyListeners();
+  }
+
   AppController(this._prefs, this._handler) {
     _loadSettings();
 
@@ -670,11 +697,13 @@ class AppController with ChangeNotifier {
     _dvcVolumeSub?.cancel();
     _dvcVolumeSub = Channel.dvcVolumeButtonStream.listen((direction) {
       if (!_dvcEnabled) return;
+      final step = _dvcFineSteps ? 0.3 : 1.5;
       if (direction == "up") {
-        dvcGain = (_dvcGain + 1.5).clamp(-30.0, 30.0);
+        dvcGain = (_dvcGain + step).clamp(-30.0, 0.0);
       } else if (direction == "down") {
-        dvcGain = (_dvcGain - 1.5).clamp(-30.0, 30.0);
+        dvcGain = (_dvcGain - step).clamp(-30.0, 0.0);
       }
+      _showDvcVolumeOverlay();
     });
   }
 
@@ -897,6 +926,7 @@ class AppController with ChangeNotifier {
     _replayGain = _prefs.getBool("replayGain") ?? false;
     _dvcEnabled = _prefs.getBool("dvcEnabled") ?? false;
     _dvcGain = _prefs.getDouble("dvcGain") ?? 0.0;
+    _dvcFineSteps = _prefs.getBool("dvcFineSteps") ?? false;
     // Song grid scale
     _songGridScale = (_prefs.getInt("songGridScale") ?? 0).clamp(0, 2);
     // EQ band count

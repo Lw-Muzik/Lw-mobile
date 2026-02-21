@@ -43,9 +43,9 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
   void _initializeAnimationController() {
     _animationController = AnimationController(
       vsync: this,
-      value: 0,
+      value: 1,
       duration: const Duration(milliseconds: 800),
-    )..forward();
+    );
 
     _animation = Tween<double>(
       begin: 0.98,

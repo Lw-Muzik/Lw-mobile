@@ -24,6 +24,7 @@ import 'config/app_config.dart';
 import 'controllers/PlayerController.dart';
 import 'controllers/PlaylistController.dart';
 import 'firebase_options.dart';
+import 'widgets/DvcVolumeOverlay.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -83,6 +84,14 @@ Future<void> main() async {
           theme: AppThemes.fancyTheme,
           initialRoute: Routes.loader,
           routes: Routes.routes(),
+          builder: (context, child) {
+            return Stack(
+              children: [
+                child!,
+                const DvcVolumeOverlay(),
+              ],
+            );
+          },
         ),
       ),
     ),
