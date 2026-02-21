@@ -115,26 +115,24 @@ class AppController with ChangeNotifier {
   double _preampGain = 0.0; // 0-15 dB
   bool _mbcEnabled = false;
 
-  // Room effects state
+  // Room effects state (custom DSP engine — float params 0.0-1.0)
   bool _reverbEnabled = false;
-  int _reverbDecayTime = 100;
-  int _reverbRoomLevel = -9000;
-  int _reverbRoomHFLevel = 0;
-  int _reverbDecayHFRatio = 1000;
-  int _reverbReflectionsLevel = -9000;
-  int _reverbReflectionsDelay = 0;
-  int _reverbLevel = -9000;
-  int _reverbDelay = 0;
-  int _reverbDensity = 0;
-  int _reverbDiffusion = 0;
+  double _dspRoomSize = 0.5;
+  double _dspDecay = 0.5;
+  double _dspDamping = 0.3;
+  double _dspPreDelay = 10.0; // ms (0-200)
+  double _dspDiffusion = 0.7;
+  double _dspWetDry = 0.3;
   String _activeRoomPresetName = 'Off';
 
-  // Virtualizer mode: 2=BINAURAL (stereo expand), 3=TRANSAURAL (crossfeed)
+  // M/S stereo expander
   bool _stereoExpandEnabled = false;
-  int _stereoWidth = 0; // 0-1000
+  double _stereoWidth = 1.0; // 0.0=mono, 1.0=normal, 2.0=max
 
+  // BS2B crossfeed
   bool _crossfeedEnabled = false;
-  int _crossfeedStrength = 600; // 0-1000
+  double _crossfeedCutoff = 700.0; // Hz (100-2000)
+  double _crossfeedFeed = 4.5; // dB (1-15)
 
   // Song grid scale getters/setters
   int get songGridScale => _songGridScale;
@@ -659,21 +657,9 @@ class AppController with ChangeNotifier {
           Channel.enableDvc();
           Channel.setDvcGain(_dvcGain);
         }
-        // Re-apply room effects
-        if (_reverbEnabled) {
-          Channel.enableReverb(true);
-          _applyAllReverbParams();
-        }
-        // Re-apply virtualizer (stereo expand or crossfeed)
-        if (_stereoExpandEnabled) {
-          Channel.setVirtualizerMode(2);
-          Channel.setVirtualizerStrength(_stereoWidth);
-          Channel.enableVirtualizer(true);
-        } else if (_crossfeedEnabled) {
-          Channel.setVirtualizerMode(3);
-          Channel.setVirtualizerStrength(_crossfeedStrength);
-          Channel.enableVirtualizer(true);
-        }
+        // Re-apply custom DSP room effects (processed in ExoPlayer pipeline,
+        // not session-bound, but re-send params to ensure state consistency)
+        _applyAllDspParams();
       }
     });
   }
@@ -950,23 +936,22 @@ class AppController with ChangeNotifier {
     _visualizerColor = _prefs.getInt("visualizerColor") ?? 0xFFFFFFFF;
     _visualizerFrameRate = _prefs.getInt("visualizerFrameRate") ?? 30;
     _visualizerReactivity = _prefs.getDouble("visualizerReactivity") ?? 0.15;
-    // Room effects
+    // Room effects (custom DSP)
     _reverbEnabled = _prefs.getBool("reverbEnabled") ?? false;
-    _reverbDecayTime = _prefs.getInt("reverbDecayTime") ?? 100;
-    _reverbRoomLevel = _prefs.getInt("reverbRoomLevel") ?? -9000;
-    _reverbRoomHFLevel = _prefs.getInt("reverbRoomHFLevel") ?? 0;
-    _reverbDecayHFRatio = _prefs.getInt("reverbDecayHFRatio") ?? 1000;
-    _reverbReflectionsLevel = _prefs.getInt("reverbReflectionsLevel") ?? -9000;
-    _reverbReflectionsDelay = _prefs.getInt("reverbReflectionsDelay") ?? 0;
-    _reverbLevel = _prefs.getInt("reverbLevel") ?? -9000;
-    _reverbDelay = _prefs.getInt("reverbDelay") ?? 0;
-    _reverbDensity = _prefs.getInt("reverbDensity") ?? 0;
-    _reverbDiffusion = _prefs.getInt("reverbDiffusion") ?? 0;
+    _dspRoomSize = _prefs.getDouble("dspRoomSize") ?? 0.5;
+    _dspDecay = _prefs.getDouble("dspDecay") ?? 0.5;
+    _dspDamping = _prefs.getDouble("dspDamping") ?? 0.3;
+    _dspPreDelay = _prefs.getDouble("dspPreDelay") ?? 10.0;
+    _dspDiffusion = _prefs.getDouble("dspDiffusion") ?? 0.7;
+    _dspWetDry = _prefs.getDouble("dspWetDry") ?? 0.3;
     _activeRoomPresetName = _prefs.getString("activeRoomPresetName") ?? 'Off';
     _stereoExpandEnabled = _prefs.getBool("stereoExpandEnabled") ?? false;
-    _stereoWidth = _prefs.getInt("stereoWidth") ?? 0;
+    _stereoWidth = _prefs.getDouble("dspStereoWidth") ?? 1.0;
     _crossfeedEnabled = _prefs.getBool("crossfeedEnabled") ?? false;
-    _crossfeedStrength = _prefs.getInt("crossfeedStrength") ?? 600;
+    _crossfeedCutoff = _prefs.getDouble("crossfeedCutoff") ?? 700.0;
+    _crossfeedFeed = _prefs.getDouble("crossfeedFeed") ?? 4.5;
+    // Apply DSP params to native engine on startup
+    _applyAllDspParams();
   }
 
   bool get isDark {
@@ -1038,93 +1023,61 @@ class AppController with ChangeNotifier {
     notifyListeners();
   }
 
-  // ==================== Room Effects Getters/Setters ====================
+  // ==================== Custom DSP Room Effects Getters/Setters ====================
 
   bool get reverbEnabled => _reverbEnabled;
   set reverbEnabled(bool v) {
     _prefs.setBool("reverbEnabled", v);
     _reverbEnabled = v;
-    Channel.enableReverb(v);
+    Channel.dspSetReverbEnabled(v);
     notifyListeners();
   }
 
-  int get reverbDecayTime => _reverbDecayTime;
-  set reverbDecayTime(int v) {
-    _prefs.setInt("reverbDecayTime", v);
-    _reverbDecayTime = v;
-    Channel.setDecayTime(v);
+  double get dspRoomSize => _dspRoomSize;
+  set dspRoomSize(double v) {
+    _prefs.setDouble("dspRoomSize", v);
+    _dspRoomSize = v;
+    Channel.dspSetRoomSize(v);
     notifyListeners();
   }
 
-  int get reverbRoomLevel => _reverbRoomLevel;
-  set reverbRoomLevel(int v) {
-    _prefs.setInt("reverbRoomLevel", v);
-    _reverbRoomLevel = v;
-    Channel.setRoomLevel(v);
+  double get dspDecay => _dspDecay;
+  set dspDecay(double v) {
+    _prefs.setDouble("dspDecay", v);
+    _dspDecay = v;
+    Channel.dspSetDecay(v);
     notifyListeners();
   }
 
-  int get reverbRoomHFLevel => _reverbRoomHFLevel;
-  set reverbRoomHFLevel(int v) {
-    _prefs.setInt("reverbRoomHFLevel", v);
-    _reverbRoomHFLevel = v;
-    Channel.setRoomHFLevel(v);
+  double get dspDamping => _dspDamping;
+  set dspDamping(double v) {
+    _prefs.setDouble("dspDamping", v);
+    _dspDamping = v;
+    Channel.dspSetDamping(v);
     notifyListeners();
   }
 
-  int get reverbDecayHFRatio => _reverbDecayHFRatio;
-  set reverbDecayHFRatio(int v) {
-    _prefs.setInt("reverbDecayHFRatio", v);
-    _reverbDecayHFRatio = v;
-    Channel.setDecayHFRatio(v);
+  double get dspPreDelay => _dspPreDelay;
+  set dspPreDelay(double v) {
+    _prefs.setDouble("dspPreDelay", v);
+    _dspPreDelay = v;
+    Channel.dspSetPreDelay(v);
     notifyListeners();
   }
 
-  int get reverbReflectionsLevel => _reverbReflectionsLevel;
-  set reverbReflectionsLevel(int v) {
-    _prefs.setInt("reverbReflectionsLevel", v);
-    _reverbReflectionsLevel = v;
-    Channel.setReflectionsDelayLevel(v);
+  double get dspDiffusion => _dspDiffusion;
+  set dspDiffusion(double v) {
+    _prefs.setDouble("dspDiffusion", v);
+    _dspDiffusion = v;
+    Channel.dspSetDiffusion(v);
     notifyListeners();
   }
 
-  int get reverbReflectionsDelay => _reverbReflectionsDelay;
-  set reverbReflectionsDelay(int v) {
-    _prefs.setInt("reverbReflectionsDelay", v);
-    _reverbReflectionsDelay = v;
-    Channel.setReflectionsDelay(v);
-    notifyListeners();
-  }
-
-  int get reverbLevel => _reverbLevel;
-  set reverbLevel(int v) {
-    _prefs.setInt("reverbLevel", v);
-    _reverbLevel = v;
-    Channel.setReverbLevel(v);
-    notifyListeners();
-  }
-
-  int get reverbDelay => _reverbDelay;
-  set reverbDelay(int v) {
-    _prefs.setInt("reverbDelay", v);
-    _reverbDelay = v;
-    Channel.setReverbDelay(v);
-    notifyListeners();
-  }
-
-  int get reverbDensity => _reverbDensity;
-  set reverbDensity(int v) {
-    _prefs.setInt("reverbDensity", v);
-    _reverbDensity = v;
-    Channel.setDensity(v);
-    notifyListeners();
-  }
-
-  int get reverbDiffusion => _reverbDiffusion;
-  set reverbDiffusion(int v) {
-    _prefs.setInt("reverbDiffusion", v);
-    _reverbDiffusion = v;
-    Channel.setDiffusion(v);
+  double get dspWetDry => _dspWetDry;
+  set dspWetDry(double v) {
+    _prefs.setDouble("dspWetDry", v);
+    _dspWetDry = v;
+    Channel.dspSetReverbWetDry(v);
     notifyListeners();
   }
 
@@ -1139,28 +1092,21 @@ class AppController with ChangeNotifier {
   set stereoExpandEnabled(bool v) {
     _prefs.setBool("stereoExpandEnabled", v);
     _stereoExpandEnabled = v;
-    if (v) {
-      // Disable crossfeed — they share the Virtualizer
-      if (_crossfeedEnabled) {
-        _crossfeedEnabled = false;
-        _prefs.setBool("crossfeedEnabled", false);
-      }
-      Channel.setVirtualizerMode(2); // BINAURAL
-      Channel.setVirtualizerStrength(_stereoWidth);
-      Channel.enableVirtualizer(true);
-    } else {
-      Channel.enableVirtualizer(_crossfeedEnabled);
+    Channel.dspSetStereoExpandEnabled(v);
+    if (v && _crossfeedEnabled) {
+      // Mutually exclusive — disable crossfeed
+      _crossfeedEnabled = false;
+      _prefs.setBool("crossfeedEnabled", false);
+      Channel.dspSetCrossfeedEnabled(false);
     }
     notifyListeners();
   }
 
-  int get stereoWidth => _stereoWidth;
-  set stereoWidth(int v) {
-    _prefs.setInt("stereoWidth", v);
+  double get stereoWidth => _stereoWidth;
+  set stereoWidth(double v) {
+    _prefs.setDouble("dspStereoWidth", v);
     _stereoWidth = v;
-    if (_stereoExpandEnabled) {
-      Channel.setVirtualizerStrength(v);
-    }
+    Channel.dspSetStereoWidth(v);
     notifyListeners();
   }
 
@@ -1168,71 +1114,71 @@ class AppController with ChangeNotifier {
   set crossfeedEnabled(bool v) {
     _prefs.setBool("crossfeedEnabled", v);
     _crossfeedEnabled = v;
-    if (v) {
-      // Disable stereo expand — they share the Virtualizer
-      if (_stereoExpandEnabled) {
-        _stereoExpandEnabled = false;
-        _prefs.setBool("stereoExpandEnabled", false);
-      }
-      Channel.setVirtualizerMode(3); // TRANSAURAL
-      Channel.setVirtualizerStrength(_crossfeedStrength);
-      Channel.enableVirtualizer(true);
-    } else {
-      Channel.enableVirtualizer(_stereoExpandEnabled);
+    Channel.dspSetCrossfeedEnabled(v);
+    if (v && _stereoExpandEnabled) {
+      // Mutually exclusive — disable stereo expand
+      _stereoExpandEnabled = false;
+      _prefs.setBool("stereoExpandEnabled", false);
+      Channel.dspSetStereoExpandEnabled(false);
     }
     notifyListeners();
   }
 
-  int get crossfeedStrength => _crossfeedStrength;
-  set crossfeedStrength(int v) {
-    _prefs.setInt("crossfeedStrength", v);
-    _crossfeedStrength = v;
-    if (_crossfeedEnabled) {
-      Channel.setVirtualizerStrength(v);
-    }
+  double get crossfeedCutoff => _crossfeedCutoff;
+  set crossfeedCutoff(double v) {
+    _prefs.setDouble("crossfeedCutoff", v);
+    _crossfeedCutoff = v;
+    Channel.dspSetCrossfeedParams(_crossfeedCutoff, _crossfeedFeed);
     notifyListeners();
   }
 
-  /// Applies all current reverb parameters to the native layer.
-  void _applyAllReverbParams() {
-    Channel.setDecayTime(_reverbDecayTime);
-    Channel.setRoomLevel(_reverbRoomLevel);
-    Channel.setRoomHFLevel(_reverbRoomHFLevel);
-    Channel.setDecayHFRatio(_reverbDecayHFRatio);
-    Channel.setReflectionsDelayLevel(_reverbReflectionsLevel);
-    Channel.setReflectionsDelay(_reverbReflectionsDelay);
-    Channel.setReverbLevel(_reverbLevel);
-    Channel.setReverbDelay(_reverbDelay);
-    Channel.setDensity(_reverbDensity);
-    Channel.setDiffusion(_reverbDiffusion);
+  double get crossfeedFeed => _crossfeedFeed;
+  set crossfeedFeed(double v) {
+    _prefs.setDouble("crossfeedFeed", v);
+    _crossfeedFeed = v;
+    Channel.dspSetCrossfeedParams(_crossfeedCutoff, _crossfeedFeed);
+    notifyListeners();
+  }
+
+  /// Applies all DSP room effects params to the native engine.
+  void _applyAllDspParams() {
+    Channel.dspSetReverbEnabled(_reverbEnabled);
+    Channel.dspSetRoomSize(_dspRoomSize);
+    Channel.dspSetDecay(_dspDecay);
+    Channel.dspSetDamping(_dspDamping);
+    Channel.dspSetPreDelay(_dspPreDelay);
+    Channel.dspSetDiffusion(_dspDiffusion);
+    Channel.dspSetReverbWetDry(_dspWetDry);
+    Channel.dspSetStereoExpandEnabled(_stereoExpandEnabled);
+    Channel.dspSetStereoWidth(_stereoWidth);
+    Channel.dspSetCrossfeedEnabled(_crossfeedEnabled);
+    Channel.dspSetCrossfeedParams(_crossfeedCutoff, _crossfeedFeed);
   }
 
   /// Applies a room preset, updating all parameters at once.
   void applyRoomPreset(RoomPreset preset) {
-    _reverbDecayTime = preset.decayTime;
-    _reverbRoomLevel = preset.roomLevel;
-    _reverbRoomHFLevel = preset.roomHFLevel;
-    _reverbDecayHFRatio = preset.decayHFRatio;
-    _reverbReflectionsLevel = preset.reflectionsLevel;
-    _reverbReflectionsDelay = preset.reflectionsDelay;
-    _reverbLevel = preset.reverbLevel;
-    _reverbDelay = preset.reverbDelay;
-    _reverbDensity = preset.density;
-    _reverbDiffusion = preset.diffusion;
+    _dspRoomSize = preset.roomSize;
+    _dspDecay = preset.decay;
+    _dspDamping = preset.damping;
+    _dspPreDelay = preset.preDelay;
+    _dspDiffusion = preset.diffusion;
+    _dspWetDry = preset.wetDry;
     _activeRoomPresetName = preset.name;
     // Persist all
-    _prefs.setInt("reverbDecayTime", _reverbDecayTime);
-    _prefs.setInt("reverbRoomLevel", _reverbRoomLevel);
-    _prefs.setInt("reverbRoomHFLevel", _reverbRoomHFLevel);
-    _prefs.setInt("reverbDecayHFRatio", _reverbDecayHFRatio);
-    _prefs.setInt("reverbReflectionsLevel", _reverbReflectionsLevel);
-    _prefs.setInt("reverbReflectionsDelay", _reverbReflectionsDelay);
-    _prefs.setInt("reverbLevel", _reverbLevel);
-    _prefs.setInt("reverbDelay", _reverbDelay);
-    _prefs.setInt("reverbDensity", _reverbDensity);
-    _prefs.setInt("reverbDiffusion", _reverbDiffusion);
+    _prefs.setDouble("dspRoomSize", _dspRoomSize);
+    _prefs.setDouble("dspDecay", _dspDecay);
+    _prefs.setDouble("dspDamping", _dspDamping);
+    _prefs.setDouble("dspPreDelay", _dspPreDelay);
+    _prefs.setDouble("dspDiffusion", _dspDiffusion);
+    _prefs.setDouble("dspWetDry", _dspWetDry);
     _prefs.setString("activeRoomPresetName", _activeRoomPresetName);
-    _applyAllReverbParams();
+    // Apply to native DSP
+    Channel.dspSetRoomSize(_dspRoomSize);
+    Channel.dspSetDecay(_dspDecay);
+    Channel.dspSetDamping(_dspDamping);
+    Channel.dspSetPreDelay(_dspPreDelay);
+    Channel.dspSetDiffusion(_dspDiffusion);
+    Channel.dspSetReverbWetDry(_dspWetDry);
     notifyListeners();
   }
 

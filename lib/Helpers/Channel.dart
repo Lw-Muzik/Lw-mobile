@@ -4,20 +4,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-enum PresetReverb {
-  SMALL_ROOM,
-  LARGE_ROOM,
-  PRESET_PLATE,
-  NONE,
-  MEDIUM_ROOM,
-  MEDIUM_HALL,
-  LARGE_HALL,
-  PRESET,
-  CONCERT,
-  SCENE,
-  PRESET_ARENA
-}
-
 class Channel {
   static MethodChannel channel = const MethodChannel("eq_app");
 
@@ -111,41 +97,6 @@ class Channel {
     await _invoke("setBassBoostStrength", {"strength": strength});
   }
 
-  /// Virtualizer
-  static void _initVirtualizer(int sessionId) async {
-    await _invoke("initVirtualizer", {"sessionId": sessionId});
-  }
-
-  static void enableVirtualizer(bool enable) async {
-    await _invoke("enableVirtualizer", {"enable": enable});
-  }
-
-  static Future<bool> getVirtualizerEnabled() async {
-    return await _invokeRequired<bool>("getVirtualEnabled", false);
-  }
-
-  static Future<int> forceVirtualization() async {
-    return await _invokeRequired<int>("forceVirtualization", 0);
-  }
-
-  static void setVirtualizerStrength(int strength) async {
-    await _invoke("setVirtualizerStrength", {"strength": strength});
-  }
-
-  static Future<int> getVirtualizerStrength() async {
-    return await _invokeRequired<int>("virtualizerStrength", 0);
-  }
-
-  /// Set virtualizer mode: 2=BINAURAL (stereo expand), 3=TRANSAURAL (crossfeed)
-  static void setVirtualizerMode(int mode) async {
-    await _invoke("setVirtualizerMode", {"mode": mode});
-  }
-
-  /// Get current virtualizer mode
-  static Future<int> getVirtualizerMode() async {
-    return await _invokeRequired<int>("getVirtualizerMode", 3);
-  }
-
   /// Loudness enhancer (session-aware init — used by both legacy and DVC)
   static void _initLoudnessEnhancer(int sessionId) async {
     await _invoke("initLoudnessEnhancer", {"sessionId": sessionId});
@@ -213,118 +164,61 @@ class Channel {
           .receiveBroadcastStream()
           .map((event) => event.toString());
 
-  // Reverb effects
-  static void _initReverb(int sessionId) async {
-    await _invoke("initReverb", {"sessionId": sessionId});
+  // ==================== Custom DSP Room Effects ====================
+
+  /// Enable/disable FDN reverb
+  static Future<void> dspSetReverbEnabled(bool enabled) async {
+    await _invoke("dspSetReverbEnabled", {"enabled": enabled});
   }
 
-  /// Turns on the reverb effect
-  static void enableReverb(bool enable) async {
-    await _invoke("enableRoomEffects", {"enableEffects": enable});
+  /// Room size (0.0 - 1.0) — scales delay line lengths
+  static Future<void> dspSetRoomSize(double value) async {
+    await _invoke("dspSetRoomSize", {"value": value});
   }
 
-  /// Check if reverb is enabled
-  static Future<bool> isReverbEnabled() async {
-    return await _invokeRequired<bool>("isEffectEnabled", false);
+  /// Decay (0.0 - 1.0) — maps to RT60 (0.1s - 15s)
+  static Future<void> dspSetDecay(double value) async {
+    await _invoke("dspSetDecay", {"value": value});
   }
 
-  /// The valid range is [100, 20000].
-  static void setDecayTime(int decayTime) async {
-    await _invoke("setDecayTime", {"decayTime": decayTime});
+  /// Damping (0.0 - 1.0) — feedback lowpass (0=bright, 1=dark)
+  static Future<void> dspSetDamping(double value) async {
+    await _invoke("dspSetDamping", {"value": value});
   }
 
-  /// The valid range is [100, 20000].
-  static Future<int> getDecayTime() async {
-    return await _invokeRequired<int>("getDecayTime", 0);
+  /// Pre-delay in ms (0 - 200)
+  static Future<void> dspSetPreDelay(double ms) async {
+    await _invoke("dspSetPreDelay", {"value": ms});
   }
 
-  /// The valid range is [0, 1000].
-  static void setDensity(int density) async {
-    await _invoke("setDensity", {"density": density});
+  /// Diffusion (0.0 - 1.0) — echo density
+  static Future<void> dspSetDiffusion(double value) async {
+    await _invoke("dspSetDiffusion", {"value": value});
   }
 
-  /// The valid range is [0, 1000].
-  static Future<int> getDensity() async {
-    return await _invokeRequired<int>("getDensity", 0);
+  /// Reverb wet/dry mix (0.0 - 1.0)
+  static Future<void> dspSetReverbWetDry(double value) async {
+    await _invoke("dspSetReverbWetDry", {"value": value});
   }
 
-  /// The diffusion valid range is [0, 1000]
-  static void setDiffusion(int diffusion) async {
-    await _invoke("setDiffusion", {"diffusion": diffusion});
+  /// Enable/disable M/S stereo expansion
+  static Future<void> dspSetStereoExpandEnabled(bool enabled) async {
+    await _invoke("dspSetStereoExpandEnabled", {"enabled": enabled});
   }
 
-  /// The diffusion valid range is [0, 1000]
-  static Future<int> getDiffusion() async {
-    return await _invokeRequired<int>("getDiffusion", 0);
+  /// Stereo width (0.0 = mono, 1.0 = normal, 2.0 = max expansion)
+  static Future<void> dspSetStereoWidth(double value) async {
+    await _invoke("dspSetStereoWidth", {"value": value});
   }
 
-  /// Reflects delay valid range is [0, 300].
-  static void setReflectionsDelay(int reflectionsDelay) async {
-    await _invoke("setReflectionsDelay", {"reflectionsDelay": reflectionsDelay});
+  /// Enable/disable BS2B crossfeed
+  static Future<void> dspSetCrossfeedEnabled(bool enabled) async {
+    await _invoke("dspSetCrossfeedEnabled", {"enabled": enabled});
   }
 
-  /// Reflects delay valid range is [0, 300].
-  static Future<int> getReflectionsDelay() async {
-    return await _invokeRequired<int>("getReflectionsDelay", 0);
-  }
-
-  /// Reverb delay valid range is [0, 100].
-  static void setReverbDelay(int reverbDelay) async {
-    await _invoke("setReverbDelay", {"reverbDelay": reverbDelay});
-  }
-
-  /// Reverb delay valid range is [0, 100].
-  static Future<int> getReverbDelay() async {
-    return await _invokeRequired<int>("getReverbDelay", 0);
-  }
-
-  /// Reverb level valid range is [-9000, 2000].
-  static void setReverbLevel(int reverbLevel) async {
-    await _invoke("setReverbLevel", {"reverbLevel": reverbLevel});
-  }
-
-  static Future<int> getReverbLevel() async {
-    return await _invokeRequired<int>("getReverbLevel", 0);
-  }
-
-  /// Room level valid range is [-9000, 0]. Master knob for reverb.
-  static void setRoomLevel(int roomLevel) async {
-    await _invoke("setRoomLevel", {"roomLevel": roomLevel});
-  }
-
-  /// Room level valid range is [-9000, 0]. Master knob for reverb.
-  static Future<int> getRoomLevel() async {
-    return await _invokeRequired<int>("getRoomLevel", 0);
-  }
-
-  /// Room HF level valid range is [-9000, 0].
-  static void setRoomHFLevel(int roomHFLevel) async {
-    await _invoke("setRoomHFLevel", {"roomHFLevel": roomHFLevel});
-  }
-
-  /// Room HF level valid range is [-9000, 0].
-  static Future<int> getRoomHFLevel() async {
-    return await _invokeRequired<int>("getRoomHFLevel", 0);
-  }
-
-  /// Decay HF ratio valid range is [100, 2000].
-  static void setDecayHFRatio(int decayHFLevel) async {
-    await _invoke("setDecayHFRatio", {"decayHFRatio": decayHFLevel});
-  }
-
-  /// Decay HF ratio valid range is [100, 2000].
-  static Future<int> getDecayHFRatio() async {
-    return await _invokeRequired<int>("getDecayHFRatio", 0);
-  }
-
-  /// Reflections level valid range is [-9000, 1000]
-  static void setReflectionsDelayLevel(int reflectionsLevel) async {
-    await _invoke("setReflectionsLevel", {"reflectionsLevel": reflectionsLevel});
-  }
-
-  /// Reflections level valid range is [-9000, 1000]
-  static Future<int> getReflectionsLevel() async {
-    return await _invokeRequired<int>("getReflectionsLevel", 0);
+  /// Set crossfeed filter params (cutoffHz: 100-2000, feedLevelDb: 1-15)
+  static Future<void> dspSetCrossfeedParams(double cutoffHz, double feedLevelDb) async {
+    await _invoke("dspSetCrossfeedParams", {"cutoff": cutoffHz, "feed": feedLevelDb});
   }
 
   /// Initialize DSP engine
@@ -389,45 +283,12 @@ class Channel {
     await _invoke("disposeDSP");
   }
 
-  static void _initPresetReverb(int sessionId) async {
-    await _invoke("initPresetReverb", {"priorityId": sessionId});
-  }
-
-  static Future<int> enablePresetReverb(bool enable) async {
-    return await _invokeRequired<int>("enablePresetReverb", 0, {"enablePreset": enable});
-  }
-
   static void setCutOffFreq(int freq) async {
     await _invoke("setCutOffFreq", {"tunerBassFreq": freq});
   }
 
   static Future<double> getVocalLevel() async {
     return await _invokeRequired<double>("getVocalLevel", 0.0);
-  }
-
-  static void setReverbPreset(PresetReverb preset) async {
-    final presetMap = {
-      PresetReverb.NONE: 0,
-      PresetReverb.SMALL_ROOM: 1,
-      PresetReverb.MEDIUM_ROOM: 2,
-      PresetReverb.LARGE_ROOM: 3,
-      PresetReverb.MEDIUM_HALL: 4,
-      PresetReverb.LARGE_HALL: 5,
-      PresetReverb.PRESET_PLATE: 6,
-      PresetReverb.CONCERT: 7,
-      PresetReverb.SCENE: 8,
-      PresetReverb.PRESET_ARENA: 9,
-      PresetReverb.PRESET: 0,
-    };
-    await _invoke("chooseEffectPreset", {"effectPreset": presetMap[preset] ?? 0});
-  }
-
-  static Future<bool> isAndroid11() async {
-    return await _invokeRequired<bool>("isAndroid11", false);
-  }
-
-  static Future<int> getReverbPreset() async {
-    return await _invokeRequired<int>("getReverbPreset", 0);
   }
 
   static void deleteManager(String path) async {
@@ -496,10 +357,7 @@ class Channel {
   }
 
   static void setSessionId(int sessionId) async {
-    _initVirtualizer(sessionId);
-    _initReverb(sessionId);
     _initDSPEngine(sessionId);
-    _initPresetReverb(sessionId);
     _initLoudnessEnhancer(sessionId);
     // "init" still routes to DSPEngine on native side (CustomEq removed)
     await _invoke("init", {"sessionId": sessionId});

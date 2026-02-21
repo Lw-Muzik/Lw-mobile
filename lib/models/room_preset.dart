@@ -2,57 +2,41 @@ import 'dart:convert';
 
 class RoomPreset {
   final String name;
-  final int decayTime;        // 100-20000 ms
-  final int roomLevel;        // -9000..0 mB
-  final int roomHFLevel;      // -9000..0 mB
-  final int decayHFRatio;     // 100-2000
-  final int reflectionsLevel; // -9000..1000 mB
-  final int reflectionsDelay; // 0-300 ms
-  final int reverbLevel;      // -9000..2000 mB
-  final int reverbDelay;      // 0-100 ms
-  final int density;          // 0-1000
-  final int diffusion;        // 0-1000
+  final double roomSize;    // 0.0 - 1.0 (scales delay lengths)
+  final double decay;       // 0.0 - 1.0 (maps to RT60: 0.1s - 15s)
+  final double damping;     // 0.0 - 1.0 (0=bright, 1=dark)
+  final double preDelay;    // 0 - 200 ms
+  final double diffusion;   // 0.0 - 1.0 (echo density)
+  final double wetDry;      // 0.0 - 1.0 (0=dry, 1=fully wet)
 
   const RoomPreset({
     required this.name,
-    required this.decayTime,
-    required this.roomLevel,
-    required this.roomHFLevel,
-    required this.decayHFRatio,
-    required this.reflectionsLevel,
-    required this.reflectionsDelay,
-    required this.reverbLevel,
-    required this.reverbDelay,
-    required this.density,
+    required this.roomSize,
+    required this.decay,
+    required this.damping,
+    required this.preDelay,
     required this.diffusion,
+    required this.wetDry,
   });
 
   Map<String, dynamic> toJson() => {
     'name': name,
-    'decayTime': decayTime,
-    'roomLevel': roomLevel,
-    'roomHFLevel': roomHFLevel,
-    'decayHFRatio': decayHFRatio,
-    'reflectionsLevel': reflectionsLevel,
-    'reflectionsDelay': reflectionsDelay,
-    'reverbLevel': reverbLevel,
-    'reverbDelay': reverbDelay,
-    'density': density,
+    'roomSize': roomSize,
+    'decay': decay,
+    'damping': damping,
+    'preDelay': preDelay,
     'diffusion': diffusion,
+    'wetDry': wetDry,
   };
 
   factory RoomPreset.fromJson(Map<String, dynamic> j) => RoomPreset(
     name: j['name'] as String,
-    decayTime: j['decayTime'] as int,
-    roomLevel: j['roomLevel'] as int,
-    roomHFLevel: j['roomHFLevel'] as int,
-    decayHFRatio: j['decayHFRatio'] as int,
-    reflectionsLevel: j['reflectionsLevel'] as int,
-    reflectionsDelay: j['reflectionsDelay'] as int,
-    reverbLevel: j['reverbLevel'] as int,
-    reverbDelay: j['reverbDelay'] as int,
-    density: j['density'] as int,
-    diffusion: j['diffusion'] as int,
+    roomSize: (j['roomSize'] as num).toDouble(),
+    decay: (j['decay'] as num).toDouble(),
+    damping: (j['damping'] as num).toDouble(),
+    preDelay: (j['preDelay'] as num).toDouble(),
+    diffusion: (j['diffusion'] as num).toDouble(),
+    wetDry: (j['wetDry'] as num).toDouble(),
   );
 
   static String encodeList(List<RoomPreset> presets) =>
@@ -63,150 +47,18 @@ class RoomPreset {
           .map((e) => RoomPreset.fromJson(e as Map<String, dynamic>))
           .toList();
 
-  /// Built-in presets with professionally tuned parameters.
+  /// Built-in presets tuned for the FDN reverb engine.
   static const List<RoomPreset> builtIn = [
-    RoomPreset(
-      name: 'Off',
-      decayTime: 100,
-      roomLevel: -9000,
-      roomHFLevel: 0,
-      decayHFRatio: 1000,
-      reflectionsLevel: -9000,
-      reflectionsDelay: 0,
-      reverbLevel: -9000,
-      reverbDelay: 0,
-      density: 0,
-      diffusion: 0,
-    ),
-    RoomPreset(
-      name: 'Small Room',
-      decayTime: 800,
-      roomLevel: -1200,
-      roomHFLevel: -600,
-      decayHFRatio: 830,
-      reflectionsLevel: -200,
-      reflectionsDelay: 5,
-      reverbLevel: -400,
-      reverbDelay: 10,
-      density: 800,
-      diffusion: 900,
-    ),
-    RoomPreset(
-      name: 'Medium Room',
-      decayTime: 1500,
-      roomLevel: -1000,
-      roomHFLevel: -450,
-      decayHFRatio: 750,
-      reflectionsLevel: -350,
-      reflectionsDelay: 10,
-      reverbLevel: -200,
-      reverbDelay: 20,
-      density: 850,
-      diffusion: 850,
-    ),
-    RoomPreset(
-      name: 'Large Room',
-      decayTime: 2800,
-      roomLevel: -800,
-      roomHFLevel: -400,
-      decayHFRatio: 650,
-      reflectionsLevel: -500,
-      reflectionsDelay: 20,
-      reverbLevel: -100,
-      reverbDelay: 30,
-      density: 900,
-      diffusion: 800,
-    ),
-    RoomPreset(
-      name: 'Hall',
-      decayTime: 4500,
-      roomLevel: -600,
-      roomHFLevel: -500,
-      decayHFRatio: 600,
-      reflectionsLevel: -600,
-      reflectionsDelay: 30,
-      reverbLevel: 0,
-      reverbDelay: 40,
-      density: 950,
-      diffusion: 900,
-    ),
-    RoomPreset(
-      name: 'Cathedral',
-      decayTime: 8000,
-      roomLevel: -400,
-      roomHFLevel: -700,
-      decayHFRatio: 450,
-      reflectionsLevel: -800,
-      reflectionsDelay: 50,
-      reverbLevel: 200,
-      reverbDelay: 60,
-      density: 1000,
-      diffusion: 1000,
-    ),
-    RoomPreset(
-      name: 'Plate',
-      decayTime: 1200,
-      roomLevel: -500,
-      roomHFLevel: -100,
-      decayHFRatio: 1500,
-      reflectionsLevel: -100,
-      reflectionsDelay: 2,
-      reverbLevel: 0,
-      reverbDelay: 5,
-      density: 1000,
-      diffusion: 1000,
-    ),
-    RoomPreset(
-      name: 'Studio',
-      decayTime: 600,
-      roomLevel: -1500,
-      roomHFLevel: -300,
-      decayHFRatio: 900,
-      reflectionsLevel: -300,
-      reflectionsDelay: 3,
-      reverbLevel: -600,
-      reverbDelay: 8,
-      density: 700,
-      diffusion: 950,
-    ),
-    RoomPreset(
-      name: 'Chamber',
-      decayTime: 2200,
-      roomLevel: -900,
-      roomHFLevel: -350,
-      decayHFRatio: 700,
-      reflectionsLevel: -400,
-      reflectionsDelay: 15,
-      reverbLevel: -150,
-      reverbDelay: 25,
-      density: 880,
-      diffusion: 870,
-    ),
-    RoomPreset(
-      name: 'Arena',
-      decayTime: 12000,
-      roomLevel: -300,
-      roomHFLevel: -800,
-      decayHFRatio: 400,
-      reflectionsLevel: -900,
-      reflectionsDelay: 80,
-      reverbLevel: 400,
-      reverbDelay: 80,
-      density: 1000,
-      diffusion: 950,
-    ),
-    RoomPreset(
-      name: 'Concert',
-      decayTime: 6000,
-      roomLevel: -500,
-      roomHFLevel: -600,
-      decayHFRatio: 550,
-      reflectionsLevel: -700,
-      reflectionsDelay: 40,
-      reverbLevel: 100,
-      reverbDelay: 50,
-      density: 970,
-      diffusion: 950,
-    ),
+    RoomPreset(name: 'Off',         roomSize: 0.0,  decay: 0.0,  damping: 0.0,  preDelay: 0,   diffusion: 0.0,  wetDry: 0.0),
+    RoomPreset(name: 'Small Room',  roomSize: 0.2,  decay: 0.15, damping: 0.5,  preDelay: 3,   diffusion: 0.8,  wetDry: 0.2),
+    RoomPreset(name: 'Medium Room', roomSize: 0.4,  decay: 0.3,  damping: 0.4,  preDelay: 8,   diffusion: 0.75, wetDry: 0.25),
+    RoomPreset(name: 'Large Room',  roomSize: 0.6,  decay: 0.45, damping: 0.35, preDelay: 15,  diffusion: 0.7,  wetDry: 0.3),
+    RoomPreset(name: 'Hall',        roomSize: 0.75, decay: 0.55, damping: 0.3,  preDelay: 25,  diffusion: 0.8,  wetDry: 0.35),
+    RoomPreset(name: 'Cathedral',   roomSize: 0.9,  decay: 0.75, damping: 0.45, preDelay: 40,  diffusion: 0.9,  wetDry: 0.35),
+    RoomPreset(name: 'Plate',       roomSize: 0.3,  decay: 0.35, damping: 0.1,  preDelay: 2,   diffusion: 1.0,  wetDry: 0.3),
+    RoomPreset(name: 'Studio',      roomSize: 0.15, decay: 0.1,  damping: 0.55, preDelay: 2,   diffusion: 0.85, wetDry: 0.15),
+    RoomPreset(name: 'Chamber',     roomSize: 0.45, decay: 0.35, damping: 0.35, preDelay: 12,  diffusion: 0.75, wetDry: 0.25),
+    RoomPreset(name: 'Arena',       roomSize: 1.0,  decay: 0.85, damping: 0.5,  preDelay: 60,  diffusion: 0.85, wetDry: 0.3),
+    RoomPreset(name: 'Concert',     roomSize: 0.8,  decay: 0.65, damping: 0.35, preDelay: 35,  diffusion: 0.85, wetDry: 0.3),
   ];
 }

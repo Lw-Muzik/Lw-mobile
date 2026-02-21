@@ -48,12 +48,26 @@ class _SpaceViewState extends State<SpaceView> {
                   label: "Room Size",
                   leftLabel: "Tiny",
                   rightLabel: "Cathedral",
-                  value: controller.reverbDecayTime.toDouble(),
-                  min: 100,
-                  max: 20000,
-                  displayValue: "${(controller.reverbDecayTime / 1000).toStringAsFixed(1)}s",
+                  value: controller.dspRoomSize,
+                  min: 0.0,
+                  max: 1.0,
+                  displayValue: "${(controller.dspRoomSize * 100).toStringAsFixed(0)}%",
                   onChanged: (v) {
-                    controller.reverbDecayTime = v.toInt();
+                    controller.dspRoomSize = v;
+                    _markCustomPreset(controller);
+                  },
+                ),
+                _buildReverbSlider(
+                  context,
+                  label: "Decay",
+                  leftLabel: "Short",
+                  rightLabel: "Long",
+                  value: controller.dspDecay,
+                  min: 0.0,
+                  max: 1.0,
+                  displayValue: "${(controller.dspDecay * 100).toStringAsFixed(0)}%",
+                  onChanged: (v) {
+                    controller.dspDecay = v;
                     _markCustomPreset(controller);
                   },
                 ),
@@ -61,27 +75,13 @@ class _SpaceViewState extends State<SpaceView> {
                   context,
                   label: "Damping",
                   leftLabel: "Bright",
-                  rightLabel: "Warm",
-                  value: controller.reverbDecayHFRatio.toDouble(),
-                  min: 100,
-                  max: 2000,
-                  displayValue: "${(controller.reverbDecayHFRatio / 10).toStringAsFixed(0)}%",
+                  rightLabel: "Dark",
+                  value: controller.dspDamping,
+                  min: 0.0,
+                  max: 1.0,
+                  displayValue: "${(controller.dspDamping * 100).toStringAsFixed(0)}%",
                   onChanged: (v) {
-                    controller.reverbDecayHFRatio = v.toInt();
-                    _markCustomPreset(controller);
-                  },
-                ),
-                _buildReverbSlider(
-                  context,
-                  label: "Wet Level",
-                  leftLabel: "Dry",
-                  rightLabel: "Wet",
-                  value: controller.reverbLevel.toDouble(),
-                  min: -9000,
-                  max: 2000,
-                  displayValue: "${(controller.reverbLevel / 100).toStringAsFixed(1)} dB",
-                  onChanged: (v) {
-                    controller.reverbLevel = v.toInt();
+                    controller.dspDamping = v;
                     _markCustomPreset(controller);
                   },
                 ),
@@ -89,41 +89,41 @@ class _SpaceViewState extends State<SpaceView> {
                   context,
                   label: "Pre-Delay",
                   leftLabel: "0 ms",
-                  rightLabel: "300 ms",
-                  value: controller.reverbReflectionsDelay.toDouble(),
-                  min: 0,
-                  max: 300,
-                  displayValue: "${controller.reverbReflectionsDelay} ms",
+                  rightLabel: "200 ms",
+                  value: controller.dspPreDelay,
+                  min: 0.0,
+                  max: 200.0,
+                  displayValue: "${controller.dspPreDelay.toStringAsFixed(0)} ms",
                   onChanged: (v) {
-                    controller.reverbReflectionsDelay = v.toInt();
-                    _markCustomPreset(controller);
-                  },
-                ),
-                _buildReverbSlider(
-                  context,
-                  label: "Density",
-                  leftLabel: "Sparse",
-                  rightLabel: "Dense",
-                  value: controller.reverbDensity.toDouble(),
-                  min: 0,
-                  max: 1000,
-                  displayValue: "${(controller.reverbDensity / 10).toStringAsFixed(0)}%",
-                  onChanged: (v) {
-                    controller.reverbDensity = v.toInt();
+                    controller.dspPreDelay = v;
                     _markCustomPreset(controller);
                   },
                 ),
                 _buildReverbSlider(
                   context,
                   label: "Diffusion",
-                  leftLabel: "Focused",
-                  rightLabel: "Diffuse",
-                  value: controller.reverbDiffusion.toDouble(),
-                  min: 0,
-                  max: 1000,
-                  displayValue: "${(controller.reverbDiffusion / 10).toStringAsFixed(0)}%",
+                  leftLabel: "Sparse",
+                  rightLabel: "Dense",
+                  value: controller.dspDiffusion,
+                  min: 0.0,
+                  max: 1.0,
+                  displayValue: "${(controller.dspDiffusion * 100).toStringAsFixed(0)}%",
                   onChanged: (v) {
-                    controller.reverbDiffusion = v.toInt();
+                    controller.dspDiffusion = v;
+                    _markCustomPreset(controller);
+                  },
+                ),
+                _buildReverbSlider(
+                  context,
+                  label: "Wet/Dry",
+                  leftLabel: "Dry",
+                  rightLabel: "Wet",
+                  value: controller.dspWetDry,
+                  min: 0.0,
+                  max: 1.0,
+                  displayValue: "${(controller.dspWetDry * 100).toStringAsFixed(0)}%",
+                  onChanged: (v) {
+                    controller.dspWetDry = v;
                     _markCustomPreset(controller);
                   },
                 ),
@@ -145,7 +145,7 @@ class _SpaceViewState extends State<SpaceView> {
                 title: const Text("Stereo Expand"),
                 subtitle: Text(
                   controller.stereoExpandEnabled
-                      ? "${(controller.stereoWidth / 10).toStringAsFixed(0)}% width"
+                      ? _stereoWidthLabel(controller.stereoWidth)
                       : "Disabled",
                 ),
                 value: controller.stereoExpandEnabled,
@@ -161,17 +161,17 @@ class _SpaceViewState extends State<SpaceView> {
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: Row(
                     children: [
-                      Text("Narrow", style: theme.textTheme.bodySmall?.copyWith(
+                      Text("Mono", style: theme.textTheme.bodySmall?.copyWith(
                         color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
                       )),
                       Expanded(
                         child: Slider(
-                          value: controller.stereoWidth.toDouble(),
-                          min: 0,
-                          max: 1000,
-                          divisions: 100,
-                          label: "${(controller.stereoWidth / 10).toStringAsFixed(0)}%",
-                          onChanged: (v) => controller.stereoWidth = v.toInt(),
+                          value: controller.stereoWidth,
+                          min: 0.0,
+                          max: 2.0,
+                          divisions: 40,
+                          label: _stereoWidthLabel(controller.stereoWidth),
+                          onChanged: (v) => controller.stereoWidth = v,
                         ),
                       ),
                       Text("Wide", style: theme.textTheme.bodySmall?.copyWith(
@@ -182,7 +182,7 @@ class _SpaceViewState extends State<SpaceView> {
                 ),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                  child: _StereoFieldIndicator(width: controller.stereoWidth / 1000),
+                  child: _StereoFieldIndicator(width: controller.stereoWidth / 2.0),
                 ),
               ],
             ],
@@ -202,7 +202,7 @@ class _SpaceViewState extends State<SpaceView> {
                 title: const Text("Crossfeed"),
                 subtitle: Text(
                   controller.crossfeedEnabled
-                      ? _crossfeedLabel(controller.crossfeedStrength)
+                      ? _crossfeedLabel(controller.crossfeedFeed)
                       : "Disabled",
                 ),
                 value: controller.crossfeedEnabled,
@@ -221,41 +221,61 @@ class _SpaceViewState extends State<SpaceView> {
                     children: [
                       _CrossfeedPresetChip(
                         label: "Light",
-                        value: 300,
-                        current: controller.crossfeedStrength,
-                        onTap: () => controller.crossfeedStrength = 300,
+                        cutoff: 700, feed: 4.5,
+                        currentFeed: controller.crossfeedFeed,
+                        onTap: () {
+                          controller.crossfeedCutoff = 700;
+                          controller.crossfeedFeed = 4.5;
+                        },
                       ),
                       _CrossfeedPresetChip(
                         label: "Normal",
-                        value: 600,
-                        current: controller.crossfeedStrength,
-                        onTap: () => controller.crossfeedStrength = 600,
+                        cutoff: 700, feed: 6.0,
+                        currentFeed: controller.crossfeedFeed,
+                        onTap: () {
+                          controller.crossfeedCutoff = 700;
+                          controller.crossfeedFeed = 6.0;
+                        },
                       ),
                       _CrossfeedPresetChip(
                         label: "Strong",
-                        value: 900,
-                        current: controller.crossfeedStrength,
-                        onTap: () => controller.crossfeedStrength = 900,
+                        cutoff: 650, feed: 9.5,
+                        currentFeed: controller.crossfeedFeed,
+                        onTap: () {
+                          controller.crossfeedCutoff = 650;
+                          controller.crossfeedFeed = 9.5;
+                        },
                       ),
                     ],
                   ),
                 ),
                 const SizedBox(height: 8),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Slider(
-                    value: controller.crossfeedStrength.toDouble(),
-                    min: 0,
-                    max: 1000,
-                    divisions: 100,
-                    label: "${(controller.crossfeedStrength / 10).toStringAsFixed(0)}%",
-                    onChanged: (v) => controller.crossfeedStrength = v.toInt(),
-                  ),
+                _buildReverbSlider(
+                  context,
+                  label: "Feed Level",
+                  leftLabel: "Subtle",
+                  rightLabel: "Strong",
+                  value: controller.crossfeedFeed,
+                  min: 1.0,
+                  max: 15.0,
+                  displayValue: "${controller.crossfeedFeed.toStringAsFixed(1)} dB",
+                  onChanged: (v) => controller.crossfeedFeed = v,
+                ),
+                _buildReverbSlider(
+                  context,
+                  label: "Cutoff",
+                  leftLabel: "100 Hz",
+                  rightLabel: "2000 Hz",
+                  value: controller.crossfeedCutoff,
+                  min: 100.0,
+                  max: 2000.0,
+                  displayValue: "${controller.crossfeedCutoff.toStringAsFixed(0)} Hz",
+                  onChanged: (v) => controller.crossfeedCutoff = v,
                 ),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
                   child: Text(
-                    "Crossfeed blends a portion of each stereo channel into the other, "
+                    "Crossfeed blends a filtered portion of each stereo channel into the other, "
                     "reducing the exaggerated separation heard in headphones for a more "
                     "natural, speaker-like presentation.",
                     style: theme.textTheme.bodySmall?.copyWith(
@@ -364,19 +384,14 @@ class _SpaceViewState extends State<SpaceView> {
   }
 
   void _markCustomPreset(AppController controller) {
-    // When user manually adjusts a slider, check if it still matches any preset
     final presets = RoomPreset.builtIn;
     for (final p in presets) {
-      if (p.decayTime == controller.reverbDecayTime &&
-          p.roomLevel == controller.reverbRoomLevel &&
-          p.roomHFLevel == controller.reverbRoomHFLevel &&
-          p.decayHFRatio == controller.reverbDecayHFRatio &&
-          p.reflectionsLevel == controller.reverbReflectionsLevel &&
-          p.reflectionsDelay == controller.reverbReflectionsDelay &&
-          p.reverbLevel == controller.reverbLevel &&
-          p.reverbDelay == controller.reverbDelay &&
-          p.density == controller.reverbDensity &&
-          p.diffusion == controller.reverbDiffusion) {
+      if ((p.roomSize - controller.dspRoomSize).abs() < 0.01 &&
+          (p.decay - controller.dspDecay).abs() < 0.01 &&
+          (p.damping - controller.dspDamping).abs() < 0.01 &&
+          (p.preDelay - controller.dspPreDelay).abs() < 0.5 &&
+          (p.diffusion - controller.dspDiffusion).abs() < 0.01 &&
+          (p.wetDry - controller.dspWetDry).abs() < 0.01) {
         controller.activeRoomPresetName = p.name;
         return;
       }
@@ -384,10 +399,18 @@ class _SpaceViewState extends State<SpaceView> {
     controller.activeRoomPresetName = 'Custom';
   }
 
-  String _crossfeedLabel(int strength) {
-    if (strength <= 200) return "Very Light";
-    if (strength <= 400) return "Light";
-    if (strength <= 700) return "Normal";
+  String _stereoWidthLabel(double width) {
+    if (width < 0.1) return "Mono";
+    if (width < 0.5) return "Narrow";
+    if (width < 1.1) return "Normal";
+    if (width < 1.5) return "Wide";
+    return "Extra Wide";
+  }
+
+  String _crossfeedLabel(double feedDb) {
+    if (feedDb < 3.0) return "Very Light";
+    if (feedDb < 5.5) return "Light";
+    if (feedDb < 8.0) return "Normal";
     return "Strong";
   }
 
@@ -449,7 +472,6 @@ class _StereoFieldPainter extends CustomPainter {
     final centerX = size.width / 2;
     final centerY = size.height / 2;
 
-    // Background bar
     canvas.drawRRect(
       RRect.fromRectAndRadius(
         Rect.fromLTWH(0, centerY - 4, size.width, 8),
@@ -458,7 +480,6 @@ class _StereoFieldPainter extends CustomPainter {
       bgPaint,
     );
 
-    // Active stereo field region
     final spread = (size.width / 2) * width.clamp(0.0, 1.0);
     canvas.drawRRect(
       RRect.fromRectAndRadius(
@@ -468,7 +489,6 @@ class _StereoFieldPainter extends CustomPainter {
       fgPaint,
     );
 
-    // L / R labels
     final textStyle = TextStyle(
       color: color,
       fontSize: 10,
@@ -492,24 +512,26 @@ class _StereoFieldPainter extends CustomPainter {
       old.width != width || old.color != color;
 }
 
-/// Crossfeed intensity preset chip.
+/// Crossfeed intensity preset chip (BS2B standard presets).
 class _CrossfeedPresetChip extends StatelessWidget {
   final String label;
-  final int value;
-  final int current;
+  final double cutoff;
+  final double feed;
+  final double currentFeed;
   final VoidCallback onTap;
 
   const _CrossfeedPresetChip({
     required this.label,
-    required this.value,
-    required this.current,
+    required this.cutoff,
+    required this.feed,
+    required this.currentFeed,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isSelected = (current - value).abs() < 50;
+    final isSelected = (currentFeed - feed).abs() < 0.3;
     return ActionChip(
       label: Text(label),
       onPressed: onTap,

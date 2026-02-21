@@ -31,7 +31,6 @@ public class MainActivity extends AudioServiceFragmentActivity {
     // }
 
     private static final String CHANNEL = "eq_app";
-    final RoomEffects effects = new RoomEffects();
     private final AudioVisualizer visualizer = AudioVisualizer.getInstance();
     private MethodChannel visualizerChannel; // Define the MethodChannel here
 
@@ -40,6 +39,8 @@ public class MainActivity extends AudioServiceFragmentActivity {
         EdgeToEdge.enable(this);
         super.onCreate(savedInstance);
         new HeadphoneService();
+        // Initialize RoomEffectsProcessor singleton so just_audio can discover it
+        RoomEffectsProcessor.getInstance();
     }
 
     @Override
@@ -170,43 +171,6 @@ public class MainActivity extends AudioServiceFragmentActivity {
                             result.success(mbcOn);
                             break;
 
-                        // virtualizer
-                        case "initVirtualizer":
-
-                            VirtualizedControl.initVirtualizer(AudioManager.AUDIO_SESSION_ID_GENERATE);
-                            break;
-
-                        case "enableVirtualizer":
-                            boolean enableV = call.argument("enable");
-                            VirtualizedControl.enable(enableV);
-                            break;
-                        case "getVirtualEnabled":
-                            boolean virtualEnabled = VirtualizedControl.getVirtualEnabled();
-                            result.success(virtualEnabled);
-                            break;
-
-                        case "virtualizerStrength":
-                            int strength = VirtualizedControl.getStrength();
-                            result.success(strength);
-                            break;
-
-                        case "setVirtualizerStrength":
-                            int strengthV = call.argument("strength");
-                            VirtualizedControl.setStrength(strengthV);
-                            break;
-                        case "forceVirtualization":
-                            result.success(VirtualizedControl.forceVirtualizationEnabled());
-                            break;
-
-                        case "setVirtualizerMode":
-                            int vMode = call.argument("mode");
-                            VirtualizedControl.setMode(vMode);
-                            result.success(null);
-                            break;
-                        case "getVirtualizerMode":
-                            result.success(VirtualizedControl.getMode());
-                            break;
-
                         // bassboost
                         case "initBassBoost":
 
@@ -280,120 +244,6 @@ public class MainActivity extends AudioServiceFragmentActivity {
                             result.success(DvcController.getMaxVolume());
                             break;
 
-                        // reverb
-                        case "initReverb":
-                            int sessionIdR = call.argument("sessionId");
-                            ReverbControl.init(sessionIdR);
-                            break;
-
-                        case "enableReverb":
-                            boolean enableR = call.argument("enableReverb");
-                            ReverbControl.enable(enableR);
-                            break;
-                        case "isReverbEnabled":
-                            boolean isReverbEnabled = ReverbControl.isEnabled();
-                            result.success(isReverbEnabled);
-                            break;
-
-                        case "setDecayTime":
-                            int strengthRR = call.argument("decayTime");
-                            ReverbControl.setDecayTime(strengthRR);
-                            break;
-
-                        case "getDecayTime":
-                            int decayTime = ReverbControl.getDecayTime();
-                            result.success(decayTime);
-                            break;
-
-                        case "setDensity":
-                            int density = call.argument("density");
-                            ReverbControl.setDensity(density);
-                            break;
-
-                        case "getDensity":
-                            int gDensity = ReverbControl.getDensity();
-                            result.success(gDensity);
-                            break;
-
-                        case "setDiffusion":
-                            int diffusion = call.argument("diffusion");
-                            ReverbControl.setDiffusion(diffusion);
-                            break;
-
-                        case "getDiffusion":
-                            int getDiffusion = ReverbControl.getDiffusion();
-                            result.success(getDiffusion);
-                            break;
-
-                        case "setReflectionsDelay":
-                            int reflectionsDelay = call.argument("reflectionsDelay");
-                            ReverbControl.setReflectionsDelay(reflectionsDelay);
-                            break;
-
-                        case "getReflectionsDelay":
-                            int getReflectionsDelay = ReverbControl.getReflectionsDelay();
-                            result.success(getReflectionsDelay);
-                            break;
-
-                        case "setReflectionsLevel":
-                            int reflectionsLevel = call.argument("reflectionsLevel");
-                            ReverbControl.setReflectionsLevel(reflectionsLevel);
-                            break;
-
-                        case "getReflectionsLevel":
-                            int getReflectionsLevel = ReverbControl.getReflectionsLevel();
-                            result.success(getReflectionsLevel);
-                            break;
-
-                        case "setReverbDelay":
-                            int reverbDelay = call.argument("reverbDelay");
-                            ReverbControl.setReverbDelay(reverbDelay);
-                            break;
-
-                        case "getReverbDelay":
-                            int getReverbDelay = ReverbControl.getReverbDelay();
-                            result.success(getReverbDelay);
-                            break;
-
-                        case "setReverbLevel":
-                            int reverbLevel = call.argument("reverbLevel");
-                            ReverbControl.setReverbLevel(reverbLevel);
-                            break;
-
-                        case "getReverbLevel":
-                            int getReverbLevel = ReverbControl.getReverbLevel();
-                            result.success(getReverbLevel);
-                            break;
-
-                        case "setRoomLevel":
-                            int roomLevel = call.argument("roomLevel");
-                            ReverbControl.setRoomLevel(roomLevel);
-                            break;
-
-                        case "getRoomLevel":
-                            int getRoomLevel = ReverbControl.getRoomLevel();
-                            result.success(getRoomLevel);
-                            break;
-
-                        case "setRoomHFLevel":
-                            int roomHFLevel = (int) call.argument("roomHFLevel");
-                            ReverbControl.setRoomHFLevel(roomHFLevel);
-                            break;
-
-                        case "getRoomHFLevel":
-                            int getRoomHFLevel = ReverbControl.getRoomHFLevel();
-                            result.success(getRoomHFLevel);
-                            break;
-
-                        case "setDecayHFRatio":
-                            int decayHFRatio = call.argument("decayHFRatio");
-                            ReverbControl.setDecayHFRatioLevel(decayHFRatio);
-                            break;
-
-                        case "getDecayHFRatio":
-                            int getDecayHFRatio = ReverbControl.getDecayHFRatio();
-                            result.success(getDecayHFRatio);
-                            break;
                         // DSP configurations
                         case "initDSPEngine":
                             int dspId = call.argument("dspId");
@@ -559,28 +409,74 @@ public class MainActivity extends AudioServiceFragmentActivity {
                             String message = call.argument("message");
                             showMessage(message);
                             break;
-                        // adaptive room effects
-                        // check if android is higher than 11
-                        case "isAndroid11":
-                            boolean isAndroid11 = RoomEffects.isAndroid11OrHigher();
-                            result.success(isAndroid11);
+                        // ==================== Custom DSP Room Effects ====================
+                        case "dspSetReverbEnabled": {
+                            boolean en = call.argument("enabled");
+                            RoomEffectsProcessor.getInstance().setReverbEnabled(en);
+                            result.success(null);
                             break;
-                        case "enableRoomEffects":
-                            boolean enableEffects = (boolean) call.argument("enableEffects");
-                            effects.enableEffect(enableEffects);
+                        }
+                        case "dspSetRoomSize": {
+                            double v = call.argument("value");
+                            RoomEffectsProcessor.getInstance().setRoomSize((float) v);
+                            result.success(null);
                             break;
-                        case "isEffectEnabled":
-                            boolean enabledEffect = effects.isEnabled();
-                            result.success(enabledEffect);
+                        }
+                        case "dspSetDecay": {
+                            double v = call.argument("value");
+                            RoomEffectsProcessor.getInstance().setDecay((float) v);
+                            result.success(null);
                             break;
-                        case "chooseEffectPreset":
-                            int effectPreset = (int) call.argument("effectPreset");
-                            effects.applyRoomEffect(effectPreset);
+                        }
+                        case "dspSetDamping": {
+                            double v = call.argument("value");
+                            RoomEffectsProcessor.getInstance().setDamping((float) v);
+                            result.success(null);
                             break;
-
-                        case "disposeRoomEffects":
-                            effects.release();
+                        }
+                        case "dspSetPreDelay": {
+                            double v = call.argument("value");
+                            RoomEffectsProcessor.getInstance().setPreDelay((float) v);
+                            result.success(null);
                             break;
+                        }
+                        case "dspSetDiffusion": {
+                            double v = call.argument("value");
+                            RoomEffectsProcessor.getInstance().setDiffusion((float) v);
+                            result.success(null);
+                            break;
+                        }
+                        case "dspSetReverbWetDry": {
+                            double v = call.argument("value");
+                            RoomEffectsProcessor.getInstance().setReverbWetDry((float) v);
+                            result.success(null);
+                            break;
+                        }
+                        case "dspSetStereoExpandEnabled": {
+                            boolean en = call.argument("enabled");
+                            RoomEffectsProcessor.getInstance().setStereoExpandEnabled(en);
+                            result.success(null);
+                            break;
+                        }
+                        case "dspSetStereoWidth": {
+                            double v = call.argument("value");
+                            RoomEffectsProcessor.getInstance().setStereoWidth((float) v);
+                            result.success(null);
+                            break;
+                        }
+                        case "dspSetCrossfeedEnabled": {
+                            boolean en = call.argument("enabled");
+                            RoomEffectsProcessor.getInstance().setCrossfeedEnabled(en);
+                            result.success(null);
+                            break;
+                        }
+                        case "dspSetCrossfeedParams": {
+                            double cutoff = call.argument("cutoff");
+                            double feed = call.argument("feed");
+                            RoomEffectsProcessor.getInstance().setCrossfeedParams((float) cutoff, (float) feed);
+                            result.success(null);
+                            break;
+                        }
 
                         // ==================== 32-Band Graphic EQ ====================
                         case "setGraphicBandGain":

@@ -34,6 +34,13 @@ android {
         }
     }
 
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+            version = "3.22.1"
+        }
+    }
+
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "x.a.zix"
@@ -44,6 +51,10 @@ android {
         versionCode = 23
         versionName = "1.1.3"
         manifestPlaceholders["appAuthRedirectScheme"] = "x.a.zix"
+
+        ndk {
+            abiFilters += listOf("armeabi-v7a", "arm64-v8a", "x86_64")
+        }
     }
     signingConfigs {
         create("release") {
@@ -67,6 +78,7 @@ android {
 
 dependencies {
     implementation("com.mpatric:mp3agic:0.9.1")
+    implementation("androidx.media3:media3-exoplayer:1.4.1")
 }
 
 flutter {
