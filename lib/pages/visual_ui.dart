@@ -54,6 +54,8 @@ class _VisualUIState extends State<VisualUI>
     (0xFF00BCD4, Color(0xFF00BCD4)),
   ];
 
+  bool _didInit = false;
+
   @override
   void initState() {
     super.initState();
@@ -64,10 +66,17 @@ class _VisualUIState extends State<VisualUI>
     final ctrl = context.read<AppController>();
     Visualizers.setFrameRate(ctrl.visualizerFrameRate);
     Visualizers.scaleVisualizer(true);
+  }
 
-    // If starting with milkdrop style, initialize immediately
-    if (ctrl.visualizerStyle == 'milkdrop') {
-      _initProjectM();
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_didInit) {
+      _didInit = true;
+      final ctrl = context.read<AppController>();
+      if (ctrl.visualizerStyle == 'milkdrop') {
+        _initProjectM();
+      }
     }
   }
 
