@@ -1,4 +1,3 @@
-import 'package:eq_app/Helpers/Channel.dart';
 import 'package:eq_app/extensions/index.dart';
 import 'package:eq_app/widgets/HorizontalSlider.dart';
 import 'package:flutter/material.dart';
@@ -30,7 +29,6 @@ class DynamicsView extends StatelessWidget {
                 value: controller.kneeWidth,
                 onChanged: (val) {
                   controller.kneeWidth = val;
-                  Channel.setDspKneeWidth(val);
                 },
                 dB: controller.kneeWidth.dps,
               ),
@@ -41,7 +39,6 @@ class DynamicsView extends StatelessWidget {
                 value: controller.expandRatio,
                 onChanged: (val) {
                   controller.expandRatio = val;
-                  Channel.setDspExpandRatio(val);
                 },
                 dB: controller.expandRatio.dps,
               ),
@@ -52,7 +49,6 @@ class DynamicsView extends StatelessWidget {
                 value: controller.preGain,
                 onChanged: (val) {
                   controller.preGain = val;
-                  Channel.setPreGain(val);
                 },
                 dB: controller.preGain.dps,
               ),
@@ -63,7 +59,6 @@ class DynamicsView extends StatelessWidget {
                 value: controller.dspNoise,
                 onChanged: (val) {
                   controller.dspNoise = val;
-                  Channel.setDspNoiseThreshold(val);
                 },
                 dB: "${controller.dspNoise.toStringAsFixed(1)} dB",
               ),
@@ -97,16 +92,9 @@ class DynamicsView extends StatelessWidget {
 
   void _restoreDefaults(AppController controller) {
     controller.kneeWidth = 0.4;
-    Channel.setDspKneeWidth(0.4);
-
     controller.expandRatio = 15.0;
-    Channel.setDspExpandRatio(15.0);
-
     controller.preGain = 20.0;
-    Channel.setPreGain(20.0);
-
     controller.dspNoise = -10.0;
-    Channel.setDspNoiseThreshold(-10.0);
   }
 
   Widget _buildSlider({

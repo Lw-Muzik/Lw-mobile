@@ -1,8 +1,6 @@
 // ignore_for_file: constant_identifier_names
-import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 class Channel {
   static MethodChannel channel = const MethodChannel("eq_app");
@@ -220,41 +218,11 @@ class Channel {
   static Future<void> dspSetCrossfeedParams(double cutoffHz, double feedLevelDb) async {
     await _invoke("dspSetCrossfeedParams", {"cutoff": cutoffHz, "feed": feedLevelDb});
   }
-  /// Initialize DSP engine
-  static void _initDSPEngine(int audioSessionId) async {
-    await _invoke("initDSPEngine", {"dspId": audioSessionId});
-  }
-
-  static void enableDSPEngine(bool enable) async {
-    await _invoke("enableDSP", {"enableEngine": enable});
-  }
-
-
-  static Future<double> setDSPVolume(double v) async {
-    return await _invokeRequired<double>("setDSPVolume", 0.0, {"dspVolume": v});
-  }
+  // ----------- MBC Compressor (C++ pipeline) ------------------
 
   static void setDspNoiseThreshold(double noiseValue) async {
     await _invoke("setDspNoiseThreshold", {"noiseThreshold": noiseValue});
   }
-
-  static void setTunerBass(double value) async {
-    await _invoke("setTunerBass", {"tunerBass": value});
-  }
-
-  static void setDSPXBass(double bass) async {
-    await _invoke("setDSPXBass", {"xBass": bass});
-  }
-
-  static void setDSPPowerBass(double bass) async {
-    await _invoke("setDSPPowerBass", {"powerBass": bass});
-  }
-
-  static void setDSPTreble(double treble) async {
-    await _invoke("setDSPXTreble", {"trebleGain": treble});
-  }
-
-  // ----------- DSP compressor (MBC) ------------------
 
   static void setDspKneeWidth(double kneeWidth) async {
     await _invoke("kneeWidth", {"kneeWidth": kneeWidth});
@@ -266,28 +234,6 @@ class Channel {
 
   static void setDspExpandRatio(double expandRatio) async {
     await _invoke("expandRatio", {"expandRatio": expandRatio});
-  }
-
-  // -------------- end of compressor settings ---------------------
-
-  static void setDSPSpeakers(
-      List<dynamic> speakers, List<double> levels) async {
-    Map<String, dynamic> dsps = {"speakers": speakers, "levels": levels};
-    await _invoke("setDSPSpeakers", {"spks": dsps});
-    final prefs = await SharedPreferences.getInstance();
-    prefs.setString("dsp_speaker", json.encode(dsps));
-  }
-
-  static void disposeDSP() async {
-    await _invoke("disposeDSP");
-  }
-
-  static void setCutOffFreq(int freq) async {
-    await _invoke("setCutOffFreq", {"tunerBassFreq": freq});
-  }
-
-  static Future<double> getVocalLevel() async {
-    return await _invokeRequired<double>("getVocalLevel", 0.0);
   }
 
   static void deleteManager(String path) async {
@@ -316,12 +262,20 @@ class Channel {
 
   // ==================== 32-Band Parametric EQ (Post-EQ) ====================
 
-  static Future<void> setParametricBand(int band, double freq, double gain) async {
-    await _invoke("setParametricBand", {"band": band, "freq": freq, "gain": gain});
+  static Future<void> setParametricBand(int band, double freq, double gain,
+      {double q = 1.4, int filterType = 0, bool enabled = true}) async {
+    await _invoke("setParametricBand", {
+      "band": band, "freq": freq, "gain": gain,
+      "q": q, "filterType": filterType, "enabled": enabled,
+    });
   }
 
-  static Future<void> setParametricAllBands(List<double> freqs, List<double> gains) async {
-    await _invoke("setParametricAllBands", {"freqs": freqs, "gains": gains});
+  static Future<void> setParametricAllBands(List<double> freqs, List<double> gains,
+      {List<double>? qs}) async {
+    await _invoke("setParametricAllBands", {
+      "freqs": freqs, "gains": gains,
+      if (qs != null) "qs": qs,
+    });
   }
 
   // ==================== Preamp ====================
@@ -356,9 +310,7 @@ class Channel {
   }
 
   static void setSessionId(int sessionId) async {
-    _initDSPEngine(sessionId);
     _initLoudnessEnhancer(sessionId);
-    // "init" still routes to DSPEngine on native side (CustomEq removed)
     await _invoke("init", {"sessionId": sessionId});
   }
 

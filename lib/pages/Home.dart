@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:io';
 import 'package:eq_app/controllers/drawer_controller.dart';
 
@@ -76,42 +75,14 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
   }
 
   Future<void> _loadAndroidSettings() async {
-    final pref = await SharedPreferences.getInstance();
-
     if (!mounted) return;
-
-    // Load DSP settings
-    final enableDSP = pref.getBool("enableDSP") ?? false;
-    _appController.enableDSP = enableDSP;
-
-    // Apply DSP settings in batch
-    // await Future.wait<void>([
-    Channel.enableEq(enableDSP);
-    Channel.enableDSPEngine(enableDSP);
-    // ]);
-
-    // Load cached values
-    _appController
-      ..dspOutGain = pref.getDouble("powerGain") ?? 3.0
-      ..dspPowerBass = pref.getDouble("powerBass") ?? 8.0
-      ..dspXTreble = pref.getDouble("xTreble") ?? 3.3
-      ..dspVolume = pref.getDouble("dspVolume") ?? -6.0
-      ..dspXBass = pref.getDouble("xBass") ?? 11.0;
-
-    // Load and apply speaker configuration
-    final stored = pref.getString("dsp_speakers");
-    if (stored != null) {
-      final dsp = json.decode(stored);
-      Channel.setDSPSpeakers(dsp['speakers'], dsp['levels']);
-    }
-
-    // Apply DSP settings
-    // await Future.wait<void>([
-    Channel.setDSPVolume(_appController.dspVolume);
-    Channel.setDSPTreble(_appController.dspXTreble);
-    Channel.setDSPPowerBass(_appController.dspPowerBass);
-    Channel.setDSPXBass(_appController.dspXBass);
-    // ]);
+    // EQ and MBC are managed by the C++ DSP pipeline — initialized
+    // automatically when the AudioProcessor starts in ExoPlayer.
+    // Apply saved EQ state from AppController.
+    Channel.enableEq(_appController.graphicEqEnabled);
+    Channel.setPreamp(_appController.preampGain);
+    Channel.setGraphicAllBands(_appController.graphicBandGains);
+    Channel.enableMbc(_appController.mbcEnabled);
   }
 
   @override

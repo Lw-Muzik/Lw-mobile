@@ -163,4 +163,94 @@ Java_x_a_zix_RoomEffectsProcessor_nativeSetCrossfeedParams(JNIEnv*, jobject, jlo
     if (engine) engine->setCrossfeedParams(cutoffHz, feedLevelDb);
 }
 
+// --- EQ controls ---
+
+JNIEXPORT void JNICALL
+Java_x_a_zix_RoomEffectsProcessor_nativeSetEqEnabled(JNIEnv*, jobject, jlong handle, jboolean enabled) {
+    auto* engine = reinterpret_cast<RoomDSPEngine*>(handle);
+    if (engine) engine->setEqEnabled(enabled);
+}
+
+JNIEXPORT void JNICALL
+Java_x_a_zix_RoomEffectsProcessor_nativeSetPreampGain(JNIEnv*, jobject, jlong handle, jfloat dB) {
+    auto* engine = reinterpret_cast<RoomDSPEngine*>(handle);
+    if (engine) engine->setPreampGain(dB);
+}
+
+JNIEXPORT void JNICALL
+Java_x_a_zix_RoomEffectsProcessor_nativeSetGraphicBandGain(JNIEnv*, jobject, jlong handle,
+                                                            jint band, jfloat dB) {
+    auto* engine = reinterpret_cast<RoomDSPEngine*>(handle);
+    if (engine) engine->setGraphicBandGain(band, dB);
+}
+
+JNIEXPORT void JNICALL
+Java_x_a_zix_RoomEffectsProcessor_nativeSetGraphicAllBands(JNIEnv* env, jobject, jlong handle,
+                                                            jfloatArray gains) {
+    auto* engine = reinterpret_cast<RoomDSPEngine*>(handle);
+    if (!engine) return;
+    jfloat* data = env->GetFloatArrayElements(gains, nullptr);
+    if (!data) return;
+    int count = env->GetArrayLength(gains);
+    engine->setGraphicAllBands(data, count);
+    env->ReleaseFloatArrayElements(gains, data, JNI_ABORT);
+}
+
+JNIEXPORT void JNICALL
+Java_x_a_zix_RoomEffectsProcessor_nativeSetParametricBand(JNIEnv*, jobject, jlong handle,
+                                                           jint band, jfloat freq, jfloat gainDb,
+                                                           jfloat q, jint filterType, jboolean enabled) {
+    auto* engine = reinterpret_cast<RoomDSPEngine*>(handle);
+    if (engine) engine->setParametricBand(band, freq, gainDb, q, filterType, enabled);
+}
+
+JNIEXPORT void JNICALL
+Java_x_a_zix_RoomEffectsProcessor_nativeSetParametricAllBands(JNIEnv* env, jobject, jlong handle,
+                                                               jfloatArray freqs, jfloatArray gains,
+                                                               jfloatArray qs, jint count) {
+    auto* engine = reinterpret_cast<RoomDSPEngine*>(handle);
+    if (!engine) return;
+    jfloat* fData = env->GetFloatArrayElements(freqs, nullptr);
+    jfloat* gData = env->GetFloatArrayElements(gains, nullptr);
+    jfloat* qData = env->GetFloatArrayElements(qs, nullptr);
+    if (fData && gData && qData) {
+        engine->setParametricAllBands(fData, gData, qData, count);
+    }
+    if (fData) env->ReleaseFloatArrayElements(freqs, fData, JNI_ABORT);
+    if (gData) env->ReleaseFloatArrayElements(gains, gData, JNI_ABORT);
+    if (qData) env->ReleaseFloatArrayElements(qs, qData, JNI_ABORT);
+}
+
+// --- MBC controls ---
+
+JNIEXPORT void JNICALL
+Java_x_a_zix_RoomEffectsProcessor_nativeSetMbcEnabled(JNIEnv*, jobject, jlong handle, jboolean enabled) {
+    auto* engine = reinterpret_cast<RoomDSPEngine*>(handle);
+    if (engine) engine->setMbcEnabled(enabled);
+}
+
+JNIEXPORT void JNICALL
+Java_x_a_zix_RoomEffectsProcessor_nativeSetMbcPreGain(JNIEnv*, jobject, jlong handle, jfloat dB) {
+    auto* engine = reinterpret_cast<RoomDSPEngine*>(handle);
+    if (engine) engine->setMbcPreGain(dB);
+}
+
+JNIEXPORT void JNICALL
+Java_x_a_zix_RoomEffectsProcessor_nativeSetMbcNoiseGate(JNIEnv*, jobject, jlong handle, jfloat dB) {
+    auto* engine = reinterpret_cast<RoomDSPEngine*>(handle);
+    if (engine) engine->setMbcNoiseGateThreshold(dB);
+}
+
+JNIEXPORT void JNICALL
+Java_x_a_zix_RoomEffectsProcessor_nativeSetMbcKneeWidth(JNIEnv*, jobject, jlong handle, jfloat dB) {
+    auto* engine = reinterpret_cast<RoomDSPEngine*>(handle);
+    if (engine) engine->setMbcKneeWidth(dB);
+}
+
+JNIEXPORT void JNICALL
+Java_x_a_zix_RoomEffectsProcessor_nativeSetMbcExpanderRatio(JNIEnv*, jobject, jlong handle, jfloat ratio) {
+    auto* engine = reinterpret_cast<RoomDSPEngine*>(handle);
+    if (engine) engine->setMbcExpanderRatio(ratio);
+}
+
 } // extern "C"

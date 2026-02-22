@@ -47,6 +47,28 @@ public class RoomEffectsProcessor extends BaseAudioProcessor {
     private static volatile float cachedCrossfeedCutoff = 700f;
     private static volatile float cachedCrossfeedFeed = 4.5f;
 
+    // Cached EQ params
+    private static volatile boolean cachedEqEnabled = false;
+    private static volatile float cachedPreampGain = 0f;
+    private static final float[] cachedGraphicGains = new float[32]; // all 0.0f
+    private static final float[] cachedParametricFreqs = new float[32];
+    private static final float[] cachedParametricGains = new float[32];
+    private static final float[] cachedParametricQs = new float[32];
+    // Cached MBC params
+    private static volatile boolean cachedMbcEnabled = false;
+    private static volatile float cachedMbcPreGain = 0f;
+    private static volatile float cachedMbcNoiseGate = -70f;
+    private static volatile float cachedMbcKneeWidth = 8f;
+    private static volatile float cachedMbcExpanderRatio = 2f;
+
+    static {
+        // Initialize parametric defaults
+        for (int i = 0; i < 32; i++) {
+            cachedParametricFreqs[i] = 1000f;
+            cachedParametricQs[i] = 1.4f;
+        }
+    }
+
     /**
      * Called from MainActivity.onCreate() to ensure the native library is loaded.
      * No longer creates a singleton used in the audio pipeline.
@@ -162,6 +184,18 @@ public class RoomEffectsProcessor extends BaseAudioProcessor {
         nativeSetStereoWidth(nativeHandle, cachedStereoWidth);
         nativeSetCrossfeedEnabled(nativeHandle, cachedCrossfeedEnabled);
         nativeSetCrossfeedParams(nativeHandle, cachedCrossfeedCutoff, cachedCrossfeedFeed);
+        // EQ state
+        nativeSetEqEnabled(nativeHandle, cachedEqEnabled);
+        nativeSetPreampGain(nativeHandle, cachedPreampGain);
+        nativeSetGraphicAllBands(nativeHandle, cachedGraphicGains);
+        nativeSetParametricAllBands(nativeHandle, cachedParametricFreqs,
+                cachedParametricGains, cachedParametricQs, 32);
+        // MBC state
+        nativeSetMbcEnabled(nativeHandle, cachedMbcEnabled);
+        nativeSetMbcPreGain(nativeHandle, cachedMbcPreGain);
+        nativeSetMbcNoiseGate(nativeHandle, cachedMbcNoiseGate);
+        nativeSetMbcKneeWidth(nativeHandle, cachedMbcKneeWidth);
+        nativeSetMbcExpanderRatio(nativeHandle, cachedMbcExpanderRatio);
     }
 
     // ---- Instance methods (called on specific instance) ----
@@ -208,6 +242,54 @@ public class RoomEffectsProcessor extends BaseAudioProcessor {
 
     public void setCrossfeedParams(float cutoffHz, float feedLevelDb) {
         if (nativeHandle != 0) nativeSetCrossfeedParams(nativeHandle, cutoffHz, feedLevelDb);
+    }
+
+    // EQ instance methods
+    public void setEqEnabled(boolean enabled) {
+        if (nativeHandle != 0) nativeSetEqEnabled(nativeHandle, enabled);
+    }
+
+    public void setPreampGain(float dB) {
+        if (nativeHandle != 0) nativeSetPreampGain(nativeHandle, dB);
+    }
+
+    public void setGraphicBandGain(int band, float dB) {
+        if (nativeHandle != 0) nativeSetGraphicBandGain(nativeHandle, band, dB);
+    }
+
+    public void setGraphicAllBands(float[] gains) {
+        if (nativeHandle != 0) nativeSetGraphicAllBands(nativeHandle, gains);
+    }
+
+    public void setParametricBand(int band, float freq, float gainDb, float q,
+                                  int filterType, boolean enabled) {
+        if (nativeHandle != 0) nativeSetParametricBand(nativeHandle, band, freq, gainDb,
+                q, filterType, enabled);
+    }
+
+    public void setParametricAllBands(float[] freqs, float[] gains, float[] qs, int count) {
+        if (nativeHandle != 0) nativeSetParametricAllBands(nativeHandle, freqs, gains, qs, count);
+    }
+
+    // MBC instance methods
+    public void setMbcEnabled(boolean enabled) {
+        if (nativeHandle != 0) nativeSetMbcEnabled(nativeHandle, enabled);
+    }
+
+    public void setMbcPreGain(float dB) {
+        if (nativeHandle != 0) nativeSetMbcPreGain(nativeHandle, dB);
+    }
+
+    public void setMbcNoiseGate(float dB) {
+        if (nativeHandle != 0) nativeSetMbcNoiseGate(nativeHandle, dB);
+    }
+
+    public void setMbcKneeWidth(float dB) {
+        if (nativeHandle != 0) nativeSetMbcKneeWidth(nativeHandle, dB);
+    }
+
+    public void setMbcExpanderRatio(float ratio) {
+        if (nativeHandle != 0) nativeSetMbcExpanderRatio(nativeHandle, ratio);
     }
 
     // ---- Static broadcast methods (called from MainActivity via MethodChannel) ----
@@ -268,6 +350,85 @@ public class RoomEffectsProcessor extends BaseAudioProcessor {
         for (RoomEffectsProcessor p : playerInstances) p.setCrossfeedParams(cutoffHz, feedLevelDb);
     }
 
+    // ---- EQ broadcast methods ----
+
+    public static void broadcastEqEnabled(boolean enabled) {
+        cachedEqEnabled = enabled;
+        for (RoomEffectsProcessor p : playerInstances) p.setEqEnabled(enabled);
+    }
+
+    public static void broadcastPreampGain(float dB) {
+        cachedPreampGain = dB;
+        for (RoomEffectsProcessor p : playerInstances) p.setPreampGain(dB);
+    }
+
+    public static void broadcastGraphicBandGain(int band, float dB) {
+        if (band >= 0 && band < 32) cachedGraphicGains[band] = dB;
+        for (RoomEffectsProcessor p : playerInstances) p.setGraphicBandGain(band, dB);
+    }
+
+    public static void broadcastGraphicAllBands(float[] gains) {
+        int count = Math.min(gains.length, 32);
+        System.arraycopy(gains, 0, cachedGraphicGains, 0, count);
+        for (RoomEffectsProcessor p : playerInstances) p.setGraphicAllBands(gains);
+    }
+
+    public static void broadcastParametricBand(int band, float freq, float gainDb,
+                                               float q, int filterType, boolean enabled) {
+        if (band >= 0 && band < 32) {
+            cachedParametricFreqs[band] = freq;
+            cachedParametricGains[band] = gainDb;
+            cachedParametricQs[band] = q;
+        }
+        for (RoomEffectsProcessor p : playerInstances)
+            p.setParametricBand(band, freq, gainDb, q, filterType, enabled);
+    }
+
+    public static void broadcastParametricAllBands(float[] freqs, float[] gains,
+                                                    float[] qs, int count) {
+        int n = Math.min(count, 32);
+        System.arraycopy(freqs, 0, cachedParametricFreqs, 0, n);
+        System.arraycopy(gains, 0, cachedParametricGains, 0, n);
+        System.arraycopy(qs, 0, cachedParametricQs, 0, n);
+        for (RoomEffectsProcessor p : playerInstances)
+            p.setParametricAllBands(freqs, gains, qs, count);
+    }
+
+    public static float getCachedPreampGain() {
+        return cachedPreampGain;
+    }
+
+    public static boolean isCachedMbcEnabled() {
+        return cachedMbcEnabled;
+    }
+
+    // ---- MBC broadcast methods ----
+
+    public static void broadcastMbcEnabled(boolean enabled) {
+        cachedMbcEnabled = enabled;
+        for (RoomEffectsProcessor p : playerInstances) p.setMbcEnabled(enabled);
+    }
+
+    public static void broadcastMbcPreGain(float dB) {
+        cachedMbcPreGain = dB;
+        for (RoomEffectsProcessor p : playerInstances) p.setMbcPreGain(dB);
+    }
+
+    public static void broadcastMbcNoiseGate(float dB) {
+        cachedMbcNoiseGate = dB;
+        for (RoomEffectsProcessor p : playerInstances) p.setMbcNoiseGate(dB);
+    }
+
+    public static void broadcastMbcKneeWidth(float dB) {
+        cachedMbcKneeWidth = dB;
+        for (RoomEffectsProcessor p : playerInstances) p.setMbcKneeWidth(dB);
+    }
+
+    public static void broadcastMbcExpanderRatio(float ratio) {
+        cachedMbcExpanderRatio = ratio;
+        for (RoomEffectsProcessor p : playerInstances) p.setMbcExpanderRatio(ratio);
+    }
+
     // ---- Native methods ----
 
     private native long nativeCreate(int sampleRate, int channels);
@@ -291,4 +452,20 @@ public class RoomEffectsProcessor extends BaseAudioProcessor {
 
     private native void nativeSetCrossfeedEnabled(long handle, boolean enabled);
     private native void nativeSetCrossfeedParams(long handle, float cutoffHz, float feedLevelDb);
+
+    private native void nativeSetEqEnabled(long handle, boolean enabled);
+    private native void nativeSetPreampGain(long handle, float dB);
+    private native void nativeSetGraphicBandGain(long handle, int band, float dB);
+    private native void nativeSetGraphicAllBands(long handle, float[] gains);
+    private native void nativeSetParametricBand(long handle, int band, float freq,
+                                                float gainDb, float q, int filterType,
+                                                boolean enabled);
+    private native void nativeSetParametricAllBands(long handle, float[] freqs, float[] gains,
+                                                     float[] qs, int count);
+
+    private native void nativeSetMbcEnabled(long handle, boolean enabled);
+    private native void nativeSetMbcPreGain(long handle, float dB);
+    private native void nativeSetMbcNoiseGate(long handle, float dB);
+    private native void nativeSetMbcKneeWidth(long handle, float dB);
+    private native void nativeSetMbcExpanderRatio(long handle, float ratio);
 }

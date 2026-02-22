@@ -66,8 +66,6 @@ class _GraphicEqViewState extends State<GraphicEqView> {
             final newValue = !controller.graphicEqEnabled;
             controller.graphicEqEnabled = newValue;
             Channel.enableEq(newValue);
-            Channel.enableDSPEngine(newValue);
-            controller.enableDSP = newValue;
           },
         ),
         const SizedBox(width: 12),
