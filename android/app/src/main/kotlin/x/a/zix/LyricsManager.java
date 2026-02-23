@@ -10,15 +10,44 @@ import com.mpatric.mp3agic.ID3v2;
 import com.mpatric.mp3agic.ID3v24Tag;
 import com.mpatric.mp3agic.Mp3File;
 
+import org.jaudiotagger.audio.AudioFile;
+import org.jaudiotagger.audio.AudioFileIO;
+import org.jaudiotagger.tag.FieldKey;
+import org.jaudiotagger.tag.Tag;
+
 import java.io.*;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 public class LyricsManager {
 
+    static {
+        // Suppress JAudioTagger verbose logging on Android
+        Logger.getLogger("org.jaudiotagger").setLevel(Level.OFF);
+    }
+
     /**
-     * Reads USLT (unsynchronized lyrics) from the ID3v2 tag of an MP3 file.
+     * Reads embedded lyrics from any audio format using JAudioTagger.
+     * Supports: MP3 (USLT), M4A/AAC (©lyr), FLAC/OGG (LYRICS vorbis comment), WMA.
+     * Falls back to mp3agic for MP3 files if JAudioTagger fails.
      * Returns the lyrics text, or null if not present.
      */
     public static String readLyrics(String filePath) {
+        // Try JAudioTagger first — handles all formats
+        try {
+            AudioFile audioFile = AudioFileIO.read(new File(filePath));
+            Tag tag = audioFile.getTag();
+            if (tag != null) {
+                String lyrics = tag.getFirst(FieldKey.LYRICS);
+                if (lyrics != null && !lyrics.isEmpty()) {
+                    return lyrics;
+                }
+            }
+        } catch (Exception e) {
+            // JAudioTagger couldn't parse — fall through
+        }
+
+        // Fallback: mp3agic for MP3 (proven, handles edge cases)
         try {
             Mp3File mp3 = new Mp3File(filePath);
             if (mp3.hasId3v2Tag()) {
@@ -28,11 +57,11 @@ public class LyricsManager {
                     return lyrics;
                 }
             }
-            return null;
         } catch (Exception e) {
-            e.printStackTrace();
-            return null;
+            // Not an MP3 or no lyrics
         }
+
+        return null;
     }
 
     /**

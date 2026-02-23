@@ -1,18 +1,18 @@
 import 'dart:developer' as dev;
 import 'dart:io';
 
-import 'package:http/http.dart' as http;
-import 'package:id3tag/id3tag.dart';
 import 'package:path_provider/path_provider.dart';
 
+import '../Helpers/Channel.dart';
 import '../models/cloud_file.dart';
 import 'cloud_auth_service.dart';
 import 'cloud_cache_service.dart';
 import 'dropbox_service.dart';
 import 'google_drive_service.dart';
 
-/// Background service that preloads ID3 metadata (title, artist, album, artwork)
-/// for all cloud files. Downloads the first 512KB of each file to parse tags.
+/// Background service that preloads audio metadata (title, artist, album, artwork)
+/// for all cloud files. Uses Android's MediaMetadataRetriever via native channel
+/// which handles ALL audio formats (MP3, M4A, FLAC, OGG, WAV, WMA, etc.).
 class CloudMetadataService {
   final CloudAuthService _auth;
   final CloudCacheService _cache;
@@ -38,7 +38,7 @@ class CloudMetadataService {
     }
   }
 
-  /// Preload ID3 metadata for all [files] of a given [provider].
+  /// Preload metadata for all [files] of a given [provider].
   /// Skips files that already have a `.done` marker (previously extracted).
   /// Processes [_maxConcurrent] files concurrently.
   Future<void> preloadAll(
@@ -49,6 +49,19 @@ class CloudMetadataService {
         : ++_dropboxRunId;
 
     final tempDir = await getTemporaryDirectory();
+
+    // Invalidate stale markers: if a file has a .done marker but still
+    // has no metadata, it was marked by the old id3tag extractor which
+    // couldn't read M4A/FLAC/OGG. Delete the marker to allow retry.
+    for (final file in files) {
+      if (file.trackTitle != null) continue; // already has metadata
+      final songId = file.fileId.hashCode.abs();
+      final markerPath = '${tempDir.path}/cloud_meta_$songId.done';
+      final marker = File(markerPath);
+      if (marker.existsSync()) {
+        marker.deleteSync();
+      }
+    }
 
     // Filter to files that haven't been extracted yet.
     final pending = <CloudFile>[];
@@ -127,52 +140,34 @@ class CloudMetadataService {
       if (provider == CloudProvider.googleDrive) {
         headers.addAll(await _auth.getGoogleAuthHeaders());
       }
-      headers['Range'] = 'bytes=0-524287'; // First 512 KB
 
-      final response = await http.get(Uri.parse(streamUrl), headers: headers);
-      if (response.statusCode != 200 && response.statusCode != 206) return;
+      // Use native MediaMetadataRetriever — handles ALL audio formats.
+      // Returns null on failure (timeout, network error) — don't mark as done
+      // so it gets retried. Returns empty Map if file has no tags — mark done.
+      final metadata = await Channel.extractAudioMetadata(
+        url: streamUrl,
+        headers: headers,
+        artworkPath: artPath,
+      );
 
       if (!_isRunActive(provider, runId)) return;
 
-      final partialPath = '${tempDir.path}/cloud_partial_$songId.tmp';
-      final partialFile = File(partialPath);
-      await partialFile.writeAsBytes(response.bodyBytes);
+      // null = extraction failed (timeout/error) — skip marker, retry later.
+      if (metadata == null) {
+        dev.log(
+          'Metadata extraction failed for ${file.name} — will retry',
+          name: 'CloudMeta',
+        );
+        return;
+      }
 
-      // Parse ID3 tags.
-      String? title, artist, album;
-
-      try {
-        final parser = ID3TagReader.path(partialPath);
-        final tag = await parser.readTag();
-
-        final titleFrames = tag.framesWithName('TIT2');
-        if (titleFrames.isNotEmpty && titleFrames.first is TextInformation) {
-          title = (titleFrames.first as TextInformation).value;
-        }
-        final artistFrames = tag.framesWithName('TPE1');
-        if (artistFrames.isNotEmpty &&
-            artistFrames.first is TextInformation) {
-          artist = (artistFrames.first as TextInformation).value;
-        }
-        final albumFrames = tag.framesWithName('TALB');
-        if (albumFrames.isNotEmpty &&
-            albumFrames.first is TextInformation) {
-          album = (albumFrames.first as TextInformation).value;
-        }
-
-        if (tag.pictures.isNotEmpty) {
-          await File(artPath).writeAsBytes(tag.pictures.first.imageData);
-        }
-      } catch (_) {}
-
-      // Clean up partial download.
-      if (partialFile.existsSync()) partialFile.deleteSync();
-
-      // Write completion marker.
+      // Write completion marker (extraction succeeded, even if no tags found).
       await File(metaCachePath).writeAsString('done');
 
       // Persist extracted metadata to the cached file list.
-      if (title != null || artist != null || album != null) {
+      if (metadata['title'] != null ||
+          metadata['artist'] != null ||
+          metadata['album'] != null) {
         final updated = CloudFile(
           provider: file.provider,
           fileId: file.fileId,
@@ -182,10 +177,10 @@ class CloudMetadataService {
           mimeType: file.mimeType,
           thumbnailUrl: file.thumbnailUrl,
           modifiedDate: file.modifiedDate,
-          trackTitle: title ?? file.trackTitle,
-          trackArtist: artist ?? file.trackArtist,
-          albumName: album ?? file.albumName,
-          durationMs: file.durationMs,
+          trackTitle: metadata['title'] as String? ?? file.trackTitle,
+          trackArtist: metadata['artist'] as String? ?? file.trackArtist,
+          albumName: metadata['album'] as String? ?? file.albumName,
+          durationMs: metadata['durationMs'] as int? ?? file.durationMs,
         );
         _cache.updateFileMetadata(provider, updated);
       }

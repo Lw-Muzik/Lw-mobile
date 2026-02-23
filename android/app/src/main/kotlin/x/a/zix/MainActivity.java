@@ -7,10 +7,13 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.media.AudioManager;
+import android.media.MediaMetadataRetriever;
 import android.media.audiofx.Visualizer;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.provider.MediaStore;
 import android.view.KeyEvent;
 import android.widget.Toast;
@@ -24,10 +27,12 @@ import androidx.activity.EdgeToEdge;
 import com.ryanheise.audioservice.AudioServiceFragmentActivity;
 
 import java.io.File;
+import java.io.FileOutputStream;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import io.flutter.embedding.engine.FlutterEngine;
 import io.flutter.plugin.common.EventChannel;
@@ -552,6 +557,85 @@ public class MainActivity extends AudioServiceFragmentActivity {
                             String outputType = AudioOutputDetector.getAudioOutputType(getApplicationContext());
                             result.success(outputType);
                             break;
+
+                        // ==================== Audio Metadata Extraction ====================
+                        case "extractAudioMetadata": {
+                            String metaUrl = call.argument("url");
+                            Map<String, String> metaHeaders = call.argument("headers");
+                            String artPath = call.argument("artworkPath");
+                            if (metaHeaders == null) metaHeaders = new HashMap<>();
+                            final Map<String, String> finalHeaders = metaHeaders;
+
+                            // AtomicBoolean prevents double result.success() from
+                            // both the worker thread and the timeout handler.
+                            final AtomicBoolean completed = new AtomicBoolean(false);
+                            final Handler mainHandler = new Handler(Looper.getMainLooper());
+
+                            // Run on background thread — MMR does network I/O
+                            Thread worker = new Thread(() -> {
+                                Map<String, Object> metadata = new HashMap<>();
+                                MediaMetadataRetriever mmr = new MediaMetadataRetriever();
+                                boolean success = false;
+                                try {
+                                    mmr.setDataSource(metaUrl, finalHeaders);
+                                    success = true; // setDataSource didn't throw
+
+                                    String title = mmr.extractMetadata(
+                                            MediaMetadataRetriever.METADATA_KEY_TITLE);
+                                    String artist = mmr.extractMetadata(
+                                            MediaMetadataRetriever.METADATA_KEY_ARTIST);
+                                    String album = mmr.extractMetadata(
+                                            MediaMetadataRetriever.METADATA_KEY_ALBUM);
+                                    String durationStr = mmr.extractMetadata(
+                                            MediaMetadataRetriever.METADATA_KEY_DURATION);
+
+                                    if (title != null) metadata.put("title", title);
+                                    if (artist != null) metadata.put("artist", artist);
+                                    if (album != null) metadata.put("album", album);
+                                    if (durationStr != null) {
+                                        try {
+                                            metadata.put("durationMs",
+                                                    Integer.parseInt(durationStr));
+                                        } catch (NumberFormatException ignored) {}
+                                    }
+
+                                    // Extract embedded artwork
+                                    byte[] art = mmr.getEmbeddedPicture();
+                                    if (art != null && artPath != null) {
+                                        try (FileOutputStream fos =
+                                                     new FileOutputStream(artPath)) {
+                                            fos.write(art);
+                                            metadata.put("hasArtwork", true);
+                                        } catch (Exception ignored) {}
+                                    }
+                                } catch (Exception e) {
+                                    e.printStackTrace();
+                                } finally {
+                                    try { mmr.release(); } catch (Exception ignored) {}
+                                }
+
+                                // Return result on main thread (required by Flutter).
+                                // success=true → return metadata map (even if empty — file
+                                // has no tags). success=false → return null (extraction
+                                // failed, should retry later).
+                                final boolean ok = success;
+                                final Map<String, Object> md = metadata;
+                                if (completed.compareAndSet(false, true)) {
+                                    mainHandler.post(() -> result.success(ok ? md : null));
+                                }
+                            });
+                            worker.start();
+
+                            // 15-second timeout — MMR has no internal read timeout
+                            // and can hang indefinitely on slow/stalled connections.
+                            mainHandler.postDelayed(() -> {
+                                if (completed.compareAndSet(false, true)) {
+                                    worker.interrupt();
+                                    result.success(null); // null = failed, retry later
+                                }
+                            }, 15000);
+                            break;
+                        }
 
                         // ==================== Lyrics ====================
                         case "readLyrics": {

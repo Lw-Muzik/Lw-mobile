@@ -374,9 +374,28 @@ class Channel {
     await _invoke("init", {"sessionId": sessionId});
   }
 
+  // ==================== Audio Metadata Extraction ====================
+
+  /// Extracts metadata from any audio format via MediaMetadataRetriever.
+  /// Works with HTTP URLs (for cloud files) using auth headers.
+  /// Returns: {title, artist, album, durationMs, hasArtwork}
+  static Future<Map<String, dynamic>?> extractAudioMetadata({
+    required String url,
+    Map<String, String> headers = const {},
+    String? artworkPath,
+  }) async {
+    final result = await _invoke<Map>("extractAudioMetadata", {
+      "url": url,
+      "headers": headers,
+      "artworkPath": artworkPath,
+    });
+    if (result == null) return null;
+    return Map<String, dynamic>.from(result);
+  }
+
   // ==================== Lyrics ====================
 
-  /// Reads embedded USLT lyrics from an MP3 file via mp3agic native.
+  /// Reads embedded lyrics from any audio format (MP3, M4A, FLAC, OGG, WMA).
   static Future<String?> readLyrics(String filePath) async {
     return await _invoke<String>("readLyrics", {"filePath": filePath});
   }

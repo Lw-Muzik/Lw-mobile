@@ -23,20 +23,25 @@ class _PlayerBodyState extends State<PlayerBody> {
           Visualizers.enableVisual(true);
         }
         final size = MediaQuery.of(context).size;
+        final song = controller.songs[controller.songId];
 
         return Stack(
           children: [
-            // Background artwork
-            SizedBox(
-              height: size.height,
-              width: size.width,
-              child: ArtworkWidget(
+            // Background artwork with smooth crossfade on track change.
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 600),
+              child: SizedBox(
+                key: ValueKey(song.id),
                 height: size.height,
                 width: size.width,
-                songId: controller.songs[controller.songId].id,
-                size: 2000,
-                type: ArtworkType.AUDIO,
-                path: controller.songs[controller.songId].data,
+                child: ArtworkWidget(
+                  height: size.height,
+                  width: size.width,
+                  songId: song.id,
+                  size: 2000,
+                  type: ArtworkType.AUDIO,
+                  path: song.data,
+                ),
               ),
             ),
             // Heavy blur + dark gradient overlay

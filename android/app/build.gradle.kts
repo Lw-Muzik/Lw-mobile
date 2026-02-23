@@ -78,6 +78,7 @@ android {
 
 dependencies {
     implementation("com.mpatric:mp3agic:0.9.1")
+    implementation("net.jthink:jaudiotagger:3.0.1")
     implementation("androidx.media3:media3-exoplayer:1.4.1")
 }
 

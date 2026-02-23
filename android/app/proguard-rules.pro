@@ -46,3 +46,7 @@
 # Keep Firebase classes
 -keep class com.google.firebase.** { *; }
 -keep class com.google.android.gms.** { *; }
+
+# JAudioTagger (multi-format audio tag library)
+-keep class org.jaudiotagger.** { *; }
+-dontwarn org.jaudiotagger.**
