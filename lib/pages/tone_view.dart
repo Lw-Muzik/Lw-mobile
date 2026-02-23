@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../controllers/AppController.dart';
+import '../extensions/build_context_extension.dart';
 import '../widgets/ToneKnob.dart';
 import 'audio_fx.dart';
 
@@ -35,7 +36,7 @@ class ToneView extends StatelessWidget {
                             label: "BASS",
                             value: controller.bassGain,
                             activeColor: _kAccent,
-                            size: 120,
+                            size: context.isMobile ? 220 : 350,
                             onChanged: controller.toneEnabled
                                 ? (v) => controller.bassGain = v
                                 : (_) {},
@@ -44,7 +45,7 @@ class ToneView extends StatelessWidget {
                             label: "TREBLE",
                             value: controller.trebleGain,
                             activeColor: const Color(0xFF5EC4D4),
-                            size: 120,
+                            size: context.isMobile ? 220 : 350,
                             onChanged: controller.toneEnabled
                                 ? (v) => controller.trebleGain = v
                                 : (_) {},
@@ -78,10 +79,9 @@ class ToneView extends StatelessWidget {
         const SizedBox(width: 8),
         Text(
           "Tone Controls",
-          style: Theme.of(context)
-              .textTheme
-              .titleMedium
-              ?.copyWith(fontWeight: FontWeight.w600),
+          style: Theme.of(
+            context,
+          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
         ),
         const Spacer(),
         SizedBox(

@@ -17,8 +17,13 @@
 //   -> [Output Limiter] -> Output
 //
 // Key design decisions:
-//   - No auto-gain reduction — EQ boosts are unrestricted for full impact.
-//     The output limiter (opt-in) or final hard clamp prevents DAC overflow.
+//   - Full auto-gain: preamp is reduced by the single highest band boost.
+//     Guarantees zero clipping. EQ shapes the frequency balance (boosted
+//     frequencies stand out, non-boosted lower). Instant preamp reduction
+//     prevents transient overshoot when bands are adjusted.
+//   - Limiter always active when EQ/tone processing is on — transparent safety
+//     net that catches adjacent-band overlap (~3 dB max). Instant attack,
+//     smooth release — zero overshoot, no pumping.
 //   - Tone controls AFTER EQ, BEFORE MBC: EQ shapes frequency, tone adds
 //     power, MBC controls dynamics of the combined result
 //   - Output limiter LAST: catches all peaks from the entire chain
@@ -116,9 +121,10 @@ private:
     // Tone controls (bass/treble shelf filters)
     ToneControls tone_;
 
-    // Preamp — supports [-15, +15] dB, no auto-gain reduction
-    float preampGainDb_ = 0.0f;
-    float preampLinear_ = 1.0f;
+    // Preamp + auto-gain: preampLinear_ is the effective gain applied
+    // before EQ (user preamp minus smart auto-reduction for headroom).
+    float preampGainDb_ = 0.0f;  // user-set preamp in dB
+    float preampLinear_ = 1.0f;  // effective linear gain (preamp + auto-reduction)
     float preampLinearSmoothed_ = 1.0f;
 
     // Output limiter

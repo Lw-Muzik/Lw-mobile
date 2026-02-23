@@ -76,7 +76,7 @@ class AppController with ChangeNotifier {
   int _crossfadeDuration = 0; // seconds, 0 = off
   bool _replayGain = false;
   bool _dvcEnabled = false;
-  double _dvcGain = 0.0; // dB, range -30 to +30
+  double _dvcGain = -20; // dB, range -30 to +30
   bool _dvcFineSteps = false; // false=1.5dB (5%), true=0.3dB (1%)
 
   // Song list/grid zoom scale: 0=list, 1=2-col grid, 2=3-col grid
@@ -205,7 +205,7 @@ class AppController with ChangeNotifier {
   }
 
   set bassGain(double value) {
-    _bassGain = value.clamp(0.0, 20.0);
+    _bassGain = value.clamp(0.0, 30.0);
     _prefs.setDouble("bassGain", _bassGain);
     Channel.dspSetBassGain(_bassGain);
     notifyListeners();
@@ -226,7 +226,7 @@ class AppController with ChangeNotifier {
   }
 
   set trebleGain(double value) {
-    _trebleGain = value.clamp(0.0, 20.0);
+    _trebleGain = value.clamp(0.0, 30.0);
     _prefs.setDouble("trebleGain", _trebleGain);
     Channel.dspSetTrebleGain(_trebleGain);
     notifyListeners();
@@ -339,7 +339,13 @@ class AppController with ChangeNotifier {
     notifyListeners();
   }
 
-  void updateParametricPoint(int index, {double? frequency, double? gain, double? q, bool? enabled}) {
+  void updateParametricPoint(
+    int index, {
+    double? frequency,
+    double? gain,
+    double? q,
+    bool? enabled,
+  }) {
     if (index >= 0 && index < _parametricPoints.length) {
       _parametricPoints[index] = _parametricPoints[index].copyWith(
         frequency: frequency,
@@ -387,8 +393,10 @@ class AppController with ChangeNotifier {
   }
 
   void _persistParametricPoints() {
-    _prefs.setString("parametricPoints",
-        json.encode(_parametricPoints.map((p) => p.toJson()).toList()));
+    _prefs.setString(
+      "parametricPoints",
+      json.encode(_parametricPoints.map((p) => p.toJson()).toList()),
+    );
   }
 
   Future<void> detectAndApplyDevicePreset() async {
@@ -408,7 +416,9 @@ class AppController with ChangeNotifier {
       final devicePreset = _savedPresets['_device_$device'];
       if (devicePreset != null) {
         setGraphicAllBands(devicePreset.graphicGains);
-        _parametricPoints = devicePreset.parametric.map((p) => p.copyWith()).toList();
+        _parametricPoints = devicePreset.parametric
+            .map((p) => p.copyWith())
+            .toList();
         _applyParametricToNative();
         preampGain = devicePreset.preamp;
       }
@@ -568,7 +578,8 @@ class AppController with ChangeNotifier {
   bool get showDvcOverlay => _showDvcOverlay;
 
   /// DVC gain as 0–100 percentage (−30 dB = 0%, 0 dB = 100%).
-  int get dvcVolumePercent => ((_dvcGain + 30) / 30 * 100).round().clamp(0, 100);
+  int get dvcVolumePercent =>
+      ((_dvcGain + 30) / 30 * 100).round().clamp(0, 100);
 
   void _showDvcVolumeOverlay() {
     _showDvcOverlay = true;
@@ -612,7 +623,11 @@ class AppController with ChangeNotifier {
     googleDriveService = GoogleDriveService(cloudAuth);
     dropboxService = DropboxService(cloudAuth);
     cloudMetadata = CloudMetadataService(
-        cloudAuth, cloudCache, googleDriveService, dropboxService);
+      cloudAuth,
+      cloudCache,
+      googleDriveService,
+      dropboxService,
+    );
     _initCloudServices();
   }
 
@@ -621,7 +636,9 @@ class AppController with ChangeNotifier {
   /// LoudnessEnhancer (DVC) needs rebinding.
   void _bindAudioSessionId() {
     _sessionIdSub?.cancel();
-    _sessionIdSub = _handler.player.androidAudioSessionIdStream.listen((sessionId) {
+    _sessionIdSub = _handler.player.androidAudioSessionIdStream.listen((
+      sessionId,
+    ) {
       if (sessionId != null) {
         Channel.setSessionId(sessionId);
         // Re-apply DVC state after session change (LoudnessEnhancer is session-bound)
@@ -743,8 +760,11 @@ class AppController with ChangeNotifier {
         final headers = nextSong.data.contains('googleapis.com')
             ? await cloudAuth.getGoogleAuthHeaders()
             : <String, String>{};
-        nextSource = LockCachingAudioSource(Uri.parse(nextSong.data),
-            cacheFile: cloudCache.cacheFile(fileId), headers: headers);
+        nextSource = LockCachingAudioSource(
+          Uri.parse(nextSong.data),
+          cacheFile: cloudCache.cacheFile(fileId),
+          headers: headers,
+        );
       }
     } else {
       nextSource = AudioSource.uri(Uri.parse(nextSong.data));
@@ -772,21 +792,22 @@ class AppController with ChangeNotifier {
       final image = await fetchArtworkUrl(song.data, song.id);
       artUri = Uri.file(image);
     }
-    handler.setCurrentMediaItem(MediaItem(
-      id: song.data,
-      album: song.album,
-      title: song.title,
-      artist: song.artist,
-      duration: Duration(milliseconds: song.duration ?? 0),
-      artUri: artUri,
-    ));
+    handler.setCurrentMediaItem(
+      MediaItem(
+        id: song.data,
+        album: song.album,
+        title: song.title,
+        artist: song.artist,
+        duration: Duration(milliseconds: song.duration ?? 0),
+        artUri: artUri,
+      ),
+    );
   }
 
   Future<String?> _downloadCloudArtwork(String url, int songId) async {
     try {
       final tempDir = await getTemporaryDirectory();
-      final file =
-          File('${tempDir.path}/cloud_art_$songId.png');
+      final file = File('${tempDir.path}/cloud_art_$songId.png');
       if (file.existsSync()) return file.path;
       final response = await http.get(Uri.parse(url));
       if (response.statusCode == 200) {
@@ -823,8 +844,13 @@ class AppController with ChangeNotifier {
           final headers = s.data.contains('googleapis.com')
               ? await cloudAuth.getGoogleAuthHeaders()
               : <String, String>{};
-          sources.add(LockCachingAudioSource(Uri.parse(s.data),
-              cacheFile: cloudCache.cacheFile(fileId), headers: headers));
+          sources.add(
+            LockCachingAudioSource(
+              Uri.parse(s.data),
+              cacheFile: cloudCache.cacheFile(fileId),
+              headers: headers,
+            ),
+          );
         }
       } else {
         sources.add(AudioSource.uri(Uri.parse(s.data)));
@@ -899,8 +925,10 @@ class AppController with ChangeNotifier {
 
     // projectM MilkDrop settings
     _milkdropFps = _prefs.getInt("milkdropFps") ?? 30;
-    _milkdropBeatSensitivity = _prefs.getDouble("milkdropBeatSensitivity") ?? 1.0;
-    _milkdropPresetDuration = _prefs.getDouble("milkdropPresetDuration") ?? 30.0;
+    _milkdropBeatSensitivity =
+        _prefs.getDouble("milkdropBeatSensitivity") ?? 1.0;
+    _milkdropPresetDuration =
+        _prefs.getDouble("milkdropPresetDuration") ?? 30.0;
     _milkdropPresetLocked = _prefs.getBool("milkdropPresetLocked") ?? false;
     // Room effects (custom DSP)
     _reverbEnabled = _prefs.getBool("reverbEnabled") ?? false;

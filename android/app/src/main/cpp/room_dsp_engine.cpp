@@ -50,9 +50,7 @@ void RoomDSPEngine::reset() {
 }
 
 void RoomDSPEngine::setPreampGain(float dB) {
-    // Now supports full [-15, +15] dB range (attenuation AND boost)
     preampGainDb_ = std::max(-15.0f, std::min(15.0f, dB));
-    preampLinear_ = std::pow(10.0f, preampGainDb_ / 20.0f);
     recomputeAutoGain();
 }
 
@@ -85,9 +83,34 @@ void RoomDSPEngine::setParametricAllBands(const float* freqs, const float* gains
 }
 
 void RoomDSPEngine::recomputeAutoGain() {
-    // No-op: auto-gain compensation removed.
-    // Preamp controls input level directly. EQ boosts are unrestricted.
-    // The output limiter (when enabled) or the final hard clamp catches overs.
+    // Full auto-gain: reduce preamp by exactly the peak boost amount.
+    //
+    // This guarantees zero clipping for the loudest boosted band.
+    // The EQ effect is pure frequency SHAPING — boosted frequencies stand
+    // out because everything else is lowered, not because the overall level
+    // increases. This is how professional hardware EQs work (RME, SSL, Neve).
+    //
+    // We use the SINGLE highest band peak (not cumulative sums of adjacent
+    // bands), so the reduction is minimal and the EQ sounds impactful.
+    // Adjacent band overlap (~3 dB worst case) is caught transparently
+    // by the always-on output limiter — well within its clean range.
+
+    // Find the single highest positive boost across all EQ sources
+    float graphicPeak = graphicEq_.getPeakGain();
+    float parametricPeak = parametricEq_.getPeakGain();
+    float peakBoost = std::max(graphicPeak, parametricPeak);
+
+    // Tone controls: take max (not sum) — the shelf may overlap with an
+    // EQ band, but the limiter handles any residual gracefully.
+    if (tone_.isEnabled()) {
+        float tonePeak = tone_.getPeakGain();
+        peakBoost = std::max(peakBoost, tonePeak);
+    }
+
+    // Reduce preamp by 100% of peak boost — zero clipping guaranteed
+    float effectiveDb = preampGainDb_ - peakBoost;
+    effectiveDb = std::max(-30.0f, std::min(15.0f, effectiveDb));
+    preampLinear_ = std::pow(10.0f, effectiveDb / 20.0f);
 }
 
 void RoomDSPEngine::process(float* buffer, int numFrames) {
@@ -126,21 +149,24 @@ void RoomDSPEngine::process(float* buffer, int numFrames) {
     }
 
     // Signal chain:
-    //   [Preamp] -> [Graphic EQ] -> [Parametric EQ]
+    //   [Preamp+AutoGain] -> [Graphic EQ] -> [Parametric EQ]
     //   -> [Tone Controls] -> [MBC] -> [Stereo Expand]
     //   -> [Crossfeed] -> [Reverb] -> [Output Limiter]
 
     if (doEq) {
-        // Preamp with per-sample smoothing (sample-rate adaptive).
-        // No auto-gain reduction — let the EQ boost freely.
-        // The output limiter (when enabled) or final clamp handles overs.
+        // Preamp + auto-gain with asymmetric smoothing.
+        // preampLinear_ includes full auto-reduction for zero-clip headroom.
+        // Instant reduction (prevents transient overshoot when boost is added).
+        // Smooth increase (prevents clicks when boost is removed).
         float preampTarget = preampLinear_;
-        if (std::fabs(preampTarget - 1.0f) > 1e-6f || std::fabs(preampLinearSmoothed_ - 1.0f) > 1e-6f) {
-            for (int i = 0; i < numFrames; i++) {
+        for (int i = 0; i < numFrames; i++) {
+            if (preampTarget < preampLinearSmoothed_) {
+                preampLinearSmoothed_ = preampTarget;  // instant reduction
+            } else {
                 preampLinearSmoothed_ += smoothCoeff_ * (preampTarget - preampLinearSmoothed_);
-                left[i] *= preampLinearSmoothed_;
-                right[i] *= preampLinearSmoothed_;
             }
+            left[i] *= preampLinearSmoothed_;
+            right[i] *= preampLinearSmoothed_;
         }
         graphicEq_.process(left, right, numFrames);
         parametricEq_.process(left, right, numFrames);
@@ -168,9 +194,11 @@ void RoomDSPEngine::process(float* buffer, int numFrames) {
         reverb_.process(left, right, numFrames);
     }
 
-    // Output limiter — catches all peaks from the entire chain.
-    // This is the key to sounding powerful without distortion.
-    if (doLimiter) {
+    // Output limiter — always active when EQ/tone is processing.
+    // Transparent safety net: catches boosted peaks with soft-knee
+    // compression, preventing hard-clip distortion at the output clamp.
+    // Also runs when user explicitly enables it (for non-EQ use cases).
+    if (doLimiter || doEq || doTone) {
         limiter_.process(left, right, numFrames);
     }
 

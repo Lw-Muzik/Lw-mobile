@@ -104,7 +104,7 @@ class Apis {
     int? durationMs,
   ) async {
     try {
-      final query = title; //artist.isNotEmpty ? '$title $artist' : title;
+      final query = artist.isNotEmpty ? '$title $artist' : title;
       final uri = Uri.https('lrclib.net', '/api/search', {'q': query});
       final res = await _client
           .get(uri, headers: _lrclibHeaders)
@@ -134,8 +134,7 @@ class Apis {
         if (rTitle == titleLower) {
           score += 10;
           titleMatched = true;
-        } else if (rTitle.contains(titleLower) ||
-            titleLower.contains(rTitle)) {
+        } else if (rTitle.contains(titleLower) || titleLower.contains(rTitle)) {
           score += 5;
           titleMatched = true;
         }
@@ -157,8 +156,7 @@ class Apis {
 
         // Duration proximity
         if (durationSec != null && r['duration'] != null) {
-          final diff =
-              ((r['duration'] as num).toDouble() - durationSec).abs();
+          final diff = ((r['duration'] as num).toDouble() - durationSec).abs();
           if (diff <= 2) {
             score += 5;
           } else if (diff <= 5) {
@@ -178,8 +176,7 @@ class Apis {
       }
 
       if (best == null) return null;
-      return best['syncedLyrics'] as String? ??
-          best['plainLyrics'] as String?;
+      return best['syncedLyrics'] as String? ?? best['plainLyrics'] as String?;
     } catch (e) {
       debugPrint('LRCLIB search error: $e');
     }

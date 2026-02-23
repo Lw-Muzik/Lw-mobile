@@ -2,18 +2,18 @@
 #include <cmath>
 #include <algorithm>
 
-// Stereo output limiter — fast-attack, smooth-release, soft-knee.
+// Stereo output limiter — true-peak, zero-overshoot, soft-knee.
 // Placed at the very end of the DSP chain to catch peaks from EQ/tone boosts.
 //
 // Design: feed-forward peak limiter with per-sample envelope detection.
-// - Attack: ~0.1ms (catches transients immediately)
-// - Release: configurable, default 50ms (smooth recovery, no pumping)
+// - Attack: instant (gain reduction applied immediately — zero overshoot)
+// - Release: configurable, default 100ms (smooth recovery, no pumping)
 // - Soft knee: configurable width in dB (smooth transition into limiting)
 // - Ceiling: output never exceeds this level (default 0.98 = -0.18 dBFS)
 //
-// This is THE key difference vs a hard clamp — it gracefully reduces gain
-// for peaks that would clip, so you can push EQ boosts aggressively and
-// the sound stays powerful but clean.
+// Key: gain smoothing is ASYMMETRIC — instant for attack (prevents any
+// sample from exceeding the ceiling), smooth for release (no pumping).
+// The hard safety clamp inside process() should never trigger.
 class OutputLimiter {
 public:
     OutputLimiter() { reset(); }
@@ -49,9 +49,11 @@ public:
         kneeDb_ = std::max(0.0f, std::min(12.0f, dB));
     }
 
+    // Process audio through the limiter. The caller controls when to invoke
+    // this — the limiter itself has no internal enabled check, so it always
+    // processes when called. The engine invokes it when EQ/tone is active
+    // (transparent safety net) or when the user explicitly enables it.
     void process(float* left, float* right, int numFrames) {
-        if (!enabled_) return;
-
         for (int i = 0; i < numFrames; i++) {
             // Peak detection (stereo-linked)
             float peak = std::max(std::fabs(left[i]), std::fabs(right[i]));
@@ -63,7 +65,7 @@ public:
 
             // Envelope follower — instant attack, smooth release
             if (peakDb > envDb_) {
-                envDb_ = attackCoeff_ * envDb_ + (1.0f - attackCoeff_) * peakDb;
+                envDb_ = peakDb;  // instant: track peak exactly
             } else {
                 envDb_ = releaseCoeff_ * envDb_ + (1.0f - releaseCoeff_) * peakDb;
             }
@@ -74,14 +76,20 @@ public:
             // Convert to linear gain
             float gainLin = std::pow(10.0f, gainDb * 0.05f);
 
-            // Smooth gain changes to prevent zipper noise
-            gainSmoothed_ += 0.05f * (gainLin - gainSmoothed_);
+            // Asymmetric gain smoothing:
+            // - Attack (gain decreasing): instant — zero overshoot
+            // - Release (gain increasing): smooth — no pumping
+            if (gainLin < gainSmoothed_) {
+                gainSmoothed_ = gainLin;  // instant attack
+            } else {
+                gainSmoothed_ += releaseSmooth_ * (gainLin - gainSmoothed_);
+            }
 
             // Apply gain
             left[i]  *= gainSmoothed_;
             right[i] *= gainSmoothed_;
 
-            // Hard safety ceiling (should never trigger with proper limiting)
+            // Hard safety ceiling (should never trigger with instant attack)
             left[i]  = std::max(-ceiling_, std::min(ceiling_, left[i]));
             right[i] = std::max(-ceiling_, std::min(ceiling_, right[i]));
         }
@@ -90,10 +98,10 @@ public:
 private:
     void computeCoefficients() {
         if (sampleRate_ <= 0) return;
-        // Attack: ~0.1ms — catches transients fast
-        float attackMs = 0.1f;
-        attackCoeff_ = std::exp(-1.0f / (attackMs * 0.001f * (float)sampleRate_));
+        // Envelope release: smooth recovery (~100ms default)
         releaseCoeff_ = std::exp(-1.0f / (releaseMs_ * 0.001f * (float)sampleRate_));
+        // Gain release smoothing: slightly slower than envelope for clean recovery
+        releaseSmooth_ = 1.0f - std::exp(-1.0f / (releaseMs_ * 0.002f * (float)sampleRate_));
     }
 
     // Soft-knee gain computation in dB domain
@@ -118,11 +126,11 @@ private:
 
     float ceiling_ = 0.98f;
     float ceilingDb_ = -0.18f;  // 20*log10(0.98)
-    float releaseMs_ = 50.0f;
+    float releaseMs_ = 100.0f;
     float kneeDb_ = 6.0f;
 
-    float attackCoeff_ = 0.0f;
-    float releaseCoeff_ = 0.0f;
+    float releaseCoeff_ = 0.0f;   // envelope release
+    float releaseSmooth_ = 0.01f; // gain release smoothing
     float envDb_ = -96.0f;
     float gainSmoothed_ = 1.0f;
 };
