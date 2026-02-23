@@ -21,136 +21,139 @@ struct BiquadCoeffs {
     static BiquadCoeffs bypass() { return {1.0f, 0.0f, 0.0f, 0.0f, 0.0f}; }
 };
 
-// Coefficient design from Audio EQ Cookbook
+// Coefficient design from Audio EQ Cookbook (Robert Bristow-Johnson).
+// All math computed in double precision for clean bass response — float32 trig
+// loses precision at low frequencies where w0 is tiny. Coefficients are then
+// narrowed to float for real-time DF2T processing (sufficient for ARM NEON).
 struct BiquadDesign {
     static BiquadCoeffs peaking(float sampleRate, float freq, float gainDb, float Q) {
         if (Q < 0.01f) Q = 0.01f;
-        float A = std::pow(10.0f, gainDb / 40.0f);
-        float w0 = 2.0f * (float)M_PI * freq / sampleRate;
-        float sinw = std::sin(w0);
-        float cosw = std::cos(w0);
-        float alpha = sinw / (2.0f * Q);
+        double A = std::pow(10.0, (double)gainDb / 40.0);
+        double w0 = 2.0 * M_PI * (double)freq / (double)sampleRate;
+        double sinw = std::sin(w0);
+        double cosw = std::cos(w0);
+        double alpha = sinw / (2.0 * (double)Q);
 
-        float a0 = 1.0f + alpha / A;
-        float a0inv = 1.0f / a0;
+        double a0 = 1.0 + alpha / A;
+        double a0inv = 1.0 / a0;
         BiquadCoeffs c;
-        c.b0 = (1.0f + alpha * A) * a0inv;
-        c.b1 = (-2.0f * cosw) * a0inv;
-        c.b2 = (1.0f - alpha * A) * a0inv;
-        c.a1 = (-2.0f * cosw) * a0inv;
-        c.a2 = (1.0f - alpha / A) * a0inv;
+        c.b0 = (float)((1.0 + alpha * A) * a0inv);
+        c.b1 = (float)((-2.0 * cosw) * a0inv);
+        c.b2 = (float)((1.0 - alpha * A) * a0inv);
+        c.a1 = (float)((-2.0 * cosw) * a0inv);
+        c.a2 = (float)((1.0 - alpha / A) * a0inv);
         return c;
     }
 
     static BiquadCoeffs lowShelf(float sampleRate, float freq, float gainDb, float Q) {
         if (Q < 0.01f) Q = 0.01f;
-        float A = std::pow(10.0f, gainDb / 40.0f);
-        float w0 = 2.0f * (float)M_PI * freq / sampleRate;
-        float sinw = std::sin(w0);
-        float cosw = std::cos(w0);
-        float alpha = sinw / (2.0f * Q);
-        float sqrtA2alpha = 2.0f * std::sqrt(A) * alpha;
+        double A = std::pow(10.0, (double)gainDb / 40.0);
+        double w0 = 2.0 * M_PI * (double)freq / (double)sampleRate;
+        double sinw = std::sin(w0);
+        double cosw = std::cos(w0);
+        double alpha = sinw / (2.0 * (double)Q);
+        double sqrtA2alpha = 2.0 * std::sqrt(A) * alpha;
 
-        float a0 = (A + 1.0f) + (A - 1.0f) * cosw + sqrtA2alpha;
-        float a0inv = 1.0f / a0;
+        double a0 = (A + 1.0) + (A - 1.0) * cosw + sqrtA2alpha;
+        double a0inv = 1.0 / a0;
         BiquadCoeffs c;
-        c.b0 = A * ((A + 1.0f) - (A - 1.0f) * cosw + sqrtA2alpha) * a0inv;
-        c.b1 = 2.0f * A * ((A - 1.0f) - (A + 1.0f) * cosw) * a0inv;
-        c.b2 = A * ((A + 1.0f) - (A - 1.0f) * cosw - sqrtA2alpha) * a0inv;
-        c.a1 = -2.0f * ((A - 1.0f) + (A + 1.0f) * cosw) * a0inv;
-        c.a2 = ((A + 1.0f) + (A - 1.0f) * cosw - sqrtA2alpha) * a0inv;
+        c.b0 = (float)(A * ((A + 1.0) - (A - 1.0) * cosw + sqrtA2alpha) * a0inv);
+        c.b1 = (float)(2.0 * A * ((A - 1.0) - (A + 1.0) * cosw) * a0inv);
+        c.b2 = (float)(A * ((A + 1.0) - (A - 1.0) * cosw - sqrtA2alpha) * a0inv);
+        c.a1 = (float)(-2.0 * ((A - 1.0) + (A + 1.0) * cosw) * a0inv);
+        c.a2 = (float)(((A + 1.0) + (A - 1.0) * cosw - sqrtA2alpha) * a0inv);
         return c;
     }
 
     static BiquadCoeffs highShelf(float sampleRate, float freq, float gainDb, float Q) {
         if (Q < 0.01f) Q = 0.01f;
-        float A = std::pow(10.0f, gainDb / 40.0f);
-        float w0 = 2.0f * (float)M_PI * freq / sampleRate;
-        float sinw = std::sin(w0);
-        float cosw = std::cos(w0);
-        float alpha = sinw / (2.0f * Q);
-        float sqrtA2alpha = 2.0f * std::sqrt(A) * alpha;
+        double A = std::pow(10.0, (double)gainDb / 40.0);
+        double w0 = 2.0 * M_PI * (double)freq / (double)sampleRate;
+        double sinw = std::sin(w0);
+        double cosw = std::cos(w0);
+        double alpha = sinw / (2.0 * (double)Q);
+        double sqrtA2alpha = 2.0 * std::sqrt(A) * alpha;
 
-        float a0 = (A + 1.0f) - (A - 1.0f) * cosw + sqrtA2alpha;
-        float a0inv = 1.0f / a0;
+        double a0 = (A + 1.0) - (A - 1.0) * cosw + sqrtA2alpha;
+        double a0inv = 1.0 / a0;
         BiquadCoeffs c;
-        c.b0 = A * ((A + 1.0f) + (A - 1.0f) * cosw + sqrtA2alpha) * a0inv;
-        c.b1 = -2.0f * A * ((A - 1.0f) + (A + 1.0f) * cosw) * a0inv;
-        c.b2 = A * ((A + 1.0f) + (A - 1.0f) * cosw - sqrtA2alpha) * a0inv;
-        c.a1 = 2.0f * ((A - 1.0f) - (A + 1.0f) * cosw) * a0inv;
-        c.a2 = ((A + 1.0f) - (A - 1.0f) * cosw - sqrtA2alpha) * a0inv;
+        c.b0 = (float)(A * ((A + 1.0) + (A - 1.0) * cosw + sqrtA2alpha) * a0inv);
+        c.b1 = (float)(-2.0 * A * ((A - 1.0) + (A + 1.0) * cosw) * a0inv);
+        c.b2 = (float)(A * ((A + 1.0) + (A - 1.0) * cosw - sqrtA2alpha) * a0inv);
+        c.a1 = (float)(2.0 * ((A - 1.0) - (A + 1.0) * cosw) * a0inv);
+        c.a2 = (float)(((A + 1.0) - (A - 1.0) * cosw - sqrtA2alpha) * a0inv);
         return c;
     }
 
     static BiquadCoeffs lowPass(float sampleRate, float freq, float Q) {
         if (Q < 0.01f) Q = 0.01f;
-        float w0 = 2.0f * (float)M_PI * freq / sampleRate;
-        float sinw = std::sin(w0);
-        float cosw = std::cos(w0);
-        float alpha = sinw / (2.0f * Q);
+        double w0 = 2.0 * M_PI * (double)freq / (double)sampleRate;
+        double sinw = std::sin(w0);
+        double cosw = std::cos(w0);
+        double alpha = sinw / (2.0 * (double)Q);
 
-        float a0 = 1.0f + alpha;
-        float a0inv = 1.0f / a0;
+        double a0 = 1.0 + alpha;
+        double a0inv = 1.0 / a0;
         BiquadCoeffs c;
-        c.b0 = ((1.0f - cosw) / 2.0f) * a0inv;
-        c.b1 = (1.0f - cosw) * a0inv;
+        c.b0 = (float)(((1.0 - cosw) / 2.0) * a0inv);
+        c.b1 = (float)((1.0 - cosw) * a0inv);
         c.b2 = c.b0;
-        c.a1 = (-2.0f * cosw) * a0inv;
-        c.a2 = (1.0f - alpha) * a0inv;
+        c.a1 = (float)((-2.0 * cosw) * a0inv);
+        c.a2 = (float)((1.0 - alpha) * a0inv);
         return c;
     }
 
     static BiquadCoeffs highPass(float sampleRate, float freq, float Q) {
         if (Q < 0.01f) Q = 0.01f;
-        float w0 = 2.0f * (float)M_PI * freq / sampleRate;
-        float sinw = std::sin(w0);
-        float cosw = std::cos(w0);
-        float alpha = sinw / (2.0f * Q);
+        double w0 = 2.0 * M_PI * (double)freq / (double)sampleRate;
+        double sinw = std::sin(w0);
+        double cosw = std::cos(w0);
+        double alpha = sinw / (2.0 * (double)Q);
 
-        float a0 = 1.0f + alpha;
-        float a0inv = 1.0f / a0;
+        double a0 = 1.0 + alpha;
+        double a0inv = 1.0 / a0;
         BiquadCoeffs c;
-        c.b0 = ((1.0f + cosw) / 2.0f) * a0inv;
-        c.b1 = -(1.0f + cosw) * a0inv;
+        c.b0 = (float)(((1.0 + cosw) / 2.0) * a0inv);
+        c.b1 = (float)(-(1.0 + cosw) * a0inv);
         c.b2 = c.b0;
-        c.a1 = (-2.0f * cosw) * a0inv;
-        c.a2 = (1.0f - alpha) * a0inv;
+        c.a1 = (float)((-2.0 * cosw) * a0inv);
+        c.a2 = (float)((1.0 - alpha) * a0inv);
         return c;
     }
 
     static BiquadCoeffs notch(float sampleRate, float freq, float Q) {
         if (Q < 0.01f) Q = 0.01f;
-        float w0 = 2.0f * (float)M_PI * freq / sampleRate;
-        float sinw = std::sin(w0);
-        float cosw = std::cos(w0);
-        float alpha = sinw / (2.0f * Q);
+        double w0 = 2.0 * M_PI * (double)freq / (double)sampleRate;
+        double sinw = std::sin(w0);
+        double cosw = std::cos(w0);
+        double alpha = sinw / (2.0 * (double)Q);
 
-        float a0 = 1.0f + alpha;
-        float a0inv = 1.0f / a0;
+        double a0 = 1.0 + alpha;
+        double a0inv = 1.0 / a0;
         BiquadCoeffs c;
-        c.b0 = 1.0f * a0inv;
-        c.b1 = (-2.0f * cosw) * a0inv;
-        c.b2 = 1.0f * a0inv;
+        c.b0 = (float)(1.0 * a0inv);
+        c.b1 = (float)((-2.0 * cosw) * a0inv);
+        c.b2 = c.b0;
         c.a1 = c.b1;
-        c.a2 = (1.0f - alpha) * a0inv;
+        c.a2 = (float)((1.0 - alpha) * a0inv);
         return c;
     }
 
     static BiquadCoeffs bandPass(float sampleRate, float freq, float Q) {
         if (Q < 0.01f) Q = 0.01f;
-        float w0 = 2.0f * (float)M_PI * freq / sampleRate;
-        float sinw = std::sin(w0);
-        float cosw = std::cos(w0);
-        float alpha = sinw / (2.0f * Q);
+        double w0 = 2.0 * M_PI * (double)freq / (double)sampleRate;
+        double sinw = std::sin(w0);
+        double cosw = std::cos(w0);
+        double alpha = sinw / (2.0 * (double)Q);
 
-        float a0 = 1.0f + alpha;
-        float a0inv = 1.0f / a0;
+        double a0 = 1.0 + alpha;
+        double a0inv = 1.0 / a0;
         BiquadCoeffs c;
-        c.b0 = alpha * a0inv;
+        c.b0 = (float)(alpha * a0inv);
         c.b1 = 0.0f;
-        c.b2 = -alpha * a0inv;
-        c.a1 = (-2.0f * cosw) * a0inv;
-        c.a2 = (1.0f - alpha) * a0inv;
+        c.b2 = (float)(-alpha * a0inv);
+        c.a1 = (float)((-2.0 * cosw) * a0inv);
+        c.a2 = (float)((1.0 - alpha) * a0inv);
         return c;
     }
 

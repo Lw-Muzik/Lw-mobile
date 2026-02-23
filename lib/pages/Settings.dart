@@ -49,6 +49,8 @@ class _SettingsState extends State<Settings> {
                     const SizedBox(height: 12),
                     _buildEqualizerSection(controller),
                     const SizedBox(height: 12),
+                    _buildToneSection(controller),
+                    const SizedBox(height: 12),
                     _buildAppearanceSection(controller),
                     const SizedBox(height: 12),
                     _buildVisualizerSection(controller),
@@ -282,6 +284,121 @@ class _SettingsState extends State<Settings> {
               ),
             ),
           ),
+        ]),
+      ],
+    );
+  }
+
+  // -- Tone Settings Section --
+
+  Widget _buildToneSection(AppController controller) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionHeader(Icons.tune, "Tone Controls"),
+        _buildSectionCard([
+          SwitchListTile.adaptive(
+            value: controller.toneEnabled,
+            title: const Text("Tone controls"),
+            subtitle: Text(
+              controller.toneEnabled
+                  ? "Bass & treble active"
+                  : "Disabled",
+            ),
+            onChanged: (enabled) => controller.toneEnabled = enabled,
+          ),
+          if (controller.toneEnabled) ...[
+            const Divider(height: 1, indent: 16, endIndent: 16),
+            // Bass settings
+            Padding(
+              padding: const EdgeInsets.only(left: 16, top: 12),
+              child: Text(
+                "Bass",
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            ListTile(
+              dense: true,
+              title: const Text("Frequency"),
+              subtitle: Text("${controller.bassFreq.round()} Hz"),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Slider.adaptive(
+                value: controller.bassFreq,
+                min: 20,
+                max: 500,
+                divisions: 48,
+                onChanged: (v) => controller.bassFreq = v,
+              ),
+            ),
+            ListTile(
+              dense: true,
+              title: const Text("Q Factor"),
+              subtitle: Text(controller.bassQ.toStringAsFixed(2)),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Slider.adaptive(
+                value: controller.bassQ,
+                min: 0.1,
+                max: 4.0,
+                divisions: 39,
+                onChanged: (v) => controller.bassQ = v,
+              ),
+            ),
+            const Divider(height: 1, indent: 16, endIndent: 16),
+            // Treble settings
+            Padding(
+              padding: const EdgeInsets.only(left: 16, top: 12),
+              child: Text(
+                "Treble",
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            ListTile(
+              dense: true,
+              title: const Text("Frequency"),
+              subtitle: Text("${controller.trebleFreq.round()} Hz"),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Slider.adaptive(
+                value: controller.trebleFreq,
+                min: 1000,
+                max: 20000,
+                divisions: 38,
+                onChanged: (v) => controller.trebleFreq = v,
+              ),
+            ),
+            ListTile(
+              dense: true,
+              title: const Text("Q Factor"),
+              subtitle: Text(controller.trebleQ.toStringAsFixed(2)),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: Slider.adaptive(
+                value: controller.trebleQ,
+                min: 0.1,
+                max: 4.0,
+                divisions: 39,
+                onChanged: (v) => controller.trebleQ = v,
+              ),
+            ),
+            const Divider(height: 1, indent: 16, endIndent: 16),
+            // Output limiter
+            SwitchListTile.adaptive(
+              value: controller.limiterEnabled,
+              title: const Text("Output limiter"),
+              subtitle: const Text("Prevents distortion from EQ boosts"),
+              onChanged: (enabled) => controller.limiterEnabled = enabled,
+            ),
+          ],
         ]),
       ],
     );

@@ -119,6 +119,18 @@ class AppController with ChangeNotifier {
   double _crossfeedCutoff = 700.0; // Hz (100-2000)
   double _crossfeedFeed = 4.5; // dB (1-15)
 
+  // Tone controls (bass/treble shelf filters)
+  bool _toneEnabled = false;
+  double _bassGain = 0.0; // 0 to 20 dB
+  double _bassFreq = 80.0; // 20-500 Hz
+  double _bassQ = 0.707; // 0.1-4.0
+  double _trebleGain = 0.0; // 0 to 20 dB
+  double _trebleFreq = 10000.0; // 1000-20000 Hz
+  double _trebleQ = 0.707; // 0.1-4.0
+
+  // Output limiter (on by default)
+  bool _limiterEnabled = true;
+
   // Song grid scale getters/setters
   int get songGridScale => _songGridScale;
   set songGridScale(int value) {
@@ -169,9 +181,75 @@ class AppController with ChangeNotifier {
   bool get mbcEnabled => _mbcEnabled;
 
   set preampGain(double value) {
-    _preampGain = value.clamp(0.0, 15.0);
+    _preampGain = value.clamp(-15.0, 15.0);
     _prefs.setDouble("preampGain", _preampGain);
     Channel.setPreamp(_preampGain);
+    notifyListeners();
+  }
+
+  // Tone controls getters/setters
+  bool get toneEnabled => _toneEnabled;
+  double get bassGain => _bassGain;
+  double get bassFreq => _bassFreq;
+  double get bassQ => _bassQ;
+  double get trebleGain => _trebleGain;
+  double get trebleFreq => _trebleFreq;
+  double get trebleQ => _trebleQ;
+  bool get limiterEnabled => _limiterEnabled;
+
+  set toneEnabled(bool value) {
+    _toneEnabled = value;
+    _prefs.setBool("toneEnabled", value);
+    Channel.dspSetToneEnabled(value);
+    notifyListeners();
+  }
+
+  set bassGain(double value) {
+    _bassGain = value.clamp(0.0, 20.0);
+    _prefs.setDouble("bassGain", _bassGain);
+    Channel.dspSetBassGain(_bassGain);
+    notifyListeners();
+  }
+
+  set bassFreq(double value) {
+    _bassFreq = value.clamp(20.0, 500.0);
+    _prefs.setDouble("bassFreq", _bassFreq);
+    Channel.dspSetBassFreq(_bassFreq);
+    notifyListeners();
+  }
+
+  set bassQ(double value) {
+    _bassQ = value.clamp(0.1, 4.0);
+    _prefs.setDouble("bassQ", _bassQ);
+    Channel.dspSetBassQ(_bassQ);
+    notifyListeners();
+  }
+
+  set trebleGain(double value) {
+    _trebleGain = value.clamp(0.0, 20.0);
+    _prefs.setDouble("trebleGain", _trebleGain);
+    Channel.dspSetTrebleGain(_trebleGain);
+    notifyListeners();
+  }
+
+  set trebleFreq(double value) {
+    _trebleFreq = value.clamp(1000.0, 20000.0);
+    _prefs.setDouble("trebleFreq", _trebleFreq);
+    Channel.dspSetTrebleFreq(_trebleFreq);
+    notifyListeners();
+  }
+
+  set trebleQ(double value) {
+    _trebleQ = value.clamp(0.1, 4.0);
+    _prefs.setDouble("trebleQ", _trebleQ);
+    Channel.dspSetTrebleQ(_trebleQ);
+    notifyListeners();
+  }
+
+  set limiterEnabled(bool value) {
+    _limiterEnabled = value;
+    _prefs.setBool("limiterEnabled", value);
+    Channel.dspSetLimiterEnabled(value);
     notifyListeners();
   }
 
@@ -838,6 +916,16 @@ class AppController with ChangeNotifier {
     _crossfeedEnabled = _prefs.getBool("crossfeedEnabled") ?? false;
     _crossfeedCutoff = _prefs.getDouble("crossfeedCutoff") ?? 700.0;
     _crossfeedFeed = _prefs.getDouble("crossfeedFeed") ?? 4.5;
+    // Tone controls
+    _toneEnabled = _prefs.getBool("toneEnabled") ?? false;
+    _bassGain = _prefs.getDouble("bassGain") ?? 0.0;
+    _bassFreq = _prefs.getDouble("bassFreq") ?? 80.0;
+    _bassQ = _prefs.getDouble("bassQ") ?? 0.707;
+    _trebleGain = _prefs.getDouble("trebleGain") ?? 0.0;
+    _trebleFreq = _prefs.getDouble("trebleFreq") ?? 10000.0;
+    _trebleQ = _prefs.getDouble("trebleQ") ?? 0.707;
+    // Output limiter
+    _limiterEnabled = _prefs.getBool("limiterEnabled") ?? true;
     // Apply DSP params to native engine on startup
     _applyAllDspParams();
   }
@@ -1082,6 +1170,16 @@ class AppController with ChangeNotifier {
     Channel.dspSetStereoWidth(_stereoWidth);
     Channel.dspSetCrossfeedEnabled(_crossfeedEnabled);
     Channel.dspSetCrossfeedParams(_crossfeedCutoff, _crossfeedFeed);
+    // Tone controls
+    Channel.dspSetToneEnabled(_toneEnabled);
+    Channel.dspSetBassGain(_bassGain);
+    Channel.dspSetBassFreq(_bassFreq);
+    Channel.dspSetBassQ(_bassQ);
+    Channel.dspSetTrebleGain(_trebleGain);
+    Channel.dspSetTrebleFreq(_trebleFreq);
+    Channel.dspSetTrebleQ(_trebleQ);
+    // Output limiter
+    Channel.dspSetLimiterEnabled(_limiterEnabled);
   }
 
   /// Applies a room preset, updating all parameters at once.

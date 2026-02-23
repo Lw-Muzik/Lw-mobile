@@ -22,7 +22,7 @@ class GraphicEqView extends StatefulWidget {
 
 class _GraphicEqViewState extends State<GraphicEqView> {
   int _activeBand = -1;
-  int _curveDragBand = -1; // band being dragged on the curve
+  int _curveDragBand = -1;
 
   @override
   Widget build(BuildContext context) {
@@ -30,36 +30,58 @@ class _GraphicEqViewState extends State<GraphicEqView> {
     final mapping = controller.currentBandMapping;
     final displayGains = controller.displayBandGains;
 
-    return SingleChildScrollView(
+    return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _buildHeaderRow(controller),
-          const SizedBox(height: 12),
-          _buildPreampSlider(controller),
-          const SizedBox(height: 12),
-          _buildCurveSection(controller, displayGains, mapping),
-          const SizedBox(height: 16),
-          _buildBandSlidersSection(controller, displayGains, mapping),
-          const SizedBox(height: 16),
-          _buildPresetChips(controller),
-          const SizedBox(height: 12),
-          _buildSaveButton(context, controller),
-          const SizedBox(height: 24),
+          const SizedBox(height: 8),
+          Expanded(
+            child: FancyCard(
+              isFancy: controller.isFancy,
+              child: Column(
+                children: [
+                  _buildPreampRow(controller),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    child: Container(
+                      height: 0.5,
+                      color: Colors.white.withValues(alpha: 0.06),
+                    ),
+                  ),
+                  Expanded(
+                    flex: 3,
+                    child: _buildCurve(controller, displayGains, mapping),
+                  ),
+                  const SizedBox(height: 2),
+                  Expanded(
+                    flex: 4,
+                    child: _buildBandSliders(
+                      controller,
+                      displayGains,
+                      mapping,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          _buildPresetsRow(controller),
+          const SizedBox(height: 8),
         ],
       ),
     );
   }
 
   // ---------------------------------------------------------------------------
-  // 1. Header row with power button and band count selector
+  // 1. Header: power, title, flatten, band count
   // ---------------------------------------------------------------------------
 
   Widget _buildHeaderRow(AppController controller) {
     return Row(
       children: [
-        // Power button with glow
         _EqPowerButton(
           enabled: controller.graphicEqEnabled,
           onToggle: () {
@@ -68,15 +90,37 @@ class _GraphicEqViewState extends State<GraphicEqView> {
             Channel.enableEq(newValue);
           },
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: 10),
         Text(
           "Graphic EQ",
-          style: Theme.of(
-            context,
-          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+          style: Theme.of(context)
+              .textTheme
+              .titleMedium
+              ?.copyWith(fontWeight: FontWeight.w600),
         ),
         const Spacer(),
-        // Band count dropdown
+        // Flatten all bands to 0 dB
+        SizedBox(
+          width: 32,
+          height: 32,
+          child: IconButton(
+            padding: EdgeInsets.zero,
+            icon: Icon(
+              Icons.restart_alt_rounded,
+              size: 19,
+              color: Colors.white.withValues(alpha: 0.35),
+            ),
+            tooltip: "Flatten bands",
+            onPressed: () {
+              final gains = controller.displayBandGains;
+              for (int i = 0; i < gains.length; i++) {
+                controller.setDisplayBandGain(i, 0.0);
+              }
+              controller.activePresetName = 'Flat';
+            },
+          ),
+        ),
+        const SizedBox(width: 4),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
           decoration: BoxDecoration(
@@ -104,126 +148,117 @@ class _GraphicEqViewState extends State<GraphicEqView> {
     );
   }
 
-  // ---------------------------------------------------------------------------
-  // 2. Preamp slider
-  // ---------------------------------------------------------------------------
-
-  Widget _buildPreampSlider(AppController controller) {
-    return FancyCard(
-      isFancy: controller.isFancy,
-      child: Row(
-        children: [
-          const Icon(Icons.volume_up, size: 18, color: _kAccent),
-          const SizedBox(width: 8),
-          const Text(
-            "Preamp",
-            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+  Widget _buildPreampRow(AppController controller) {
+    return Row(
+      children: [
+        Icon(
+          Icons.volume_up_rounded,
+          size: 16,
+          color: _kAccent.withValues(alpha: 0.7),
+        ),
+        const SizedBox(width: 6),
+        Text(
+          "Pre",
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+            color: Colors.white.withValues(alpha: 0.5),
           ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: SliderTheme(
-              data: SliderThemeData(
-                trackHeight: 4,
-                activeTrackColor: _kAccent,
-                inactiveTrackColor: Colors.white12,
-                thumbColor: _kAccent,
-                overlayColor: _kAccent.withValues(alpha: 0.12),
-                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7),
-              ),
-              child: Slider(
-                value: controller.preampGain,
-                min: 0,
-                max: 15,
-                onChanged: (v) {
-                  controller.preampGain = v;
-                },
-              ),
+        ),
+        const SizedBox(width: 4),
+        Expanded(
+          child: SliderTheme(
+            data: SliderThemeData(
+              trackHeight: 3,
+              activeTrackColor: _kAccent,
+              inactiveTrackColor: Colors.white.withValues(alpha: 0.08),
+              thumbColor: _kAccent,
+              overlayColor: _kAccent.withValues(alpha: 0.08),
+              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+            ),
+            child: Slider(
+              value: controller.preampGain,
+              min: -15,
+              max: 15,
+              onChanged: (v) => controller.preampGain = v,
             ),
           ),
-          SizedBox(
-            width: 52,
-            child: Text(
-              '+${controller.preampGain.toStringAsFixed(1)} dB',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: controller.preampGain > 0 ? _kAccent : Colors.white54,
-              ),
-              textAlign: TextAlign.right,
+        ),
+        SizedBox(
+          width: 42,
+          child: Text(
+            '${controller.preampGain >= 0 ? "+" : ""}${controller.preampGain.toStringAsFixed(1)}',
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              color: controller.preampGain.abs() > 0.05
+                  ? _kAccent
+                  : Colors.white.withValues(alpha: 0.35),
+              fontFeatures: const [FontFeature.tabularFigures()],
             ),
+            textAlign: TextAlign.right,
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
   // ---------------------------------------------------------------------------
-  // 3. Touch-interactive frequency response curve
+  // Curve (inside EQ surface — no card wrapper)
   // ---------------------------------------------------------------------------
 
-  Widget _buildCurveSection(
+  Widget _buildCurve(
     AppController controller,
     List<double> gains,
     BandMapping mapping,
   ) {
-    final screenH = MediaQuery.of(context).size.height;
-    final curveHeight = (screenH * 0.22).clamp(120.0, 260.0);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        final height = constraints.maxHeight;
 
-    return FancyCard(
-      isFancy: controller.isFancy,
-      child: SizedBox(
-        height: curveHeight,
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final width = constraints.maxWidth;
-            final height = curveHeight;
-
-            return GestureDetector(
-              onPanStart: (details) {
-                _curveDragBand = _findNearestBand(
-                  details.localPosition,
-                  gains,
-                  mapping.frequencies,
-                  width,
-                  height,
-                );
-                if (_curveDragBand >= 0) {
-                  _updateBandFromCurve(
-                    controller,
-                    _curveDragBand,
-                    details.localPosition,
-                    height,
-                  );
-                }
-              },
-              onPanUpdate: (details) {
-                if (_curveDragBand >= 0) {
-                  _updateBandFromCurve(
-                    controller,
-                    _curveDragBand,
-                    details.localPosition,
-                    height,
-                  );
-                }
-              },
-              onPanEnd: (_) {
-                _curveDragBand = -1;
-              },
-              child: RepaintBoundary(
-                child: CustomPaint(
-                  painter: _FrequencyCurvePainter(
-                    gains: gains,
-                    frequencies: mapping.frequencies,
-                    accent: _kAccent,
-                    activeBand: _curveDragBand,
-                  ),
-                  size: Size(width, height),
-                ),
-              ),
+        return GestureDetector(
+          onPanStart: (details) {
+            _curveDragBand = _findNearestBand(
+              details.localPosition,
+              gains,
+              mapping.frequencies,
+              width,
+              height,
             );
+            if (_curveDragBand >= 0) {
+              _updateBandFromCurve(
+                controller,
+                _curveDragBand,
+                details.localPosition,
+                height,
+              );
+            }
           },
-        ),
-      ),
+          onPanUpdate: (details) {
+            if (_curveDragBand >= 0) {
+              _updateBandFromCurve(
+                controller,
+                _curveDragBand,
+                details.localPosition,
+                height,
+              );
+            }
+          },
+          onPanEnd: (_) => _curveDragBand = -1,
+          child: RepaintBoundary(
+            child: CustomPaint(
+              painter: _FrequencyCurvePainter(
+                gains: gains,
+                frequencies: mapping.frequencies,
+                accent: _kAccent,
+                activeBand: _curveDragBand,
+              ),
+              size: Size(width, height),
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -236,11 +271,9 @@ class _GraphicEqViewState extends State<GraphicEqView> {
   ) {
     const padLeft = 32.0;
     const padRight = 8.0;
-    // const _ = 12.0;
-    // const _ = 20.0;
     final plotW = width - padLeft - padRight;
 
-    double bestDist = 40.0; // max hit distance in px
+    double bestDist = 40.0;
     int bestBand = -1;
 
     for (int i = 0; i < gains.length; i++) {
@@ -267,23 +300,21 @@ class _GraphicEqViewState extends State<GraphicEqView> {
     final plotH = height - padTop - padBottom;
     final normY = ((pos.dy - padTop) / plotH).clamp(0.0, 1.0);
     final gain = _kMaxGain - normY * (_kMaxGain - _kMinGain);
-    final rounded = (gain * 10).roundToDouble() / 10; // 0.1 dB precision
+    final rounded = (gain * 10).roundToDouble() / 10;
     controller.setDisplayBandGain(band, rounded.clamp(_kMinGain, _kMaxGain));
     controller.activePresetName = 'Custom';
     setState(() {});
   }
 
   // ---------------------------------------------------------------------------
-  // 4. Band sliders with illuminated tracks
+  // Band sliders (inside EQ surface — no card wrapper)
   // ---------------------------------------------------------------------------
 
-  Widget _buildBandSlidersSection(
+  Widget _buildBandSliders(
     AppController controller,
     List<double> displayGains,
     BandMapping mapping,
   ) {
-    final screenH = MediaQuery.of(context).size.height;
-    final sliderHeight = (screenH * 0.26).clamp(140.0, 280.0);
     final bandCount = mapping.displayCount;
     final frequencies = mapping.frequencies;
 
@@ -293,72 +324,64 @@ class _GraphicEqViewState extends State<GraphicEqView> {
       return i % 4 == 0 || i == bandCount - 1;
     }
 
-    return FancyCard(
-      isFancy: controller.isFancy,
-      child: SizedBox(
-        height: sliderHeight + 40,
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final availableWidth = constraints.maxWidth;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final availableWidth = constraints.maxWidth;
 
-            if (bandCount <= 10) {
-              final bandWidth = availableWidth / bandCount;
-              return Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: List.generate(bandCount, (i) {
-                  return _BandSlider(
-                    frequency: frequencies[i],
-                    gain: displayGains[i],
-                    width: bandWidth,
-                    height: sliderHeight,
-                    isActive: _activeBand == i,
-                    showLabel: showLabel(i),
-                    onChanged: (value) {
-                      controller.setDisplayBandGain(i, value);
-                      controller.activePresetName = 'Custom';
-                    },
-                    onDragStart: () => setState(() => _activeBand = i),
-                    onDragEnd: () => setState(() => _activeBand = -1),
-                  );
-                }),
+        if (bandCount <= 10) {
+          final bandWidth = availableWidth / bandCount;
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: List.generate(bandCount, (i) {
+              return _BandSlider(
+                frequency: frequencies[i],
+                gain: displayGains[i],
+                width: bandWidth,
+                isActive: _activeBand == i,
+                showLabel: showLabel(i),
+                onChanged: (value) {
+                  controller.setDisplayBandGain(i, value);
+                  controller.activePresetName = 'Custom';
+                },
+                onDragStart: () => setState(() => _activeBand = i),
+                onDragEnd: () => setState(() => _activeBand = -1),
               );
-            }
+            }),
+          );
+        }
 
-            const fixedBandWidth = 38.0;
-            return SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              physics: const BouncingScrollPhysics(),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: List.generate(bandCount, (i) {
-                  return _BandSlider(
-                    frequency: frequencies[i],
-                    gain: displayGains[i],
-                    width: fixedBandWidth,
-                    height: sliderHeight,
-                    isActive: _activeBand == i,
-                    showLabel: showLabel(i),
-                    onChanged: (value) {
-                      controller.setDisplayBandGain(i, value);
-                      controller.activePresetName = 'Custom';
-                    },
-                    onDragStart: () => setState(() => _activeBand = i),
-                    onDragEnd: () => setState(() => _activeBand = -1),
-                  );
-                }),
-              ),
-            );
-          },
-        ),
-      ),
+        const fixedBandWidth = 38.0;
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          physics: const BouncingScrollPhysics(),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: List.generate(bandCount, (i) {
+              return _BandSlider(
+                frequency: frequencies[i],
+                gain: displayGains[i],
+                width: fixedBandWidth,
+                isActive: _activeBand == i,
+                showLabel: showLabel(i),
+                onChanged: (value) {
+                  controller.setDisplayBandGain(i, value);
+                  controller.activePresetName = 'Custom';
+                },
+                onDragStart: () => setState(() => _activeBand = i),
+                onDragEnd: () => setState(() => _activeBand = -1),
+              );
+            }),
+          ),
+        );
+      },
     );
   }
 
   // ---------------------------------------------------------------------------
-  // 5. Preset chips
+  // 3. Presets with integrated save
   // ---------------------------------------------------------------------------
 
-  Widget _buildPresetChips(AppController controller) {
+  Widget _buildPresetsRow(AppController controller) {
     final presetNames = BuiltInPresets.names;
     final savedNames = controller.savedPresets.keys
         .where((k) => !k.startsWith('_device_'))
@@ -368,8 +391,15 @@ class _GraphicEqViewState extends State<GraphicEqView> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.only(left: 4, bottom: 6),
-          child: Text("Presets", style: Theme.of(context).textTheme.titleSmall),
+          padding: const EdgeInsets.only(left: 4, bottom: 4),
+          child: Text(
+            "Presets",
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: Colors.white.withValues(alpha: 0.35),
+            ),
+          ),
         ),
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
@@ -379,6 +409,29 @@ class _GraphicEqViewState extends State<GraphicEqView> {
               ...presetNames.map((name) => _presetChip(name, controller)),
               ...savedNames.map(
                 (name) => _presetChip(name, controller, isUser: true),
+              ),
+              // Inline save action
+              Padding(
+                padding: const EdgeInsets.only(left: 2),
+                child: ActionChip(
+                  avatar: Icon(
+                    Icons.add_rounded,
+                    size: 16,
+                    color: Colors.white.withValues(alpha: 0.35),
+                  ),
+                  label: Text(
+                    "Save",
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.5),
+                      fontSize: 12,
+                    ),
+                  ),
+                  backgroundColor: Colors.transparent,
+                  side: BorderSide(
+                    color: Colors.white.withValues(alpha: 0.12),
+                  ),
+                  onPressed: () => _showSaveDialog(context, controller),
+                ),
               ),
             ],
           ),
@@ -406,6 +459,7 @@ class _GraphicEqViewState extends State<GraphicEqView> {
         ),
         side: BorderSide(color: isSelected ? _kAccent : Colors.white24),
         backgroundColor: Colors.transparent,
+        visualDensity: VisualDensity.compact,
         avatar: isUser
             ? Icon(
                 Icons.person,
@@ -425,27 +479,8 @@ class _GraphicEqViewState extends State<GraphicEqView> {
   }
 
   // ---------------------------------------------------------------------------
-  // 6. Save button
+  // Save dialog
   // ---------------------------------------------------------------------------
-
-  Widget _buildSaveButton(BuildContext context, AppController controller) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 4),
-      child: FilledButton.icon(
-        icon: const Icon(Icons.save_rounded, size: 20),
-        label: const Text("Save as Preset"),
-        style: FilledButton.styleFrom(
-          backgroundColor: _kAccent.withValues(alpha: 0.15),
-          foregroundColor: _kAccent,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          padding: const EdgeInsets.symmetric(vertical: 14),
-        ),
-        onPressed: () => _showSaveDialog(context, controller),
-      ),
-    );
-  }
 
   void _showSaveDialog(BuildContext context, AppController controller) {
     final nameController = TextEditingController();
@@ -494,7 +529,7 @@ class _GraphicEqViewState extends State<GraphicEqView> {
 }
 
 // =============================================================================
-// EQ Power Button with glow
+// EQ Power Button
 // =============================================================================
 
 class _EqPowerButton extends StatelessWidget {
@@ -509,8 +544,8 @@ class _EqPowerButton extends StatelessWidget {
       onTap: onToggle,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 250),
-        width: 40,
-        height: 40,
+        width: 36,
+        height: 36,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           color: enabled
@@ -520,19 +555,19 @@ class _EqPowerButton extends StatelessWidget {
               ? [
                   BoxShadow(
                     color: _kAccent.withValues(alpha: 0.4),
-                    blurRadius: 12,
+                    blurRadius: 10,
                     spreadRadius: 1,
                   ),
                 ]
               : [],
           border: Border.all(
             color: enabled ? _kAccent : Colors.white24,
-            width: 2,
+            width: 1.5,
           ),
         ),
         child: Icon(
           Icons.power_settings_new,
-          size: 20,
+          size: 18,
           color: enabled ? _kAccent : Colors.white38,
         ),
       ),
@@ -541,14 +576,13 @@ class _EqPowerButton extends StatelessWidget {
 }
 
 // =============================================================================
-// Band Slider Widget with illuminated tracks
+// Band Slider
 // =============================================================================
 
 class _BandSlider extends StatelessWidget {
   final double frequency;
   final double gain;
   final double width;
-  final double height;
   final bool isActive;
   final bool showLabel;
   final ValueChanged<double> onChanged;
@@ -559,7 +593,6 @@ class _BandSlider extends StatelessWidget {
     required this.frequency,
     required this.gain,
     required this.width,
-    required this.height,
     required this.isActive,
     required this.showLabel,
     required this.onChanged,
@@ -582,7 +615,6 @@ class _BandSlider extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final normalized = (gain - _kMinGain) / (_kMaxGain - _kMinGain);
-    // Glow intensity based on gain magnitude
     final glowIntensity = (gain.abs() / _kMaxGain).clamp(0.0, 1.0);
     final trackColor = gain > 0
         ? _kAccent
@@ -605,8 +637,7 @@ class _BandSlider extends StatelessWidget {
               ),
             ),
           if (!isActive) const SizedBox(height: 14),
-          SizedBox(
-            height: height - 30,
+          Expanded(
             child: RotatedBox(
               quarterTurns: 3,
               child: SliderTheme(
@@ -630,7 +661,6 @@ class _BandSlider extends StatelessWidget {
                   onChangeStart: (_) => onDragStart(),
                   onChanged: (v) {
                     final newGain = _kMinGain + v * (_kMaxGain - _kMinGain);
-                    // 0.1 dB precision (no snapping)
                     final rounded = (newGain * 10).roundToDouble() / 10;
                     onChanged(rounded.clamp(_kMinGain, _kMaxGain));
                   },
@@ -660,7 +690,7 @@ class _BandSlider extends StatelessWidget {
 }
 
 // =============================================================================
-// Frequency Response Curve Painter (±15 dB, interactive)
+// Frequency Response Curve Painter
 // =============================================================================
 
 class _FrequencyCurvePainter extends CustomPainter {
@@ -727,14 +757,13 @@ class _FrequencyCurvePainter extends CustomPainter {
       ..isAntiAlias = true;
     canvas.drawPath(curvePath, curvePaint);
 
-    // Control dots with glow on boosted/cut bands
+    // Control dots
     for (int i = 0; i < points.length; i++) {
       final pt = points[i];
       final g = gains[i];
       final isActive = i == activeBand;
       final glowIntensity = (g.abs() / _kMaxGain).clamp(0.0, 1.0);
 
-      // Subtle glow for non-zero bands
       if (glowIntensity > 0.05) {
         final glowColor = g > 0 ? accent : const Color(0xFF5EC4D4);
         canvas.drawCircle(

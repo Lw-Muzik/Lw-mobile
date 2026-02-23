@@ -2,6 +2,7 @@ import '../exports/exports.dart';
 import '/controllers/AppController.dart';
 import '/widgets/Body.dart';
 import 'graphic_eq_view.dart';
+import 'tone_view.dart';
 import 'parametric_eq_view.dart';
 import 'space_view.dart';
 
@@ -20,7 +21,7 @@ class _EqualizerState extends State<Equalizer> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
   }
 
   @override
@@ -87,6 +88,7 @@ class _EqualizerState extends State<Equalizer> with TickerProviderStateMixin {
       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
       tabs: const [
         Tab(icon: Icon(Icons.equalizer, size: 35)),
+        Tab(icon: Icon(Icons.tune, size: 35)),
         Tab(icon: Icon(Icons.show_chart, size: 35)),
         Tab(icon: Icon(Icons.surround_sound, size: 35)),
       ],
@@ -97,7 +99,7 @@ class _EqualizerState extends State<Equalizer> with TickerProviderStateMixin {
     return SafeArea(
       child: TabBarView(
         controller: _tabController,
-        children: const [GraphicEqView(), ParametricEqView(), SpaceView()],
+        children: const [GraphicEqView(), ToneView(), ParametricEqView(), SpaceView()],
       ),
     );
   }

@@ -286,6 +286,76 @@ public class MainActivity extends AudioServiceFragmentActivity {
                             break;
                         }
 
+                        // ==================== Tone Controls (Bass/Treble) ====================
+                        case "dspSetToneEnabled": {
+                            boolean en = call.argument("enabled");
+                            RoomEffectsProcessor.broadcastToneEnabled(en);
+                            result.success(null);
+                            break;
+                        }
+                        case "dspSetBassGain": {
+                            double v = call.argument("value");
+                            RoomEffectsProcessor.broadcastBassGain((float) v);
+                            result.success(null);
+                            break;
+                        }
+                        case "dspSetBassFreq": {
+                            double v = call.argument("value");
+                            RoomEffectsProcessor.broadcastBassFreq((float) v);
+                            result.success(null);
+                            break;
+                        }
+                        case "dspSetBassQ": {
+                            double v = call.argument("value");
+                            RoomEffectsProcessor.broadcastBassQ((float) v);
+                            result.success(null);
+                            break;
+                        }
+                        case "dspSetTrebleGain": {
+                            double v = call.argument("value");
+                            RoomEffectsProcessor.broadcastTrebleGain((float) v);
+                            result.success(null);
+                            break;
+                        }
+                        case "dspSetTrebleFreq": {
+                            double v = call.argument("value");
+                            RoomEffectsProcessor.broadcastTrebleFreq((float) v);
+                            result.success(null);
+                            break;
+                        }
+                        case "dspSetTrebleQ": {
+                            double v = call.argument("value");
+                            RoomEffectsProcessor.broadcastTrebleQ((float) v);
+                            result.success(null);
+                            break;
+                        }
+
+                        // ==================== Output Limiter ====================
+                        case "dspSetLimiterEnabled": {
+                            boolean en = call.argument("enabled");
+                            RoomEffectsProcessor.broadcastLimiterEnabled(en);
+                            result.success(null);
+                            break;
+                        }
+                        case "dspSetLimiterCeiling": {
+                            double v = call.argument("value");
+                            RoomEffectsProcessor.broadcastLimiterCeiling((float) v);
+                            result.success(null);
+                            break;
+                        }
+                        case "dspSetLimiterRelease": {
+                            double v = call.argument("value");
+                            RoomEffectsProcessor.broadcastLimiterRelease((float) v);
+                            result.success(null);
+                            break;
+                        }
+                        case "dspSetLimiterKnee": {
+                            double v = call.argument("value");
+                            RoomEffectsProcessor.broadcastLimiterKnee((float) v);
+                            result.success(null);
+                            break;
+                        }
+
                         // Legacy DSP stubs — no-ops for backward compatibility
                         case "initDSPEngine":
                         case "enableDSP":

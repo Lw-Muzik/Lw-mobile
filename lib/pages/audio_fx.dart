@@ -36,11 +36,9 @@ class _AudioFxState extends State<AudioFx> {
                       buildSlider(
                         "Preamp",
                         controller.preampGain,
-                        0,
+                        -15,
                         15,
-                        (x) {
-                          controller.preampGain = x;
-                        },
+                        (x) => controller.preampGain = x,
                       ),
                     ],
                   ),
@@ -134,5 +132,13 @@ class FancyCard extends StatelessWidget {
 extension on AppController {
   void resetToDefaults() {
     preampGain = 0.0;
+    bassGain = 0.0;
+    trebleGain = 0.0;
+    bassFreq = 80.0;
+    trebleFreq = 10000.0;
+    bassQ = 0.707;
+    trebleQ = 0.707;
+    toneEnabled = false;
+    limiterEnabled = true;
   }
 }

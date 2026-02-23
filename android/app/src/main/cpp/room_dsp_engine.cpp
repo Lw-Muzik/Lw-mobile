@@ -11,9 +11,20 @@ void RoomDSPEngine::init(int sampleRate, int channels) {
     sampleRate_ = sampleRate;
     channels_ = channels;
 
+    // Compute sample-rate-adaptive smoothing coefficient.
+    // Target: ~1ms time constant at any sample rate.
+    // Formula: 1 - exp(-1 / (tau * sampleRate)), tau = 0.001s
+    smoothCoeff_ = 1.0f - std::exp(-1.0f / (0.001f * (float)sampleRate));
+
     // EQ init
     graphicEq_.initGraphic((float)sampleRate, MAX_EQ_BANDS);
     parametricEq_.init((float)sampleRate, MAX_EQ_BANDS);
+
+    // Tone controls init
+    tone_.init((float)sampleRate);
+
+    // Output limiter init
+    limiter_.init(sampleRate);
 
     // MBC init
     mbc_.init((float)sampleRate);
@@ -23,14 +34,15 @@ void RoomDSPEngine::init(int sampleRate, int channels) {
     crossfeed_.init(sampleRate);
     crossfeed_.configure(Crossfeed::kChuMoyCutoff, Crossfeed::kChuMoyFeed);
 
-    // Reset smoothed gains to targets
+    // Reset smoothed gain to target
     preampLinearSmoothed_ = preampLinear_;
-    autoGainLinearSmoothed_ = autoGainLinear_;
 }
 
 void RoomDSPEngine::reset() {
     graphicEq_.reinit((float)sampleRate_);
     parametricEq_.reinit((float)sampleRate_);
+    tone_.reinit((float)sampleRate_);
+    limiter_.init(sampleRate_);
     mbc_.reinit((float)sampleRate_);
     reverb_.reset();
     stereoExpander_.reset();
@@ -38,7 +50,8 @@ void RoomDSPEngine::reset() {
 }
 
 void RoomDSPEngine::setPreampGain(float dB) {
-    preampGainDb_ = std::max(0.0f, std::min(15.0f, dB));
+    // Now supports full [-15, +15] dB range (attenuation AND boost)
+    preampGainDb_ = std::max(-15.0f, std::min(15.0f, dB));
     preampLinear_ = std::pow(10.0f, preampGainDb_ / 20.0f);
     recomputeAutoGain();
 }
@@ -72,24 +85,24 @@ void RoomDSPEngine::setParametricAllBands(const float* freqs, const float* gains
 }
 
 void RoomDSPEngine::recomputeAutoGain() {
-    float peakBoost = std::max(graphicEq_.getPeakGain(),
-                               parametricEq_.getPeakGain());
-    float effectiveDb = preampGainDb_ - peakBoost;
-    effectiveDb = std::max(-15.0f, effectiveDb);
-    autoGainLinear_ = std::pow(10.0f, effectiveDb / 20.0f);
+    // No-op: auto-gain compensation removed.
+    // Preamp controls input level directly. EQ boosts are unrestricted.
+    // The output limiter (when enabled) or the final hard clamp catches overs.
 }
 
 void RoomDSPEngine::process(float* buffer, int numFrames) {
     if (channels_ != 2 || numFrames <= 0) return;
 
     bool doEq = eqEnabled_.load(std::memory_order_relaxed);
+    bool doTone = tone_.isEnabled();
     bool doMbc = mbc_.isEnabled();
     bool doExpand = stereoExpandEnabled_.load(std::memory_order_relaxed);
     bool doCrossfeed = crossfeedEnabled_.load(std::memory_order_relaxed);
     bool doReverb = reverbEnabled_.load(std::memory_order_relaxed);
+    bool doLimiter = limiter_.isEnabled();
 
     // Early out if nothing is enabled
-    if (!doEq && !doMbc && !doExpand && !doCrossfeed && !doReverb) return;
+    if (!doEq && !doTone && !doMbc && !doExpand && !doCrossfeed && !doReverb && !doLimiter) return;
 
     // Deinterleave to separate L/R channels
     constexpr int STACK_LIMIT = 2048;
@@ -112,23 +125,34 @@ void RoomDSPEngine::process(float* buffer, int numFrames) {
         right[i] = buffer[i * 2 + 1];
     }
 
-    // Signal chain: Preamp+AutoGain -> Graphic EQ -> Parametric EQ -> MBC
-    //               -> Stereo Expand -> Crossfeed -> Reverb
+    // Signal chain:
+    //   [Preamp] -> [Graphic EQ] -> [Parametric EQ]
+    //   -> [Tone Controls] -> [MBC] -> [Stereo Expand]
+    //   -> [Crossfeed] -> [Reverb] -> [Output Limiter]
 
     if (doEq) {
-        // Preamp + auto-gain with per-sample smoothing
-        for (int i = 0; i < numFrames; i++) {
-            preampLinearSmoothed_ += SMOOTH_COEFF * (preampLinear_ - preampLinearSmoothed_);
-            autoGainLinearSmoothed_ += SMOOTH_COEFF * (autoGainLinear_ - autoGainLinearSmoothed_);
-            float gain = preampLinearSmoothed_ * autoGainLinearSmoothed_;
-            left[i] *= gain;
-            right[i] *= gain;
+        // Preamp with per-sample smoothing (sample-rate adaptive).
+        // No auto-gain reduction — let the EQ boost freely.
+        // The output limiter (when enabled) or final clamp handles overs.
+        float preampTarget = preampLinear_;
+        if (std::fabs(preampTarget - 1.0f) > 1e-6f || std::fabs(preampLinearSmoothed_ - 1.0f) > 1e-6f) {
+            for (int i = 0; i < numFrames; i++) {
+                preampLinearSmoothed_ += smoothCoeff_ * (preampTarget - preampLinearSmoothed_);
+                left[i] *= preampLinearSmoothed_;
+                right[i] *= preampLinearSmoothed_;
+            }
         }
         graphicEq_.process(left, right, numFrames);
         parametricEq_.process(left, right, numFrames);
     }
 
-    // MBC (after EQ, before spatial effects)
+    // Tone controls (bass/treble shelves — applied even if EQ is off,
+    // they're independent knobs like on a hi-fi amp)
+    if (doTone) {
+        tone_.process(left, right, numFrames);
+    }
+
+    // MBC (after EQ + tone, before spatial effects)
     if (doMbc) {
         mbc_.process(left, right, numFrames);
     }
@@ -144,10 +168,16 @@ void RoomDSPEngine::process(float* buffer, int numFrames) {
         reverb_.process(left, right, numFrames);
     }
 
-    // Re-interleave with safety clamp
+    // Output limiter — catches all peaks from the entire chain.
+    // This is the key to sounding powerful without distortion.
+    if (doLimiter) {
+        limiter_.process(left, right, numFrames);
+    }
+
+    // Re-interleave with safety clamp (belt-and-suspenders after limiter)
     for (int i = 0; i < numFrames; i++) {
-        buffer[i * 2]     = std::clamp(left[i],  -4.0f, 4.0f);
-        buffer[i * 2 + 1] = std::clamp(right[i], -4.0f, 4.0f);
+        buffer[i * 2]     = std::clamp(left[i],  -1.0f, 1.0f);
+        buffer[i * 2 + 1] = std::clamp(right[i], -1.0f, 1.0f);
     }
 
     delete[] heapBuf;

@@ -124,6 +124,12 @@ public:
     bool isEnabled() const { return enabled_.load(); }
     int numBands() const { return numBands_; }
 
+    // Get individual band gain (for cumulative boost estimation)
+    float getBandGain(int band) const {
+        if (band < 0 || band >= numBands_) return 0.0f;
+        return params_[band].enabled ? params_[band].gainDb : 0.0f;
+    }
+
 private:
     void updateBiquad(int band) {
         if (std::fabs(params_[band].gainDb) < 0.05f || !params_[band].enabled) {

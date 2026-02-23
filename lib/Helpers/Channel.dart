@@ -218,6 +218,66 @@ class Channel {
   static Future<void> dspSetCrossfeedParams(double cutoffHz, double feedLevelDb) async {
     await _invoke("dspSetCrossfeedParams", {"cutoff": cutoffHz, "feed": feedLevelDb});
   }
+
+  // ==================== Tone Controls (Bass/Treble) ====================
+
+  /// Enable/disable tone controls (independent bass/treble shelf filters)
+  static Future<void> dspSetToneEnabled(bool enabled) async {
+    await _invoke("dspSetToneEnabled", {"enabled": enabled});
+  }
+
+  /// Bass gain (-15 to +15 dB)
+  static Future<void> dspSetBassGain(double dB) async {
+    await _invoke("dspSetBassGain", {"value": dB});
+  }
+
+  /// Bass frequency (20 - 500 Hz, default 80)
+  static Future<void> dspSetBassFreq(double hz) async {
+    await _invoke("dspSetBassFreq", {"value": hz});
+  }
+
+  /// Bass Q (0.1 - 4.0, default 0.707)
+  static Future<void> dspSetBassQ(double q) async {
+    await _invoke("dspSetBassQ", {"value": q});
+  }
+
+  /// Treble gain (-15 to +15 dB)
+  static Future<void> dspSetTrebleGain(double dB) async {
+    await _invoke("dspSetTrebleGain", {"value": dB});
+  }
+
+  /// Treble frequency (1000 - 20000 Hz, default 10000)
+  static Future<void> dspSetTrebleFreq(double hz) async {
+    await _invoke("dspSetTrebleFreq", {"value": hz});
+  }
+
+  /// Treble Q (0.1 - 4.0, default 0.707)
+  static Future<void> dspSetTrebleQ(double q) async {
+    await _invoke("dspSetTrebleQ", {"value": q});
+  }
+
+  // ==================== Output Limiter ====================
+
+  /// Enable/disable output limiter (on by default — safety net)
+  static Future<void> dspSetLimiterEnabled(bool enabled) async {
+    await _invoke("dspSetLimiterEnabled", {"enabled": enabled});
+  }
+
+  /// Limiter ceiling (0.01 - 1.0, default 0.98)
+  static Future<void> dspSetLimiterCeiling(double value) async {
+    await _invoke("dspSetLimiterCeiling", {"value": value});
+  }
+
+  /// Limiter release time in ms (10 - 500, default 50)
+  static Future<void> dspSetLimiterRelease(double ms) async {
+    await _invoke("dspSetLimiterRelease", {"value": ms});
+  }
+
+  /// Limiter soft knee width in dB (0 - 12, default 6)
+  static Future<void> dspSetLimiterKnee(double dB) async {
+    await _invoke("dspSetLimiterKnee", {"value": dB});
+  }
+
   // ----------- MBC Compressor (C++ pipeline) ------------------
 
   static void setDspNoiseThreshold(double noiseValue) async {
