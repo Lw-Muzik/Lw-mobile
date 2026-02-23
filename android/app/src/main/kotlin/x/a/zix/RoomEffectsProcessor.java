@@ -47,6 +47,48 @@ public class RoomEffectsProcessor extends BaseAudioProcessor {
     private static volatile float cachedCrossfeedCutoff = 700f;
     private static volatile float cachedCrossfeedFeed = 4.5f;
 
+    // Cached EQ params
+    private static volatile boolean cachedEqEnabled = false;
+    private static volatile float cachedPreampGain = 0f;
+    private static final float[] cachedGraphicGains = new float[32]; // all 0.0f
+    private static final float[] cachedParametricFreqs = new float[32];
+    private static final float[] cachedParametricGains = new float[32];
+    private static final float[] cachedParametricQs = new float[32];
+    // Cached MBC params
+    private static volatile boolean cachedMbcEnabled = false;
+    private static volatile float cachedMbcPreGain = 0f;
+    private static volatile float cachedMbcNoiseGate = -70f;
+    private static volatile float cachedMbcKneeWidth = 8f;
+    private static volatile float cachedMbcExpanderRatio = 2f;
+    private static volatile float cachedMbcThreshold = -24f;
+    private static volatile float cachedMbcRatio = 4f;
+    private static volatile float cachedMbcAttackTime = 5f;
+    private static volatile float cachedMbcReleaseTime = 50f;
+    private static volatile float cachedMbcPostGain = 0f;
+
+    // Cached Tone controls (bass/treble)
+    private static volatile boolean cachedToneEnabled = false;
+    private static volatile float cachedBassGain = 0f;
+    private static volatile float cachedBassFreq = 80f;
+    private static volatile float cachedBassQ = 0.707f;
+    private static volatile float cachedTrebleGain = 0f;
+    private static volatile float cachedTrebleFreq = 10000f;
+    private static volatile float cachedTrebleQ = 0.707f;
+
+    // Cached Limiter
+    private static volatile boolean cachedLimiterEnabled = true;
+    private static volatile float cachedLimiterCeiling = 0.98f;
+    private static volatile float cachedLimiterRelease = 50f;
+    private static volatile float cachedLimiterKnee = 6f;
+
+    static {
+        // Initialize parametric defaults
+        for (int i = 0; i < 32; i++) {
+            cachedParametricFreqs[i] = 1000f;
+            cachedParametricQs[i] = 1.4f;
+        }
+    }
+
     /**
      * Called from MainActivity.onCreate() to ensure the native library is loaded.
      * No longer creates a singleton used in the audio pipeline.
@@ -162,6 +204,36 @@ public class RoomEffectsProcessor extends BaseAudioProcessor {
         nativeSetStereoWidth(nativeHandle, cachedStereoWidth);
         nativeSetCrossfeedEnabled(nativeHandle, cachedCrossfeedEnabled);
         nativeSetCrossfeedParams(nativeHandle, cachedCrossfeedCutoff, cachedCrossfeedFeed);
+        // EQ state
+        nativeSetEqEnabled(nativeHandle, cachedEqEnabled);
+        nativeSetPreampGain(nativeHandle, cachedPreampGain);
+        nativeSetGraphicAllBands(nativeHandle, cachedGraphicGains);
+        nativeSetParametricAllBands(nativeHandle, cachedParametricFreqs,
+                cachedParametricGains, cachedParametricQs, 32);
+        // MBC state
+        nativeSetMbcEnabled(nativeHandle, cachedMbcEnabled);
+        nativeSetMbcPreGain(nativeHandle, cachedMbcPreGain);
+        nativeSetMbcNoiseGate(nativeHandle, cachedMbcNoiseGate);
+        nativeSetMbcKneeWidth(nativeHandle, cachedMbcKneeWidth);
+        nativeSetMbcExpanderRatio(nativeHandle, cachedMbcExpanderRatio);
+        nativeSetMbcThreshold(nativeHandle, cachedMbcThreshold);
+        nativeSetMbcRatio(nativeHandle, cachedMbcRatio);
+        nativeSetMbcAttackTime(nativeHandle, cachedMbcAttackTime);
+        nativeSetMbcReleaseTime(nativeHandle, cachedMbcReleaseTime);
+        nativeSetMbcPostGain(nativeHandle, cachedMbcPostGain);
+        // Tone controls
+        nativeSetToneEnabled(nativeHandle, cachedToneEnabled);
+        nativeSetBassGain(nativeHandle, cachedBassGain);
+        nativeSetBassFreq(nativeHandle, cachedBassFreq);
+        nativeSetBassQ(nativeHandle, cachedBassQ);
+        nativeSetTrebleGain(nativeHandle, cachedTrebleGain);
+        nativeSetTrebleFreq(nativeHandle, cachedTrebleFreq);
+        nativeSetTrebleQ(nativeHandle, cachedTrebleQ);
+        // Limiter
+        nativeSetLimiterEnabled(nativeHandle, cachedLimiterEnabled);
+        nativeSetLimiterCeiling(nativeHandle, cachedLimiterCeiling);
+        nativeSetLimiterRelease(nativeHandle, cachedLimiterRelease);
+        nativeSetLimiterKnee(nativeHandle, cachedLimiterKnee);
     }
 
     // ---- Instance methods (called on specific instance) ----
@@ -208,6 +280,120 @@ public class RoomEffectsProcessor extends BaseAudioProcessor {
 
     public void setCrossfeedParams(float cutoffHz, float feedLevelDb) {
         if (nativeHandle != 0) nativeSetCrossfeedParams(nativeHandle, cutoffHz, feedLevelDb);
+    }
+
+    // EQ instance methods
+    public void setEqEnabled(boolean enabled) {
+        if (nativeHandle != 0) nativeSetEqEnabled(nativeHandle, enabled);
+    }
+
+    public void setPreampGain(float dB) {
+        if (nativeHandle != 0) nativeSetPreampGain(nativeHandle, dB);
+    }
+
+    public void setGraphicBandGain(int band, float dB) {
+        if (nativeHandle != 0) nativeSetGraphicBandGain(nativeHandle, band, dB);
+    }
+
+    public void setGraphicAllBands(float[] gains) {
+        if (nativeHandle != 0) nativeSetGraphicAllBands(nativeHandle, gains);
+    }
+
+    public void setParametricBand(int band, float freq, float gainDb, float q,
+                                  int filterType, boolean enabled) {
+        if (nativeHandle != 0) nativeSetParametricBand(nativeHandle, band, freq, gainDb,
+                q, filterType, enabled);
+    }
+
+    public void setParametricAllBands(float[] freqs, float[] gains, float[] qs, int count) {
+        if (nativeHandle != 0) nativeSetParametricAllBands(nativeHandle, freqs, gains, qs, count);
+    }
+
+    // MBC instance methods
+    public void setMbcEnabled(boolean enabled) {
+        if (nativeHandle != 0) nativeSetMbcEnabled(nativeHandle, enabled);
+    }
+
+    public void setMbcPreGain(float dB) {
+        if (nativeHandle != 0) nativeSetMbcPreGain(nativeHandle, dB);
+    }
+
+    public void setMbcNoiseGate(float dB) {
+        if (nativeHandle != 0) nativeSetMbcNoiseGate(nativeHandle, dB);
+    }
+
+    public void setMbcKneeWidth(float dB) {
+        if (nativeHandle != 0) nativeSetMbcKneeWidth(nativeHandle, dB);
+    }
+
+    public void setMbcExpanderRatio(float ratio) {
+        if (nativeHandle != 0) nativeSetMbcExpanderRatio(nativeHandle, ratio);
+    }
+
+    public void setMbcThreshold(float dB) {
+        if (nativeHandle != 0) nativeSetMbcThreshold(nativeHandle, dB);
+    }
+
+    public void setMbcRatio(float ratio) {
+        if (nativeHandle != 0) nativeSetMbcRatio(nativeHandle, ratio);
+    }
+
+    public void setMbcAttackTime(float ms) {
+        if (nativeHandle != 0) nativeSetMbcAttackTime(nativeHandle, ms);
+    }
+
+    public void setMbcReleaseTime(float ms) {
+        if (nativeHandle != 0) nativeSetMbcReleaseTime(nativeHandle, ms);
+    }
+
+    public void setMbcPostGain(float dB) {
+        if (nativeHandle != 0) nativeSetMbcPostGain(nativeHandle, dB);
+    }
+
+    // Tone control instance methods
+    public void setToneEnabled(boolean enabled) {
+        if (nativeHandle != 0) nativeSetToneEnabled(nativeHandle, enabled);
+    }
+
+    public void setBassGain(float dB) {
+        if (nativeHandle != 0) nativeSetBassGain(nativeHandle, dB);
+    }
+
+    public void setBassFreq(float hz) {
+        if (nativeHandle != 0) nativeSetBassFreq(nativeHandle, hz);
+    }
+
+    public void setBassQ(float q) {
+        if (nativeHandle != 0) nativeSetBassQ(nativeHandle, q);
+    }
+
+    public void setTrebleGain(float dB) {
+        if (nativeHandle != 0) nativeSetTrebleGain(nativeHandle, dB);
+    }
+
+    public void setTrebleFreq(float hz) {
+        if (nativeHandle != 0) nativeSetTrebleFreq(nativeHandle, hz);
+    }
+
+    public void setTrebleQ(float q) {
+        if (nativeHandle != 0) nativeSetTrebleQ(nativeHandle, q);
+    }
+
+    // Limiter instance methods
+    public void setLimiterEnabled(boolean enabled) {
+        if (nativeHandle != 0) nativeSetLimiterEnabled(nativeHandle, enabled);
+    }
+
+    public void setLimiterCeiling(float v) {
+        if (nativeHandle != 0) nativeSetLimiterCeiling(nativeHandle, v);
+    }
+
+    public void setLimiterRelease(float ms) {
+        if (nativeHandle != 0) nativeSetLimiterRelease(nativeHandle, ms);
+    }
+
+    public void setLimiterKnee(float dB) {
+        if (nativeHandle != 0) nativeSetLimiterKnee(nativeHandle, dB);
     }
 
     // ---- Static broadcast methods (called from MainActivity via MethodChannel) ----
@@ -268,6 +454,169 @@ public class RoomEffectsProcessor extends BaseAudioProcessor {
         for (RoomEffectsProcessor p : playerInstances) p.setCrossfeedParams(cutoffHz, feedLevelDb);
     }
 
+    // ---- EQ broadcast methods ----
+
+    public static void broadcastEqEnabled(boolean enabled) {
+        cachedEqEnabled = enabled;
+        for (RoomEffectsProcessor p : playerInstances) p.setEqEnabled(enabled);
+    }
+
+    public static void broadcastPreampGain(float dB) {
+        cachedPreampGain = dB;
+        for (RoomEffectsProcessor p : playerInstances) p.setPreampGain(dB);
+    }
+
+    public static void broadcastGraphicBandGain(int band, float dB) {
+        if (band >= 0 && band < 32) cachedGraphicGains[band] = dB;
+        for (RoomEffectsProcessor p : playerInstances) p.setGraphicBandGain(band, dB);
+    }
+
+    public static void broadcastGraphicAllBands(float[] gains) {
+        int count = Math.min(gains.length, 32);
+        System.arraycopy(gains, 0, cachedGraphicGains, 0, count);
+        for (RoomEffectsProcessor p : playerInstances) p.setGraphicAllBands(gains);
+    }
+
+    public static void broadcastParametricBand(int band, float freq, float gainDb,
+                                               float q, int filterType, boolean enabled) {
+        if (band >= 0 && band < 32) {
+            cachedParametricFreqs[band] = freq;
+            cachedParametricGains[band] = gainDb;
+            cachedParametricQs[band] = q;
+        }
+        for (RoomEffectsProcessor p : playerInstances)
+            p.setParametricBand(band, freq, gainDb, q, filterType, enabled);
+    }
+
+    public static void broadcastParametricAllBands(float[] freqs, float[] gains,
+                                                    float[] qs, int count) {
+        int n = Math.min(count, 32);
+        System.arraycopy(freqs, 0, cachedParametricFreqs, 0, n);
+        System.arraycopy(gains, 0, cachedParametricGains, 0, n);
+        System.arraycopy(qs, 0, cachedParametricQs, 0, n);
+        for (RoomEffectsProcessor p : playerInstances)
+            p.setParametricAllBands(freqs, gains, qs, count);
+    }
+
+    public static float getCachedPreampGain() {
+        return cachedPreampGain;
+    }
+
+    public static boolean isCachedMbcEnabled() {
+        return cachedMbcEnabled;
+    }
+
+    // ---- MBC broadcast methods ----
+
+    public static void broadcastMbcEnabled(boolean enabled) {
+        cachedMbcEnabled = enabled;
+        for (RoomEffectsProcessor p : playerInstances) p.setMbcEnabled(enabled);
+    }
+
+    public static void broadcastMbcPreGain(float dB) {
+        cachedMbcPreGain = dB;
+        for (RoomEffectsProcessor p : playerInstances) p.setMbcPreGain(dB);
+    }
+
+    public static void broadcastMbcNoiseGate(float dB) {
+        cachedMbcNoiseGate = dB;
+        for (RoomEffectsProcessor p : playerInstances) p.setMbcNoiseGate(dB);
+    }
+
+    public static void broadcastMbcKneeWidth(float dB) {
+        cachedMbcKneeWidth = dB;
+        for (RoomEffectsProcessor p : playerInstances) p.setMbcKneeWidth(dB);
+    }
+
+    public static void broadcastMbcExpanderRatio(float ratio) {
+        cachedMbcExpanderRatio = ratio;
+        for (RoomEffectsProcessor p : playerInstances) p.setMbcExpanderRatio(ratio);
+    }
+
+    public static void broadcastMbcThreshold(float dB) {
+        cachedMbcThreshold = dB;
+        for (RoomEffectsProcessor p : playerInstances) p.setMbcThreshold(dB);
+    }
+
+    public static void broadcastMbcRatio(float ratio) {
+        cachedMbcRatio = ratio;
+        for (RoomEffectsProcessor p : playerInstances) p.setMbcRatio(ratio);
+    }
+
+    public static void broadcastMbcAttackTime(float ms) {
+        cachedMbcAttackTime = ms;
+        for (RoomEffectsProcessor p : playerInstances) p.setMbcAttackTime(ms);
+    }
+
+    public static void broadcastMbcReleaseTime(float ms) {
+        cachedMbcReleaseTime = ms;
+        for (RoomEffectsProcessor p : playerInstances) p.setMbcReleaseTime(ms);
+    }
+
+    public static void broadcastMbcPostGain(float dB) {
+        cachedMbcPostGain = dB;
+        for (RoomEffectsProcessor p : playerInstances) p.setMbcPostGain(dB);
+    }
+
+    // ---- Tone control broadcast methods ----
+
+    public static void broadcastToneEnabled(boolean enabled) {
+        cachedToneEnabled = enabled;
+        for (RoomEffectsProcessor p : playerInstances) p.setToneEnabled(enabled);
+    }
+
+    public static void broadcastBassGain(float dB) {
+        cachedBassGain = dB;
+        for (RoomEffectsProcessor p : playerInstances) p.setBassGain(dB);
+    }
+
+    public static void broadcastBassFreq(float hz) {
+        cachedBassFreq = hz;
+        for (RoomEffectsProcessor p : playerInstances) p.setBassFreq(hz);
+    }
+
+    public static void broadcastBassQ(float q) {
+        cachedBassQ = q;
+        for (RoomEffectsProcessor p : playerInstances) p.setBassQ(q);
+    }
+
+    public static void broadcastTrebleGain(float dB) {
+        cachedTrebleGain = dB;
+        for (RoomEffectsProcessor p : playerInstances) p.setTrebleGain(dB);
+    }
+
+    public static void broadcastTrebleFreq(float hz) {
+        cachedTrebleFreq = hz;
+        for (RoomEffectsProcessor p : playerInstances) p.setTrebleFreq(hz);
+    }
+
+    public static void broadcastTrebleQ(float q) {
+        cachedTrebleQ = q;
+        for (RoomEffectsProcessor p : playerInstances) p.setTrebleQ(q);
+    }
+
+    // ---- Limiter broadcast methods ----
+
+    public static void broadcastLimiterEnabled(boolean enabled) {
+        cachedLimiterEnabled = enabled;
+        for (RoomEffectsProcessor p : playerInstances) p.setLimiterEnabled(enabled);
+    }
+
+    public static void broadcastLimiterCeiling(float v) {
+        cachedLimiterCeiling = v;
+        for (RoomEffectsProcessor p : playerInstances) p.setLimiterCeiling(v);
+    }
+
+    public static void broadcastLimiterRelease(float ms) {
+        cachedLimiterRelease = ms;
+        for (RoomEffectsProcessor p : playerInstances) p.setLimiterRelease(ms);
+    }
+
+    public static void broadcastLimiterKnee(float dB) {
+        cachedLimiterKnee = dB;
+        for (RoomEffectsProcessor p : playerInstances) p.setLimiterKnee(dB);
+    }
+
     // ---- Native methods ----
 
     private native long nativeCreate(int sampleRate, int channels);
@@ -291,4 +640,40 @@ public class RoomEffectsProcessor extends BaseAudioProcessor {
 
     private native void nativeSetCrossfeedEnabled(long handle, boolean enabled);
     private native void nativeSetCrossfeedParams(long handle, float cutoffHz, float feedLevelDb);
+
+    private native void nativeSetEqEnabled(long handle, boolean enabled);
+    private native void nativeSetPreampGain(long handle, float dB);
+    private native void nativeSetGraphicBandGain(long handle, int band, float dB);
+    private native void nativeSetGraphicAllBands(long handle, float[] gains);
+    private native void nativeSetParametricBand(long handle, int band, float freq,
+                                                float gainDb, float q, int filterType,
+                                                boolean enabled);
+    private native void nativeSetParametricAllBands(long handle, float[] freqs, float[] gains,
+                                                     float[] qs, int count);
+
+    private native void nativeSetMbcEnabled(long handle, boolean enabled);
+    private native void nativeSetMbcPreGain(long handle, float dB);
+    private native void nativeSetMbcNoiseGate(long handle, float dB);
+    private native void nativeSetMbcKneeWidth(long handle, float dB);
+    private native void nativeSetMbcExpanderRatio(long handle, float ratio);
+    private native void nativeSetMbcThreshold(long handle, float dB);
+    private native void nativeSetMbcRatio(long handle, float ratio);
+    private native void nativeSetMbcAttackTime(long handle, float ms);
+    private native void nativeSetMbcReleaseTime(long handle, float ms);
+    private native void nativeSetMbcPostGain(long handle, float dB);
+
+    // Tone control natives
+    private native void nativeSetToneEnabled(long handle, boolean enabled);
+    private native void nativeSetBassGain(long handle, float dB);
+    private native void nativeSetBassFreq(long handle, float hz);
+    private native void nativeSetBassQ(long handle, float q);
+    private native void nativeSetTrebleGain(long handle, float dB);
+    private native void nativeSetTrebleFreq(long handle, float hz);
+    private native void nativeSetTrebleQ(long handle, float q);
+
+    // Limiter natives
+    private native void nativeSetLimiterEnabled(long handle, boolean enabled);
+    private native void nativeSetLimiterCeiling(long handle, float v);
+    private native void nativeSetLimiterRelease(long handle, float ms);
+    private native void nativeSetLimiterKnee(long handle, float dB);
 }

@@ -65,35 +65,18 @@ class AppController with ChangeNotifier {
   HypeAudioHandler get handler => _handler;
   int _selectedRoomPreset = -1;
 
-  // DSP settings
-  bool _enableDSP = false;
-  int _selectSpeaker = -1;
-  String _spkName = "BEATS BY DRE";
-  double _dspVolume = -6.0;
-  double _dspXTreble = 3.3;
-  double _dspPowerBass = 8.0;
-  double _dspXBass = 11.0;
-  double _dspXBass2 = 13.0;
-  double _dspOutGain = 3.0;
+  // MBC compressor settings (routed to C++ pipeline)
   double _dspNoise = -10.0;
-  // DSP COMPRESSOR
-  double _threshold = -2.0;
-  double _ratio = 10.0;
-  double _attackTime = 1;
-  double _releaseTime = 60;
   double _kneeWidth = 0.40;
   double _expandRatio = 15.0;
   double _preGain = 20;
-  // bass freq
-  double _bassFreq = 50;
-  double _vocalFreq = 450;
 
   // Audio feature settings
   bool _gaplessPlayback = true;
   int _crossfadeDuration = 0; // seconds, 0 = off
   bool _replayGain = false;
   bool _dvcEnabled = false;
-  double _dvcGain = 0.0; // dB, range -30 to +30
+  double _dvcGain = -20; // dB, range -30 to +30
   bool _dvcFineSteps = false; // false=1.5dB (5%), true=0.3dB (1%)
 
   // Song list/grid zoom scale: 0=list, 1=2-col grid, 2=3-col grid
@@ -135,6 +118,18 @@ class AppController with ChangeNotifier {
   bool _crossfeedEnabled = false;
   double _crossfeedCutoff = 700.0; // Hz (100-2000)
   double _crossfeedFeed = 4.5; // dB (1-15)
+
+  // Tone controls (bass/treble shelf filters)
+  bool _toneEnabled = false;
+  double _bassGain = 0.0; // 0 to 20 dB
+  double _bassFreq = 80.0; // 20-500 Hz
+  double _bassQ = 0.707; // 0.1-4.0
+  double _trebleGain = 0.0; // 0 to 20 dB
+  double _trebleFreq = 10000.0; // 1000-20000 Hz
+  double _trebleQ = 0.707; // 0.1-4.0
+
+  // Output limiter (on by default)
+  bool _limiterEnabled = true;
 
   // Song grid scale getters/setters
   int get songGridScale => _songGridScale;
@@ -186,9 +181,75 @@ class AppController with ChangeNotifier {
   bool get mbcEnabled => _mbcEnabled;
 
   set preampGain(double value) {
-    _preampGain = value.clamp(0.0, 15.0);
+    _preampGain = value.clamp(-15.0, 15.0);
     _prefs.setDouble("preampGain", _preampGain);
     Channel.setPreamp(_preampGain);
+    notifyListeners();
+  }
+
+  // Tone controls getters/setters
+  bool get toneEnabled => _toneEnabled;
+  double get bassGain => _bassGain;
+  double get bassFreq => _bassFreq;
+  double get bassQ => _bassQ;
+  double get trebleGain => _trebleGain;
+  double get trebleFreq => _trebleFreq;
+  double get trebleQ => _trebleQ;
+  bool get limiterEnabled => _limiterEnabled;
+
+  set toneEnabled(bool value) {
+    _toneEnabled = value;
+    _prefs.setBool("toneEnabled", value);
+    Channel.dspSetToneEnabled(value);
+    notifyListeners();
+  }
+
+  set bassGain(double value) {
+    _bassGain = value.clamp(0.0, 30.0);
+    _prefs.setDouble("bassGain", _bassGain);
+    Channel.dspSetBassGain(_bassGain);
+    notifyListeners();
+  }
+
+  set bassFreq(double value) {
+    _bassFreq = value.clamp(20.0, 500.0);
+    _prefs.setDouble("bassFreq", _bassFreq);
+    Channel.dspSetBassFreq(_bassFreq);
+    notifyListeners();
+  }
+
+  set bassQ(double value) {
+    _bassQ = value.clamp(0.1, 4.0);
+    _prefs.setDouble("bassQ", _bassQ);
+    Channel.dspSetBassQ(_bassQ);
+    notifyListeners();
+  }
+
+  set trebleGain(double value) {
+    _trebleGain = value.clamp(0.0, 30.0);
+    _prefs.setDouble("trebleGain", _trebleGain);
+    Channel.dspSetTrebleGain(_trebleGain);
+    notifyListeners();
+  }
+
+  set trebleFreq(double value) {
+    _trebleFreq = value.clamp(1000.0, 20000.0);
+    _prefs.setDouble("trebleFreq", _trebleFreq);
+    Channel.dspSetTrebleFreq(_trebleFreq);
+    notifyListeners();
+  }
+
+  set trebleQ(double value) {
+    _trebleQ = value.clamp(0.1, 4.0);
+    _prefs.setDouble("trebleQ", _trebleQ);
+    Channel.dspSetTrebleQ(_trebleQ);
+    notifyListeners();
+  }
+
+  set limiterEnabled(bool value) {
+    _limiterEnabled = value;
+    _prefs.setBool("limiterEnabled", value);
+    Channel.dspSetLimiterEnabled(value);
     notifyListeners();
   }
 
@@ -278,7 +339,13 @@ class AppController with ChangeNotifier {
     notifyListeners();
   }
 
-  void updateParametricPoint(int index, {double? frequency, double? gain, double? q, bool? enabled}) {
+  void updateParametricPoint(
+    int index, {
+    double? frequency,
+    double? gain,
+    double? q,
+    bool? enabled,
+  }) {
     if (index >= 0 && index < _parametricPoints.length) {
       _parametricPoints[index] = _parametricPoints[index].copyWith(
         frequency: frequency,
@@ -312,11 +379,13 @@ class AppController with ChangeNotifier {
     // Map parametric points to 32 native bands
     final freqs = List.filled(32, 1000.0);
     final gains = List.filled(32, 0.0);
+    final qs = List.filled(32, 1.4);
     for (int i = 0; i < _parametricPoints.length && i < 32; i++) {
       freqs[i] = _parametricPoints[i].frequency;
       gains[i] = _parametricPoints[i].enabled ? _parametricPoints[i].gain : 0.0;
+      qs[i] = _parametricPoints[i].q;
     }
-    Channel.setParametricAllBands(freqs, gains);
+    Channel.setParametricAllBands(freqs, gains, qs: qs);
   }
 
   void _persistGraphicGains() {
@@ -324,8 +393,10 @@ class AppController with ChangeNotifier {
   }
 
   void _persistParametricPoints() {
-    _prefs.setString("parametricPoints",
-        json.encode(_parametricPoints.map((p) => p.toJson()).toList()));
+    _prefs.setString(
+      "parametricPoints",
+      json.encode(_parametricPoints.map((p) => p.toJson()).toList()),
+    );
   }
 
   Future<void> detectAndApplyDevicePreset() async {
@@ -345,7 +416,9 @@ class AppController with ChangeNotifier {
       final devicePreset = _savedPresets['_device_$device'];
       if (devicePreset != null) {
         setGraphicAllBands(devicePreset.graphicGains);
-        _parametricPoints = devicePreset.parametric.map((p) => p.copyWith()).toList();
+        _parametricPoints = devicePreset.parametric
+            .map((p) => p.copyWith())
+            .toList();
         _applyParametricToNative();
         preampGain = devicePreset.preamp;
       }
@@ -420,150 +493,37 @@ class AppController with ChangeNotifier {
     notifyListeners();
   }
 
-  // DSP getters
-  bool get enableDSP => _enableDSP;
-  String get spkName => _spkName;
-  int get selectSpeaker => _selectSpeaker;
-  double get dspVolume => _dspVolume;
-  double get dspXTreble => _dspXTreble;
+  // MBC compressor getters/setters
   double get dspNoise => _dspNoise;
-  double get dspPowerBass => _dspPowerBass;
-  double get dspXBass => _dspXBass;
-  double get dspXBass2 => _dspXBass2;
-  double get dspOutGain => _dspOutGain;
-
-  // compressor
-  double get threshold => _threshold;
-  double get attackTime => _attackTime;
-  double get ratio => _ratio;
   double get preGain => _preGain;
   double get kneeWidth => _kneeWidth;
   double get expandRatio => _expandRatio;
-  double get releaseTime => _releaseTime;
-  double get bassFreq => _bassFreq;
-  double get vocalFreq => _vocalFreq;
 
-  // compressor setters
-  set threshold(double threshold) {
-    _prefs.setDouble("threshold", threshold);
-    _threshold = threshold;
-    notifyListeners();
-  }
-
-  set spkName(String name) {
-    _prefs.setString("spkName", name);
-    _spkName = name;
-    notifyListeners();
-  }
-
-  set attackTime(double attackTime) {
-    _prefs.setDouble("attackTime", attackTime);
-    _attackTime = attackTime;
+  set dspNoise(double noise) {
+    _prefs.setDouble("dspNoise", noise);
+    _dspNoise = noise;
+    Channel.setDspNoiseThreshold(noise);
     notifyListeners();
   }
 
   set preGain(double gain) {
     _prefs.setDouble("preGain", gain);
     _preGain = gain;
+    Channel.setPreGain(gain);
     notifyListeners();
   }
 
   set kneeWidth(double width) {
     _prefs.setDouble("kneeWidth", width);
     _kneeWidth = width;
+    Channel.setDspKneeWidth(width);
     notifyListeners();
   }
 
   set expandRatio(double ratio) {
     _prefs.setDouble("expandRatio", ratio);
     _expandRatio = ratio;
-    notifyListeners();
-  }
-
-  set ratio(double ratio) {
-    _prefs.setDouble("ratio", ratio);
-    _ratio = ratio;
-    notifyListeners();
-  }
-
-  set releaseTime(double r) {
-    _prefs.setDouble("releaseTime", r);
-    _releaseTime = r;
-    notifyListeners();
-  }
-
-  set bassFreq(double freq) {
-    _prefs.setDouble("bassFreq", freq);
-    _bassFreq = freq;
-    notifyListeners();
-  }
-
-  set vocalFreq(double freq) {
-    _prefs.setDouble("vocalFreq", freq);
-    _vocalFreq = freq;
-    notifyListeners();
-  }
-
-  // DSP setters
-  set enableDSP(bool dsp) {
-    _prefs.setBool("enableDSP", dsp);
-    _enableDSP = dsp;
-    notifyListeners();
-  }
-
-  set dspNoise(double noise) {
-    _prefs.setDouble("dspNoise", noise);
-    _dspNoise = noise;
-    notifyListeners();
-  }
-
-  set selectSpeaker(int dsp) {
-    _prefs.setInt("selectedSpeaker", dsp);
-    _selectSpeaker = dsp;
-    notifyListeners();
-  }
-
-  set dspVolume(double vol) {
-    _prefs.setDouble("dspVolume", vol);
-    _dspVolume = vol;
-    notifyListeners();
-  }
-
-  set dspXTreble(double xtreble) {
-    _prefs.setDouble("xTreble", xtreble);
-    _dspXTreble = xtreble;
-    notifyListeners();
-  }
-
-  set dspPowerBass(double powerBass) {
-    _prefs.setDouble("powerBass", powerBass);
-    _dspPowerBass = powerBass;
-    notifyListeners();
-  }
-
-  set dspXBass(double xBass) {
-    _prefs.setDouble("xBass", xBass);
-    _dspXBass = xBass;
-    notifyListeners();
-  }
-
-  set dspXBass2(double xBass2) {
-    _dspXBass2 = xBass2;
-    notifyListeners();
-  }
-
-  set dspOutGain(double gain) {
-    _prefs.setDouble("powerGain", gain);
-    _dspOutGain = gain;
-    notifyListeners();
-  }
-
-  //----------- end of dsp initialization --------------------------------
-
-  bool _dspSpeakerView = false;
-  bool get dspSpeakerView => _dspSpeakerView;
-  set dspSpeakerView(bool dspView) {
-    _dspSpeakerView = dspView;
+    Channel.setDspExpandRatio(ratio);
     notifyListeners();
   }
 
@@ -618,7 +578,8 @@ class AppController with ChangeNotifier {
   bool get showDvcOverlay => _showDvcOverlay;
 
   /// DVC gain as 0–100 percentage (−30 dB = 0%, 0 dB = 100%).
-  int get dvcVolumePercent => ((_dvcGain + 30) / 30 * 100).round().clamp(0, 100);
+  int get dvcVolumePercent =>
+      ((_dvcGain + 30) / 30 * 100).round().clamp(0, 100);
 
   void _showDvcVolumeOverlay() {
     _showDvcOverlay = true;
@@ -662,38 +623,29 @@ class AppController with ChangeNotifier {
     googleDriveService = GoogleDriveService(cloudAuth);
     dropboxService = DropboxService(cloudAuth);
     cloudMetadata = CloudMetadataService(
-        cloudAuth, cloudCache, googleDriveService, dropboxService);
+      cloudAuth,
+      cloudCache,
+      googleDriveService,
+      dropboxService,
+    );
     _initCloudServices();
   }
 
-  /// Listen to audio session ID changes and rebind all native effects.
-  /// This runs for the lifetime of the app, not just while the Equalizer page is open.
+  /// Listen to audio session ID changes and rebind session-bound native effects.
+  /// EQ, MBC, and room effects are NOT session-bound (C++ pipeline), only
+  /// LoudnessEnhancer (DVC) needs rebinding.
   void _bindAudioSessionId() {
     _sessionIdSub?.cancel();
-    _sessionIdSub = _handler.player.androidAudioSessionIdStream.listen((sessionId) {
+    _sessionIdSub = _handler.player.androidAudioSessionIdStream.listen((
+      sessionId,
+    ) {
       if (sessionId != null) {
         Channel.setSessionId(sessionId);
-        // Re-apply current state to the new session
-        if (_graphicEqEnabled) {
-          Channel.setGraphicAllBands(_graphicBandGains);
-          Channel.enableEq(true);
-          Channel.enableDSPEngine(true);
-        }
-        // Re-apply preamp and MBC
-        if (_preampGain > 0) {
-          Channel.setPreamp(_preampGain);
-        }
-        if (_mbcEnabled) {
-          Channel.enableMbc(true);
-        }
-        // Re-apply DVC state after session change
+        // Re-apply DVC state after session change (LoudnessEnhancer is session-bound)
         if (_dvcEnabled) {
           Channel.enableDvc();
           Channel.setDvcGain(_dvcGain);
         }
-        // Re-apply custom DSP room effects (processed in ExoPlayer pipeline,
-        // not session-bound, but re-send params to ensure state consistency)
-        _applyAllDspParams();
       }
     });
   }
@@ -808,8 +760,11 @@ class AppController with ChangeNotifier {
         final headers = nextSong.data.contains('googleapis.com')
             ? await cloudAuth.getGoogleAuthHeaders()
             : <String, String>{};
-        nextSource = LockCachingAudioSource(Uri.parse(nextSong.data),
-            cacheFile: cloudCache.cacheFile(fileId), headers: headers);
+        nextSource = LockCachingAudioSource(
+          Uri.parse(nextSong.data),
+          cacheFile: cloudCache.cacheFile(fileId),
+          headers: headers,
+        );
       }
     } else {
       nextSource = AudioSource.uri(Uri.parse(nextSong.data));
@@ -837,21 +792,22 @@ class AppController with ChangeNotifier {
       final image = await fetchArtworkUrl(song.data, song.id);
       artUri = Uri.file(image);
     }
-    handler.setCurrentMediaItem(MediaItem(
-      id: song.data,
-      album: song.album,
-      title: song.title,
-      artist: song.artist,
-      duration: Duration(milliseconds: song.duration ?? 0),
-      artUri: artUri,
-    ));
+    handler.setCurrentMediaItem(
+      MediaItem(
+        id: song.data,
+        album: song.album,
+        title: song.title,
+        artist: song.artist,
+        duration: Duration(milliseconds: song.duration ?? 0),
+        artUri: artUri,
+      ),
+    );
   }
 
   Future<String?> _downloadCloudArtwork(String url, int songId) async {
     try {
       final tempDir = await getTemporaryDirectory();
-      final file =
-          File('${tempDir.path}/cloud_art_$songId.png');
+      final file = File('${tempDir.path}/cloud_art_$songId.png');
       if (file.existsSync()) return file.path;
       final response = await http.get(Uri.parse(url));
       if (response.statusCode == 200) {
@@ -888,8 +844,13 @@ class AppController with ChangeNotifier {
           final headers = s.data.contains('googleapis.com')
               ? await cloudAuth.getGoogleAuthHeaders()
               : <String, String>{};
-          sources.add(LockCachingAudioSource(Uri.parse(s.data),
-              cacheFile: cloudCache.cacheFile(fileId), headers: headers));
+          sources.add(
+            LockCachingAudioSource(
+              Uri.parse(s.data),
+              cacheFile: cloudCache.cacheFile(fileId),
+              headers: headers,
+            ),
+          );
         }
       } else {
         sources.add(AudioSource.uri(Uri.parse(s.data)));
@@ -902,13 +863,6 @@ class AppController with ChangeNotifier {
 
   void _loadSettings() {
     _enableEffects = _prefs.getBool("enableEffects") ?? false;
-    _enableDSP = _prefs.getBool("enableDSP") ?? false;
-    _selectSpeaker = _prefs.getInt("selectedSpeaker") ?? -1;
-    _dspVolume = _prefs.getDouble("dspVolume") ?? -6.0;
-    _dspXTreble = _prefs.getDouble("xTreble") ?? 3.3;
-    _dspPowerBass = _prefs.getDouble("powerBass") ?? 8.0;
-    _dspXBass = _prefs.getDouble("xBass") ?? 11.0;
-    _dspOutGain = _prefs.getDouble("powerGain") ?? 3.0;
     _selectedPreset = _prefs.getInt("selectedPreset") ?? 0;
     _isFancy = _prefs.getBool("fancyMode") ?? false;
     _isShuffled = _prefs.getBool("isShuffled") ?? false;
@@ -917,18 +871,11 @@ class AppController with ChangeNotifier {
     _bgQuality = _prefs.getDouble("bgQuality") ?? 2.0;
     _blur = _prefs.getDouble("blur") ?? 40.0;
     _selectedRoomPreset = _prefs.getInt("selectedRoomPreset") ?? 0;
-    // compressors
-    _threshold = _prefs.getDouble("threshold") ?? -2.0;
-    _ratio = _prefs.getDouble("ratio") ?? 10.0;
-    _attackTime = _prefs.getDouble("attackTime") ?? 1.0;
-    _releaseTime = _prefs.getDouble("releaseTime") ?? 60.0;
-    _bassFreq = _prefs.getDouble("bassFreq") ?? 50.0;
-    _vocalFreq = _prefs.getDouble("vocalFreq") ?? 450.0;
+    // MBC compressor
     _dspNoise = _prefs.getDouble("dspNoise") ?? 0.0;
     _expandRatio = _prefs.getDouble("expandRatio") ?? 15.0;
     _preGain = _prefs.getDouble("preGain") ?? 20.0;
     _kneeWidth = _prefs.getDouble("kneeWidth") ?? 0.4;
-    _spkName = _prefs.getString("spkName") ?? "BEATS BY DRE";
     // Audio features
     _gaplessPlayback = _prefs.getBool("gaplessPlayback") ?? true;
     _crossfadeDuration = _prefs.getInt("crossfadeDuration") ?? 0;
@@ -978,8 +925,10 @@ class AppController with ChangeNotifier {
 
     // projectM MilkDrop settings
     _milkdropFps = _prefs.getInt("milkdropFps") ?? 30;
-    _milkdropBeatSensitivity = _prefs.getDouble("milkdropBeatSensitivity") ?? 1.0;
-    _milkdropPresetDuration = _prefs.getDouble("milkdropPresetDuration") ?? 30.0;
+    _milkdropBeatSensitivity =
+        _prefs.getDouble("milkdropBeatSensitivity") ?? 1.0;
+    _milkdropPresetDuration =
+        _prefs.getDouble("milkdropPresetDuration") ?? 30.0;
     _milkdropPresetLocked = _prefs.getBool("milkdropPresetLocked") ?? false;
     // Room effects (custom DSP)
     _reverbEnabled = _prefs.getBool("reverbEnabled") ?? false;
@@ -995,6 +944,16 @@ class AppController with ChangeNotifier {
     _crossfeedEnabled = _prefs.getBool("crossfeedEnabled") ?? false;
     _crossfeedCutoff = _prefs.getDouble("crossfeedCutoff") ?? 700.0;
     _crossfeedFeed = _prefs.getDouble("crossfeedFeed") ?? 4.5;
+    // Tone controls
+    _toneEnabled = _prefs.getBool("toneEnabled") ?? false;
+    _bassGain = _prefs.getDouble("bassGain") ?? 0.0;
+    _bassFreq = _prefs.getDouble("bassFreq") ?? 80.0;
+    _bassQ = _prefs.getDouble("bassQ") ?? 0.707;
+    _trebleGain = _prefs.getDouble("trebleGain") ?? 0.0;
+    _trebleFreq = _prefs.getDouble("trebleFreq") ?? 10000.0;
+    _trebleQ = _prefs.getDouble("trebleQ") ?? 0.707;
+    // Output limiter
+    _limiterEnabled = _prefs.getBool("limiterEnabled") ?? true;
     // Apply DSP params to native engine on startup
     _applyAllDspParams();
   }
@@ -1214,8 +1173,20 @@ class AppController with ChangeNotifier {
     notifyListeners();
   }
 
-  /// Applies all DSP room effects params to the native engine.
+  /// Applies all DSP params to the native C++ engine on startup.
   void _applyAllDspParams() {
+    // EQ
+    Channel.enableEq(_graphicEqEnabled);
+    Channel.setPreamp(_preampGain);
+    Channel.setGraphicAllBands(_graphicBandGains);
+    _applyParametricToNative();
+    // MBC
+    Channel.enableMbc(_mbcEnabled);
+    Channel.setDspNoiseThreshold(_dspNoise);
+    Channel.setDspKneeWidth(_kneeWidth);
+    Channel.setDspExpandRatio(_expandRatio);
+    Channel.setPreGain(_preGain);
+    // Room effects
     Channel.dspSetReverbEnabled(_reverbEnabled);
     Channel.dspSetRoomSize(_dspRoomSize);
     Channel.dspSetDecay(_dspDecay);
@@ -1227,6 +1198,16 @@ class AppController with ChangeNotifier {
     Channel.dspSetStereoWidth(_stereoWidth);
     Channel.dspSetCrossfeedEnabled(_crossfeedEnabled);
     Channel.dspSetCrossfeedParams(_crossfeedCutoff, _crossfeedFeed);
+    // Tone controls
+    Channel.dspSetToneEnabled(_toneEnabled);
+    Channel.dspSetBassGain(_bassGain);
+    Channel.dspSetBassFreq(_bassFreq);
+    Channel.dspSetBassQ(_bassQ);
+    Channel.dspSetTrebleGain(_trebleGain);
+    Channel.dspSetTrebleFreq(_trebleFreq);
+    Channel.dspSetTrebleQ(_trebleQ);
+    // Output limiter
+    Channel.dspSetLimiterEnabled(_limiterEnabled);
   }
 
   /// Applies a room preset, updating all parameters at once.

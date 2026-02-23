@@ -1,10 +1,9 @@
 import 'dart:io';
 import 'dart:math' as math;
 
-import 'package:http/http.dart' as http;
-import 'package:id3tag/id3tag.dart';
 import '/exports/exports.dart';
 import '/Routes/routes.dart';
+import '../../Helpers/Channel.dart';
 import '../../controllers/AppController.dart';
 import '../../models/cloud_file.dart';
 import '../../player/player_ui.dart';
@@ -108,6 +107,9 @@ class _CloudFolderSongsState extends State<CloudFolderSongs>
     }
   }
 
+  /// Extracts metadata for files that haven't been processed yet.
+  /// Uses native MediaMetadataRetriever — handles ALL audio formats
+  /// (MP3, M4A, FLAC, OGG, WAV, WMA, etc.). Updates UI in real-time.
   Future<void> _extractMetadataInBackground() async {
     if (_songModels == null || _streamUrls == null) return;
 
@@ -123,6 +125,7 @@ class _CloudFolderSongsState extends State<CloudFolderSongs>
       final artPath = '${tempDir.path}/cloud_art_$songId.png';
       final metaCachePath = '${tempDir.path}/cloud_meta_$songId.done';
 
+      // Skip already-extracted files (but refresh UI if artwork exists).
       if (File(metaCachePath).existsSync()) {
         if (File(artPath).existsSync() && mounted) {
           setState(() {});
@@ -131,50 +134,37 @@ class _CloudFolderSongsState extends State<CloudFolderSongs>
       }
 
       try {
+        // Build auth headers (Google Drive needs OAuth; Dropbox temp links don't).
         final headers = <String, String>{};
         if (file.provider == CloudProvider.googleDrive) {
           headers.addAll(await controller.cloudAuth.getGoogleAuthHeaders());
         }
-        headers['Range'] = 'bytes=0-524287';
 
-        final response = await http.get(Uri.parse(streamUrl), headers: headers);
-        if (response.statusCode != 200 && response.statusCode != 206) continue;
+        // Native MediaMetadataRetriever extracts metadata from the stream URL
+        // directly — no 512KB download needed. Handles all audio formats.
+        // Returns null on failure (timeout/error) — skip marker, retry later.
+        final metadata = await Channel.extractAudioMetadata(
+          url: streamUrl,
+          headers: headers,
+          artworkPath: artPath,
+        );
 
-        final partialPath = '${tempDir.path}/cloud_partial_$songId.tmp';
-        final partialFile = File(partialPath);
-        await partialFile.writeAsBytes(response.bodyBytes);
+        if (!mounted) break;
 
-        String? title, artist, album;
-        bool hasArtwork = false;
+        // null = extraction failed — don't write marker, will retry next time.
+        if (metadata == null) continue;
 
-        try {
-          final parser = ID3TagReader.path(partialPath);
-          final tag = await parser.readTag();
-
-          final titleFrames = tag.framesWithName('TIT2');
-          if (titleFrames.isNotEmpty && titleFrames.first is TextInformation) {
-            title = (titleFrames.first as TextInformation).value;
-          }
-          final artistFrames = tag.framesWithName('TPE1');
-          if (artistFrames.isNotEmpty &&
-              artistFrames.first is TextInformation) {
-            artist = (artistFrames.first as TextInformation).value;
-          }
-          final albumFrames = tag.framesWithName('TALB');
-          if (albumFrames.isNotEmpty && albumFrames.first is TextInformation) {
-            album = (albumFrames.first as TextInformation).value;
-          }
-
-          if (tag.pictures.isNotEmpty) {
-            await File(artPath).writeAsBytes(tag.pictures.first.imageData);
-            hasArtwork = true;
-          }
-        } catch (_) {}
-
-        if (partialFile.existsSync()) partialFile.deleteSync();
+        // Mark as done (extraction succeeded, even if file has no tags).
         await File(metaCachePath).writeAsString('done');
 
-        if (mounted && (title != null || artist != null || hasArtwork)) {
+        final title = metadata['title'] as String?;
+        final artist = metadata['artist'] as String?;
+        final album = metadata['album'] as String?;
+        final durationMs = metadata['durationMs'] as int?;
+        final hasArtwork = metadata['hasArtwork'] == true;
+
+        if (mounted &&
+            (title != null || artist != null || album != null || hasArtwork)) {
           final updatedFile = CloudFile(
             provider: file.provider,
             fileId: file.fileId,
@@ -187,7 +177,7 @@ class _CloudFolderSongsState extends State<CloudFolderSongs>
             trackTitle: title ?? file.trackTitle,
             trackArtist: artist ?? file.trackArtist,
             albumName: album ?? file.albumName,
-            durationMs: file.durationMs,
+            durationMs: durationMs ?? file.durationMs,
           );
           controller.cloudCache.updateFileMetadata(file.provider, updatedFile);
           setState(() {

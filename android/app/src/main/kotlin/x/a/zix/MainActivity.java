@@ -7,10 +7,13 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.media.AudioManager;
+import android.media.MediaMetadataRetriever;
 import android.media.audiofx.Visualizer;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.provider.MediaStore;
 import android.view.KeyEvent;
 import android.widget.Toast;
@@ -24,10 +27,12 @@ import androidx.activity.EdgeToEdge;
 import com.ryanheise.audioservice.AudioServiceFragmentActivity;
 
 import java.io.File;
+import java.io.FileOutputStream;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import io.flutter.embedding.engine.FlutterEngine;
 import io.flutter.plugin.common.EventChannel;
@@ -155,58 +160,36 @@ public class MainActivity extends AudioServiceFragmentActivity {
                             break;
 
                         case "init":
-                            // Legacy CustomEq init — now routes to DSPEngine
-                            int sessionId = call.argument("sessionId");
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                                DSPEngine.setAudioSessionId(sessionId);
-                                DSPEngine.initDSPEngine();
-                            }
+                            // Legacy — EQ + MBC now handled by C++ DSP pipeline
                             break;
 
                         case "enableEq":
                             boolean enableEq = call.argument("enable");
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                                DSPEngine.enableEngine(enableEq);
-                            }
+                            RoomEffectsProcessor.broadcastEqEnabled(enableEq);
                             break;
                         case "isEnabled":
-                            boolean isEnabled = false;
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                                isEnabled = DSPEngine.isDynamicsProcessingAvailable();
-                            }
-                            result.success(isEnabled);
+                            // EQ is now always available (C++ pipeline, no API level requirement)
+                            result.success(true);
                             break;
 
                         // ==================== Preamp ====================
                         case "setPreamp":
                             double preampGain = call.argument("gain");
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                                DSPEngine.setPreamp((float) preampGain);
-                            }
+                            RoomEffectsProcessor.broadcastPreampGain((float) preampGain);
                             result.success(null);
                             break;
                         case "getPreamp":
-                            float curPreamp = 0f;
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                                curPreamp = DSPEngine.getPreamp();
-                            }
-                            result.success((double) curPreamp);
+                            result.success((double) RoomEffectsProcessor.getCachedPreampGain());
                             break;
 
                         // ==================== MBC Toggle ====================
                         case "enableMbc":
                             boolean mbcEnable = call.argument("enable");
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                                DSPEngine.enableMbc(mbcEnable);
-                            }
+                            RoomEffectsProcessor.broadcastMbcEnabled(mbcEnable);
                             result.success(null);
                             break;
                         case "isMbcEnabled":
-                            boolean mbcOn = false;
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                                mbcOn = DSPEngine.isMbcEnabled();
-                            }
-                            result.success(mbcOn);
+                            result.success(RoomEffectsProcessor.isCachedMbcEnabled());
                             break;
 
                         // bassboost
@@ -282,131 +265,120 @@ public class MainActivity extends AudioServiceFragmentActivity {
                             result.success(DvcController.getMaxVolume());
                             break;
 
-                        // DSP configurations
-                        case "initDSPEngine":
-                            int dspId = call.argument("dspId");
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                                DSPEngine.setAudioSessionId(dspId);
-                                DSPEngine.initDSPEngine();
-                            }
-                            break;
-                        case "setDSPSpeakers":
-                            Map<String, Object> map = call.argument("spks");
-                            ArrayList<Integer> speaker = (ArrayList<Integer>) map.get("speakers");
-                            ArrayList<Double> l = (ArrayList<Double>) map.get("levels");
-                            // speakers
-                            int[] speakers = new int[10];
-                            float[] levels = new float[10];
-                            for (int x = 0; x < 10; x++) {
-                                speakers[x] = speaker.get(x);
-                                levels[x] = l.get(x).floatValue();
-                            }
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                                DSPEngine.setDspSpeakers(speakers, levels);
-                            }
-                            result.success(speaker);
-                            break;
-
-                        case "enableDSP":
-                            boolean dspEnable = call.argument("enableEngine");
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                                DSPEngine.enableEngine(dspEnable);
-                            }
-                            break;
-
-                        case "getVocalLevel":
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                                float vocalLevel = DSPEngine.getVocalLevel();
-                                result.success(vocalLevel);
-                            }
-                            break;
-
-                        case "setDSPXBass":
-                            double bassGain = call.argument("xBass");
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                                DSPEngine.setDSPXBass((float) bassGain);
-                            }
-                            break;
-                        case "setExtraBass":
-                            double xtraGain = call.argument("extraBass");
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                                DSPEngine.setDSPx((float) xtraGain);
-                            }
-                            break;
-                        case "setDSPPowerBass":
-                            double powerBass = call.argument("powerBass");
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                                DSPEngine.setDSPPowerBass(((float) powerBass));
-                            }
-                            break;
-
-                        case "setDSPXTreble":
-                            double trebleGain = call.argument("trebleGain");
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                                DSPEngine.setDSPTreble((float) trebleGain);
-                            }
-                            break;
-                        case "setDSPVolume":
-                            double dspVolume = call.argument("dspVolume");
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                                DSPEngine.setDSPVolume(((float) dspVolume));
-                            }
-                            break;
-                        case "setDspNoiseThreshold":
+                        // ==================== MBC Compressor Settings ====================
+                        case "setDspNoiseThreshold": {
                             double noiseThreshold = call.argument("noiseThreshold");
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                                DSPEngine.setNoiseThreshold((float) noiseThreshold);
-                            }
+                            RoomEffectsProcessor.broadcastMbcNoiseGate((float) noiseThreshold);
+                            result.success(null);
                             break;
-                        // settings for tuner
-                        case "setTunerBass":
-                            double tBass = call.argument("tunerBass");
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                                DSPEngine.setBassTone((float) tBass);
-                            }
-                            break;
-                        case "setCutOffFreq":
-                            int tBasFreq = call.argument("tunerBassFreq");
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                                DSPEngine.setCutOffFrequencyForTunerBass(tBasFreq);
-                            }
-                            break;
-                        case "setTrebleFreq":
-                            double tTrebleFreq = call.argument("trebleFreq");
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                                DSPEngine.setFrequencyTrebleForTuner((float) tTrebleFreq);
-                            }
-                            break;
-                        case "setTunerVocal":
-                            double tVocal = call.argument("tunerVocal");
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                                DSPEngine.adjustTunerVocal((float) tVocal);
-                            }
-                            break;
-                        // -------------------------- compressor settings
-                        case "setPreGain":
+                        }
+                        case "setPreGain": {
                             double preGain = call.argument("preGain");
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                                DSPEngine.setPreGain((float) preGain);
-                            }
+                            RoomEffectsProcessor.broadcastMbcPreGain((float) preGain);
+                            result.success(null);
                             break;
-                        case "expandRatio":
+                        }
+                        case "expandRatio": {
                             double expandRatio = call.argument("expandRatio");
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                                DSPEngine.setExpanderRatio((float) expandRatio);
-                            }
+                            RoomEffectsProcessor.broadcastMbcExpanderRatio((float) expandRatio);
+                            result.success(null);
                             break;
-                        case "kneeWidth":
+                        }
+                        case "kneeWidth": {
                             double kneeWidth = call.argument("kneeWidth");
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                                DSPEngine.setKneeWidth((float) kneeWidth);
-                            }
+                            RoomEffectsProcessor.broadcastMbcKneeWidth((float) kneeWidth);
+                            result.success(null);
                             break;
-                        // ------------------------end of compressor settings
+                        }
+
+                        // ==================== Tone Controls (Bass/Treble) ====================
+                        case "dspSetToneEnabled": {
+                            boolean en = call.argument("enabled");
+                            RoomEffectsProcessor.broadcastToneEnabled(en);
+                            result.success(null);
+                            break;
+                        }
+                        case "dspSetBassGain": {
+                            double v = call.argument("value");
+                            RoomEffectsProcessor.broadcastBassGain((float) v);
+                            result.success(null);
+                            break;
+                        }
+                        case "dspSetBassFreq": {
+                            double v = call.argument("value");
+                            RoomEffectsProcessor.broadcastBassFreq((float) v);
+                            result.success(null);
+                            break;
+                        }
+                        case "dspSetBassQ": {
+                            double v = call.argument("value");
+                            RoomEffectsProcessor.broadcastBassQ((float) v);
+                            result.success(null);
+                            break;
+                        }
+                        case "dspSetTrebleGain": {
+                            double v = call.argument("value");
+                            RoomEffectsProcessor.broadcastTrebleGain((float) v);
+                            result.success(null);
+                            break;
+                        }
+                        case "dspSetTrebleFreq": {
+                            double v = call.argument("value");
+                            RoomEffectsProcessor.broadcastTrebleFreq((float) v);
+                            result.success(null);
+                            break;
+                        }
+                        case "dspSetTrebleQ": {
+                            double v = call.argument("value");
+                            RoomEffectsProcessor.broadcastTrebleQ((float) v);
+                            result.success(null);
+                            break;
+                        }
+
+                        // ==================== Output Limiter ====================
+                        case "dspSetLimiterEnabled": {
+                            boolean en = call.argument("enabled");
+                            RoomEffectsProcessor.broadcastLimiterEnabled(en);
+                            result.success(null);
+                            break;
+                        }
+                        case "dspSetLimiterCeiling": {
+                            double v = call.argument("value");
+                            RoomEffectsProcessor.broadcastLimiterCeiling((float) v);
+                            result.success(null);
+                            break;
+                        }
+                        case "dspSetLimiterRelease": {
+                            double v = call.argument("value");
+                            RoomEffectsProcessor.broadcastLimiterRelease((float) v);
+                            result.success(null);
+                            break;
+                        }
+                        case "dspSetLimiterKnee": {
+                            double v = call.argument("value");
+                            RoomEffectsProcessor.broadcastLimiterKnee((float) v);
+                            result.success(null);
+                            break;
+                        }
+
+                        // Legacy DSP stubs — no-ops for backward compatibility
+                        case "initDSPEngine":
+                        case "enableDSP":
                         case "disposeDSP":
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                                DSPEngine.dispose();
-                            }
+                        case "setDSPSpeakers":
+                        case "setDSPXBass":
+                        case "setExtraBass":
+                        case "setDSPPowerBass":
+                        case "setDSPXTreble":
+                        case "setDSPVolume":
+                        case "setTunerBass":
+                        case "setCutOffFreq":
+                        case "setTrebleFreq":
+                        case "setTunerVocal":
+                            // Removed — all DSP processing handled by C++ pipeline
+                            break;
+                        case "getVocalLevel":
+                            result.success(0.0f);
                             break;
 
                         case "initPresetReverb":
@@ -520,72 +492,150 @@ public class MainActivity extends AudioServiceFragmentActivity {
                         case "setGraphicBandGain":
                             int gBand = call.argument("band");
                             double gGain = call.argument("gain");
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                                DSPEngine.setGraphicBandGain(gBand, (float) gGain);
-                            }
+                            RoomEffectsProcessor.broadcastGraphicBandGain(gBand, (float) gGain);
                             result.success(null);
                             break;
                         case "getGraphicBandGain":
-                            int gBandGet = call.argument("band");
-                            float gBandGain = 0f;
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                                gBandGain = DSPEngine.getGraphicBandGain(gBandGet);
-                            }
-                            result.success(gBandGain);
+                            // No longer queried from DynamicsProcessing — Dart holds the state
+                            result.success(0.0f);
                             break;
                         case "setGraphicAllBands":
                             ArrayList<Double> gGains = call.argument("gains");
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && gGains != null) {
+                            if (gGains != null) {
                                 float[] gainArr = new float[gGains.size()];
                                 for (int gi = 0; gi < gGains.size(); gi++) {
                                     gainArr[gi] = gGains.get(gi).floatValue();
                                 }
-                                DSPEngine.setGraphicAllBands(gainArr);
+                                RoomEffectsProcessor.broadcastGraphicAllBands(gainArr);
                             }
                             result.success(null);
                             break;
                         case "getGraphicAllBands":
-                            ArrayList<Double> allGains = new ArrayList<>();
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                                float[] raw = DSPEngine.getGraphicAllBands();
-                                for (float v : raw) allGains.add((double) v);
-                            }
-                            result.success(allGains);
+                            // No longer queried from DynamicsProcessing — Dart holds the state
+                            result.success(new ArrayList<Double>());
                             break;
 
                         // ==================== 32-Band Parametric EQ ====================
-                        case "setParametricBand":
+                        case "setParametricBand": {
                             int pBand = call.argument("band");
                             double pFreq = call.argument("freq");
                             double pGainV = call.argument("gain");
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                                DSPEngine.setParametricBand(pBand, (float) pFreq, (float) pGainV);
-                            }
+                            double pQ = call.argument("q") != null ? (double) call.argument("q") : 1.4;
+                            int pFilterType = call.argument("filterType") != null ? (int) call.argument("filterType") : 0;
+                            boolean pEnabled = call.argument("enabled") != null ? (boolean) call.argument("enabled") : true;
+                            RoomEffectsProcessor.broadcastParametricBand(pBand, (float) pFreq,
+                                    (float) pGainV, (float) pQ, pFilterType, pEnabled);
                             result.success(null);
                             break;
-                        case "setParametricAllBands":
+                        }
+                        case "setParametricAllBands": {
                             ArrayList<Double> pFreqs = call.argument("freqs");
                             ArrayList<Double> pGains = call.argument("gains");
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && pFreqs != null && pGains != null) {
-                                float[] freqArr = new float[pFreqs.size()];
-                                float[] pGainArr = new float[pGains.size()];
-                                for (int pi = 0; pi < pFreqs.size(); pi++) {
+                            ArrayList<Double> pQs = call.argument("qs");
+                            if (pFreqs != null && pGains != null) {
+                                int pCount = pFreqs.size();
+                                float[] freqArr = new float[pCount];
+                                float[] pGainArr = new float[pCount];
+                                float[] qArr = new float[pCount];
+                                for (int pi = 0; pi < pCount; pi++) {
                                     freqArr[pi] = pFreqs.get(pi).floatValue();
                                     pGainArr[pi] = pGains.get(pi).floatValue();
+                                    qArr[pi] = (pQs != null && pi < pQs.size()) ? pQs.get(pi).floatValue() : 1.4f;
                                 }
-                                DSPEngine.setParametricAllBands(freqArr, pGainArr);
+                                RoomEffectsProcessor.broadcastParametricAllBands(freqArr, pGainArr, qArr, pCount);
                             }
                             result.success(null);
                             break;
+                        }
 
                         // ==================== Device Detection ====================
                         case "isDynamicsProcessingAvailable":
-                            result.success(Build.VERSION.SDK_INT >= Build.VERSION_CODES.P);
+                            // Always true — C++ DSP pipeline has no API level requirement
+                            result.success(true);
                             break;
                         case "getAudioOutputType":
                             String outputType = AudioOutputDetector.getAudioOutputType(getApplicationContext());
                             result.success(outputType);
                             break;
+
+                        // ==================== Audio Metadata Extraction ====================
+                        case "extractAudioMetadata": {
+                            String metaUrl = call.argument("url");
+                            Map<String, String> metaHeaders = call.argument("headers");
+                            String artPath = call.argument("artworkPath");
+                            if (metaHeaders == null) metaHeaders = new HashMap<>();
+                            final Map<String, String> finalHeaders = metaHeaders;
+
+                            // AtomicBoolean prevents double result.success() from
+                            // both the worker thread and the timeout handler.
+                            final AtomicBoolean completed = new AtomicBoolean(false);
+                            final Handler mainHandler = new Handler(Looper.getMainLooper());
+
+                            // Run on background thread — MMR does network I/O
+                            Thread worker = new Thread(() -> {
+                                Map<String, Object> metadata = new HashMap<>();
+                                MediaMetadataRetriever mmr = new MediaMetadataRetriever();
+                                boolean success = false;
+                                try {
+                                    mmr.setDataSource(metaUrl, finalHeaders);
+                                    success = true; // setDataSource didn't throw
+
+                                    String title = mmr.extractMetadata(
+                                            MediaMetadataRetriever.METADATA_KEY_TITLE);
+                                    String artist = mmr.extractMetadata(
+                                            MediaMetadataRetriever.METADATA_KEY_ARTIST);
+                                    String album = mmr.extractMetadata(
+                                            MediaMetadataRetriever.METADATA_KEY_ALBUM);
+                                    String durationStr = mmr.extractMetadata(
+                                            MediaMetadataRetriever.METADATA_KEY_DURATION);
+
+                                    if (title != null) metadata.put("title", title);
+                                    if (artist != null) metadata.put("artist", artist);
+                                    if (album != null) metadata.put("album", album);
+                                    if (durationStr != null) {
+                                        try {
+                                            metadata.put("durationMs",
+                                                    Integer.parseInt(durationStr));
+                                        } catch (NumberFormatException ignored) {}
+                                    }
+
+                                    // Extract embedded artwork
+                                    byte[] art = mmr.getEmbeddedPicture();
+                                    if (art != null && artPath != null) {
+                                        try (FileOutputStream fos =
+                                                     new FileOutputStream(artPath)) {
+                                            fos.write(art);
+                                            metadata.put("hasArtwork", true);
+                                        } catch (Exception ignored) {}
+                                    }
+                                } catch (Exception e) {
+                                    e.printStackTrace();
+                                } finally {
+                                    try { mmr.release(); } catch (Exception ignored) {}
+                                }
+
+                                // Return result on main thread (required by Flutter).
+                                // success=true → return metadata map (even if empty — file
+                                // has no tags). success=false → return null (extraction
+                                // failed, should retry later).
+                                final boolean ok = success;
+                                final Map<String, Object> md = metadata;
+                                if (completed.compareAndSet(false, true)) {
+                                    mainHandler.post(() -> result.success(ok ? md : null));
+                                }
+                            });
+                            worker.start();
+
+                            // 15-second timeout — MMR has no internal read timeout
+                            // and can hang indefinitely on slow/stalled connections.
+                            mainHandler.postDelayed(() -> {
+                                if (completed.compareAndSet(false, true)) {
+                                    worker.interrupt();
+                                    result.success(null); // null = failed, retry later
+                                }
+                            }, 15000);
+                            break;
+                        }
 
                         // ==================== Lyrics ====================
                         case "readLyrics": {

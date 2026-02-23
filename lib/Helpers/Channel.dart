@@ -1,8 +1,6 @@
 // ignore_for_file: constant_identifier_names
-import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 class Channel {
   static MethodChannel channel = const MethodChannel("eq_app");
@@ -220,41 +218,71 @@ class Channel {
   static Future<void> dspSetCrossfeedParams(double cutoffHz, double feedLevelDb) async {
     await _invoke("dspSetCrossfeedParams", {"cutoff": cutoffHz, "feed": feedLevelDb});
   }
-  /// Initialize DSP engine
-  static void _initDSPEngine(int audioSessionId) async {
-    await _invoke("initDSPEngine", {"dspId": audioSessionId});
+
+  // ==================== Tone Controls (Bass/Treble) ====================
+
+  /// Enable/disable tone controls (independent bass/treble shelf filters)
+  static Future<void> dspSetToneEnabled(bool enabled) async {
+    await _invoke("dspSetToneEnabled", {"enabled": enabled});
   }
 
-  static void enableDSPEngine(bool enable) async {
-    await _invoke("enableDSP", {"enableEngine": enable});
+  /// Bass gain (-15 to +15 dB)
+  static Future<void> dspSetBassGain(double dB) async {
+    await _invoke("dspSetBassGain", {"value": dB});
   }
 
-
-  static Future<double> setDSPVolume(double v) async {
-    return await _invokeRequired<double>("setDSPVolume", 0.0, {"dspVolume": v});
+  /// Bass frequency (20 - 500 Hz, default 80)
+  static Future<void> dspSetBassFreq(double hz) async {
+    await _invoke("dspSetBassFreq", {"value": hz});
   }
+
+  /// Bass Q (0.1 - 4.0, default 0.707)
+  static Future<void> dspSetBassQ(double q) async {
+    await _invoke("dspSetBassQ", {"value": q});
+  }
+
+  /// Treble gain (-15 to +15 dB)
+  static Future<void> dspSetTrebleGain(double dB) async {
+    await _invoke("dspSetTrebleGain", {"value": dB});
+  }
+
+  /// Treble frequency (1000 - 20000 Hz, default 10000)
+  static Future<void> dspSetTrebleFreq(double hz) async {
+    await _invoke("dspSetTrebleFreq", {"value": hz});
+  }
+
+  /// Treble Q (0.1 - 4.0, default 0.707)
+  static Future<void> dspSetTrebleQ(double q) async {
+    await _invoke("dspSetTrebleQ", {"value": q});
+  }
+
+  // ==================== Output Limiter ====================
+
+  /// Enable/disable output limiter (on by default — safety net)
+  static Future<void> dspSetLimiterEnabled(bool enabled) async {
+    await _invoke("dspSetLimiterEnabled", {"enabled": enabled});
+  }
+
+  /// Limiter ceiling (0.01 - 1.0, default 0.98)
+  static Future<void> dspSetLimiterCeiling(double value) async {
+    await _invoke("dspSetLimiterCeiling", {"value": value});
+  }
+
+  /// Limiter release time in ms (10 - 500, default 50)
+  static Future<void> dspSetLimiterRelease(double ms) async {
+    await _invoke("dspSetLimiterRelease", {"value": ms});
+  }
+
+  /// Limiter soft knee width in dB (0 - 12, default 6)
+  static Future<void> dspSetLimiterKnee(double dB) async {
+    await _invoke("dspSetLimiterKnee", {"value": dB});
+  }
+
+  // ----------- MBC Compressor (C++ pipeline) ------------------
 
   static void setDspNoiseThreshold(double noiseValue) async {
     await _invoke("setDspNoiseThreshold", {"noiseThreshold": noiseValue});
   }
-
-  static void setTunerBass(double value) async {
-    await _invoke("setTunerBass", {"tunerBass": value});
-  }
-
-  static void setDSPXBass(double bass) async {
-    await _invoke("setDSPXBass", {"xBass": bass});
-  }
-
-  static void setDSPPowerBass(double bass) async {
-    await _invoke("setDSPPowerBass", {"powerBass": bass});
-  }
-
-  static void setDSPTreble(double treble) async {
-    await _invoke("setDSPXTreble", {"trebleGain": treble});
-  }
-
-  // ----------- DSP compressor (MBC) ------------------
 
   static void setDspKneeWidth(double kneeWidth) async {
     await _invoke("kneeWidth", {"kneeWidth": kneeWidth});
@@ -266,28 +294,6 @@ class Channel {
 
   static void setDspExpandRatio(double expandRatio) async {
     await _invoke("expandRatio", {"expandRatio": expandRatio});
-  }
-
-  // -------------- end of compressor settings ---------------------
-
-  static void setDSPSpeakers(
-      List<dynamic> speakers, List<double> levels) async {
-    Map<String, dynamic> dsps = {"speakers": speakers, "levels": levels};
-    await _invoke("setDSPSpeakers", {"spks": dsps});
-    final prefs = await SharedPreferences.getInstance();
-    prefs.setString("dsp_speaker", json.encode(dsps));
-  }
-
-  static void disposeDSP() async {
-    await _invoke("disposeDSP");
-  }
-
-  static void setCutOffFreq(int freq) async {
-    await _invoke("setCutOffFreq", {"tunerBassFreq": freq});
-  }
-
-  static Future<double> getVocalLevel() async {
-    return await _invokeRequired<double>("getVocalLevel", 0.0);
   }
 
   static void deleteManager(String path) async {
@@ -316,12 +322,20 @@ class Channel {
 
   // ==================== 32-Band Parametric EQ (Post-EQ) ====================
 
-  static Future<void> setParametricBand(int band, double freq, double gain) async {
-    await _invoke("setParametricBand", {"band": band, "freq": freq, "gain": gain});
+  static Future<void> setParametricBand(int band, double freq, double gain,
+      {double q = 1.4, int filterType = 0, bool enabled = true}) async {
+    await _invoke("setParametricBand", {
+      "band": band, "freq": freq, "gain": gain,
+      "q": q, "filterType": filterType, "enabled": enabled,
+    });
   }
 
-  static Future<void> setParametricAllBands(List<double> freqs, List<double> gains) async {
-    await _invoke("setParametricAllBands", {"freqs": freqs, "gains": gains});
+  static Future<void> setParametricAllBands(List<double> freqs, List<double> gains,
+      {List<double>? qs}) async {
+    await _invoke("setParametricAllBands", {
+      "freqs": freqs, "gains": gains,
+      if (qs != null) "qs": qs,
+    });
   }
 
   // ==================== Preamp ====================
@@ -356,15 +370,32 @@ class Channel {
   }
 
   static void setSessionId(int sessionId) async {
-    _initDSPEngine(sessionId);
     _initLoudnessEnhancer(sessionId);
-    // "init" still routes to DSPEngine on native side (CustomEq removed)
     await _invoke("init", {"sessionId": sessionId});
+  }
+
+  // ==================== Audio Metadata Extraction ====================
+
+  /// Extracts metadata from any audio format via MediaMetadataRetriever.
+  /// Works with HTTP URLs (for cloud files) using auth headers.
+  /// Returns: {title, artist, album, durationMs, hasArtwork}
+  static Future<Map<String, dynamic>?> extractAudioMetadata({
+    required String url,
+    Map<String, String> headers = const {},
+    String? artworkPath,
+  }) async {
+    final result = await _invoke<Map>("extractAudioMetadata", {
+      "url": url,
+      "headers": headers,
+      "artworkPath": artworkPath,
+    });
+    if (result == null) return null;
+    return Map<String, dynamic>.from(result);
   }
 
   // ==================== Lyrics ====================
 
-  /// Reads embedded USLT lyrics from an MP3 file via mp3agic native.
+  /// Reads embedded lyrics from any audio format (MP3, M4A, FLAC, OGG, WMA).
   static Future<String?> readLyrics(String filePath) async {
     return await _invoke<String>("readLyrics", {"filePath": filePath});
   }

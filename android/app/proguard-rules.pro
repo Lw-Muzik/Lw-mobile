@@ -25,7 +25,6 @@
 # Keep all your custom equalizer classes
 -keep class x.a.zix.AudioVisualizer { *; }
 -keep class x.a.zix.BassEq { *; }
--keep class x.a.zix.DSPEngine { *; }
 -keep class x.a.zix.LoudnessControl { *; }
 -keep class x.a.zix.DvcController { *; }
 -keep class x.a.zix.ReverbEngine { *; }
@@ -47,3 +46,7 @@
 # Keep Firebase classes
 -keep class com.google.firebase.** { *; }
 -keep class com.google.android.gms.** { *; }
+
+# JAudioTagger (multi-format audio tag library)
+-keep class org.jaudiotagger.** { *; }
+-dontwarn org.jaudiotagger.**

@@ -1,13 +1,11 @@
 import 'dart:ui';
 
-import 'package:eq_app/Global/DSPSpeakers.dart';
 import 'package:eq_app/Helpers/Channel.dart';
 import 'package:eq_app/extensions/index.dart';
 import 'package:eq_app/widgets/HorizontalSlider.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../Routes/routes.dart';
 import '../controllers/AppController.dart';
 
 class AudioFx extends StatefulWidget {
@@ -18,8 +16,6 @@ class AudioFx extends StatefulWidget {
 }
 
 class _AudioFxState extends State<AudioFx> {
-  final ScrollController _controller = ScrollController();
-
   @override
   Widget build(BuildContext context) {
     return Consumer<AppController>(
@@ -40,58 +36,11 @@ class _AudioFxState extends State<AudioFx> {
                       buildSlider(
                         "Preamp",
                         controller.preampGain,
-                        0,
+                        -15,
                         15,
-                        (x) {
-                          controller.preampGain = x;
-                        },
-                      ),
-                      buildSlider(
-                        "XTreble",
-                        controller.dspXTreble,
-                        0,
-                        15,
-                        (x) {
-                          controller.dspXTreble = x;
-                          Channel.setDSPTreble(x);
-                        },
-                      ),
-                      buildSlider(
-                        "Power Bass",
-                        controller.dspPowerBass,
-                        0,
-                        15,
-                        (x) {
-                          controller.dspPowerBass = x;
-                          Channel.setDSPPowerBass(x);
-                        },
-                      ),
-                      buildSlider(
-                        "XBass",
-                        controller.dspXBass,
-                        0,
-                        15,
-                        (x) {
-                          controller.dspXBass = x;
-                          Channel.setDSPXBass(x);
-                        },
+                        (x) => controller.preampGain = x,
                       ),
                     ],
-                  ),
-                ),
-                const SettingsHeader(title: "DSP SPEAKERS"),
-                FancyCard(
-                  isFancy: controller.isFancy,
-                  child: Routes.animateTo(
-                    closedWidget: ListTile(
-                      title: Text(controller.spkName),
-                      leading: const Icon(Icons.speaker),
-                      trailing: const Icon(Icons.open_in_new),
-                    ),
-                    openWidget: DSPSpeakerWidget(
-                      controller: controller,
-                      dspScrollController: _controller,
-                    ),
                   ),
                 ),
                 const SizedBox.square(dimension: 20),
@@ -115,7 +64,6 @@ class _AudioFxState extends State<AudioFx> {
     );
   }
 
-  // Helper method to build each slider with consistent parameters.
   Widget buildSlider(
     String title,
     double value,
@@ -181,16 +129,16 @@ class FancyCard extends StatelessWidget {
   }
 }
 
-// Extend AppController to include reset functionality.
 extension on AppController {
   void resetToDefaults() {
     preampGain = 0.0;
-    dspOutGain = 0.0;
-    dspPowerBass = 0.0;
-    dspXTreble = 0.0;
-    dspXBass = 0.0;
-    Channel.setDSPTreble(0.0);
-    Channel.setDSPPowerBass(0.0);
-    Channel.setDSPXBass(0.0);
+    bassGain = 0.0;
+    trebleGain = 0.0;
+    bassFreq = 80.0;
+    trebleFreq = 10000.0;
+    bassQ = 0.707;
+    trebleQ = 0.707;
+    toneEnabled = false;
+    limiterEnabled = true;
   }
 }
