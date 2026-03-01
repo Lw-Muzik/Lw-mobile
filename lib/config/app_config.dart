@@ -59,6 +59,26 @@ class AppConfig {
     defaultValue: 'http://94.72.116.178:5054',
   );
 
+  // AcoustID (audio fingerprint recognition)
+  static const String acoustIdApiKey = String.fromEnvironment(
+    'ACOUSTID_API_KEY',
+    defaultValue: 'r8INVHtWPX',
+  );
+
+  // ACRCloud (fallback music recognition)
+  static const String acrCloudHost = String.fromEnvironment(
+    'ACRCLOUD_HOST',
+    defaultValue: 'identify-us-west-2.acrcloud.com',
+  );
+  static const String acrCloudAccessKey = String.fromEnvironment(
+    'ACRCLOUD_ACCESS_KEY',
+    defaultValue: '9f40e16ba89fd405c8e6a2337ce0845a',
+  );
+  static const String acrCloudAccessSecret = String.fromEnvironment(
+    'ACRCLOUD_ACCESS_SECRET',
+    defaultValue: '7NGOIDIwcEw8jb19jpGuNeyoz1ldKRN11SCl7ZBw',
+  );
+
   // Dropbox OAuth
   static const String dropboxAppKey = String.fromEnvironment(
     'DROPBOX_APP_KEY',

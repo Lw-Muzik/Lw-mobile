@@ -194,11 +194,9 @@ void RoomDSPEngine::process(float* buffer, int numFrames) {
         reverb_.process(left, right, numFrames);
     }
 
-    // Output limiter — always active when EQ/tone is processing.
-    // Transparent safety net: catches boosted peaks with soft-knee
-    // compression, preventing hard-clip distortion at the output clamp.
-    // Also runs when user explicitly enables it (for non-EQ use cases).
-    if (doLimiter || doEq || doTone) {
+    // Output limiter — only when user explicitly enables it.
+    // The hard clamp below still prevents digital clipping as a safety net.
+    if (doLimiter) {
         limiter_.process(left, right, numFrames);
     }
 

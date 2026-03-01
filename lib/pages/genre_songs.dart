@@ -10,7 +10,7 @@ import '/exports/exports.dart';
 import '../player/player_ui.dart';
 import '/widgets/ArtworkWidget.dart';
 import '/widgets/BottomPlayer.dart';
-import '/widgets/PlayListWidget.dart';
+import '/widgets/song_options_sheet.dart';
 import '/widgets/song_tile.dart';
 
 class GenreSongs extends StatefulWidget {
@@ -125,13 +125,7 @@ class _GenreSongsState extends State<GenreSongs> {
                         onLongPress: (song, index) {
                           showModalBottomSheet(
                             context: context,
-                            builder: (context) => BottomSheet(
-                              onClosing: () {},
-                              builder: (context) => PlaylistWidget(
-                                audioId: song.id,
-                                song: song.title,
-                              ),
-                            ),
+                            builder: (_) => SongOptionsSheet(song: song),
                           );
                         },
                       );

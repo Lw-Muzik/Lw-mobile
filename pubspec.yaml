@@ -48,6 +48,7 @@ dependencies:
   animations: ^2.0.8
   tutorial_coach_mark: ^1.2.9
   http: ^1.1.0
+  crypto: ^3.0.3
   google_sign_in: ^6.2.1
   flutter_secure_storage: ^9.2.2
   flutter_appauth: ^11.0.0

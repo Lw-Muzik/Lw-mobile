@@ -374,6 +374,40 @@ class Channel {
     await _invoke("init", {"sessionId": sessionId});
   }
 
+  // ==================== Audio Fingerprinting ====================
+
+  /// Generates a Chromaprint fingerprint from an audio file.
+  /// Returns {fingerprint: String, duration: int (seconds)} or null on failure.
+  static Future<Map<String, dynamic>?> generateFingerprint(String filePath) async {
+    final result = await _invoke<Map>("generateFingerprint", {
+      "filePath": filePath,
+    });
+    if (result == null) return null;
+    return Map<String, dynamic>.from(result);
+  }
+
+  /// Writes metadata tags to an audio file (fill-empty policy).
+  /// Supports MP3, M4A, FLAC, OGG, WMA via JAudioTagger.
+  /// [artworkPath] optional local path to cover art image to embed.
+  static Future<bool> writeTags(String filePath, Map<String, String> tags,
+      {String? artworkPath}) async {
+    return await _invokeRequired<bool>(
+      "writeTags",
+      false,
+      {
+        "filePath": filePath,
+        "tags": tags,
+        if (artworkPath != null) "artworkPath": artworkPath,
+      },
+    );
+  }
+
+  /// Triggers Android MediaStore re-scan for the given file path.
+  /// Call after writing tags so queries return updated metadata.
+  static Future<void> scanMediaFile(String filePath) async {
+    await _invoke("scanMediaFile", {"filePath": filePath});
+  }
+
   // ==================== Audio Metadata Extraction ====================
 
   /// Extracts metadata from any audio format via MediaMetadataRetriever.

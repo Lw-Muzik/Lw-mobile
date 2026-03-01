@@ -9,6 +9,7 @@ import 'package:on_audio_query/on_audio_query.dart';
 import '../../controllers/AppController.dart';
 import '../../pages/album_songs.dart';
 import '../../widgets/PlayListWidget.dart';
+import '../../widgets/song_options_sheet.dart';
 import 'ArtworkFetch.dart';
 
 class TrackInfoWidget extends StatelessWidget {
@@ -54,6 +55,18 @@ class TrackInfoWidget extends StatelessWidget {
                         endIndent: 20,
                       ),
                       // Action list
+                      _ActionTile(
+                        icon: Icons.fingerprint,
+                        label: 'Identify Track',
+                        subtitle: 'Recognize using audio fingerprint',
+                        onTap: () {
+                          Routes.pop(context);
+                          showModalBottomSheet(
+                            context: context,
+                            builder: (_) => SongOptionsSheet(song: song),
+                          );
+                        },
+                      ),
                       _ActionTile(
                         icon: Icons.playlist_add_rounded,
                         label: 'Add to Playlist',

@@ -2,7 +2,7 @@ import '/exports/exports.dart';
 
 import '/Helpers/Files.dart';
 import '/widgets/song_tile.dart';
-import '/widgets/PlayListWidget.dart';
+import '/widgets/song_options_sheet.dart';
 import '/Routes/routes.dart';
 import '/controllers/AppController.dart';
 import '../player/player_ui.dart';
@@ -95,13 +95,7 @@ class _AllSongsState extends State<AllSongs> {
                       onLongPress: (song, index) {
                         showModalBottomSheet(
                           context: context,
-                          builder: (context) => BottomSheet(
-                            onClosing: () {},
-                            builder: (context) => PlaylistWidget(
-                              audioId: song.id,
-                              song: song.title,
-                            ),
-                          ),
+                          builder: (_) => SongOptionsSheet(song: song),
                         );
                       },
                     );

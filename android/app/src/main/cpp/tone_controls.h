@@ -100,22 +100,22 @@ public:
 private:
     void updateBass() {
         if (sampleRate_ <= 0.0f) return;
-        if (std::fabs(bassGainDb_) < 0.05f) {
-            bassFilter_.setCoefficients(BiquadCoeffs::bypass());
-        } else {
+        // if (std::fabs(bassGainDb_) < 0.05f) {
+        //     bassFilter_.setCoefficients(BiquadCoeffs::bypass());
+        // } else {
             bassFilter_.setCoefficients(
                 BiquadDesign::lowShelf(sampleRate_, bassFreq_, bassGainDb_, bassQ_));
-        }
+    //    }
     }
 
     void updateTreble() {
         if (sampleRate_ <= 0.0f) return;
-        if (std::fabs(trebleGainDb_) < 0.05f) {
-            trebleFilter_.setCoefficients(BiquadCoeffs::bypass());
-        } else {
+        // if (std::fabs(trebleGainDb_) < 0.05f) {
+        //     trebleFilter_.setCoefficients(BiquadCoeffs::bypass());
+        // } else {
             trebleFilter_.setCoefficients(
                 BiquadDesign::highShelf(sampleRate_, trebleFreq_, trebleGainDb_, trebleQ_));
-        }
+        // }
     }
 
     float sampleRate_ = 48000.0f;

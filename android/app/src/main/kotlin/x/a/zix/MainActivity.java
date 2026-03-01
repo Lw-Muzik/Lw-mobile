@@ -48,11 +48,12 @@ public class MainActivity extends AudioServiceFragmentActivity {
     private MethodChannel visualizerChannel; // Define the MethodChannel here
     private ProjectMRenderer projectMRenderer;
 
-    // Scoped-storage lyrics write state
+    // Scoped-storage write state
     private ActivityResultLauncher<IntentSenderRequest> writeRequestLauncher;
     private MethodChannel.Result pendingWriteResult;
     private Uri pendingWriteUri;
     private File pendingModifiedFile;
+    private String pendingWriteFilePath;
 
     @Override
     protected void onCreate(Bundle savedInstance) {
@@ -75,10 +76,14 @@ public class MainActivity extends AudioServiceFragmentActivity {
                                 getContentResolver(), pendingWriteUri, pendingModifiedFile);
                     }
                     if (pendingModifiedFile != null) pendingModifiedFile.delete();
+                    if (ok && pendingWriteFilePath != null) {
+                        TagWriter.scanFile(getApplicationContext(), pendingWriteFilePath);
+                    }
                     pendingWriteResult.success(ok);
                     pendingWriteResult = null;
                     pendingWriteUri = null;
                     pendingModifiedFile = null;
+                    pendingWriteFilePath = null;
                 }
         );
     }
@@ -634,6 +639,84 @@ public class MainActivity extends AudioServiceFragmentActivity {
                                     result.success(null); // null = failed, retry later
                                 }
                             }, 15000);
+                            break;
+                        }
+
+                        // ==================== Audio Fingerprinting ====================
+                        case "generateFingerprint": {
+                            String fpPath = call.argument("filePath");
+                            final AtomicBoolean fpDone = new AtomicBoolean(false);
+                            final Handler fpHandler = new Handler(Looper.getMainLooper());
+
+                            Thread fpWorker = new Thread(() -> {
+                                Map<String, Object> fpResult = FingerprintEngine.generateFingerprint(fpPath);
+                                if (fpDone.compareAndSet(false, true)) {
+                                    fpHandler.post(() -> result.success(fpResult));
+                                }
+                            });
+                            fpWorker.start();
+
+                            // 30-second timeout for decoding + fingerprinting
+                            fpHandler.postDelayed(() -> {
+                                if (fpDone.compareAndSet(false, true)) {
+                                    fpWorker.interrupt();
+                                    result.success(null);
+                                }
+                            }, 30000);
+                            break;
+                        }
+
+                        // ==================== Tag Writing ====================
+                        case "writeTags": {
+                            String wtPath = call.argument("filePath");
+                            Map<String, String> wtTags = call.argument("tags");
+                            String wtArtwork = call.argument("artworkPath");
+
+                            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+                                // Android 10 and below: direct file write
+                                boolean ok = TagWriter.writeTagsDirect(wtPath, wtTags, wtArtwork);
+                                if (ok) TagWriter.scanFile(getApplicationContext(), wtPath);
+                                result.success(ok);
+                            } else {
+                                // Android 11+: scoped storage via MediaStore
+                                File modified = TagWriter.prepareModifiedFile(
+                                        getCacheDir(), wtPath, wtTags, wtArtwork);
+                                if (modified == null) {
+                                    result.success(false);
+                                    break;
+                                }
+                                Uri uri = LyricsManager.getMediaUri(getContentResolver(), wtPath);
+                                if (uri == null) {
+                                    modified.delete();
+                                    result.success(false);
+                                    break;
+                                }
+                                pendingWriteResult = result;
+                                pendingWriteUri = uri;
+                                pendingModifiedFile = modified;
+                                pendingWriteFilePath = wtPath;
+                                try {
+                                    PendingIntent pi = MediaStore.createWriteRequest(
+                                            getContentResolver(), Collections.singletonList(uri));
+                                    IntentSenderRequest req = new IntentSenderRequest.Builder(
+                                            pi.getIntentSender()).build();
+                                    writeRequestLauncher.launch(req);
+                                } catch (Exception e) {
+                                    e.printStackTrace();
+                                    modified.delete();
+                                    pendingWriteResult = null;
+                                    pendingWriteUri = null;
+                                    pendingModifiedFile = null;
+                                    pendingWriteFilePath = null;
+                                    result.success(false);
+                                }
+                            }
+                            break;
+                        }
+                        case "scanMediaFile": {
+                            String scanPath = call.argument("filePath");
+                            TagWriter.scanFile(getApplicationContext(), scanPath);
+                            result.success(null);
                             break;
                         }
 

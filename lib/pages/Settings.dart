@@ -21,6 +21,12 @@ class Settings extends StatefulWidget {
 }
 
 class _SettingsState extends State<Settings> {
+  bool _scanning = false;
+  int _scanCurrent = 0;
+  int _scanTotal = 0;
+  String _scanSongName = '';
+  int? _scanResult;
+
   @override
   Widget build(BuildContext context) {
     return Consumer<AppController>(
@@ -838,9 +844,87 @@ class _SettingsState extends State<Settings> {
             trailing: const Icon(Icons.refresh),
             onTap: () => Navigator.pushNamed(context, Routes.loader),
           ),
+          const Divider(height: 1, indent: 16, endIndent: 16),
+          if (_scanning) ...[
+            ListTile(
+              leading: const SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator.adaptive(strokeWidth: 2),
+              ),
+              title: Text("Identifying $_scanCurrent of $_scanTotal"),
+              subtitle: Text(
+                _scanSongName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+              child: LinearProgressIndicator(
+                value: _scanTotal > 0 ? _scanCurrent / _scanTotal : 0,
+              ),
+            ),
+          ] else if (_scanResult != null) ...[
+            ListTile(
+              leading: Icon(
+                Icons.check_circle,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+              title: Text("Identified $_scanResult tracks"),
+              subtitle: const Text("Tap to scan again"),
+              onTap: () {
+                setState(() => _scanResult = null);
+                _startBatchScan();
+              },
+            ),
+          ] else ...[
+            ListTile(
+              title: const Text("Identify unknown tracks"),
+              subtitle: const Text(
+                "Fingerprint and tag songs with missing metadata",
+              ),
+              trailing: const Icon(Icons.fingerprint),
+              onTap: _startBatchScan,
+            ),
+          ],
         ]),
       ],
     );
+  }
+
+  Future<void> _startBatchScan() async {
+    final controller = context.read<AppController>();
+    final songs = await controller.audioQuery.querySongs();
+    if (songs.isEmpty) return;
+
+    setState(() {
+      _scanning = true;
+      _scanCurrent = 0;
+      _scanTotal = 0;
+      _scanSongName = '';
+      _scanResult = null;
+    });
+
+    final identified = await controller.fingerprintService.batchIdentify(
+      songs,
+      onProgress: (current, total, name) {
+        if (mounted) {
+          setState(() {
+            _scanCurrent = current;
+            _scanTotal = total;
+            _scanSongName = name;
+          });
+        }
+      },
+    );
+
+    if (mounted) {
+      setState(() {
+        _scanning = false;
+        _scanResult = identified;
+      });
+    }
   }
 
   // -- About & Support Section --
