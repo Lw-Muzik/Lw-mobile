@@ -1375,13 +1375,12 @@ class AppController with ChangeNotifier {
     await _loadLyricsForCurrentSong();
   }
 
-  /// Updates the current song's in-memory metadata after tag identification.
-  /// Mutates SongModel.getMap directly, invalidates artwork + lyrics caches,
-  /// updates the media notification, and notifies all listeners.
-  Future<void> refreshCurrentSong(RecognitionResult result) async {
-    if (songs.isEmpty || _songId < 0 || _songId >= songs.length) return;
-    final song = songs[_songId];
-
+  /// Updates any song's in-memory metadata after tag writing.
+  /// Mutates SongModel.getMap directly, invalidates artwork cache,
+  /// and notifies all listeners so every screen rebuilds with fresh data.
+  /// If the song is the currently playing track, also updates the media
+  /// notification and reloads lyrics.
+  Future<void> updateSongMetadata(SongModel song, RecognitionResult result) async {
     // Mutate the in-memory SongModel fields
     if (result.title != null && result.title!.isNotEmpty) {
       song.getMap['title'] = result.title;
@@ -1401,20 +1400,23 @@ class AppController with ChangeNotifier {
       if (cachedArt.existsSync()) cachedArt.deleteSync();
     } catch (_) {}
 
-    // Invalidate fingerprint cache for this file (force re-identify if needed)
+    // Invalidate fingerprint cache for this file
     fingerprintService.invalidateCache(song.data);
-
-    // Invalidate lyrics cache and reload with new metadata
-    _lyricsService.invalidateCache(song.id);
-    _lyricsLoadTarget = null;
 
     notifyListeners();
 
-    // Update media notification with new metadata
-    loadAudioSource(_handler, song, replayGain: _replayGain);
+    // If this is the currently playing song, also update notification + lyrics
+    final isCurrentSong = songs.isNotEmpty &&
+        _songId >= 0 &&
+        _songId < songs.length &&
+        songs[_songId].id == song.id;
 
-    // Reload lyrics
-    _loadLyricsForCurrentSong();
+    if (isCurrentSong) {
+      _lyricsService.invalidateCache(song.id);
+      _lyricsLoadTarget = null;
+      loadAudioSource(_handler, song, replayGain: _replayGain);
+      _loadLyricsForCurrentSong();
+    }
   }
 
   void next() {
