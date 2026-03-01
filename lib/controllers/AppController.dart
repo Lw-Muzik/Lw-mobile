@@ -557,6 +557,7 @@ class AppController with ChangeNotifier {
   double _milkdropBeatSensitivity = 1.0;
   double _milkdropPresetDuration = 30.0; // seconds, 0 = manual only
   bool _milkdropPresetLocked = false;
+  String _milkdropPresetName = '';
   int _songId = 0;
   int _artWorkId = 0;
   // Main method.
@@ -938,6 +939,7 @@ class AppController with ChangeNotifier {
     _milkdropPresetDuration =
         _prefs.getDouble("milkdropPresetDuration") ?? 30.0;
     _milkdropPresetLocked = _prefs.getBool("milkdropPresetLocked") ?? false;
+    _milkdropPresetName = _prefs.getString("milkdropPresetName") ?? '';
     // Room effects (custom DSP)
     _reverbEnabled = _prefs.getBool("reverbEnabled") ?? false;
     _dspRoomSize = _prefs.getDouble("dspRoomSize") ?? 0.5;
@@ -1051,6 +1053,12 @@ class AppController with ChangeNotifier {
     _prefs.setBool("milkdropPresetLocked", v);
     _milkdropPresetLocked = v;
     notifyListeners();
+  }
+
+  String get milkdropPresetName => _milkdropPresetName;
+  set milkdropPresetName(String v) {
+    _prefs.setString("milkdropPresetName", v);
+    _milkdropPresetName = v;
   }
 
   int get songId {

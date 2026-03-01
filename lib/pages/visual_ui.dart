@@ -102,7 +102,22 @@ class _VisualUIState extends State<VisualUI>
       await _projectM.setPresetDuration(ctrl.milkdropPresetDuration);
       await _projectM.setPresetLocked(ctrl.milkdropPresetLocked);
       await _projectM.start();
-      final name = await _projectM.getCurrentPreset();
+
+      // Restore the last selected preset instead of using the default first one
+      String name;
+      final savedPreset = ctrl.milkdropPresetName;
+      if (savedPreset.isNotEmpty) {
+        final presets = await _projectM.listPresets();
+        final idx = presets.indexOf(savedPreset);
+        if (idx >= 0) {
+          name = await _projectM.loadPresetByIndex(idx);
+        } else {
+          name = await _projectM.getCurrentPreset();
+        }
+      } else {
+        name = await _projectM.getCurrentPreset();
+      }
+
       if (mounted) {
         setState(() {
           _projectMInitialized = true;
@@ -110,6 +125,11 @@ class _VisualUIState extends State<VisualUI>
         });
       }
     }
+  }
+
+  void _setPreset(String name) {
+    setState(() => _presetName = name);
+    context.read<AppController>().milkdropPresetName = name;
   }
 
   Future<void> _stopProjectM() async {
@@ -178,7 +198,7 @@ class _VisualUIState extends State<VisualUI>
                           } else {
                             return;
                           }
-                          setState(() => _presetName = name);
+                          _setPreset(name);
                         }
                       : null,
                   behavior: HitTestBehavior.opaque,
@@ -232,9 +252,7 @@ class _VisualUIState extends State<VisualUI>
                     onClose: () => Routes.pop(context),
                     projectM: _projectM,
                     currentPreset: _presetName,
-                    onPresetSelected: (name) {
-                      setState(() => _presetName = name);
-                    },
+                    onPresetSelected: _setPreset,
                   ),
                 ),
               ],
