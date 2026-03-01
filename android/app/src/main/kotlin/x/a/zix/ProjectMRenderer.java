@@ -62,6 +62,14 @@ public class ProjectMRenderer {
     private int targetFps = 30;
     private long frameIntervalMs = 1000 / 30;
 
+    // Configurable parameters (set before or after start, used by createProjectM)
+    private float beatSensitivity = 1.0f;
+    private double presetDuration = 30.0;
+    private boolean presetLocked = false;
+    private boolean hardCutEnabled = true;
+    private int meshWidth = 48;
+    private int meshHeight = 36;
+
     // Preset management
     private List<String> presetPaths = new ArrayList<>();
     private int currentPresetIndex = -1;
@@ -232,6 +240,7 @@ public class ProjectMRenderer {
     }
 
     public void setBeatSensitivity(float sensitivity) {
+        this.beatSensitivity = sensitivity;
         if (glHandler != null && pmHandle != 0) {
             glHandler.post(() -> {
                 if (pmHandle != 0) nativeSetBeatSensitivity(pmHandle, sensitivity);
@@ -240,6 +249,7 @@ public class ProjectMRenderer {
     }
 
     public void setPresetDuration(double seconds) {
+        this.presetDuration = seconds;
         if (glHandler != null && pmHandle != 0) {
             glHandler.post(() -> {
                 if (pmHandle != 0) nativeSetPresetDuration(pmHandle, seconds);
@@ -248,6 +258,7 @@ public class ProjectMRenderer {
     }
 
     public void setPresetLocked(boolean locked) {
+        this.presetLocked = locked;
         if (glHandler != null && pmHandle != 0) {
             glHandler.post(() -> {
                 if (pmHandle != 0) nativeSetPresetLocked(pmHandle, locked);
@@ -264,6 +275,16 @@ public class ProjectMRenderer {
         if (glHandler != null && pmHandle != 0) {
             glHandler.post(() -> {
                 if (pmHandle != 0) nativeSetWindowSize(pmHandle, w, h);
+            });
+        }
+    }
+
+    public void setMeshSize(int w, int h) {
+        this.meshWidth = w;
+        this.meshHeight = h;
+        if (glHandler != null && pmHandle != 0) {
+            glHandler.post(() -> {
+                if (pmHandle != 0) nativeSetMeshSize(pmHandle, w, h);
             });
         }
     }
@@ -357,11 +378,12 @@ public class ProjectMRenderer {
         nativeSetWindowSize(pmHandle, width, height);
         nativeSetFps(pmHandle, targetFps);
         nativeSetAspectCorrection(pmHandle, true);
-        nativeSetMeshSize(pmHandle, 48, 36);
-        nativeSetPresetDuration(pmHandle, 30.0);
+        nativeSetMeshSize(pmHandle, meshWidth, meshHeight);
+        nativeSetPresetDuration(pmHandle, presetDuration);
         nativeSetSoftCutDuration(pmHandle, 3.0);
-        nativeSetHardCutEnabled(pmHandle, true);
-        nativeSetBeatSensitivity(pmHandle, 1.0f);
+        nativeSetHardCutEnabled(pmHandle, hardCutEnabled);
+        nativeSetPresetLocked(pmHandle, presetLocked);
+        nativeSetBeatSensitivity(pmHandle, beatSensitivity);
 
         // Set texture search path
         nativeSetTextureSearchPaths(pmHandle, new String[]{ presetsBaseDir });
@@ -393,6 +415,8 @@ public class ProjectMRenderer {
     private void renderFrame() {
         if (!rendering || pmHandle == 0) return;
 
+        long frameStart = System.nanoTime();
+
         // Feed PCM data from the audio pipeline
         float[] pcm = VisualizerTapProcessor.getInstance().getLatestPcm();
         if (pcm != null) {
@@ -407,8 +431,13 @@ public class ProjectMRenderer {
             Log.e(TAG, "eglSwapBuffers failed: " + EGL14.eglGetError());
         }
 
-        // Schedule next frame
-        scheduleFrame();
+        // Adaptive scheduling: if this frame took longer than the budget,
+        // schedule next frame immediately instead of adding delay on top.
+        // This prevents frame queue buildup that causes stuttering.
+        long renderTimeMs = (System.nanoTime() - frameStart) / 1_000_000;
+        long delay = Math.max(0, frameIntervalMs - renderTimeMs);
+        if (!rendering || glHandler == null) return;
+        glHandler.postDelayed(this::renderFrame, delay);
     }
 
     // ---- Preset extraction ----

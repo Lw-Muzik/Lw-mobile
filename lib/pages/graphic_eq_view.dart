@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../controllers/AppController.dart';
-import '../Helpers/Channel.dart';
 import '../models/eq_models.dart';
 import 'audio_fx.dart';
 
@@ -82,15 +81,6 @@ class _GraphicEqViewState extends State<GraphicEqView> {
   Widget _buildHeaderRow(AppController controller) {
     return Row(
       children: [
-        _EqPowerButton(
-          enabled: controller.graphicEqEnabled,
-          onToggle: () {
-            final newValue = !controller.graphicEqEnabled;
-            controller.graphicEqEnabled = newValue;
-            Channel.enableEq(newValue);
-          },
-        ),
-        const SizedBox(width: 10),
         Text(
           "Graphic EQ",
           style: Theme.of(context)
@@ -523,53 +513,6 @@ class _GraphicEqViewState extends State<GraphicEqView> {
             child: const Text("Save"),
           ),
         ],
-      ),
-    );
-  }
-}
-
-// =============================================================================
-// EQ Power Button
-// =============================================================================
-
-class _EqPowerButton extends StatelessWidget {
-  final bool enabled;
-  final VoidCallback onToggle;
-
-  const _EqPowerButton({required this.enabled, required this.onToggle});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onToggle,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 250),
-        width: 36,
-        height: 36,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: enabled
-              ? _kAccent.withValues(alpha: 0.2)
-              : Colors.white.withValues(alpha: 0.06),
-          boxShadow: enabled
-              ? [
-                  BoxShadow(
-                    color: _kAccent.withValues(alpha: 0.4),
-                    blurRadius: 10,
-                    spreadRadius: 1,
-                  ),
-                ]
-              : [],
-          border: Border.all(
-            color: enabled ? _kAccent : Colors.white24,
-            width: 1.5,
-          ),
-        ),
-        child: Icon(
-          Icons.power_settings_new,
-          size: 18,
-          color: enabled ? _kAccent : Colors.white38,
-        ),
       ),
     );
   }

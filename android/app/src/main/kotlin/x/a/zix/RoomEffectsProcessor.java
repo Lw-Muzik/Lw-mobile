@@ -1,5 +1,6 @@
 package x.a.zix;
 
+import android.os.Build;
 import android.util.Log;
 import androidx.annotation.NonNull;
 import androidx.media3.common.C;
@@ -80,6 +81,21 @@ public class RoomEffectsProcessor extends BaseAudioProcessor {
     private static volatile float cachedLimiterCeiling = 0.98f;
     private static volatile float cachedLimiterRelease = 50f;
     private static volatile float cachedLimiterKnee = 6f;
+
+    // Cached Stem mixer state
+    private static volatile boolean cachedStemModeActive = false;
+    private static volatile String[] cachedStemPaths = null;
+    private static final float[] cachedStemVolumes = {1.0f, 1.0f, 1.0f, 1.0f};
+    private static final boolean[] cachedStemMutes = {false, false, false, false};
+    private static final boolean[] cachedStemSolos = {false, false, false, false};
+
+    // Cached Speaker correction EQ (AutoEq headphone profiles)
+    private static volatile boolean cachedSpeakerEqEnabled = false;
+    private static volatile int cachedSpeakerBandCount = 0;
+    private static final float[] cachedSpeakerEqFreqs = new float[32];
+    private static final float[] cachedSpeakerEqGains = new float[32];
+    private static final float[] cachedSpeakerEqQs = new float[32];
+    private static final int[] cachedSpeakerEqTypes = new int[32];
 
     static {
         // Initialize parametric defaults
@@ -234,6 +250,24 @@ public class RoomEffectsProcessor extends BaseAudioProcessor {
         nativeSetLimiterCeiling(nativeHandle, cachedLimiterCeiling);
         nativeSetLimiterRelease(nativeHandle, cachedLimiterRelease);
         nativeSetLimiterKnee(nativeHandle, cachedLimiterKnee);
+        // Speaker correction EQ
+        nativeSetSpeakerEqEnabled(nativeHandle, cachedSpeakerEqEnabled);
+        int spkCount = cachedSpeakerBandCount;
+        for (int i = 0; i < spkCount; i++) {
+            nativeSetSpeakerEqBand(nativeHandle, i, cachedSpeakerEqFreqs[i],
+                    cachedSpeakerEqGains[i], cachedSpeakerEqQs[i],
+                    cachedSpeakerEqTypes[i], true);
+        }
+        // Stem mixer state
+        if (cachedStemPaths != null) {
+            nativeLoadStems(nativeHandle, cachedStemPaths);
+        }
+        nativeSetStemModeActive(nativeHandle, cachedStemModeActive);
+        for (int i = 0; i < 4; i++) {
+            nativeSetStemVolume(nativeHandle, i, cachedStemVolumes[i]);
+            nativeSetStemMute(nativeHandle, i, cachedStemMutes[i]);
+            nativeSetStemSolo(nativeHandle, i, cachedStemSolos[i]);
+        }
     }
 
     // ---- Instance methods (called on specific instance) ----
@@ -396,6 +430,36 @@ public class RoomEffectsProcessor extends BaseAudioProcessor {
         if (nativeHandle != 0) nativeSetLimiterKnee(nativeHandle, dB);
     }
 
+    // Stem mixer instance methods
+    public void setStemModeActive(boolean active) {
+        if (nativeHandle != 0) nativeSetStemModeActive(nativeHandle, active);
+    }
+
+    public boolean loadStems(String[] paths) {
+        if (nativeHandle != 0) return nativeLoadStems(nativeHandle, paths);
+        return false;
+    }
+
+    public void unloadStems() {
+        if (nativeHandle != 0) nativeUnloadStems(nativeHandle);
+    }
+
+    public void setStemVolume(int stem, float vol) {
+        if (nativeHandle != 0) nativeSetStemVolume(nativeHandle, stem, vol);
+    }
+
+    public void setStemMute(int stem, boolean muted) {
+        if (nativeHandle != 0) nativeSetStemMute(nativeHandle, stem, muted);
+    }
+
+    public void setStemSolo(int stem, boolean soloed) {
+        if (nativeHandle != 0) nativeSetStemSolo(nativeHandle, stem, soloed);
+    }
+
+    public void stemSeek(long samplePos) {
+        if (nativeHandle != 0) nativeStemSeek(nativeHandle, samplePos);
+    }
+
     // ---- Static broadcast methods (called from MainActivity via MethodChannel) ----
 
     public static void broadcastReverbEnabled(boolean enabled) {
@@ -459,22 +523,26 @@ public class RoomEffectsProcessor extends BaseAudioProcessor {
     public static void broadcastEqEnabled(boolean enabled) {
         cachedEqEnabled = enabled;
         for (RoomEffectsProcessor p : playerInstances) p.setEqEnabled(enabled);
+        syncGlobalEq();
     }
 
     public static void broadcastPreampGain(float dB) {
         cachedPreampGain = dB;
         for (RoomEffectsProcessor p : playerInstances) p.setPreampGain(dB);
+        syncGlobalEq();
     }
 
     public static void broadcastGraphicBandGain(int band, float dB) {
         if (band >= 0 && band < 32) cachedGraphicGains[band] = dB;
         for (RoomEffectsProcessor p : playerInstances) p.setGraphicBandGain(band, dB);
+        syncGlobalEq();
     }
 
     public static void broadcastGraphicAllBands(float[] gains) {
         int count = Math.min(gains.length, 32);
         System.arraycopy(gains, 0, cachedGraphicGains, 0, count);
         for (RoomEffectsProcessor p : playerInstances) p.setGraphicAllBands(gains);
+        syncGlobalEq();
     }
 
     public static void broadcastParametricBand(int band, float freq, float gainDb,
@@ -504,6 +572,30 @@ public class RoomEffectsProcessor extends BaseAudioProcessor {
 
     public static boolean isCachedMbcEnabled() {
         return cachedMbcEnabled;
+    }
+
+    // ---- Package-private accessors for GlobalEqSessionManager ----
+
+    static boolean isCachedEqEnabled() { return cachedEqEnabled; }
+    static float[] getCachedGraphicGains() {
+        float[] copy = new float[32];
+        System.arraycopy(cachedGraphicGains, 0, copy, 0, 32);
+        return copy;
+    }
+    static boolean isCachedToneEnabled() { return cachedToneEnabled; }
+    static float getCachedBassGain() { return cachedBassGain; }
+    static float getCachedBassFreq() { return cachedBassFreq; }
+    static float getCachedTrebleGain() { return cachedTrebleGain; }
+    static float getCachedTrebleFreq() { return cachedTrebleFreq; }
+    static boolean isCachedLimiterEnabled() { return cachedLimiterEnabled; }
+    static float getCachedLimiterCeiling() { return cachedLimiterCeiling; }
+    static float getCachedLimiterRelease() { return cachedLimiterRelease; }
+
+    /** Sync global EQ sessions when EQ-related params change. */
+    private static void syncGlobalEq() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            GlobalEqSessionManager.syncAllSessions();
+        }
     }
 
     // ---- MBC broadcast methods ----
@@ -563,16 +655,19 @@ public class RoomEffectsProcessor extends BaseAudioProcessor {
     public static void broadcastToneEnabled(boolean enabled) {
         cachedToneEnabled = enabled;
         for (RoomEffectsProcessor p : playerInstances) p.setToneEnabled(enabled);
+        syncGlobalEq();
     }
 
     public static void broadcastBassGain(float dB) {
         cachedBassGain = dB;
         for (RoomEffectsProcessor p : playerInstances) p.setBassGain(dB);
+        syncGlobalEq();
     }
 
     public static void broadcastBassFreq(float hz) {
         cachedBassFreq = hz;
         for (RoomEffectsProcessor p : playerInstances) p.setBassFreq(hz);
+        syncGlobalEq();
     }
 
     public static void broadcastBassQ(float q) {
@@ -583,11 +678,13 @@ public class RoomEffectsProcessor extends BaseAudioProcessor {
     public static void broadcastTrebleGain(float dB) {
         cachedTrebleGain = dB;
         for (RoomEffectsProcessor p : playerInstances) p.setTrebleGain(dB);
+        syncGlobalEq();
     }
 
     public static void broadcastTrebleFreq(float hz) {
         cachedTrebleFreq = hz;
         for (RoomEffectsProcessor p : playerInstances) p.setTrebleFreq(hz);
+        syncGlobalEq();
     }
 
     public static void broadcastTrebleQ(float q) {
@@ -595,26 +692,118 @@ public class RoomEffectsProcessor extends BaseAudioProcessor {
         for (RoomEffectsProcessor p : playerInstances) p.setTrebleQ(q);
     }
 
+    // ---- Speaker correction EQ instance methods ----
+
+    public void setSpeakerEqEnabled(boolean enabled) {
+        if (nativeHandle != 0) nativeSetSpeakerEqEnabled(nativeHandle, enabled);
+    }
+
+    public void setSpeakerEqBand(int band, float freq, float gainDb, float q,
+                                  int filterType, boolean enabled) {
+        if (nativeHandle != 0) nativeSetSpeakerEqBand(nativeHandle, band, freq, gainDb,
+                q, filterType, enabled);
+    }
+
+    public void clearSpeakerEq() {
+        if (nativeHandle != 0) nativeClearSpeakerEq(nativeHandle);
+    }
+
+    // ---- Speaker correction EQ broadcast methods ----
+
+    public static void broadcastSpeakerEqEnabled(boolean enabled) {
+        cachedSpeakerEqEnabled = enabled;
+        for (RoomEffectsProcessor p : playerInstances) p.setSpeakerEqEnabled(enabled);
+    }
+
+    public static void broadcastSpeakerEqBands(float[] freqs, float[] gains,
+                                                 float[] qs, int[] types, int count) {
+        int n = Math.min(count, 32);
+        cachedSpeakerBandCount = n;
+        System.arraycopy(freqs, 0, cachedSpeakerEqFreqs, 0, n);
+        System.arraycopy(gains, 0, cachedSpeakerEqGains, 0, n);
+        System.arraycopy(qs, 0, cachedSpeakerEqQs, 0, n);
+        System.arraycopy(types, 0, cachedSpeakerEqTypes, 0, n);
+        for (RoomEffectsProcessor p : playerInstances) {
+            for (int i = 0; i < n; i++) {
+                p.setSpeakerEqBand(i, freqs[i], gains[i], qs[i], types[i], true);
+            }
+        }
+    }
+
+    public static void broadcastClearSpeakerEq() {
+        cachedSpeakerBandCount = 0;
+        for (int i = 0; i < 32; i++) {
+            cachedSpeakerEqFreqs[i] = 0f;
+            cachedSpeakerEqGains[i] = 0f;
+            cachedSpeakerEqQs[i] = 0f;
+            cachedSpeakerEqTypes[i] = 0;
+        }
+        for (RoomEffectsProcessor p : playerInstances) p.clearSpeakerEq();
+    }
+
     // ---- Limiter broadcast methods ----
 
     public static void broadcastLimiterEnabled(boolean enabled) {
         cachedLimiterEnabled = enabled;
         for (RoomEffectsProcessor p : playerInstances) p.setLimiterEnabled(enabled);
+        syncGlobalEq();
     }
 
     public static void broadcastLimiterCeiling(float v) {
         cachedLimiterCeiling = v;
         for (RoomEffectsProcessor p : playerInstances) p.setLimiterCeiling(v);
+        syncGlobalEq();
     }
 
     public static void broadcastLimiterRelease(float ms) {
         cachedLimiterRelease = ms;
         for (RoomEffectsProcessor p : playerInstances) p.setLimiterRelease(ms);
+        syncGlobalEq();
     }
 
     public static void broadcastLimiterKnee(float dB) {
         cachedLimiterKnee = dB;
         for (RoomEffectsProcessor p : playerInstances) p.setLimiterKnee(dB);
+    }
+
+    // ---- Stem mixer broadcast methods ----
+
+    public static void broadcastStemModeActive(boolean active) {
+        cachedStemModeActive = active;
+        for (RoomEffectsProcessor p : playerInstances) p.setStemModeActive(active);
+    }
+
+    public static void broadcastLoadStems(String[] paths) {
+        cachedStemPaths = paths.clone();
+        for (RoomEffectsProcessor p : playerInstances) p.loadStems(paths);
+    }
+
+    public static void broadcastUnloadStems() {
+        cachedStemPaths = null;
+        cachedStemModeActive = false;
+        for (RoomEffectsProcessor p : playerInstances) {
+            p.unloadStems();
+            p.setStemModeActive(false);
+        }
+    }
+
+    public static void broadcastStemVolume(int stem, float vol) {
+        if (stem >= 0 && stem < 4) cachedStemVolumes[stem] = vol;
+        for (RoomEffectsProcessor p : playerInstances) p.setStemVolume(stem, vol);
+    }
+
+    public static void broadcastStemMute(int stem, boolean muted) {
+        if (stem >= 0 && stem < 4) cachedStemMutes[stem] = muted;
+        for (RoomEffectsProcessor p : playerInstances) p.setStemMute(stem, muted);
+    }
+
+    public static void broadcastStemSolo(int stem, boolean soloed) {
+        if (stem >= 0 && stem < 4) cachedStemSolos[stem] = soloed;
+        for (RoomEffectsProcessor p : playerInstances) p.setStemSolo(stem, soloed);
+    }
+
+    public static void broadcastStemSeek(long samplePos) {
+        for (RoomEffectsProcessor p : playerInstances) p.stemSeek(samplePos);
     }
 
     // ---- Native methods ----
@@ -676,4 +865,23 @@ public class RoomEffectsProcessor extends BaseAudioProcessor {
     private native void nativeSetLimiterCeiling(long handle, float v);
     private native void nativeSetLimiterRelease(long handle, float ms);
     private native void nativeSetLimiterKnee(long handle, float dB);
+
+    // Speaker correction EQ natives
+    private native void nativeSetSpeakerEqEnabled(long handle, boolean enabled);
+    private native void nativeSetSpeakerEqBand(long handle, int band, float freq,
+                                                float gainDb, float q, int filterType,
+                                                boolean enabled);
+    private native void nativeClearSpeakerEq(long handle);
+
+    // Stem mixer natives
+    private native boolean nativeLoadStems(long handle, String[] paths);
+    private native void nativeUnloadStems(long handle);
+    private native void nativeSetStemModeActive(long handle, boolean active);
+    private native void nativeSetStemVolume(long handle, int stem, float vol);
+    private native void nativeSetStemMute(long handle, int stem, boolean muted);
+    private native void nativeSetStemSolo(long handle, int stem, boolean soloed);
+    private native void nativeStemSeek(long handle, long samplePos);
+    private native boolean nativeAreStemsLoaded(long handle);
+    private native long nativeGetStemPosition(long handle);
+    private native long nativeGetStemTotalFrames(long handle);
 }

@@ -87,28 +87,84 @@ class _VisualUIState extends State<VisualUI>
     super.dispose();
   }
 
+  // Quality tier → (max longest edge in px, mesh width, mesh height)
+  static const _qualityTiers = [
+    (480, 24, 18),  // Low — battery saver, low-end devices
+    (720, 32, 24),  // Medium — balanced (default)
+    (1080, 48, 36), // High — mid-to-high-end
+    (0, 64, 48),    // Ultra — full resolution, flagship GPUs
+  ];
+
   Future<void> _initProjectM() async {
     if (_projectMInitialized) return;
 
+    final ctrl = context.read<AppController>();
     final size = MediaQuery.of(context).size;
-    final w = size.width.toInt();
-    final h = size.height.toInt();
+    final pixelRatio = MediaQuery.of(context).devicePixelRatio;
+    // Use physical pixels for accurate GPU load sizing
+    final fullW = (size.width * pixelRatio).toInt();
+    final fullH = (size.height * pixelRatio).toInt();
+
+    // Scale render resolution based on quality tier
+    final tier = _qualityTiers[ctrl.milkdropQuality.clamp(0, 3)];
+    final maxEdge = tier.$1;
+    final meshW = tier.$2;
+    final meshH = tier.$3;
+
+    int w, h;
+    if (maxEdge <= 0 || (fullW <= maxEdge && fullH <= maxEdge)) {
+      // Ultra or already within budget
+      w = fullW;
+      h = fullH;
+    } else {
+      // Scale down so longest edge = maxEdge, preserve aspect ratio
+      final longest = fullW > fullH ? fullW : fullH;
+      final scale = maxEdge / longest;
+      w = (fullW * scale).toInt();
+      h = (fullH * scale).toInt();
+    }
 
     final textureId = await _projectM.init(w, h);
     if (textureId != null) {
-      final ctrl = context.read<AppController>();
+      await _projectM.setMeshSize(meshW, meshH);
       await _projectM.setFps(ctrl.milkdropFps);
       await _projectM.setBeatSensitivity(ctrl.milkdropBeatSensitivity);
       await _projectM.setPresetDuration(ctrl.milkdropPresetDuration);
       await _projectM.setPresetLocked(ctrl.milkdropPresetLocked);
       await _projectM.start();
-      final name = await _projectM.getCurrentPreset();
+
+      // Restore the last selected preset instead of using the default first one
+      String name;
+      final savedPreset = ctrl.milkdropPresetName;
+      if (savedPreset.isNotEmpty) {
+        final presets = await _projectM.listPresets();
+        final idx = presets.indexOf(savedPreset);
+        if (idx >= 0) {
+          name = await _projectM.loadPresetByIndex(idx);
+        } else {
+          name = await _projectM.getCurrentPreset();
+        }
+      } else {
+        name = await _projectM.getCurrentPreset();
+      }
+
       if (mounted) {
         setState(() {
           _projectMInitialized = true;
           _presetName = name;
         });
       }
+    }
+  }
+
+  void _setPreset(String name) {
+    setState(() => _presetName = name);
+    final ctrl = context.read<AppController>();
+    ctrl.milkdropPresetName = name;
+    // Lock the preset so auto-cycle / hard cuts don't override user selection
+    if (!ctrl.milkdropPresetLocked) {
+      ctrl.milkdropPresetLocked = true;
+      _projectM.setPresetLocked(true);
     }
   }
 
@@ -178,7 +234,7 @@ class _VisualUIState extends State<VisualUI>
                           } else {
                             return;
                           }
-                          setState(() => _presetName = name);
+                          _setPreset(name);
                         }
                       : null,
                   behavior: HitTestBehavior.opaque,
@@ -232,9 +288,7 @@ class _VisualUIState extends State<VisualUI>
                     onClose: () => Routes.pop(context),
                     projectM: _projectM,
                     currentPreset: _presetName,
-                    onPresetSelected: (name) {
-                      setState(() => _presetName = name);
-                    },
+                    onPresetSelected: _setPreset,
                   ),
                 ),
               ],

@@ -29,28 +29,35 @@ class ToneView extends StatelessWidget {
                     child: AnimatedOpacity(
                       opacity: controller.toneEnabled ? 1.0 : 0.4,
                       duration: const Duration(milliseconds: 250),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                        children: [
-                          ToneKnob(
-                            label: "BASS",
-                            value: controller.bassGain,
-                            activeColor: _kAccent,
-                            size: context.isMobile ? 220 : 350,
-                            onChanged: controller.toneEnabled
-                                ? (v) => controller.bassGain = v
-                                : (_) {},
-                          ),
-                          ToneKnob(
-                            label: "TREBLE",
-                            value: controller.trebleGain,
-                            activeColor: const Color(0xFF5EC4D4),
-                            size: context.isMobile ? 220 : 350,
-                            onChanged: controller.toneEnabled
-                                ? (v) => controller.trebleGain = v
-                                : (_) {},
-                          ),
-                        ],
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          final knobSize = context.isMobile
+                              ? (constraints.maxWidth / 2 - 8).clamp(0.0, 220.0)
+                              : 350.0;
+                          return Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                            children: [
+                              ToneKnob(
+                                label: "BASS",
+                                value: controller.bassGain,
+                                activeColor: _kAccent,
+                                size: knobSize,
+                                onChanged: controller.toneEnabled
+                                    ? (v) => controller.bassGain = v
+                                    : (_) {},
+                              ),
+                              ToneKnob(
+                                label: "TREBLE",
+                                value: controller.trebleGain,
+                                activeColor: const Color(0xFF5EC4D4),
+                                size: knobSize,
+                                onChanged: controller.toneEnabled
+                                    ? (v) => controller.trebleGain = v
+                                    : (_) {},
+                              ),
+                            ],
+                          );
+                        },
                       ),
                     ),
                   ),

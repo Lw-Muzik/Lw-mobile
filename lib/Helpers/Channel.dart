@@ -162,6 +162,24 @@ class Channel {
           .receiveBroadcastStream()
           .map((event) => event.toString());
 
+  // ==================== Global EQ (System-Wide) ====================
+
+  /// Enable or disable global EQ (applies EQ to all apps).
+  /// Returns true if the command was accepted, false if API < 28.
+  static Future<bool> enableGlobalEq(bool enable) async {
+    return await _invokeRequired<bool>("enableGlobalEq", false, {"enable": enable});
+  }
+
+  /// Check if global EQ is currently running.
+  static Future<bool> isGlobalEqEnabled() async {
+    return await _invokeRequired<bool>("isGlobalEqEnabled", false);
+  }
+
+  /// Check if global EQ is available on this device (API 28+).
+  static Future<bool> isGlobalEqAvailable() async {
+    return await _invokeRequired<bool>("isGlobalEqAvailable", false);
+  }
+
   // ==================== Custom DSP Room Effects ====================
 
   /// Enable/disable FDN reverb
@@ -278,6 +296,29 @@ class Channel {
     await _invoke("dspSetLimiterKnee", {"value": dB});
   }
 
+  // ==================== Speaker Correction EQ (AutoEq) ====================
+
+  static Future<void> setSpeakerEqEnabled(bool enabled) async {
+    await _invoke("setSpeakerEqEnabled", {"enabled": enabled});
+  }
+
+  static Future<void> setSpeakerEqBands(List<Map<String, dynamic>> bands) async {
+    final freqs = bands.map((b) => (b['fc'] as num).toDouble()).toList();
+    final gains = bands.map((b) => (b['gain'] as num).toDouble()).toList();
+    final qs = bands.map((b) => (b['q'] as num).toDouble()).toList();
+    final types = bands.map((b) => (b['type'] as int)).toList();
+    await _invoke("setSpeakerEqBands", {
+      "freqs": freqs,
+      "gains": gains,
+      "qs": qs,
+      "types": types,
+    });
+  }
+
+  static Future<void> clearSpeakerEq() async {
+    await _invoke("clearSpeakerEq");
+  }
+
   // ----------- MBC Compressor (C++ pipeline) ------------------
 
   static void setDspNoiseThreshold(double noiseValue) async {
@@ -374,6 +415,40 @@ class Channel {
     await _invoke("init", {"sessionId": sessionId});
   }
 
+  // ==================== Audio Fingerprinting ====================
+
+  /// Generates a Chromaprint fingerprint from an audio file.
+  /// Returns {fingerprint: String, duration: int (seconds)} or null on failure.
+  static Future<Map<String, dynamic>?> generateFingerprint(String filePath) async {
+    final result = await _invoke<Map>("generateFingerprint", {
+      "filePath": filePath,
+    });
+    if (result == null) return null;
+    return Map<String, dynamic>.from(result);
+  }
+
+  /// Writes metadata tags to an audio file (fill-empty policy).
+  /// Supports MP3, M4A, FLAC, OGG, WMA via JAudioTagger.
+  /// [artworkPath] optional local path to cover art image to embed.
+  static Future<bool> writeTags(String filePath, Map<String, String> tags,
+      {String? artworkPath}) async {
+    return await _invokeRequired<bool>(
+      "writeTags",
+      false,
+      {
+        "filePath": filePath,
+        "tags": tags,
+        if (artworkPath != null) "artworkPath": artworkPath,
+      },
+    );
+  }
+
+  /// Triggers Android MediaStore re-scan for the given file path.
+  /// Call after writing tags so queries return updated metadata.
+  static Future<void> scanMediaFile(String filePath) async {
+    await _invoke("scanMediaFile", {"filePath": filePath});
+  }
+
   // ==================== Audio Metadata Extraction ====================
 
   /// Extracts metadata from any audio format via MediaMetadataRetriever.
@@ -392,6 +467,77 @@ class Channel {
     if (result == null) return null;
     return Map<String, dynamic>.from(result);
   }
+
+  // ==================== Stem Separation ====================
+
+  static Future<bool> separateStems(String filePath, String outputDir) async {
+    return await _invokeRequired<bool>("separateStems", false, {
+      "filePath": filePath,
+      "outputDir": outputDir,
+    });
+  }
+
+  static Future<void> cancelStemSeparation() async {
+    await _invoke("cancelStemSeparation");
+  }
+
+  static Future<bool> checkStemsExist(String dirPath) async {
+    return await _invokeRequired<bool>("checkStemsExist", false, {
+      "dirPath": dirPath,
+    });
+  }
+
+  // ==================== Stem Mixer ====================
+
+  static Future<bool> loadStems({
+    required String vocalsPath,
+    required String drumsPath,
+    required String bassPath,
+    required String otherPath,
+  }) async {
+    return await _invokeRequired<bool>("loadStems", false, {
+      "vocals": vocalsPath,
+      "drums": drumsPath,
+      "bass": bassPath,
+      "other": otherPath,
+    });
+  }
+
+  static Future<void> unloadStems() async {
+    await _invoke("unloadStems");
+  }
+
+  static Future<void> activateStemMode() async {
+    await _invoke("activateStemMode");
+  }
+
+  static Future<void> deactivateStemMode() async {
+    await _invoke("deactivateStemMode");
+  }
+
+  static Future<void> setStemVolume(int stem, double volume) async {
+    await _invoke("setStemVolume", {"stem": stem, "volume": volume});
+  }
+
+  static Future<void> setStemMute(int stem, bool muted) async {
+    await _invoke("setStemMute", {"stem": stem, "muted": muted});
+  }
+
+  static Future<void> setStemSolo(int stem, bool soloed) async {
+    await _invoke("setStemSolo", {"stem": stem, "soloed": soloed});
+  }
+
+  static Future<void> stemSeek(int samplePosition) async {
+    await _invoke("stemSeek", {"samplePosition": samplePosition});
+  }
+
+  static const EventChannel _stemProgressChannel =
+      EventChannel("eq_app/stem_progress");
+
+  static Stream<Map<String, dynamic>> get stemProgressStream =>
+      _stemProgressChannel
+          .receiveBroadcastStream()
+          .map((event) => Map<String, dynamic>.from(event as Map));
 
   // ==================== Lyrics ====================
 

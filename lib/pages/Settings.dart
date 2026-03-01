@@ -21,6 +21,12 @@ class Settings extends StatefulWidget {
 }
 
 class _SettingsState extends State<Settings> {
+  bool _scanning = false;
+  int _scanCurrent = 0;
+  int _scanTotal = 0;
+  String _scanSongName = '';
+  int? _scanResult;
+
   @override
   Widget build(BuildContext context) {
     return Consumer<AppController>(
@@ -47,6 +53,10 @@ class _SettingsState extends State<Settings> {
                     const SizedBox(height: 12),
                     _buildAudioEnhancementSection(controller),
                     const SizedBox(height: 12),
+                    if (controller.globalEqAvailable) ...[
+                      _buildGlobalEqSection(controller),
+                      const SizedBox(height: 12),
+                    ],
                     _buildEqualizerSection(controller),
                     const SizedBox(height: 12),
                     _buildToneSection(controller),
@@ -246,6 +256,89 @@ class _SettingsState extends State<Settings> {
                 "1% steps instead of 5% (hardware buttons)",
               ),
               onChanged: (value) => controller.dvcFineSteps = value,
+            ),
+          ],
+        ]),
+      ],
+    );
+  }
+
+  // -- Global EQ Section --
+
+  Widget _buildGlobalEqSection(AppController controller) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionHeader(Icons.public, "Global Equalizer"),
+        _buildSectionCard([
+          SwitchListTile.adaptive(
+            value: controller.globalEqEnabled,
+            title: const Text("System-wide EQ"),
+            subtitle: Text(
+              controller.globalEqEnabled
+                  ? "Active — EQ applied to all apps"
+                  : "Off",
+            ),
+            onChanged: (enabled) {
+              if (enabled) {
+                showDialog(
+                  context: context,
+                  builder: (ctx) => AlertDialog(
+                    title: const Text("Enable Global EQ?"),
+                    content: const Text(
+                      "Your EQ, tone, and limiter settings will be applied to audio from other apps (Spotify, YouTube Music, etc.).\n\n"
+                      "A persistent notification will appear while active.",
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        child: const Text("Cancel"),
+                      ),
+                      FilledButton(
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          controller.globalEqEnabled = true;
+                        },
+                        child: const Text("Enable"),
+                      ),
+                    ],
+                  ),
+                );
+              } else {
+                controller.globalEqEnabled = false;
+              }
+            },
+          ),
+          if (controller.globalEqEnabled) ...[
+            const Divider(height: 1, indent: 16, endIndent: 16),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    Icons.info_outline,
+                    size: 16,
+                    color: Theme.of(context)
+                        .colorScheme
+                        .onSurface
+                        .withValues(alpha: 0.5),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      "EQ, tone, and limiter changes sync to other apps in real-time. "
+                      "Parametric EQ, MBC, reverb, and stereo effects are not applied globally.",
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context)
+                            .colorScheme
+                            .onSurface
+                            .withValues(alpha: 0.5),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ],
         ]),
@@ -660,6 +753,37 @@ class _SettingsState extends State<Settings> {
           _buildSectionHeader(Icons.blur_on_rounded, "MilkDrop"),
           _buildSectionCard([
             ListTile(
+              title: const Text("Render quality"),
+              subtitle: Text(_milkdropQualityLabel(controller.milkdropQuality)),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+              child: SegmentedButton<int>(
+                segments: const [
+                  ButtonSegment(value: 0, label: Text("Low")),
+                  ButtonSegment(value: 1, label: Text("Med")),
+                  ButtonSegment(value: 2, label: Text("High")),
+                  ButtonSegment(value: 3, label: Text("Ultra")),
+                ],
+                selected: {controller.milkdropQuality},
+                onSelectionChanged: (s) {
+                  controller.milkdropQuality = s.first;
+                },
+                showSelectedIcon: false,
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+              child: Text(
+                "Restart visualizer for changes to take effect",
+                style: TextStyle(
+                  fontSize: 11,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+            const Divider(height: 1, indent: 16, endIndent: 16),
+            ListTile(
               title: const Text("Render FPS"),
               subtitle: Text("${controller.milkdropFps} fps"),
             ),
@@ -740,6 +864,11 @@ class _SettingsState extends State<Settings> {
         ],
       ],
     );
+  }
+
+  String _milkdropQualityLabel(int quality) {
+    const labels = ["Low (480p)", "Medium (720p)", "High (1080p)", "Ultra (native)"];
+    return labels[quality.clamp(0, 3)];
   }
 
   String _beatSensitivityLabel(double value) {
@@ -838,9 +967,87 @@ class _SettingsState extends State<Settings> {
             trailing: const Icon(Icons.refresh),
             onTap: () => Navigator.pushNamed(context, Routes.loader),
           ),
+          const Divider(height: 1, indent: 16, endIndent: 16),
+          if (_scanning) ...[
+            ListTile(
+              leading: const SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator.adaptive(strokeWidth: 2),
+              ),
+              title: Text("Identifying $_scanCurrent of $_scanTotal"),
+              subtitle: Text(
+                _scanSongName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+              child: LinearProgressIndicator(
+                value: _scanTotal > 0 ? _scanCurrent / _scanTotal : 0,
+              ),
+            ),
+          ] else if (_scanResult != null) ...[
+            ListTile(
+              leading: Icon(
+                Icons.check_circle,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+              title: Text("Identified $_scanResult tracks"),
+              subtitle: const Text("Tap to scan again"),
+              onTap: () {
+                setState(() => _scanResult = null);
+                _startBatchScan();
+              },
+            ),
+          ] else ...[
+            ListTile(
+              title: const Text("Identify unknown tracks"),
+              subtitle: const Text(
+                "Fingerprint and tag songs with missing metadata",
+              ),
+              trailing: const Icon(Icons.fingerprint),
+              onTap: _startBatchScan,
+            ),
+          ],
         ]),
       ],
     );
+  }
+
+  Future<void> _startBatchScan() async {
+    final controller = context.read<AppController>();
+    final songs = await controller.audioQuery.querySongs();
+    if (songs.isEmpty) return;
+
+    setState(() {
+      _scanning = true;
+      _scanCurrent = 0;
+      _scanTotal = 0;
+      _scanSongName = '';
+      _scanResult = null;
+    });
+
+    final identified = await controller.fingerprintService.batchIdentify(
+      songs,
+      onProgress: (current, total, name) {
+        if (mounted) {
+          setState(() {
+            _scanCurrent = current;
+            _scanTotal = total;
+            _scanSongName = name;
+          });
+        }
+      },
+    );
+
+    if (mounted) {
+      setState(() {
+        _scanning = false;
+        _scanResult = identified;
+      });
+    }
   }
 
   // -- About & Support Section --

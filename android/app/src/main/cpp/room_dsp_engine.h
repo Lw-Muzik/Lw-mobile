@@ -6,15 +6,16 @@
 #include "fdn_reverb.h"
 #include "stereo_expander.h"
 #include "crossfeed.h"
+#include "stem_mixer.h"
 #include <atomic>
 
 // Main DSP engine orchestrator — professional-grade signal chain.
 //
 // Processing chain:
-//   [Preamp] -> [Graphic EQ 32-band] -> [Parametric EQ 32-band]
-//   -> [Tone Controls (Bass/Treble)] -> [MBC 10-band]
-//   -> [Stereo Expander] -> [Crossfeed] -> [FDN Reverb]
-//   -> [Output Limiter] -> Output
+//   [Preamp] -> [Speaker Correction EQ] -> [Graphic EQ 32-band]
+//   -> [Parametric EQ 32-band] -> [Tone Controls (Bass/Treble)]
+//   -> [MBC 10-band] -> [Stereo Expander] -> [Crossfeed]
+//   -> [FDN Reverb] -> [Output Limiter] -> Output
 //
 // Key design decisions:
 //   - Full auto-gain: preamp is reduced by the single highest band boost.
@@ -55,6 +56,13 @@ public:
     void setParametricAllBands(const float* freqs, const float* gains,
                                const float* qs, int count);
     void recomputeAutoGain();
+
+    // Speaker correction EQ (AutoEq headphone profiles)
+    void setSpeakerEqEnabled(bool enabled)  { speakerEqEnabled_.store(enabled); }
+    bool isSpeakerEqEnabled() const         { return speakerEqEnabled_.load(); }
+    void setSpeakerEqBand(int band, float freq, float gainDb, float q,
+                          int filterType, bool enabled);
+    void clearSpeakerEq();
 
     // Tone controls (independent bass/treble knobs)
     void setToneEnabled(bool enabled)       { tone_.setEnabled(enabled); }
@@ -112,11 +120,31 @@ public:
     bool isStereoExpandEnabled() const      { return stereoExpandEnabled_.load(); }
     bool isCrossfeedEnabled() const         { return crossfeedEnabled_.load(); }
 
+    // Stem mixer controls
+    void setStemModeActive(bool active)     { stemModeActive_.store(active); }
+    bool isStemModeActive() const           { return stemModeActive_.load(); }
+
+    bool loadStems(const char* paths[StemMixer::NUM_STEMS]) {
+        return stemMixer_.loadStems(paths);
+    }
+    void unloadStems()                      { stemMixer_.unloadStems(); }
+    void setStemVolume(int stem, float vol)  { stemMixer_.setVolume(stem, vol); }
+    void setStemMute(int stem, bool muted)   { stemMixer_.setMute(stem, muted); }
+    void setStemSolo(int stem, bool soloed)  { stemMixer_.setSolo(stem, soloed); }
+    void stemSeek(size_t samplePos)          { stemMixer_.seek(samplePos); }
+    bool areStemsLoaded() const             { return stemMixer_.isLoaded(); }
+    size_t getStemPosition() const          { return stemMixer_.getPosition(); }
+    size_t getStemTotalFrames() const       { return stemMixer_.getTotalFrames(); }
+
 private:
     // EQ
     ParametricEQ graphicEq_;
     ParametricEQ parametricEq_;
     std::atomic<bool> eqEnabled_{false};
+
+    // Speaker correction EQ (independent from user EQ)
+    ParametricEQ speakerEq_;
+    std::atomic<bool> speakerEqEnabled_{false};
 
     // Tone controls (bass/treble shelf filters)
     ToneControls tone_;
@@ -147,4 +175,8 @@ private:
 
     // Per-sample smoothing coefficient — computed from sample rate
     float smoothCoeff_ = 0.001f;
+
+    // Stem mixer — replaces ExoPlayer audio when active
+    StemMixer stemMixer_;
+    std::atomic<bool> stemModeActive_{false};
 };

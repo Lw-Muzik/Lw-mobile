@@ -4,7 +4,6 @@ import 'dart:math' as math;
 
 import 'package:eq_app/Global/index.dart';
 import '/exports/exports.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../Helpers/AudioHandler.dart';
 import '../Helpers/Channel.dart';
@@ -22,7 +21,11 @@ import '../services/cloud_metadata_service.dart';
 import '../services/google_drive_service.dart';
 import '../services/dropbox_service.dart';
 import '../services/lyrics_service.dart';
+import '../services/fingerprint_service.dart';
 import '../models/lyrics_model.dart';
+import '../models/recognition_result.dart';
+import '../models/speaker_profile.dart';
+import 'stem_controller.dart';
 
 class AppController with ChangeNotifier {
   static AppController? _instance;
@@ -38,6 +41,9 @@ class AppController with ChangeNotifier {
   // Lyrics
   final LyricsService _lyricsService = LyricsService();
   LyricsService get lyricsService => _lyricsService;
+
+  // Fingerprint / track recognition
+  late final FingerprintService fingerprintService;
   LyricsData? _currentLyrics;
   LyricsData? get currentLyrics => _currentLyrics;
   bool _lyricsLoading = false;
@@ -78,6 +84,10 @@ class AppController with ChangeNotifier {
   bool _dvcEnabled = false;
   double _dvcGain = -20; // dB, range -30 to +30
   bool _dvcFineSteps = false; // false=1.5dB (5%), true=0.3dB (1%)
+
+  // Global EQ (system-wide)
+  bool _globalEqEnabled = false;
+  bool _globalEqAvailable = false;
 
   // Song list/grid zoom scale: 0=list, 1=2-col grid, 2=3-col grid
   int _songGridScale = 0;
@@ -130,6 +140,14 @@ class AppController with ChangeNotifier {
 
   // Output limiter (on by default)
   bool _limiterEnabled = true;
+
+  // Speaker correction EQ (AutoEq headphone profiles)
+  bool _speakerEqEnabled = false;
+  String? _activeSpeakerProfile;
+  final SpeakerProfileService _speakerProfileService = SpeakerProfileService();
+
+  // Stem separation
+  final StemController stemController = StemController();
 
   // Song grid scale getters/setters
   int get songGridScale => _songGridScale;
@@ -258,6 +276,53 @@ class AppController with ChangeNotifier {
     _prefs.setBool("mbcEnabled", value);
     Channel.enableMbc(value);
     notifyListeners();
+  }
+
+  // Speaker correction EQ getters/setters
+  bool get speakerEqEnabled => _speakerEqEnabled;
+  String? get activeSpeakerProfile => _activeSpeakerProfile;
+  List<SpeakerProfile> get speakerProfiles => _speakerProfileService.profiles;
+
+  set speakerEqEnabled(bool value) {
+    _speakerEqEnabled = value;
+    _prefs.setBool("speakerEqEnabled", value);
+    Channel.setSpeakerEqEnabled(value);
+    notifyListeners();
+  }
+
+  Future<void> loadSpeakerProfiles() async {
+    await _speakerProfileService.load();
+  }
+
+  Future<void> applySpeakerProfile(String name) async {
+    final profile = _speakerProfileService.profiles
+        .where((p) => p.name == name)
+        .firstOrNull;
+    if (profile == null) return;
+
+    _activeSpeakerProfile = name;
+    _speakerEqEnabled = true;
+    _prefs.setString("activeSpeakerProfile", name);
+    _prefs.setBool("speakerEqEnabled", true);
+
+    final bands = profile.filters.map((f) => f.toNativeMap()).toList();
+    await Channel.setSpeakerEqBands(bands);
+    await Channel.setSpeakerEqEnabled(true);
+    notifyListeners();
+  }
+
+  Future<void> clearSpeakerProfile() async {
+    _activeSpeakerProfile = null;
+    _speakerEqEnabled = false;
+    _prefs.remove("activeSpeakerProfile");
+    _prefs.setBool("speakerEqEnabled", false);
+    await Channel.clearSpeakerEq();
+    await Channel.setSpeakerEqEnabled(false);
+    notifyListeners();
+  }
+
+  List<SpeakerProfile> searchSpeakerProfiles(String query) {
+    return _speakerProfileService.search(query);
   }
 
   set graphicEqEnabled(bool value) {
@@ -435,6 +500,8 @@ class AppController with ChangeNotifier {
   bool get dvcEnabled => _dvcEnabled;
   double get dvcGain => _dvcGain;
   bool get dvcFineSteps => _dvcFineSteps;
+  bool get globalEqEnabled => _globalEqEnabled;
+  bool get globalEqAvailable => _globalEqAvailable;
 
   // Audio feature setters
   set gaplessPlayback(bool value) {
@@ -490,6 +557,13 @@ class AppController with ChangeNotifier {
   set dvcFineSteps(bool value) {
     _prefs.setBool("dvcFineSteps", value);
     _dvcFineSteps = value;
+    notifyListeners();
+  }
+
+  set globalEqEnabled(bool value) {
+    _prefs.setBool("globalEqEnabled", value);
+    _globalEqEnabled = value;
+    Channel.enableGlobalEq(value);
     notifyListeners();
   }
 
@@ -552,6 +626,8 @@ class AppController with ChangeNotifier {
   double _milkdropBeatSensitivity = 1.0;
   double _milkdropPresetDuration = 30.0; // seconds, 0 = manual only
   bool _milkdropPresetLocked = false;
+  String _milkdropPresetName = '';
+  int _milkdropQuality = 1; // 0=Low, 1=Medium, 2=High, 3=Ultra
   int _songId = 0;
   int _artWorkId = 0;
   // Main method.
@@ -610,11 +686,17 @@ class AppController with ChangeNotifier {
       Channel.setDvcGain(_dvcGain);
     }
 
+    // Global EQ: check availability and restore state
+    _initGlobalEq();
+
     _bindDvcVolumeButtons();
     _bindProcessingState();
     _bindCurrentIndex();
     _setupCrossfadeListener();
     _bindAudioSessionId();
+
+    // Fingerprint service
+    fingerprintService = FingerprintService(_prefs);
 
     // Cloud services
     _instance = this;
@@ -883,6 +965,7 @@ class AppController with ChangeNotifier {
     _dvcEnabled = _prefs.getBool("dvcEnabled") ?? false;
     _dvcGain = _prefs.getDouble("dvcGain") ?? 0.0;
     _dvcFineSteps = _prefs.getBool("dvcFineSteps") ?? false;
+    _globalEqEnabled = _prefs.getBool("globalEqEnabled") ?? false;
     // Song grid scale
     _songGridScale = (_prefs.getInt("songGridScale") ?? 0).clamp(0, 2);
     // EQ band count
@@ -890,6 +973,9 @@ class AppController with ChangeNotifier {
     // Preamp & MBC
     _preampGain = _prefs.getDouble("preampGain") ?? 0.0;
     _mbcEnabled = _prefs.getBool("mbcEnabled") ?? false;
+    // Speaker correction EQ
+    _speakerEqEnabled = _prefs.getBool("speakerEqEnabled") ?? false;
+    _activeSpeakerProfile = _prefs.getString("activeSpeakerProfile");
     // 32-band Graphic EQ
     _graphicEqEnabled = _prefs.getBool("graphicEqEnabled") ?? false;
     _activePresetName = _prefs.getString("activePresetName") ?? 'Flat';
@@ -930,6 +1016,8 @@ class AppController with ChangeNotifier {
     _milkdropPresetDuration =
         _prefs.getDouble("milkdropPresetDuration") ?? 30.0;
     _milkdropPresetLocked = _prefs.getBool("milkdropPresetLocked") ?? false;
+    _milkdropPresetName = _prefs.getString("milkdropPresetName") ?? '';
+    _milkdropQuality = _prefs.getInt("milkdropQuality") ?? 1;
     // Room effects (custom DSP)
     _reverbEnabled = _prefs.getBool("reverbEnabled") ?? false;
     _dspRoomSize = _prefs.getDouble("dspRoomSize") ?? 0.5;
@@ -954,8 +1042,8 @@ class AppController with ChangeNotifier {
     _trebleQ = _prefs.getDouble("trebleQ") ?? 0.707;
     // Output limiter
     _limiterEnabled = _prefs.getBool("limiterEnabled") ?? true;
-    // Apply DSP params to native engine on startup
-    _applyAllDspParams();
+    // Load speaker profiles from asset, then apply DSP params
+    loadSpeakerProfiles().then((_) => _applyAllDspParams());
   }
 
   bool get isDark {
@@ -1042,6 +1130,19 @@ class AppController with ChangeNotifier {
   set milkdropPresetLocked(bool v) {
     _prefs.setBool("milkdropPresetLocked", v);
     _milkdropPresetLocked = v;
+    notifyListeners();
+  }
+
+  String get milkdropPresetName => _milkdropPresetName;
+  set milkdropPresetName(String v) {
+    _prefs.setString("milkdropPresetName", v);
+    _milkdropPresetName = v;
+  }
+
+  int get milkdropQuality => _milkdropQuality;
+  set milkdropQuality(int v) {
+    _prefs.setInt("milkdropQuality", v);
+    _milkdropQuality = v;
     notifyListeners();
   }
 
@@ -1173,8 +1274,20 @@ class AppController with ChangeNotifier {
     notifyListeners();
   }
 
+  /// Check global EQ availability and restore state if previously enabled.
+  Future<void> _initGlobalEq() async {
+    _globalEqAvailable = await Channel.isGlobalEqAvailable();
+    if (_globalEqAvailable && _globalEqEnabled) {
+      Channel.enableGlobalEq(true);
+    }
+  }
+
   /// Applies all DSP params to the native C++ engine on startup.
   void _applyAllDspParams() {
+    // Speaker correction EQ (restore profile if was active)
+    if (_speakerEqEnabled && _activeSpeakerProfile != null) {
+      applySpeakerProfile(_activeSpeakerProfile!);
+    }
     // EQ
     Channel.enableEq(_graphicEqEnabled);
     Channel.setPreamp(_preampGain);
@@ -1335,6 +1448,10 @@ class AppController with ChangeNotifier {
     _songId = id;
     notifyListeners();
     _loadLyricsForCurrentSong();
+    // Check stem availability for new song
+    if (songs.isNotEmpty && id >= 0 && id < songs.length) {
+      stemController.onSongChanged(songs[id].data);
+    }
   }
 
   Future<void> _loadLyricsForCurrentSong() async {
@@ -1365,6 +1482,64 @@ class AppController with ChangeNotifier {
     _lyricsService.invalidateCache(songs[_songId].id);
     _lyricsLoadTarget = null; // force reload even if same song
     await _loadLyricsForCurrentSong();
+  }
+
+  /// Updates any song's in-memory metadata after tag writing.
+  /// Mutates SongModel.getMap directly, invalidates artwork cache,
+  /// and notifies all listeners so every screen rebuilds with fresh data.
+  /// If the song is the currently playing track, also updates the media
+  /// notification and reloads lyrics.
+  Future<void> updateSongMetadata(
+    SongModel song,
+    RecognitionResult result, {
+    String? newArtworkPath,
+  }) async {
+    // Mutate the in-memory SongModel fields
+    if (result.title != null && result.title!.isNotEmpty) {
+      song.getMap['title'] = result.title;
+    }
+    if (result.artist != null && result.artist!.isNotEmpty) {
+      song.getMap['artist'] = result.artist;
+    }
+    if (result.album != null && result.album!.isNotEmpty) {
+      song.getMap['album'] = result.album;
+    }
+
+    // If new artwork was fetched, save it to the UI cache location so
+    // savedImage()/ArtworkWidget picks it up immediately.
+    // For songs that already had artwork, TagWriter skips embedding (fill-empty),
+    // but updating the cache with higher-quality Cover Art Archive art is fine.
+    if (newArtworkPath != null && File(newArtworkPath).existsSync()) {
+      try {
+        final tempDir = await getTemporaryDirectory();
+        final isCloud = song.data.startsWith('http');
+        final cachePath = isCloud
+            ? '${tempDir.path}/cloud_art_${song.id}.png'
+            : '${tempDir.path}/${song.data.split('/').last.split('.').first}.png';
+        final cacheFile = File(cachePath);
+        if (cacheFile.existsSync()) cacheFile.deleteSync();
+        File(newArtworkPath).copySync(cachePath);
+      } catch (_) {}
+    }
+
+    // Invalidate fingerprint cache for this file
+    fingerprintService.invalidateCache(song.data);
+
+    notifyListeners();
+
+    // If this is the currently playing song, also update notification + lyrics
+    final isCurrentSong =
+        songs.isNotEmpty &&
+        _songId >= 0 &&
+        _songId < songs.length &&
+        songs[_songId].id == song.id;
+
+    if (isCurrentSong) {
+      _lyricsService.invalidateCache(song.id);
+      _lyricsLoadTarget = null;
+      loadAudioSource(_handler, song, replayGain: _replayGain);
+      _loadLyricsForCurrentSong();
+    }
   }
 
   void next() {

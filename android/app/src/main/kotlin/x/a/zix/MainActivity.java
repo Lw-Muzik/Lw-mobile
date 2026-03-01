@@ -48,11 +48,12 @@ public class MainActivity extends AudioServiceFragmentActivity {
     private MethodChannel visualizerChannel; // Define the MethodChannel here
     private ProjectMRenderer projectMRenderer;
 
-    // Scoped-storage lyrics write state
+    // Scoped-storage write state
     private ActivityResultLauncher<IntentSenderRequest> writeRequestLauncher;
     private MethodChannel.Result pendingWriteResult;
     private Uri pendingWriteUri;
     private File pendingModifiedFile;
+    private String pendingWriteFilePath;
 
     @Override
     protected void onCreate(Bundle savedInstance) {
@@ -75,10 +76,14 @@ public class MainActivity extends AudioServiceFragmentActivity {
                                 getContentResolver(), pendingWriteUri, pendingModifiedFile);
                     }
                     if (pendingModifiedFile != null) pendingModifiedFile.delete();
+                    if (ok && pendingWriteFilePath != null) {
+                        TagWriter.scanFile(getApplicationContext(), pendingWriteFilePath);
+                    }
                     pendingWriteResult.success(ok);
                     pendingWriteResult = null;
                     pendingWriteUri = null;
                     pendingModifiedFile = null;
+                    pendingWriteFilePath = null;
                 }
         );
     }
@@ -103,6 +108,11 @@ public class MainActivity extends AudioServiceFragmentActivity {
         EventChannel dvcEventChannel = new EventChannel(
                 flutterEngine.getDartExecutor().getBinaryMessenger(), "eq_app/dvc_volume_button");
         DvcController.setupEventChannel(dvcEventChannel);
+
+        // Stem separation EventChannel
+        EventChannel stemEventChannel = new EventChannel(
+                flutterEngine.getDartExecutor().getBinaryMessenger(), "eq_app/stem_progress");
+        StemSeparationService.setupEventChannel(stemEventChannel);
 
         // projectM renderer init
         projectMRenderer = new ProjectMRenderer(this, flutterEngine.getRenderer());
@@ -548,6 +558,164 @@ public class MainActivity extends AudioServiceFragmentActivity {
                             break;
                         }
 
+                        // ==================== Speaker Correction EQ (AutoEq) ====================
+                        case "setSpeakerEqEnabled": {
+                            boolean spkEn = call.argument("enabled");
+                            RoomEffectsProcessor.broadcastSpeakerEqEnabled(spkEn);
+                            result.success(null);
+                            break;
+                        }
+                        case "setSpeakerEqBands": {
+                            ArrayList<Double> spkFreqs = call.argument("freqs");
+                            ArrayList<Double> spkGains = call.argument("gains");
+                            ArrayList<Double> spkQs = call.argument("qs");
+                            ArrayList<Integer> spkTypes = call.argument("types");
+                            if (spkFreqs != null && spkGains != null && spkQs != null && spkTypes != null) {
+                                int spkCount = spkFreqs.size();
+                                float[] sf = new float[spkCount];
+                                float[] sg = new float[spkCount];
+                                float[] sq = new float[spkCount];
+                                int[] st = new int[spkCount];
+                                for (int si = 0; si < spkCount; si++) {
+                                    sf[si] = spkFreqs.get(si).floatValue();
+                                    sg[si] = spkGains.get(si).floatValue();
+                                    sq[si] = spkQs.get(si).floatValue();
+                                    st[si] = spkTypes.get(si);
+                                }
+                                RoomEffectsProcessor.broadcastSpeakerEqBands(sf, sg, sq, st, spkCount);
+                            }
+                            result.success(null);
+                            break;
+                        }
+                        case "clearSpeakerEq": {
+                            RoomEffectsProcessor.broadcastClearSpeakerEq();
+                            result.success(null);
+                            break;
+                        }
+
+                        // ==================== Stem Separation ====================
+                        case "separateStems": {
+                            String sepFilePath = call.argument("filePath");
+                            String sepOutputDir = call.argument("outputDir");
+                            Intent sepIntent = new Intent(MainActivity.this, StemSeparationService.class);
+                            sepIntent.putExtra("filePath", sepFilePath);
+                            sepIntent.putExtra("outputDir", sepOutputDir);
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                startForegroundService(sepIntent);
+                            } else {
+                                startService(sepIntent);
+                            }
+                            result.success(true);
+                            break;
+                        }
+                        case "cancelStemSeparation": {
+                            Intent cancelIntent = new Intent(MainActivity.this, StemSeparationService.class);
+                            cancelIntent.setAction("CANCEL");
+                            startService(cancelIntent);
+                            result.success(null);
+                            break;
+                        }
+
+                        // ==================== Stem Mixer ====================
+                        case "loadStems": {
+                            String vocalsPath = call.argument("vocals");
+                            String drumsPath = call.argument("drums");
+                            String bassPath = call.argument("bass");
+                            String otherPath = call.argument("other");
+                            String[] stemPaths = {vocalsPath, drumsPath, bassPath, otherPath};
+                            RoomEffectsProcessor.broadcastLoadStems(stemPaths);
+                            result.success(true);
+                            break;
+                        }
+                        case "unloadStems": {
+                            RoomEffectsProcessor.broadcastUnloadStems();
+                            result.success(null);
+                            break;
+                        }
+                        case "activateStemMode": {
+                            RoomEffectsProcessor.broadcastStemModeActive(true);
+                            result.success(null);
+                            break;
+                        }
+                        case "deactivateStemMode": {
+                            RoomEffectsProcessor.broadcastStemModeActive(false);
+                            result.success(null);
+                            break;
+                        }
+                        case "setStemVolume": {
+                            int stemIdx = call.argument("stem");
+                            double stemVol = call.argument("volume");
+                            RoomEffectsProcessor.broadcastStemVolume(stemIdx, (float) stemVol);
+                            result.success(null);
+                            break;
+                        }
+                        case "setStemMute": {
+                            int stemMuteIdx = call.argument("stem");
+                            boolean stemMuted = call.argument("muted");
+                            RoomEffectsProcessor.broadcastStemMute(stemMuteIdx, stemMuted);
+                            result.success(null);
+                            break;
+                        }
+                        case "setStemSolo": {
+                            int stemSoloIdx = call.argument("stem");
+                            boolean stemSoloed = call.argument("soloed");
+                            RoomEffectsProcessor.broadcastStemSolo(stemSoloIdx, stemSoloed);
+                            result.success(null);
+                            break;
+                        }
+                        case "stemSeek": {
+                            long stemSeekPos = ((Number) call.argument("samplePosition")).longValue();
+                            RoomEffectsProcessor.broadcastStemSeek(stemSeekPos);
+                            result.success(null);
+                            break;
+                        }
+                        case "checkStemsExist": {
+                            String checkPath = call.argument("dirPath");
+                            if (checkPath != null) {
+                                File dir = new File(checkPath);
+                                boolean exists = dir.exists()
+                                    && new File(dir, "vocals.wav").exists()
+                                    && new File(dir, "drums.wav").exists()
+                                    && new File(dir, "bass.wav").exists()
+                                    && new File(dir, "other.wav").exists();
+                                result.success(exists);
+                            } else {
+                                result.success(false);
+                            }
+                            break;
+                        }
+
+                        // ==================== Global EQ (System-Wide) ====================
+                        case "enableGlobalEq": {
+                            boolean globalOn = call.argument("enable");
+                            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
+                                result.success(false);
+                                break;
+                            }
+                            if (globalOn) {
+                                Intent svc = new Intent(getApplicationContext(), GlobalEqService.class);
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                    startForegroundService(svc);
+                                } else {
+                                    startService(svc);
+                                }
+                            } else {
+                                stopService(new Intent(getApplicationContext(), GlobalEqService.class));
+                            }
+                            result.success(true);
+                            break;
+                        }
+                        case "isGlobalEqEnabled":
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                                result.success(GlobalEqSessionManager.isEnabled());
+                            } else {
+                                result.success(false);
+                            }
+                            break;
+                        case "isGlobalEqAvailable":
+                            result.success(Build.VERSION.SDK_INT >= Build.VERSION_CODES.P);
+                            break;
+
                         // ==================== Device Detection ====================
                         case "isDynamicsProcessingAvailable":
                             // Always true — C++ DSP pipeline has no API level requirement
@@ -634,6 +802,84 @@ public class MainActivity extends AudioServiceFragmentActivity {
                                     result.success(null); // null = failed, retry later
                                 }
                             }, 15000);
+                            break;
+                        }
+
+                        // ==================== Audio Fingerprinting ====================
+                        case "generateFingerprint": {
+                            String fpPath = call.argument("filePath");
+                            final AtomicBoolean fpDone = new AtomicBoolean(false);
+                            final Handler fpHandler = new Handler(Looper.getMainLooper());
+
+                            Thread fpWorker = new Thread(() -> {
+                                Map<String, Object> fpResult = FingerprintEngine.generateFingerprint(fpPath);
+                                if (fpDone.compareAndSet(false, true)) {
+                                    fpHandler.post(() -> result.success(fpResult));
+                                }
+                            });
+                            fpWorker.start();
+
+                            // 30-second timeout for decoding + fingerprinting
+                            fpHandler.postDelayed(() -> {
+                                if (fpDone.compareAndSet(false, true)) {
+                                    fpWorker.interrupt();
+                                    result.success(null);
+                                }
+                            }, 30000);
+                            break;
+                        }
+
+                        // ==================== Tag Writing ====================
+                        case "writeTags": {
+                            String wtPath = call.argument("filePath");
+                            Map<String, String> wtTags = call.argument("tags");
+                            String wtArtwork = call.argument("artworkPath");
+
+                            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+                                // Android 10 and below: direct file write
+                                boolean ok = TagWriter.writeTagsDirect(wtPath, wtTags, wtArtwork);
+                                if (ok) TagWriter.scanFile(getApplicationContext(), wtPath);
+                                result.success(ok);
+                            } else {
+                                // Android 11+: scoped storage via MediaStore
+                                File modified = TagWriter.prepareModifiedFile(
+                                        getCacheDir(), wtPath, wtTags, wtArtwork);
+                                if (modified == null) {
+                                    result.success(false);
+                                    break;
+                                }
+                                Uri uri = LyricsManager.getMediaUri(getContentResolver(), wtPath);
+                                if (uri == null) {
+                                    modified.delete();
+                                    result.success(false);
+                                    break;
+                                }
+                                pendingWriteResult = result;
+                                pendingWriteUri = uri;
+                                pendingModifiedFile = modified;
+                                pendingWriteFilePath = wtPath;
+                                try {
+                                    PendingIntent pi = MediaStore.createWriteRequest(
+                                            getContentResolver(), Collections.singletonList(uri));
+                                    IntentSenderRequest req = new IntentSenderRequest.Builder(
+                                            pi.getIntentSender()).build();
+                                    writeRequestLauncher.launch(req);
+                                } catch (Exception e) {
+                                    e.printStackTrace();
+                                    modified.delete();
+                                    pendingWriteResult = null;
+                                    pendingWriteUri = null;
+                                    pendingModifiedFile = null;
+                                    pendingWriteFilePath = null;
+                                    result.success(false);
+                                }
+                            }
+                            break;
+                        }
+                        case "scanMediaFile": {
+                            String scanPath = call.argument("filePath");
+                            TagWriter.scanFile(getApplicationContext(), scanPath);
+                            result.success(null);
                             break;
                         }
 
@@ -771,6 +1017,13 @@ public class MainActivity extends AudioServiceFragmentActivity {
                             int pmW = call.argument("width");
                             int pmH = call.argument("height");
                             projectMRenderer.setSize(pmW, pmH);
+                            result.success(null);
+                            break;
+                        }
+                        case "projectm_set_mesh_size": {
+                            int meshW = call.argument("width");
+                            int meshH = call.argument("height");
+                            projectMRenderer.setMeshSize(meshW, meshH);
                             result.success(null);
                             break;
                         }
