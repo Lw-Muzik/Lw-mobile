@@ -147,7 +147,26 @@ class _SongOptionsSheetState extends State<SongOptionsSheet> {
 
     try {
       final controller = AppController.instance;
-      final result = await controller.fingerprintService.identifySong(widget.song);
+      final isCloud = widget.song.data.startsWith('http');
+
+      // For cloud files, use the locally cached audio file for fingerprinting
+      String? fingerprintPath;
+      if (isCloud) {
+        final fileId = widget.song.id.toString();
+        if (controller.cloudCache.isCached(fileId)) {
+          fingerprintPath = controller.cloudCache.cacheFile(fileId).path;
+        } else {
+          if (!mounted) return;
+          setState(() {
+            _identifying = false;
+            _error = "Cloud track not cached — play it first";
+          });
+          return;
+        }
+      }
+
+      final result = await controller.fingerprintService
+          .identifySong(widget.song, fingerprintPath: fingerprintPath);
 
       if (!mounted) return;
 
@@ -221,6 +240,7 @@ class _SongOptionsSheetState extends State<SongOptionsSheet> {
     setState(() => _applying = true);
 
     final controller = AppController.instance;
+    final isCloud = widget.song.data.startsWith('http');
 
     try {
       // Write tags directly from the already-identified result
@@ -241,32 +261,39 @@ class _SongOptionsSheetState extends State<SongOptionsSheet> {
             .fetchCoverArt(_result!.musicBrainzReleaseId!);
       }
 
-      // Write tags to file
-      final ok = await Channel.writeTags(
-        widget.song.data,
-        tagMap,
-        artworkPath: artworkPath,
-      );
+      // Write tags to file (local files only — can't write to remote URLs)
+      if (!isCloud) {
+        final ok = await Channel.writeTags(
+          widget.song.data,
+          tagMap,
+          artworkPath: artworkPath,
+        );
 
-      // Clean up temp artwork
+        if (!ok) {
+          // Clean up temp artwork on failure
+          if (artworkPath != null) {
+            try { File(artworkPath).deleteSync(); } catch (_) {}
+          }
+          if (!mounted) return;
+          setState(() => _applying = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Failed to write tags")),
+          );
+          return;
+        }
+
+        // Trigger MediaStore re-scan
+        await Channel.scanMediaFile(widget.song.data);
+      }
+
+      // Update in-memory state + save artwork to UI cache
+      await controller.updateSongMetadata(widget.song, _result!,
+          newArtworkPath: artworkPath);
+
+      // Clean up temp artwork after it's been copied to cache
       if (artworkPath != null) {
         try { File(artworkPath).deleteSync(); } catch (_) {}
       }
-
-      if (!ok) {
-        if (!mounted) return;
-        setState(() => _applying = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Failed to write tags")),
-        );
-        return;
-      }
-
-      // Trigger MediaStore re-scan
-      await Channel.scanMediaFile(widget.song.data);
-
-      // Update in-memory state immediately — no restart needed
-      await controller.updateSongMetadata(widget.song, _result!);
 
       if (!mounted) return;
 

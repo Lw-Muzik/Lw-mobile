@@ -1380,7 +1380,7 @@ class AppController with ChangeNotifier {
   /// and notifies all listeners so every screen rebuilds with fresh data.
   /// If the song is the currently playing track, also updates the media
   /// notification and reloads lyrics.
-  Future<void> updateSongMetadata(SongModel song, RecognitionResult result) async {
+  Future<void> updateSongMetadata(SongModel song, RecognitionResult result, {String? newArtworkPath}) async {
     // Mutate the in-memory SongModel fields
     if (result.title != null && result.title!.isNotEmpty) {
       song.getMap['title'] = result.title;
@@ -1392,10 +1392,22 @@ class AppController with ChangeNotifier {
       song.getMap['album'] = result.album;
     }
 
-    // Do NOT delete cached artwork here. The native TagWriter uses a
-    // fill-empty policy (applyArtwork skips if artwork already exists),
-    // so the cached PNG is always valid. Deleting it when no new artwork
-    // was embedded would cause the artwork to disappear from the UI.
+    // If new artwork was fetched, save it to the UI cache location so
+    // savedImage()/ArtworkWidget picks it up immediately.
+    // For songs that already had artwork, TagWriter skips embedding (fill-empty),
+    // but updating the cache with higher-quality Cover Art Archive art is fine.
+    if (newArtworkPath != null && File(newArtworkPath).existsSync()) {
+      try {
+        final tempDir = await getTemporaryDirectory();
+        final isCloud = song.data.startsWith('http');
+        final cachePath = isCloud
+            ? '${tempDir.path}/cloud_art_${song.id}.png'
+            : '${tempDir.path}/${song.data.split('/').last.split('.').first}.png';
+        final cacheFile = File(cachePath);
+        if (cacheFile.existsSync()) cacheFile.deleteSync();
+        File(newArtworkPath).copySync(cachePath);
+      } catch (_) {}
+    }
 
     // Invalidate fingerprint cache for this file
     fingerprintService.invalidateCache(song.data);

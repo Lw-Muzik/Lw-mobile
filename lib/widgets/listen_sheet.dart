@@ -54,8 +54,27 @@ class _ListenSheetState extends State<ListenSheet>
     }
 
     final song = controller.songs[controller.songId];
+    final isCloud = song.data.startsWith('http');
+
     try {
-      final result = await controller.fingerprintService.identifySong(song);
+      // For cloud files, use the locally cached audio file for fingerprinting
+      String? fingerprintPath;
+      if (isCloud) {
+        final fileId = song.id.toString();
+        if (controller.cloudCache.isCached(fileId)) {
+          fingerprintPath = controller.cloudCache.cacheFile(fileId).path;
+        } else {
+          if (!mounted) return;
+          setState(() {
+            _phase = _Phase.error;
+            _errorMessage = 'Cloud track not cached yet — play it first';
+          });
+          return;
+        }
+      }
+
+      final result = await controller.fingerprintService
+          .identifySong(song, fingerprintPath: fingerprintPath);
       if (!mounted) return;
 
       if (result == null || !result.hasUsefulData) {
@@ -94,16 +113,25 @@ class _ListenSheetState extends State<ListenSheet>
 
     final controller = context.read<AppController>();
     final song = controller.songs[controller.songId];
+    final isCloud = song.data.startsWith('http');
 
     try {
-      // Write tags to file
-      final tagMap = _result!.toTagMap();
-      if (tagMap.isNotEmpty) {
-        await Channel.writeTags(song.data, tagMap, artworkPath: _artworkPath);
-        await Channel.scanMediaFile(song.data);
+      // Write tags to file (local files only — can't write to remote URLs)
+      if (!isCloud) {
+        final tagMap = _result!.toTagMap();
+        if (tagMap.isNotEmpty) {
+          await Channel.writeTags(song.data, tagMap, artworkPath: _artworkPath);
+          await Channel.scanMediaFile(song.data);
+        }
       }
 
-      // Clean up temp artwork
+      if (!mounted) return;
+
+      // Update in-memory state + save artwork to UI cache
+      await controller.updateSongMetadata(song, _result!,
+          newArtworkPath: _artworkPath);
+
+      // Clean up temp artwork after it's been copied to cache
       if (_artworkPath != null) {
         try {
           File(_artworkPath!).deleteSync();
@@ -111,16 +139,13 @@ class _ListenSheetState extends State<ListenSheet>
       }
 
       if (!mounted) return;
-
-      // Update in-memory state immediately
-      await controller.updateSongMetadata(song, _result!);
-
-      if (!mounted) return;
       Navigator.of(context).pop();
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Track info updated'),
-          duration: Duration(seconds: 2),
+        SnackBar(
+          content: Text(isCloud
+              ? 'Track info updated'
+              : 'Track info updated'),
+          duration: const Duration(seconds: 2),
         ),
       );
     } catch (e) {
