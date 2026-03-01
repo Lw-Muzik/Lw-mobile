@@ -19,6 +19,7 @@ import '../player/widgets/TrackInfo.dart';
 import '../pages/equalizer.dart';
 import '../player/lyrics_view.dart';
 import '../widgets/ArtworkWidget.dart';
+import '../widgets/listen_sheet.dart';
 
 SystemUiOverlayStyle overlay = const SystemUiOverlayStyle(
   systemNavigationBarDividerColor: Colors.transparent,
@@ -129,9 +130,17 @@ Widget playerActionBar(AppController controller, BuildContext context) {
           },
         ),
         _ActionItem(
-          icon: Icons.info_outline_rounded,
-          label: 'Info',
-          onTap: () => showTrackInfo(context, controller),
+          icon: Icons.hearing_rounded,
+          label: 'Listen',
+          onTap: () {
+            showModalBottomSheet(
+              context: context,
+              isScrollControlled: true,
+              backgroundColor: Colors.transparent,
+              barrierColor: Colors.black54,
+              builder: (_) => const ListenSheet(),
+            );
+          },
         ),
       ],
     ),

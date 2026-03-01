@@ -22,7 +22,9 @@ import '../services/cloud_metadata_service.dart';
 import '../services/google_drive_service.dart';
 import '../services/dropbox_service.dart';
 import '../services/lyrics_service.dart';
+import '../services/fingerprint_service.dart';
 import '../models/lyrics_model.dart';
+import '../models/recognition_result.dart';
 
 class AppController with ChangeNotifier {
   static AppController? _instance;
@@ -38,6 +40,9 @@ class AppController with ChangeNotifier {
   // Lyrics
   final LyricsService _lyricsService = LyricsService();
   LyricsService get lyricsService => _lyricsService;
+
+  // Fingerprint / track recognition
+  late final FingerprintService fingerprintService;
   LyricsData? _currentLyrics;
   LyricsData? get currentLyrics => _currentLyrics;
   bool _lyricsLoading = false;
@@ -615,6 +620,9 @@ class AppController with ChangeNotifier {
     _bindCurrentIndex();
     _setupCrossfadeListener();
     _bindAudioSessionId();
+
+    // Fingerprint service
+    fingerprintService = FingerprintService(_prefs);
 
     // Cloud services
     _instance = this;
@@ -1365,6 +1373,48 @@ class AppController with ChangeNotifier {
     _lyricsService.invalidateCache(songs[_songId].id);
     _lyricsLoadTarget = null; // force reload even if same song
     await _loadLyricsForCurrentSong();
+  }
+
+  /// Updates the current song's in-memory metadata after tag identification.
+  /// Mutates SongModel.getMap directly, invalidates artwork + lyrics caches,
+  /// updates the media notification, and notifies all listeners.
+  Future<void> refreshCurrentSong(RecognitionResult result) async {
+    if (songs.isEmpty || _songId < 0 || _songId >= songs.length) return;
+    final song = songs[_songId];
+
+    // Mutate the in-memory SongModel fields
+    if (result.title != null && result.title!.isNotEmpty) {
+      song.getMap['title'] = result.title;
+    }
+    if (result.artist != null && result.artist!.isNotEmpty) {
+      song.getMap['artist'] = result.artist;
+    }
+    if (result.album != null && result.album!.isNotEmpty) {
+      song.getMap['album'] = result.album;
+    }
+
+    // Delete cached artwork so it re-extracts from the updated file
+    try {
+      final tempDir = await getTemporaryDirectory();
+      final artKey = song.data.split('/').last.split('.').first;
+      final cachedArt = File('${tempDir.path}/$artKey.png');
+      if (cachedArt.existsSync()) cachedArt.deleteSync();
+    } catch (_) {}
+
+    // Invalidate fingerprint cache for this file (force re-identify if needed)
+    fingerprintService.invalidateCache(song.data);
+
+    // Invalidate lyrics cache and reload with new metadata
+    _lyricsService.invalidateCache(song.id);
+    _lyricsLoadTarget = null;
+
+    notifyListeners();
+
+    // Update media notification with new metadata
+    loadAudioSource(_handler, song, replayGain: _replayGain);
+
+    // Reload lyrics
+    _loadLyricsForCurrentSong();
   }
 
   void next() {
