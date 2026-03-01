@@ -4,6 +4,15 @@
 #include <cmath>
 #include <algorithm>
 #include <vector>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <android/log.h>
+
+#define SEP_TAG "StemSep"
+#define SEP_LOGI(...) __android_log_print(ANDROID_LOG_INFO, SEP_TAG, __VA_ARGS__)
+#define SEP_LOGE(...) __android_log_print(ANDROID_LOG_ERROR, SEP_TAG, __VA_ARGS__)
 
 // Offline stem separator using frequency-band splitting + Mid/Side spatial analysis.
 //
@@ -23,6 +32,78 @@
 // filtering for zero-phase response (effective 8th order, -48 dB/oct).
 class StemSeparator {
 public:
+    // File-based separation: reads raw PCM from inputPath, separates, writes 4 WAV files.
+    // All heavy memory allocation happens in native heap (no Java heap pressure).
+    // inputPath: raw interleaved float32 stereo PCM file
+    // outputDir: directory to write vocals.wav, drums.wav, bass.wav, other.wav
+    static bool separateFromFile(const char* inputPath, int numFrames, int sampleRate,
+                                 const char* outputDir) {
+        // mmap the input raw PCM file
+        int fd = open(inputPath, O_RDONLY);
+        if (fd < 0) {
+            SEP_LOGE("Cannot open input: %s", inputPath);
+            return false;
+        }
+
+        size_t fileSize = (size_t)numFrames * 2 * sizeof(float);
+        void* mapped = mmap(nullptr, fileSize, PROT_READ, MAP_PRIVATE, fd, 0);
+        close(fd);
+
+        if (mapped == MAP_FAILED) {
+            SEP_LOGE("mmap failed for %s", inputPath);
+            return false;
+        }
+
+        const float* input = static_cast<const float*>(mapped);
+        size_t stereoLen = (size_t)numFrames * 2;
+
+        // Allocate output buffers on native heap
+        float* vocals = new(std::nothrow) float[stereoLen];
+        float* drums  = new(std::nothrow) float[stereoLen];
+        float* bass   = new(std::nothrow) float[stereoLen];
+        float* other  = new(std::nothrow) float[stereoLen];
+
+        if (!vocals || !drums || !bass || !other) {
+            SEP_LOGE("Native heap alloc failed (%zu floats x 4)", stereoLen);
+            delete[] vocals; delete[] drums; delete[] bass; delete[] other;
+            munmap(mapped, fileSize);
+            return false;
+        }
+
+        SEP_LOGI("Separating %d frames at %d Hz (native heap)", numFrames, sampleRate);
+
+        // Run separation
+        separate(input, numFrames, sampleRate, vocals, drums, bass, other);
+
+        // Unmap input — no longer needed
+        munmap(mapped, fileSize);
+
+        SEP_LOGI("Separation done, writing WAV files...");
+
+        // Write 4 WAV files
+        const char* stemNames[] = {"vocals", "drums", "bass", "other"};
+        float* stemData[] = {vocals, drums, bass, other};
+        bool ok = true;
+
+        for (int i = 0; i < 4; i++) {
+            char path[512];
+            snprintf(path, sizeof(path), "%s/%s.wav", outputDir, stemNames[i]);
+            if (!writeWavFile(path, stemData[i], numFrames, sampleRate)) {
+                SEP_LOGE("Failed to write %s", path);
+                ok = false;
+                break;
+            }
+            SEP_LOGI("Wrote %s", path);
+        }
+
+        delete[] vocals;
+        delete[] drums;
+        delete[] bass;
+        delete[] other;
+
+        return ok;
+    }
+
     // Separate interleaved stereo float PCM into 4 stems.
     // Input:  interleaved stereo [L0,R0, L1,R1, ...] with numFrames frames
     // Output: 4 interleaved stereo buffers (caller must allocate, each numFrames*2 floats)
@@ -147,5 +228,62 @@ private:
             s2 = c.b2 * x - c.a2 * y;
             data[i] = y;
         }
+    }
+
+    // Write interleaved float32 stereo PCM to a WAV file (IEEE float format).
+    static bool writeWavFile(const char* path, const float* data, int numFrames, int sampleRate) {
+        int fd = open(path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+        if (fd < 0) return false;
+
+        const int channels = 2;
+        const int bitsPerSample = 32;
+        int dataSize = numFrames * channels * (bitsPerSample / 8);
+        int fileSize = 44 + dataSize - 8;
+
+        // Build 44-byte WAV header
+        uint8_t header[44];
+        auto writeU32 = [&](int off, uint32_t v) {
+            header[off]   = v & 0xFF;
+            header[off+1] = (v >> 8) & 0xFF;
+            header[off+2] = (v >> 16) & 0xFF;
+            header[off+3] = (v >> 24) & 0xFF;
+        };
+        auto writeU16 = [&](int off, uint16_t v) {
+            header[off]   = v & 0xFF;
+            header[off+1] = (v >> 8) & 0xFF;
+        };
+
+        memcpy(header, "RIFF", 4);
+        writeU32(4, fileSize);
+        memcpy(header + 8, "WAVE", 4);
+        memcpy(header + 12, "fmt ", 4);
+        writeU32(16, 16);                                   // chunk size
+        writeU16(20, 3);                                    // IEEE float
+        writeU16(22, channels);
+        writeU32(24, sampleRate);
+        writeU32(28, sampleRate * channels * 4);            // byte rate
+        writeU16(32, channels * 4);                         // block align
+        writeU16(34, bitsPerSample);
+        memcpy(header + 36, "data", 4);
+        writeU32(40, dataSize);
+
+        if (write(fd, header, 44) != 44) { close(fd); return false; }
+
+        // Write PCM data in chunks to avoid huge single write
+        const size_t chunkFloats = 8192;
+        const float* ptr = data;
+        size_t remaining = (size_t)numFrames * channels;
+
+        while (remaining > 0) {
+            size_t count = std::min(remaining, chunkFloats);
+            ssize_t written = write(fd, ptr, count * sizeof(float));
+            if (written <= 0) { close(fd); return false; }
+            size_t floatsWritten = written / sizeof(float);
+            ptr += floatsWritten;
+            remaining -= floatsWritten;
+        }
+
+        close(fd);
+        return true;
     }
 };

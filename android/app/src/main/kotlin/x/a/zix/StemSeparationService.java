@@ -5,7 +5,6 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
-import android.content.Context;
 import android.content.Intent;
 import android.media.MediaCodec;
 import android.media.MediaExtractor;
@@ -19,7 +18,6 @@ import androidx.core.app.NotificationCompat;
 
 import java.io.File;
 import java.io.FileOutputStream;
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -51,10 +49,10 @@ public class StemSeparationService extends Service {
         System.loadLibrary("eq_app");
     }
 
-    // Native C++ stem separation: frequency-band crossover + Mid/Side decomposition
+    // Native C++ stem separation (file-based): reads raw PCM from file, separates, writes WAVs.
+    // All heavy memory work happens in native heap — avoids Java OOM.
     private static native boolean nativeSeparateStems(
-            float[] pcm, int numFrames, int sampleRate,
-            float[] outVocals, float[] outDrums, float[] outBass, float[] outOther);
+            String inputRawPath, int numFrames, int sampleRate, String outputDir);
 
     private static final AtomicBoolean cancelled = new AtomicBoolean(false);
     private static final AtomicReference<EventChannel.EventSink> eventSink =
@@ -137,79 +135,61 @@ public class StemSeparationService extends Service {
     private void processStemSeparation(String filePath, String outputDir) {
         sendProgress(0, "Decoding audio...");
 
-        // Step 1: Decode audio to float PCM
-        float[] pcmData;
+        File outDir = new File(outputDir);
+        if (!outDir.exists()) outDir.mkdirs();
+
+        // Temp file for raw PCM — avoids holding entire song in Java heap
+        File tempRawFile = new File(outDir, "_temp_raw.pcm");
+
         int sampleRate;
+        int numFrames;
         try {
-            DecodedAudio decoded = decodeToFloat(filePath);
-            if (decoded == null || cancelled.get()) {
+            // Step 1: Decode audio and stream to temp file (low Java memory)
+            DecodedInfo info = decodeToFile(filePath, tempRawFile);
+            if (info == null || cancelled.get()) {
+                tempRawFile.delete();
                 sendProgress(-1, "Decoding cancelled or failed");
                 return;
             }
-            pcmData = decoded.samples;
-            sampleRate = decoded.sampleRate;
+            sampleRate = info.sampleRate;
+            numFrames = info.numFrames;
             sendProgress(10, "Audio decoded");
         } catch (Exception e) {
             Log.e(TAG, "Decode failed", e);
+            tempRawFile.delete();
             sendProgress(-1, "Decode failed: " + e.getMessage());
             return;
         }
 
-        // Step 2: Separate stems via C++ (frequency-band + M/S spatial separation)
+        if (cancelled.get()) {
+            tempRawFile.delete();
+            sendProgress(-1, "Cancelled");
+            return;
+        }
+
+        // Step 2: Separate stems in C++ (all heavy memory in native heap)
         sendProgress(15, "Separating stems...");
 
-        File outDir = new File(outputDir);
-        if (!outDir.exists()) outDir.mkdirs();
+        boolean success = nativeSeparateStems(
+                tempRawFile.getAbsolutePath(), numFrames, sampleRate, outputDir);
 
-        int numFrames = pcmData.length / 2; // stereo → frame count
-        int stereoLen = numFrames * 2;
-
-        // Allocate output buffers for 4 stems
-        float[] vocalsData = new float[stereoLen];
-        float[] drumsData  = new float[stereoLen];
-        float[] bassData   = new float[stereoLen];
-        float[] otherData  = new float[stereoLen];
-
-        if (cancelled.get()) { sendProgress(-1, "Cancelled"); return; }
-
-        // Call native C++ separation (Butterworth crossovers + M/S decomposition)
-        boolean success = nativeSeparateStems(pcmData, numFrames, sampleRate,
-                vocalsData, drumsData, bassData, otherData);
+        // Clean up temp file
+        tempRawFile.delete();
 
         if (!success) {
             sendProgress(-1, "Native separation failed");
             return;
         }
-        sendProgress(60, "Stems separated");
-
-        // Step 3: Write 4 WAV files
-        String[] stemNames = {"vocals", "drums", "bass", "other"};
-        float[][] stemData = {vocalsData, drumsData, bassData, otherData};
-
-        for (int i = 0; i < 4; i++) {
-            if (cancelled.get()) { sendProgress(-1, "Cancelled"); return; }
-            sendProgress(60 + (i + 1) * 10, "Writing " + stemNames[i] + "...");
-            try {
-                writeWavFloat(new File(outDir, stemNames[i] + ".wav"),
-                        stemData[i], sampleRate, 2);
-            } catch (IOException e) {
-                Log.e(TAG, "Failed to write " + stemNames[i], e);
-                sendProgress(-1, "Write failed: " + e.getMessage());
-                return;
-            }
-        }
-
-        // Free large buffers early
-        vocalsData = null; drumsData = null; bassData = null; otherData = null;
-        pcmData = null;
 
         sendProgress(100, "Complete");
     }
 
     /**
-     * Decode audio file to interleaved float PCM using MediaCodec.
+     * Decode audio file to interleaved float PCM, streaming directly to a temp file.
+     * This avoids holding the entire decoded audio in Java heap (prevents OOM).
+     * Returns metadata (sampleRate, numFrames) or null on failure.
      */
-    private DecodedAudio decodeToFloat(String filePath) throws Exception {
+    private DecodedInfo decodeToFile(String filePath, File outputFile) throws Exception {
         MediaExtractor extractor = new MediaExtractor();
         extractor.setDataSource(filePath);
 
@@ -233,21 +213,17 @@ public class StemSeparationService extends Service {
         extractor.selectTrack(audioTrack);
         int sampleRate = format.getInteger(MediaFormat.KEY_SAMPLE_RATE);
         int channels = format.getInteger(MediaFormat.KEY_CHANNEL_COUNT);
-        long durationUs = format.containsKey(MediaFormat.KEY_DURATION)
-                ? format.getLong(MediaFormat.KEY_DURATION) : 0;
-
-        // Estimate output size
-        int estimatedFrames = (int) ((durationUs / 1_000_000.0) * sampleRate) + sampleRate;
-        int estimatedSamples = estimatedFrames * channels;
 
         String mime = format.getString(MediaFormat.KEY_MIME);
         MediaCodec codec = MediaCodec.createDecoderByType(mime);
         codec.configure(format, null, null, 0);
         codec.start();
 
-        float[] output = new float[estimatedSamples];
-        int outputPos = 0;
+        FileOutputStream fos = new FileOutputStream(outputFile);
+        // Small reusable buffer for float conversion — only a few KB in Java heap
+        ByteBuffer writeBuf = ByteBuffer.allocate(8192).order(ByteOrder.LITTLE_ENDIAN);
 
+        int totalSamples = 0;  // total float samples written (interleaved)
         MediaCodec.BufferInfo info = new MediaCodec.BufferInfo();
         boolean inputDone = false;
         boolean outputDone = false;
@@ -271,7 +247,7 @@ public class StemSeparationService extends Service {
                 }
             }
 
-            // Read output
+            // Read output and stream to file
             int outputIdx = codec.dequeueOutputBuffer(info, 10_000);
             if (outputIdx >= 0) {
                 if ((info.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) {
@@ -283,98 +259,55 @@ public class StemSeparationService extends Service {
                     outputBuf.order(ByteOrder.LITTLE_ENDIAN);
                     int shortCount = info.size / 2;
 
-                    // Grow buffer if needed
-                    if (outputPos + shortCount > output.length) {
-                        float[] bigger = new float[(outputPos + shortCount) * 2];
-                        System.arraycopy(output, 0, bigger, 0, outputPos);
-                        output = bigger;
-                    }
-
-                    // Convert 16-bit PCM to float
-                    for (int i = 0; i < shortCount; i++) {
-                        output[outputPos++] = outputBuf.getShort() / 32768.0f;
+                    if (channels == 1) {
+                        // Mono → stereo: duplicate each sample
+                        for (int i = 0; i < shortCount; i++) {
+                            float sample = outputBuf.getShort() / 32768.0f;
+                            writeBuf.putFloat(sample);
+                            writeBuf.putFloat(sample);
+                            totalSamples += 2;
+                            if (!writeBuf.hasRemaining()) {
+                                fos.write(writeBuf.array(), 0, writeBuf.position());
+                                writeBuf.clear();
+                            }
+                        }
+                    } else {
+                        // Stereo: convert 16-bit to float and write
+                        for (int i = 0; i < shortCount; i++) {
+                            float sample = outputBuf.getShort() / 32768.0f;
+                            writeBuf.putFloat(sample);
+                            totalSamples++;
+                            if (!writeBuf.hasRemaining()) {
+                                fos.write(writeBuf.array(), 0, writeBuf.position());
+                                writeBuf.clear();
+                            }
+                        }
                     }
                 }
                 codec.releaseOutputBuffer(outputIdx, false);
             }
         }
 
+        // Flush remaining data in writeBuf
+        if (writeBuf.position() > 0) {
+            fos.write(writeBuf.array(), 0, writeBuf.position());
+        }
+
+        fos.close();
         codec.stop();
         codec.release();
         extractor.release();
 
-        // Trim to actual size
-        if (outputPos < output.length) {
-            float[] trimmed = new float[outputPos];
-            System.arraycopy(output, 0, trimmed, 0, outputPos);
-            output = trimmed;
-        }
+        // numFrames = total stereo samples / 2 channels
+        int numFrames = totalSamples / 2;
 
-        // If mono, convert to stereo
-        if (channels == 1) {
-            float[] stereo = new float[output.length * 2];
-            for (int i = 0; i < output.length; i++) {
-                stereo[i * 2] = output[i];
-                stereo[i * 2 + 1] = output[i];
-            }
-            output = stereo;
-            channels = 2;
-        }
-
-        DecodedAudio result = new DecodedAudio();
-        result.samples = output;
+        DecodedInfo result = new DecodedInfo();
         result.sampleRate = sampleRate;
-        result.channels = channels;
+        result.numFrames = numFrames;
         return result;
     }
 
-    /**
-     * Write interleaved float PCM to a WAV file (IEEE float format).
-     */
-    private static void writeWavFloat(File file, float[] data, int sampleRate, int channels)
-            throws IOException {
-        int dataSize = data.length * 4; // float32 = 4 bytes
-        int fileSize = 44 + dataSize - 8;
-
-        FileOutputStream fos = new FileOutputStream(file);
-        ByteBuffer header = ByteBuffer.allocate(44).order(ByteOrder.LITTLE_ENDIAN);
-
-        // RIFF header
-        header.put("RIFF".getBytes());
-        header.putInt(fileSize);
-        header.put("WAVE".getBytes());
-
-        // fmt chunk
-        header.put("fmt ".getBytes());
-        header.putInt(16);                          // chunk size
-        header.putShort((short) 3);                 // IEEE float
-        header.putShort((short) channels);
-        header.putInt(sampleRate);
-        header.putInt(sampleRate * channels * 4);   // byte rate
-        header.putShort((short) (channels * 4));    // block align
-        header.putShort((short) 32);                // bits per sample
-
-        // data chunk
-        header.put("data".getBytes());
-        header.putInt(dataSize);
-
-        fos.write(header.array());
-
-        // Write float data in chunks
-        int chunkSize = 4096;
-        ByteBuffer buf = ByteBuffer.allocate(chunkSize * 4).order(ByteOrder.LITTLE_ENDIAN);
-        for (int i = 0; i < data.length; i += chunkSize) {
-            buf.clear();
-            int end = Math.min(i + chunkSize, data.length);
-            for (int j = i; j < end; j++) {
-                buf.putFloat(data[j]);
-            }
-            buf.flip();
-            fos.write(buf.array(), 0, buf.remaining());
-        }
-
-        fos.close();
-    }
+    // WAV writing is now handled in C++ (native heap) — removed writeWavFloat
 
     private void sendProgress(int percent, String message) {
         android.os.Handler mainHandler = new android.os.Handler(android.os.Looper.getMainLooper());
@@ -422,9 +355,8 @@ public class StemSeparationService extends Service {
         }
     }
 
-    private static class DecodedAudio {
-        float[] samples;
+    private static class DecodedInfo {
         int sampleRate;
-        int channels;
+        int numFrames;
     }
 }

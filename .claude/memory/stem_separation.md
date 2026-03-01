@@ -48,8 +48,17 @@
 - Drums: residual (original - bass - vocals - other)
 - Zero-phase filtering via forward-backward passes (no phase distortion)
 - Quality: ~3-5 dB SDR vocals, excellent bass isolation
-- JNI: `StemSeparationService.nativeSeparateStems()` → `StemSeparator::separate()`
+- JNI: file-based — `nativeSeparateStems(inputPath, numFrames, sampleRate, outputDir)` → `StemSeparator::separateFromFile()`
 - `separateCurrentSong()` clears old cache before re-processing
+
+## OOM Fix (Memory Architecture)
+- **Problem**: Java heap limit ~268MB; allocating input PCM + 4 output arrays (~70MB each) = ~350MB → OOM crash
+- **Solution**: All heavy memory in native C++ heap (not limited by Java heap)
+- **Flow**: Java `decodeToFile()` streams decoded PCM to temp `.pcm` file (8KB buffer, ~zero Java heap) → passes file path to C++ via JNI → C++ mmap's input, allocates output on native heap (`new float[]`), separates, writes WAV files directly → temp file deleted
+- `StemSeparator::separateFromFile()` handles mmap input + native alloc + WAV write
+- `StemSeparator::writeWavFile()` writes IEEE float32 WAV directly from C++
+- `DecodedAudio` class replaced by `DecodedInfo` (just sampleRate + numFrames metadata)
+- Key: Java never holds more than 8KB of audio data at once
 
 ## TODO (Phase 2 — Demucs ML for Better Quality)
 - Would upgrade vocals SDR from ~3-5 dB to ~9 dB

@@ -467,45 +467,29 @@ Java_x_a_zix_RoomEffectsProcessor_nativeGetStemTotalFrames(JNIEnv*, jobject, jlo
 
 JNIEXPORT jboolean JNICALL
 Java_x_a_zix_StemSeparationService_nativeSeparateStems(JNIEnv* env, jobject,
-                                                        jfloatArray pcm, jint numFrames,
+                                                        jstring inputPath,
+                                                        jint numFrames,
                                                         jint sampleRate,
-                                                        jfloatArray outVocals,
-                                                        jfloatArray outDrums,
-                                                        jfloatArray outBass,
-                                                        jfloatArray outOther) {
-    jfloat* input = env->GetFloatArrayElements(pcm, nullptr);
-    if (!input) return JNI_FALSE;
-
-    int outLen = numFrames * 2;  // stereo
-    jfloat* vocalsData = env->GetFloatArrayElements(outVocals, nullptr);
-    jfloat* drumsData  = env->GetFloatArrayElements(outDrums, nullptr);
-    jfloat* bassData   = env->GetFloatArrayElements(outBass, nullptr);
-    jfloat* otherData  = env->GetFloatArrayElements(outOther, nullptr);
-
-    if (!vocalsData || !drumsData || !bassData || !otherData) {
-        if (vocalsData) env->ReleaseFloatArrayElements(outVocals, vocalsData, JNI_ABORT);
-        if (drumsData)  env->ReleaseFloatArrayElements(outDrums, drumsData, JNI_ABORT);
-        if (bassData)   env->ReleaseFloatArrayElements(outBass, bassData, JNI_ABORT);
-        if (otherData)  env->ReleaseFloatArrayElements(outOther, otherData, JNI_ABORT);
-        env->ReleaseFloatArrayElements(pcm, input, JNI_ABORT);
+                                                        jstring outputDir) {
+    const char* input = env->GetStringUTFChars(inputPath, nullptr);
+    const char* outDir = env->GetStringUTFChars(outputDir, nullptr);
+    if (!input || !outDir) {
+        if (input) env->ReleaseStringUTFChars(inputPath, input);
+        if (outDir) env->ReleaseStringUTFChars(outputDir, outDir);
         return JNI_FALSE;
     }
 
-    LOGI("Stem separation: %d frames, %d Hz", numFrames, sampleRate);
+    LOGI("Stem separation (file-based): %d frames, %d Hz", numFrames, sampleRate);
+    LOGI("  input: %s", input);
+    LOGI("  output: %s", outDir);
 
-    StemSeparator::separate(input, numFrames, sampleRate,
-                            vocalsData, drumsData, bassData, otherData);
+    bool ok = StemSeparator::separateFromFile(input, numFrames, sampleRate, outDir);
 
-    LOGI("Stem separation complete");
+    env->ReleaseStringUTFChars(inputPath, input);
+    env->ReleaseStringUTFChars(outputDir, outDir);
 
-    // Release with 0 = copy back changes
-    env->ReleaseFloatArrayElements(outVocals, vocalsData, 0);
-    env->ReleaseFloatArrayElements(outDrums, drumsData, 0);
-    env->ReleaseFloatArrayElements(outBass, bassData, 0);
-    env->ReleaseFloatArrayElements(outOther, otherData, 0);
-    env->ReleaseFloatArrayElements(pcm, input, JNI_ABORT);
-
-    return JNI_TRUE;
+    LOGI("Stem separation %s", ok ? "complete" : "FAILED");
+    return ok ? JNI_TRUE : JNI_FALSE;
 }
 
 } // extern "C"
