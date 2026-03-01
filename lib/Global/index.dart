@@ -20,6 +20,7 @@ import '../pages/equalizer.dart';
 import '../player/lyrics_view.dart';
 import '../widgets/ArtworkWidget.dart';
 import '../widgets/listen_sheet.dart';
+import '../player/widgets/stem_button.dart';
 
 SystemUiOverlayStyle overlay = const SystemUiOverlayStyle(
   systemNavigationBarDividerColor: Colors.transparent,
@@ -129,6 +130,7 @@ Widget playerActionBar(AppController controller, BuildContext context) {
             );
           },
         ),
+        StemButton(controller: controller),
         _ActionItem(
           icon: Icons.hearing_rounded,
           label: 'Listen',

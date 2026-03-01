@@ -52,20 +52,23 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
     CloudView(),
   ];
 
+  bool _initialized = false;
+
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: TAB_COUNT, vsync: this);
     _isAndroid = Platform.isAndroid;
-
-    // Initialize permissions and settings
-    _initializeApp();
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     _appController = Provider.of<AppController>(context, listen: false);
+    if (!_initialized) {
+      _initialized = true;
+      _initializeApp();
+    }
   }
 
   Future<void> _initializeApp() async {

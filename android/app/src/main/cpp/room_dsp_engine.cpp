@@ -124,6 +124,15 @@ void RoomDSPEngine::recomputeAutoGain() {
 void RoomDSPEngine::process(float* buffer, int numFrames) {
     if (channels_ != 2 || numFrames <= 0) return;
 
+    // Stem mode: replace ExoPlayer's decoded audio with stem mixer output.
+    // ExoPlayer still provides timeline/seek/play-pause, but we override its
+    // audio content with our mixed stems. DSP chain continues as normal after.
+    bool doStems = stemModeActive_.load(std::memory_order_relaxed)
+                   && stemMixer_.isLoaded();
+    if (doStems) {
+        stemMixer_.mix(buffer, numFrames);
+    }
+
     bool doEq = eqEnabled_.load(std::memory_order_relaxed);
     bool doSpeakerEq = speakerEqEnabled_.load(std::memory_order_relaxed);
     bool doTone = tone_.isEnabled();
@@ -133,8 +142,9 @@ void RoomDSPEngine::process(float* buffer, int numFrames) {
     bool doReverb = reverbEnabled_.load(std::memory_order_relaxed);
     bool doLimiter = limiter_.isEnabled();
 
-    // Early out if nothing is enabled
-    if (!doEq && !doSpeakerEq && !doTone && !doMbc && !doExpand && !doCrossfeed && !doReverb && !doLimiter) return;
+    // Early out if nothing is enabled (but always continue if stems are active
+    // since the buffer was just replaced and may need DSP processing)
+    if (!doStems && !doEq && !doSpeakerEq && !doTone && !doMbc && !doExpand && !doCrossfeed && !doReverb && !doLimiter) return;
 
     // Deinterleave to separate L/R channels
     constexpr int STACK_LIMIT = 2048;

@@ -109,6 +109,11 @@ public class MainActivity extends AudioServiceFragmentActivity {
                 flutterEngine.getDartExecutor().getBinaryMessenger(), "eq_app/dvc_volume_button");
         DvcController.setupEventChannel(dvcEventChannel);
 
+        // Stem separation EventChannel
+        EventChannel stemEventChannel = new EventChannel(
+                flutterEngine.getDartExecutor().getBinaryMessenger(), "eq_app/stem_progress");
+        StemSeparationService.setupEventChannel(stemEventChannel);
+
         // projectM renderer init
         projectMRenderer = new ProjectMRenderer(this, flutterEngine.getRenderer());
 
@@ -585,6 +590,98 @@ public class MainActivity extends AudioServiceFragmentActivity {
                         case "clearSpeakerEq": {
                             RoomEffectsProcessor.broadcastClearSpeakerEq();
                             result.success(null);
+                            break;
+                        }
+
+                        // ==================== Stem Separation ====================
+                        case "separateStems": {
+                            String sepFilePath = call.argument("filePath");
+                            String sepOutputDir = call.argument("outputDir");
+                            Intent sepIntent = new Intent(MainActivity.this, StemSeparationService.class);
+                            sepIntent.putExtra("filePath", sepFilePath);
+                            sepIntent.putExtra("outputDir", sepOutputDir);
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                startForegroundService(sepIntent);
+                            } else {
+                                startService(sepIntent);
+                            }
+                            result.success(true);
+                            break;
+                        }
+                        case "cancelStemSeparation": {
+                            Intent cancelIntent = new Intent(MainActivity.this, StemSeparationService.class);
+                            cancelIntent.setAction("CANCEL");
+                            startService(cancelIntent);
+                            result.success(null);
+                            break;
+                        }
+
+                        // ==================== Stem Mixer ====================
+                        case "loadStems": {
+                            String vocalsPath = call.argument("vocals");
+                            String drumsPath = call.argument("drums");
+                            String bassPath = call.argument("bass");
+                            String otherPath = call.argument("other");
+                            String[] stemPaths = {vocalsPath, drumsPath, bassPath, otherPath};
+                            RoomEffectsProcessor.broadcastLoadStems(stemPaths);
+                            result.success(true);
+                            break;
+                        }
+                        case "unloadStems": {
+                            RoomEffectsProcessor.broadcastUnloadStems();
+                            result.success(null);
+                            break;
+                        }
+                        case "activateStemMode": {
+                            RoomEffectsProcessor.broadcastStemModeActive(true);
+                            result.success(null);
+                            break;
+                        }
+                        case "deactivateStemMode": {
+                            RoomEffectsProcessor.broadcastStemModeActive(false);
+                            result.success(null);
+                            break;
+                        }
+                        case "setStemVolume": {
+                            int stemIdx = call.argument("stem");
+                            double stemVol = call.argument("volume");
+                            RoomEffectsProcessor.broadcastStemVolume(stemIdx, (float) stemVol);
+                            result.success(null);
+                            break;
+                        }
+                        case "setStemMute": {
+                            int stemMuteIdx = call.argument("stem");
+                            boolean stemMuted = call.argument("muted");
+                            RoomEffectsProcessor.broadcastStemMute(stemMuteIdx, stemMuted);
+                            result.success(null);
+                            break;
+                        }
+                        case "setStemSolo": {
+                            int stemSoloIdx = call.argument("stem");
+                            boolean stemSoloed = call.argument("soloed");
+                            RoomEffectsProcessor.broadcastStemSolo(stemSoloIdx, stemSoloed);
+                            result.success(null);
+                            break;
+                        }
+                        case "stemSeek": {
+                            long stemSeekPos = ((Number) call.argument("samplePosition")).longValue();
+                            RoomEffectsProcessor.broadcastStemSeek(stemSeekPos);
+                            result.success(null);
+                            break;
+                        }
+                        case "checkStemsExist": {
+                            String checkPath = call.argument("dirPath");
+                            if (checkPath != null) {
+                                File dir = new File(checkPath);
+                                boolean exists = dir.exists()
+                                    && new File(dir, "vocals.wav").exists()
+                                    && new File(dir, "drums.wav").exists()
+                                    && new File(dir, "bass.wav").exists()
+                                    && new File(dir, "other.wav").exists();
+                                result.success(exists);
+                            } else {
+                                result.success(false);
+                            }
                             break;
                         }
 

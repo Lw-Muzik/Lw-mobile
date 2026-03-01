@@ -82,6 +82,13 @@ public class RoomEffectsProcessor extends BaseAudioProcessor {
     private static volatile float cachedLimiterRelease = 50f;
     private static volatile float cachedLimiterKnee = 6f;
 
+    // Cached Stem mixer state
+    private static volatile boolean cachedStemModeActive = false;
+    private static volatile String[] cachedStemPaths = null;
+    private static final float[] cachedStemVolumes = {1.0f, 1.0f, 1.0f, 1.0f};
+    private static final boolean[] cachedStemMutes = {false, false, false, false};
+    private static final boolean[] cachedStemSolos = {false, false, false, false};
+
     // Cached Speaker correction EQ (AutoEq headphone profiles)
     private static volatile boolean cachedSpeakerEqEnabled = false;
     private static volatile int cachedSpeakerBandCount = 0;
@@ -251,6 +258,16 @@ public class RoomEffectsProcessor extends BaseAudioProcessor {
                     cachedSpeakerEqGains[i], cachedSpeakerEqQs[i],
                     cachedSpeakerEqTypes[i], true);
         }
+        // Stem mixer state
+        if (cachedStemPaths != null) {
+            nativeLoadStems(nativeHandle, cachedStemPaths);
+        }
+        nativeSetStemModeActive(nativeHandle, cachedStemModeActive);
+        for (int i = 0; i < 4; i++) {
+            nativeSetStemVolume(nativeHandle, i, cachedStemVolumes[i]);
+            nativeSetStemMute(nativeHandle, i, cachedStemMutes[i]);
+            nativeSetStemSolo(nativeHandle, i, cachedStemSolos[i]);
+        }
     }
 
     // ---- Instance methods (called on specific instance) ----
@@ -411,6 +428,36 @@ public class RoomEffectsProcessor extends BaseAudioProcessor {
 
     public void setLimiterKnee(float dB) {
         if (nativeHandle != 0) nativeSetLimiterKnee(nativeHandle, dB);
+    }
+
+    // Stem mixer instance methods
+    public void setStemModeActive(boolean active) {
+        if (nativeHandle != 0) nativeSetStemModeActive(nativeHandle, active);
+    }
+
+    public boolean loadStems(String[] paths) {
+        if (nativeHandle != 0) return nativeLoadStems(nativeHandle, paths);
+        return false;
+    }
+
+    public void unloadStems() {
+        if (nativeHandle != 0) nativeUnloadStems(nativeHandle);
+    }
+
+    public void setStemVolume(int stem, float vol) {
+        if (nativeHandle != 0) nativeSetStemVolume(nativeHandle, stem, vol);
+    }
+
+    public void setStemMute(int stem, boolean muted) {
+        if (nativeHandle != 0) nativeSetStemMute(nativeHandle, stem, muted);
+    }
+
+    public void setStemSolo(int stem, boolean soloed) {
+        if (nativeHandle != 0) nativeSetStemSolo(nativeHandle, stem, soloed);
+    }
+
+    public void stemSeek(long samplePos) {
+        if (nativeHandle != 0) nativeStemSeek(nativeHandle, samplePos);
     }
 
     // ---- Static broadcast methods (called from MainActivity via MethodChannel) ----
@@ -719,6 +766,46 @@ public class RoomEffectsProcessor extends BaseAudioProcessor {
         for (RoomEffectsProcessor p : playerInstances) p.setLimiterKnee(dB);
     }
 
+    // ---- Stem mixer broadcast methods ----
+
+    public static void broadcastStemModeActive(boolean active) {
+        cachedStemModeActive = active;
+        for (RoomEffectsProcessor p : playerInstances) p.setStemModeActive(active);
+    }
+
+    public static void broadcastLoadStems(String[] paths) {
+        cachedStemPaths = paths.clone();
+        for (RoomEffectsProcessor p : playerInstances) p.loadStems(paths);
+    }
+
+    public static void broadcastUnloadStems() {
+        cachedStemPaths = null;
+        cachedStemModeActive = false;
+        for (RoomEffectsProcessor p : playerInstances) {
+            p.unloadStems();
+            p.setStemModeActive(false);
+        }
+    }
+
+    public static void broadcastStemVolume(int stem, float vol) {
+        if (stem >= 0 && stem < 4) cachedStemVolumes[stem] = vol;
+        for (RoomEffectsProcessor p : playerInstances) p.setStemVolume(stem, vol);
+    }
+
+    public static void broadcastStemMute(int stem, boolean muted) {
+        if (stem >= 0 && stem < 4) cachedStemMutes[stem] = muted;
+        for (RoomEffectsProcessor p : playerInstances) p.setStemMute(stem, muted);
+    }
+
+    public static void broadcastStemSolo(int stem, boolean soloed) {
+        if (stem >= 0 && stem < 4) cachedStemSolos[stem] = soloed;
+        for (RoomEffectsProcessor p : playerInstances) p.setStemSolo(stem, soloed);
+    }
+
+    public static void broadcastStemSeek(long samplePos) {
+        for (RoomEffectsProcessor p : playerInstances) p.stemSeek(samplePos);
+    }
+
     // ---- Native methods ----
 
     private native long nativeCreate(int sampleRate, int channels);
@@ -785,4 +872,16 @@ public class RoomEffectsProcessor extends BaseAudioProcessor {
                                                 float gainDb, float q, int filterType,
                                                 boolean enabled);
     private native void nativeClearSpeakerEq(long handle);
+
+    // Stem mixer natives
+    private native boolean nativeLoadStems(long handle, String[] paths);
+    private native void nativeUnloadStems(long handle);
+    private native void nativeSetStemModeActive(long handle, boolean active);
+    private native void nativeSetStemVolume(long handle, int stem, float vol);
+    private native void nativeSetStemMute(long handle, int stem, boolean muted);
+    private native void nativeSetStemSolo(long handle, int stem, boolean soloed);
+    private native void nativeStemSeek(long handle, long samplePos);
+    private native boolean nativeAreStemsLoaded(long handle);
+    private native long nativeGetStemPosition(long handle);
+    private native long nativeGetStemTotalFrames(long handle);
 }

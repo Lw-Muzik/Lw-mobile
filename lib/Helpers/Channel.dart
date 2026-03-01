@@ -468,6 +468,77 @@ class Channel {
     return Map<String, dynamic>.from(result);
   }
 
+  // ==================== Stem Separation ====================
+
+  static Future<bool> separateStems(String filePath, String outputDir) async {
+    return await _invokeRequired<bool>("separateStems", false, {
+      "filePath": filePath,
+      "outputDir": outputDir,
+    });
+  }
+
+  static Future<void> cancelStemSeparation() async {
+    await _invoke("cancelStemSeparation");
+  }
+
+  static Future<bool> checkStemsExist(String dirPath) async {
+    return await _invokeRequired<bool>("checkStemsExist", false, {
+      "dirPath": dirPath,
+    });
+  }
+
+  // ==================== Stem Mixer ====================
+
+  static Future<bool> loadStems({
+    required String vocalsPath,
+    required String drumsPath,
+    required String bassPath,
+    required String otherPath,
+  }) async {
+    return await _invokeRequired<bool>("loadStems", false, {
+      "vocals": vocalsPath,
+      "drums": drumsPath,
+      "bass": bassPath,
+      "other": otherPath,
+    });
+  }
+
+  static Future<void> unloadStems() async {
+    await _invoke("unloadStems");
+  }
+
+  static Future<void> activateStemMode() async {
+    await _invoke("activateStemMode");
+  }
+
+  static Future<void> deactivateStemMode() async {
+    await _invoke("deactivateStemMode");
+  }
+
+  static Future<void> setStemVolume(int stem, double volume) async {
+    await _invoke("setStemVolume", {"stem": stem, "volume": volume});
+  }
+
+  static Future<void> setStemMute(int stem, bool muted) async {
+    await _invoke("setStemMute", {"stem": stem, "muted": muted});
+  }
+
+  static Future<void> setStemSolo(int stem, bool soloed) async {
+    await _invoke("setStemSolo", {"stem": stem, "soloed": soloed});
+  }
+
+  static Future<void> stemSeek(int samplePosition) async {
+    await _invoke("stemSeek", {"samplePosition": samplePosition});
+  }
+
+  static const EventChannel _stemProgressChannel =
+      EventChannel("eq_app/stem_progress");
+
+  static Stream<Map<String, dynamic>> get stemProgressStream =>
+      _stemProgressChannel
+          .receiveBroadcastStream()
+          .map((event) => Map<String, dynamic>.from(event as Map));
+
   // ==================== Lyrics ====================
 
   /// Reads embedded lyrics from any audio format (MP3, M4A, FLAC, OGG, WMA).

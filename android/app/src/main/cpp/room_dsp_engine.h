@@ -6,6 +6,7 @@
 #include "fdn_reverb.h"
 #include "stereo_expander.h"
 #include "crossfeed.h"
+#include "stem_mixer.h"
 #include <atomic>
 
 // Main DSP engine orchestrator — professional-grade signal chain.
@@ -119,6 +120,22 @@ public:
     bool isStereoExpandEnabled() const      { return stereoExpandEnabled_.load(); }
     bool isCrossfeedEnabled() const         { return crossfeedEnabled_.load(); }
 
+    // Stem mixer controls
+    void setStemModeActive(bool active)     { stemModeActive_.store(active); }
+    bool isStemModeActive() const           { return stemModeActive_.load(); }
+
+    bool loadStems(const char* paths[StemMixer::NUM_STEMS]) {
+        return stemMixer_.loadStems(paths);
+    }
+    void unloadStems()                      { stemMixer_.unloadStems(); }
+    void setStemVolume(int stem, float vol)  { stemMixer_.setVolume(stem, vol); }
+    void setStemMute(int stem, bool muted)   { stemMixer_.setMute(stem, muted); }
+    void setStemSolo(int stem, bool soloed)  { stemMixer_.setSolo(stem, soloed); }
+    void stemSeek(size_t samplePos)          { stemMixer_.seek(samplePos); }
+    bool areStemsLoaded() const             { return stemMixer_.isLoaded(); }
+    size_t getStemPosition() const          { return stemMixer_.getPosition(); }
+    size_t getStemTotalFrames() const       { return stemMixer_.getTotalFrames(); }
+
 private:
     // EQ
     ParametricEQ graphicEq_;
@@ -158,4 +175,8 @@ private:
 
     // Per-sample smoothing coefficient — computed from sample rate
     float smoothCoeff_ = 0.001f;
+
+    // Stem mixer — replaces ExoPlayer audio when active
+    StemMixer stemMixer_;
+    std::atomic<bool> stemModeActive_{false};
 };

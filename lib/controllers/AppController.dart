@@ -25,6 +25,7 @@ import '../services/fingerprint_service.dart';
 import '../models/lyrics_model.dart';
 import '../models/recognition_result.dart';
 import '../models/speaker_profile.dart';
+import 'stem_controller.dart';
 
 class AppController with ChangeNotifier {
   static AppController? _instance;
@@ -144,6 +145,9 @@ class AppController with ChangeNotifier {
   bool _speakerEqEnabled = false;
   String? _activeSpeakerProfile;
   final SpeakerProfileService _speakerProfileService = SpeakerProfileService();
+
+  // Stem separation
+  final StemController stemController = StemController();
 
   // Song grid scale getters/setters
   int get songGridScale => _songGridScale;
@@ -1444,6 +1448,10 @@ class AppController with ChangeNotifier {
     _songId = id;
     notifyListeners();
     _loadLyricsForCurrentSong();
+    // Check stem availability for new song
+    if (songs.isNotEmpty && id >= 0 && id < songs.length) {
+      stemController.onSongChanged(songs[id].data);
+    }
   }
 
   Future<void> _loadLyricsForCurrentSong() async {

@@ -1,6 +1,7 @@
 #include <jni.h>
 #include <android/log.h>
 #include "room_dsp_engine.h"
+#include "stem_separator.h"
 
 #define LOG_TAG "HypeDSP"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
@@ -373,6 +374,138 @@ JNIEXPORT void JNICALL
 Java_x_a_zix_RoomEffectsProcessor_nativeSetLimiterKnee(JNIEnv*, jobject, jlong handle, jfloat dB) {
     auto* engine = reinterpret_cast<RoomDSPEngine*>(handle);
     if (engine) engine->setLimiterKnee(dB);
+}
+
+// --- Stem mixer controls ---
+
+JNIEXPORT jboolean JNICALL
+Java_x_a_zix_RoomEffectsProcessor_nativeLoadStems(JNIEnv* env, jobject, jlong handle,
+                                                    jobjectArray paths) {
+    auto* engine = reinterpret_cast<RoomDSPEngine*>(handle);
+    if (!engine) return JNI_FALSE;
+
+    int count = env->GetArrayLength(paths);
+    if (count != StemMixer::NUM_STEMS) return JNI_FALSE;
+
+    const char* cPaths[StemMixer::NUM_STEMS];
+    jstring jPaths[StemMixer::NUM_STEMS];
+    for (int i = 0; i < StemMixer::NUM_STEMS; i++) {
+        jPaths[i] = (jstring)env->GetObjectArrayElement(paths, i);
+        cPaths[i] = env->GetStringUTFChars(jPaths[i], nullptr);
+    }
+
+    bool ok = engine->loadStems(cPaths);
+
+    for (int i = 0; i < StemMixer::NUM_STEMS; i++) {
+        env->ReleaseStringUTFChars(jPaths[i], cPaths[i]);
+    }
+
+    return ok ? JNI_TRUE : JNI_FALSE;
+}
+
+JNIEXPORT void JNICALL
+Java_x_a_zix_RoomEffectsProcessor_nativeUnloadStems(JNIEnv*, jobject, jlong handle) {
+    auto* engine = reinterpret_cast<RoomDSPEngine*>(handle);
+    if (engine) engine->unloadStems();
+}
+
+JNIEXPORT void JNICALL
+Java_x_a_zix_RoomEffectsProcessor_nativeSetStemModeActive(JNIEnv*, jobject, jlong handle, jboolean active) {
+    auto* engine = reinterpret_cast<RoomDSPEngine*>(handle);
+    if (engine) engine->setStemModeActive(active);
+}
+
+JNIEXPORT void JNICALL
+Java_x_a_zix_RoomEffectsProcessor_nativeSetStemVolume(JNIEnv*, jobject, jlong handle,
+                                                       jint stem, jfloat vol) {
+    auto* engine = reinterpret_cast<RoomDSPEngine*>(handle);
+    if (engine) engine->setStemVolume(stem, vol);
+}
+
+JNIEXPORT void JNICALL
+Java_x_a_zix_RoomEffectsProcessor_nativeSetStemMute(JNIEnv*, jobject, jlong handle,
+                                                      jint stem, jboolean muted) {
+    auto* engine = reinterpret_cast<RoomDSPEngine*>(handle);
+    if (engine) engine->setStemMute(stem, muted);
+}
+
+JNIEXPORT void JNICALL
+Java_x_a_zix_RoomEffectsProcessor_nativeSetStemSolo(JNIEnv*, jobject, jlong handle,
+                                                      jint stem, jboolean soloed) {
+    auto* engine = reinterpret_cast<RoomDSPEngine*>(handle);
+    if (engine) engine->setStemSolo(stem, soloed);
+}
+
+JNIEXPORT void JNICALL
+Java_x_a_zix_RoomEffectsProcessor_nativeStemSeek(JNIEnv*, jobject, jlong handle, jlong samplePos) {
+    auto* engine = reinterpret_cast<RoomDSPEngine*>(handle);
+    if (engine) engine->stemSeek(static_cast<size_t>(samplePos));
+}
+
+JNIEXPORT jboolean JNICALL
+Java_x_a_zix_RoomEffectsProcessor_nativeAreStemsLoaded(JNIEnv*, jobject, jlong handle) {
+    auto* engine = reinterpret_cast<RoomDSPEngine*>(handle);
+    if (!engine) return JNI_FALSE;
+    return engine->areStemsLoaded() ? JNI_TRUE : JNI_FALSE;
+}
+
+JNIEXPORT jlong JNICALL
+Java_x_a_zix_RoomEffectsProcessor_nativeGetStemPosition(JNIEnv*, jobject, jlong handle) {
+    auto* engine = reinterpret_cast<RoomDSPEngine*>(handle);
+    if (!engine) return 0;
+    return static_cast<jlong>(engine->getStemPosition());
+}
+
+JNIEXPORT jlong JNICALL
+Java_x_a_zix_RoomEffectsProcessor_nativeGetStemTotalFrames(JNIEnv*, jobject, jlong handle) {
+    auto* engine = reinterpret_cast<RoomDSPEngine*>(handle);
+    if (!engine) return 0;
+    return static_cast<jlong>(engine->getStemTotalFrames());
+}
+
+// --- Stem separation (offline, called from StemSeparationService) ---
+
+JNIEXPORT jboolean JNICALL
+Java_x_a_zix_StemSeparationService_nativeSeparateStems(JNIEnv* env, jobject,
+                                                        jfloatArray pcm, jint numFrames,
+                                                        jint sampleRate,
+                                                        jfloatArray outVocals,
+                                                        jfloatArray outDrums,
+                                                        jfloatArray outBass,
+                                                        jfloatArray outOther) {
+    jfloat* input = env->GetFloatArrayElements(pcm, nullptr);
+    if (!input) return JNI_FALSE;
+
+    int outLen = numFrames * 2;  // stereo
+    jfloat* vocalsData = env->GetFloatArrayElements(outVocals, nullptr);
+    jfloat* drumsData  = env->GetFloatArrayElements(outDrums, nullptr);
+    jfloat* bassData   = env->GetFloatArrayElements(outBass, nullptr);
+    jfloat* otherData  = env->GetFloatArrayElements(outOther, nullptr);
+
+    if (!vocalsData || !drumsData || !bassData || !otherData) {
+        if (vocalsData) env->ReleaseFloatArrayElements(outVocals, vocalsData, JNI_ABORT);
+        if (drumsData)  env->ReleaseFloatArrayElements(outDrums, drumsData, JNI_ABORT);
+        if (bassData)   env->ReleaseFloatArrayElements(outBass, bassData, JNI_ABORT);
+        if (otherData)  env->ReleaseFloatArrayElements(outOther, otherData, JNI_ABORT);
+        env->ReleaseFloatArrayElements(pcm, input, JNI_ABORT);
+        return JNI_FALSE;
+    }
+
+    LOGI("Stem separation: %d frames, %d Hz", numFrames, sampleRate);
+
+    StemSeparator::separate(input, numFrames, sampleRate,
+                            vocalsData, drumsData, bassData, otherData);
+
+    LOGI("Stem separation complete");
+
+    // Release with 0 = copy back changes
+    env->ReleaseFloatArrayElements(outVocals, vocalsData, 0);
+    env->ReleaseFloatArrayElements(outDrums, drumsData, 0);
+    env->ReleaseFloatArrayElements(outBass, bassData, 0);
+    env->ReleaseFloatArrayElements(outOther, otherData, 0);
+    env->ReleaseFloatArrayElements(pcm, input, JNI_ABORT);
+
+    return JNI_TRUE;
 }
 
 } // extern "C"
