@@ -1380,7 +1380,7 @@ class AppController with ChangeNotifier {
   /// and notifies all listeners so every screen rebuilds with fresh data.
   /// If the song is the currently playing track, also updates the media
   /// notification and reloads lyrics.
-  Future<void> updateSongMetadata(SongModel song, RecognitionResult result) async {
+  Future<void> updateSongMetadata(SongModel song, RecognitionResult result, {bool artworkChanged = false}) async {
     // Mutate the in-memory SongModel fields
     if (result.title != null && result.title!.isNotEmpty) {
       song.getMap['title'] = result.title;
@@ -1392,13 +1392,16 @@ class AppController with ChangeNotifier {
       song.getMap['album'] = result.album;
     }
 
-    // Delete cached artwork so it re-extracts from the updated file
-    try {
-      final tempDir = await getTemporaryDirectory();
-      final artKey = song.data.split('/').last.split('.').first;
-      final cachedArt = File('${tempDir.path}/$artKey.png');
-      if (cachedArt.existsSync()) cachedArt.deleteSync();
-    } catch (_) {}
+    // Only delete cached artwork when new artwork was actually written,
+    // so existing artwork isn't removed
+    if (artworkChanged) {
+      try {
+        final tempDir = await getTemporaryDirectory();
+        final artKey = song.data.split('/').last.split('.').first;
+        final cachedArt = File('${tempDir.path}/$artKey.png');
+        if (cachedArt.existsSync()) cachedArt.deleteSync();
+      } catch (_) {}
+    }
 
     // Invalidate fingerprint cache for this file
     fingerprintService.invalidateCache(song.data);

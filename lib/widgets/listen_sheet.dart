@@ -113,7 +113,7 @@ class _ListenSheetState extends State<ListenSheet>
       if (!mounted) return;
 
       // Update in-memory state immediately
-      await controller.updateSongMetadata(song, _result!);
+      await controller.updateSongMetadata(song, _result!, artworkChanged: _artworkPath != null);
 
       if (!mounted) return;
       Navigator.of(context).pop();
