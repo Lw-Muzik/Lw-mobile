@@ -123,4 +123,12 @@ class ProjectMController {
       {'width': width, 'height': height},
     );
   }
+
+  /// Set the mesh grid resolution (affects geometry complexity).
+  Future<void> setMeshSize(int width, int height) async {
+    await Channel.channel.invokeMethod(
+      'projectm_set_mesh_size',
+      {'width': width, 'height': height},
+    );
+  }
 }
