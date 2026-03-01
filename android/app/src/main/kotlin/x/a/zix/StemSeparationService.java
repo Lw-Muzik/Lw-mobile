@@ -43,7 +43,7 @@ import io.flutter.plugin.common.EventChannel;
 public class StemSeparationService extends Service {
     private static final String TAG = "StemSeparation";
     private static final String CHANNEL_ID = "stem_separation";
-    private static final int NOTIFICATION_ID = 9001;
+    private static final int NOTIFICATION_ID = 9003;
 
     static {
         System.loadLibrary("eq_app");

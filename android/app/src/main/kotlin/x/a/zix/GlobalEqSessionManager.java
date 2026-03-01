@@ -121,7 +121,9 @@ public class GlobalEqSessionManager {
                 /* limiterInUse */ true
         );
 
-        DynamicsProcessing dp = new DynamicsProcessing(0, sessionId, builder.build());
+        // Priority: higher = takes precedence over other audio effects on this session.
+        // Use max priority so Hype EQ overrides system/OEM equalizers.
+        DynamicsProcessing dp = new DynamicsProcessing(Integer.MAX_VALUE, sessionId, builder.build());
         applyState(dp);
         return dp;
     }
