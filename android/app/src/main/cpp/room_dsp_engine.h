@@ -11,10 +11,10 @@
 // Main DSP engine orchestrator — professional-grade signal chain.
 //
 // Processing chain:
-//   [Preamp] -> [Graphic EQ 32-band] -> [Parametric EQ 32-band]
-//   -> [Tone Controls (Bass/Treble)] -> [MBC 10-band]
-//   -> [Stereo Expander] -> [Crossfeed] -> [FDN Reverb]
-//   -> [Output Limiter] -> Output
+//   [Preamp] -> [Speaker Correction EQ] -> [Graphic EQ 32-band]
+//   -> [Parametric EQ 32-band] -> [Tone Controls (Bass/Treble)]
+//   -> [MBC 10-band] -> [Stereo Expander] -> [Crossfeed]
+//   -> [FDN Reverb] -> [Output Limiter] -> Output
 //
 // Key design decisions:
 //   - Full auto-gain: preamp is reduced by the single highest band boost.
@@ -55,6 +55,13 @@ public:
     void setParametricAllBands(const float* freqs, const float* gains,
                                const float* qs, int count);
     void recomputeAutoGain();
+
+    // Speaker correction EQ (AutoEq headphone profiles)
+    void setSpeakerEqEnabled(bool enabled)  { speakerEqEnabled_.store(enabled); }
+    bool isSpeakerEqEnabled() const         { return speakerEqEnabled_.load(); }
+    void setSpeakerEqBand(int band, float freq, float gainDb, float q,
+                          int filterType, bool enabled);
+    void clearSpeakerEq();
 
     // Tone controls (independent bass/treble knobs)
     void setToneEnabled(bool enabled)       { tone_.setEnabled(enabled); }
@@ -117,6 +124,10 @@ private:
     ParametricEQ graphicEq_;
     ParametricEQ parametricEq_;
     std::atomic<bool> eqEnabled_{false};
+
+    // Speaker correction EQ (independent from user EQ)
+    ParametricEQ speakerEq_;
+    std::atomic<bool> speakerEqEnabled_{false};
 
     // Tone controls (bass/treble shelf filters)
     ToneControls tone_;

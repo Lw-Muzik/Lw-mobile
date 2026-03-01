@@ -162,6 +162,24 @@ class Channel {
           .receiveBroadcastStream()
           .map((event) => event.toString());
 
+  // ==================== Global EQ (System-Wide) ====================
+
+  /// Enable or disable global EQ (applies EQ to all apps).
+  /// Returns true if the command was accepted, false if API < 28.
+  static Future<bool> enableGlobalEq(bool enable) async {
+    return await _invokeRequired<bool>("enableGlobalEq", false, {"enable": enable});
+  }
+
+  /// Check if global EQ is currently running.
+  static Future<bool> isGlobalEqEnabled() async {
+    return await _invokeRequired<bool>("isGlobalEqEnabled", false);
+  }
+
+  /// Check if global EQ is available on this device (API 28+).
+  static Future<bool> isGlobalEqAvailable() async {
+    return await _invokeRequired<bool>("isGlobalEqAvailable", false);
+  }
+
   // ==================== Custom DSP Room Effects ====================
 
   /// Enable/disable FDN reverb
@@ -276,6 +294,29 @@ class Channel {
   /// Limiter soft knee width in dB (0 - 12, default 6)
   static Future<void> dspSetLimiterKnee(double dB) async {
     await _invoke("dspSetLimiterKnee", {"value": dB});
+  }
+
+  // ==================== Speaker Correction EQ (AutoEq) ====================
+
+  static Future<void> setSpeakerEqEnabled(bool enabled) async {
+    await _invoke("setSpeakerEqEnabled", {"enabled": enabled});
+  }
+
+  static Future<void> setSpeakerEqBands(List<Map<String, dynamic>> bands) async {
+    final freqs = bands.map((b) => (b['fc'] as num).toDouble()).toList();
+    final gains = bands.map((b) => (b['gain'] as num).toDouble()).toList();
+    final qs = bands.map((b) => (b['q'] as num).toDouble()).toList();
+    final types = bands.map((b) => (b['type'] as int)).toList();
+    await _invoke("setSpeakerEqBands", {
+      "freqs": freqs,
+      "gains": gains,
+      "qs": qs,
+      "types": types,
+    });
+  }
+
+  static Future<void> clearSpeakerEq() async {
+    await _invoke("clearSpeakerEq");
   }
 
   // ----------- MBC Compressor (C++ pipeline) ------------------

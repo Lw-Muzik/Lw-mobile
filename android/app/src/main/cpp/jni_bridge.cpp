@@ -283,6 +283,28 @@ Java_x_a_zix_RoomEffectsProcessor_nativeSetMbcPostGain(JNIEnv*, jobject, jlong h
     if (engine) engine->setMbcPostGain(dB);
 }
 
+// --- Speaker correction EQ ---
+
+JNIEXPORT void JNICALL
+Java_x_a_zix_RoomEffectsProcessor_nativeSetSpeakerEqEnabled(JNIEnv*, jobject, jlong handle, jboolean enabled) {
+    auto* engine = reinterpret_cast<RoomDSPEngine*>(handle);
+    if (engine) engine->setSpeakerEqEnabled(enabled);
+}
+
+JNIEXPORT void JNICALL
+Java_x_a_zix_RoomEffectsProcessor_nativeSetSpeakerEqBand(JNIEnv*, jobject, jlong handle,
+                                                          jint band, jfloat freq, jfloat gainDb,
+                                                          jfloat q, jint filterType, jboolean enabled) {
+    auto* engine = reinterpret_cast<RoomDSPEngine*>(handle);
+    if (engine) engine->setSpeakerEqBand(band, freq, gainDb, q, filterType, enabled);
+}
+
+JNIEXPORT void JNICALL
+Java_x_a_zix_RoomEffectsProcessor_nativeClearSpeakerEq(JNIEnv*, jobject, jlong handle) {
+    auto* engine = reinterpret_cast<RoomDSPEngine*>(handle);
+    if (engine) engine->clearSpeakerEq();
+}
+
 // --- Tone controls (bass/treble) ---
 
 JNIEXPORT void JNICALL

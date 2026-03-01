@@ -553,6 +553,72 @@ public class MainActivity extends AudioServiceFragmentActivity {
                             break;
                         }
 
+                        // ==================== Speaker Correction EQ (AutoEq) ====================
+                        case "setSpeakerEqEnabled": {
+                            boolean spkEn = call.argument("enabled");
+                            RoomEffectsProcessor.broadcastSpeakerEqEnabled(spkEn);
+                            result.success(null);
+                            break;
+                        }
+                        case "setSpeakerEqBands": {
+                            ArrayList<Double> spkFreqs = call.argument("freqs");
+                            ArrayList<Double> spkGains = call.argument("gains");
+                            ArrayList<Double> spkQs = call.argument("qs");
+                            ArrayList<Integer> spkTypes = call.argument("types");
+                            if (spkFreqs != null && spkGains != null && spkQs != null && spkTypes != null) {
+                                int spkCount = spkFreqs.size();
+                                float[] sf = new float[spkCount];
+                                float[] sg = new float[spkCount];
+                                float[] sq = new float[spkCount];
+                                int[] st = new int[spkCount];
+                                for (int si = 0; si < spkCount; si++) {
+                                    sf[si] = spkFreqs.get(si).floatValue();
+                                    sg[si] = spkGains.get(si).floatValue();
+                                    sq[si] = spkQs.get(si).floatValue();
+                                    st[si] = spkTypes.get(si);
+                                }
+                                RoomEffectsProcessor.broadcastSpeakerEqBands(sf, sg, sq, st, spkCount);
+                            }
+                            result.success(null);
+                            break;
+                        }
+                        case "clearSpeakerEq": {
+                            RoomEffectsProcessor.broadcastClearSpeakerEq();
+                            result.success(null);
+                            break;
+                        }
+
+                        // ==================== Global EQ (System-Wide) ====================
+                        case "enableGlobalEq": {
+                            boolean globalOn = call.argument("enable");
+                            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
+                                result.success(false);
+                                break;
+                            }
+                            if (globalOn) {
+                                Intent svc = new Intent(getApplicationContext(), GlobalEqService.class);
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                    startForegroundService(svc);
+                                } else {
+                                    startService(svc);
+                                }
+                            } else {
+                                stopService(new Intent(getApplicationContext(), GlobalEqService.class));
+                            }
+                            result.success(true);
+                            break;
+                        }
+                        case "isGlobalEqEnabled":
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                                result.success(GlobalEqSessionManager.isEnabled());
+                            } else {
+                                result.success(false);
+                            }
+                            break;
+                        case "isGlobalEqAvailable":
+                            result.success(Build.VERSION.SDK_INT >= Build.VERSION_CODES.P);
+                            break;
+
                         // ==================== Device Detection ====================
                         case "isDynamicsProcessingAvailable":
                             // Always true — C++ DSP pipeline has no API level requirement
@@ -854,6 +920,13 @@ public class MainActivity extends AudioServiceFragmentActivity {
                             int pmW = call.argument("width");
                             int pmH = call.argument("height");
                             projectMRenderer.setSize(pmW, pmH);
+                            result.success(null);
+                            break;
+                        }
+                        case "projectm_set_mesh_size": {
+                            int meshW = call.argument("width");
+                            int meshH = call.argument("height");
+                            projectMRenderer.setMeshSize(meshW, meshH);
                             result.success(null);
                             break;
                         }

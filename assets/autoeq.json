@@ -1,34 +1,868 @@
 {
-    "speakers": [ 
-     {"spk": "Global", "freq": [75, 150, 300,  600,  5968,1200, 4800,  9600, 8000, 19200] },
-     {"spk": "Apple AirPods","freq": [35, 76, 908, 2140,  4496, 5968,   110, 3647,  10173,  19814] },
-     {"spk": "Sony Xplod","freq": [31,  62, 125,  250, 500, 1000,  2000, 4000,  8000,  16000 ]},
-     {"spk": "Audio-Technica ATH-Pro700","freq": [29,  266, 469,  1038, 6333, 77,  2265, 2432,  8577,  19423 ]},
-     {"spk": "Sennheiser MM 550-X ","freq": [32,  171, 1878,  3911, 7061, 268,  375, 828,  5259,  20509 ]},
-     {"spk": "Pioneer HDJ-1000 Gold","freq": [33,  1526, 2285,  3454, 9234, 65,  135, 4125,  4713,  20509 ]},
-     {"spk": "AKG K3003","freq": [20,  199, 1946,  3912, 5183, 1403,  1577, 3066,  11291,  19814 ]},
-     {"spk": "Philips EM-6126","freq": [43,  118, 302,  1449, 9387, 584,  1075, 1423,  1772,  19814 ]},
-     {"spk": "Sennheiser PXC 550","freq": [36,  153, 442,  2821, 12377, 898,  1829, 4279,  5142,  19814 ]},
-     { "spk": "ASUS ROG Strix Fusion 700","freq": [33,  129, 1068,  3153, 12913, 134,  188, 349,  626,  19814 ]},
-     { "spk": "Audio-Technica ATH-M50x","freq": [200,  371, 5335,  9050, 10875, 79,  94, 2274,  6991,  19634 ]},
-     { "spk": "Sennheiser RS 220","freq": [23,  170, 1742,  3093, 4168, 77,  5719, 6251,  6991,  19423 ]},
-     { "spk": "Creative Aurvana In Ear 3","freq": [32,  220, 3292,  6465, 14897, 909,  1430, 7680,  8881,  15226 ]},
-     { "spk": "JBL V310 BT","freq": [26,  143, 3171,  4575, 9705, 126,  203, 2185,  12417,  19682 ]},
-     { "spk": "Empire Ears Bravado Mk2","freq": [20,  199, 2832,  3850, 6219, 16,  1509, 10006,  12070,  19528 ]},
-     { "spk": "Sony WF-1000XM4","freq": [47,  151, 449,  4873, 8416, 1857,  11274, 11332,  19375,  19798 ]},
-     { "spk": "SteelSeries Flux InEar Pro", "freq":[27,  225, 3215,  7922, 18949, 888,  1368, 4535,  5560,  6867 ]},
-     { "spk": "Bose Noise Cancelling Headphones 700","freq": [61,  171, 1278,  4946, 7643, 798,  2387, 11067,  12659,  19630 ]},
-     { "spk": "Creative Aurvana Trio","freq": [96,  221, 978,  3722, 18515, 3680,  4528, 5878,  8496,  15349 ]},
-     { "spk": "Apple AirPods 2", "freq":[38,  81, 1133,  2360, 3893, 42,  45, 3729,  7814,  15746 ]},
-     { "spk": "Edifier TWS6","freq": [20,  93, 2528,  4355, 15423, 1298,  6066, 7338,  10147,  15853 ]},
-     { "spk": "JBL Tune 225TWS","freq": [29,  597, 1663,  6514, 19539, 2545,  3299, 4949,  5549,  9091 ]},
-     { "spk": "Tin HiFi TWS2000","freq": [16,  211, 866,  3544, 16466, 1416,  4286, 5373,  6372,  10124 ]},
-     { "spk": "Audio-Technica ATH-W1000X","freq": [30,  103, 1362,  3421, 6449, 229,  455, 610,  9760,  19439 ]},
-     { "spk": "Kenwood KH-K1000","freq": [31,  1279, 3922,  7350, 19566, 55,  169, 333,  4925,  5003 ]},
-     { "spk": "Bose QuietComfort Earbuds","freq": [19,  306, 1579,  5227, 9843, 175,  2483, 3380,  13524,  19615 ]},
-     { "spk": "Razer Opus X","freq": [16,  174, 476,  2107, 3364, 4123,  4811, 7694,  18570,  20155 ]},
-     { "spk": "Sony WF-SP700N","freq":[21,  69, 809,  3944, 8937, 1394,  4141, 4930,  6587,  7506 ]},
-     { "spk": "Jabra Elite 85t","freq": [18,  3437, 6329,  16105, 19712, 134,  1644, 2665,  8393,  8459 ]},
-     { "spk": "Sennheiser Momentum True Wireless 2","freq": [72,  159, 262,  4515, 10876, 19,  1572, 2625,  5003,  5800 ]}
-    ]
+  "profiles": [
+    {
+      "name": "Sennheiser HD 650",
+      "source": "oratory1990",
+      "category": "over-ear",
+      "preamp": -6.1,
+      "filters": [
+        {"type": "LSC", "fc": 105, "gain": 6.4, "q": 0.70},
+        {"type": "PK", "fc": 8800, "gain": 5.1, "q": 1.42},
+        {"type": "PK", "fc": 118, "gain": -3.1, "q": 0.50},
+        {"type": "PK", "fc": 37, "gain": 0.7, "q": 3.96},
+        {"type": "PK", "fc": 3169, "gain": -1.7, "q": 3.89},
+        {"type": "HSC", "fc": 10000, "gain": -2.1, "q": 0.70},
+        {"type": "PK", "fc": 1227, "gain": -1.2, "q": 2.53},
+        {"type": "PK", "fc": 2055, "gain": 1.2, "q": 3.23},
+        {"type": "PK", "fc": 587, "gain": 0.4, "q": 1.19},
+        {"type": "PK", "fc": 5332, "gain": -1.1, "q": 5.75}
+      ]
+    },
+    {
+      "name": "Sennheiser HD 6XX",
+      "source": "oratory1990",
+      "category": "over-ear",
+      "preamp": -6.1,
+      "filters": [
+        {"type": "LSC", "fc": 105, "gain": 6.4, "q": 0.70},
+        {"type": "PK", "fc": 8800, "gain": 5.1, "q": 1.42},
+        {"type": "PK", "fc": 118, "gain": -3.1, "q": 0.50},
+        {"type": "PK", "fc": 37, "gain": 0.7, "q": 3.96},
+        {"type": "PK", "fc": 3169, "gain": -1.7, "q": 3.89},
+        {"type": "HSC", "fc": 10000, "gain": -2.1, "q": 0.70},
+        {"type": "PK", "fc": 1227, "gain": -1.2, "q": 2.53},
+        {"type": "PK", "fc": 2055, "gain": 1.2, "q": 3.23},
+        {"type": "PK", "fc": 587, "gain": 0.4, "q": 1.19},
+        {"type": "PK", "fc": 5332, "gain": -1.1, "q": 5.75}
+      ]
+    },
+    {
+      "name": "Sennheiser HD 600",
+      "source": "oratory1990",
+      "category": "over-ear",
+      "preamp": -6.3,
+      "filters": [
+        {"type": "LSC", "fc": 105, "gain": 6.5, "q": 0.70},
+        {"type": "PK", "fc": 125, "gain": -2.7, "q": 0.55},
+        {"type": "PK", "fc": 8445, "gain": 3.3, "q": 1.61},
+        {"type": "PK", "fc": 522, "gain": 0.7, "q": 1.02},
+        {"type": "PK", "fc": 1298, "gain": -1.2, "q": 2.14},
+        {"type": "HSC", "fc": 10000, "gain": -3.1, "q": 0.70},
+        {"type": "PK", "fc": 3158, "gain": -1.8, "q": 3.67},
+        {"type": "PK", "fc": 2166, "gain": 0.9, "q": 3.32},
+        {"type": "PK", "fc": 6639, "gain": 2.2, "q": 5.82},
+        {"type": "PK", "fc": 5433, "gain": -1.2, "q": 5.70}
+      ]
+    },
+    {
+      "name": "Sennheiser HD 58X",
+      "source": "oratory1990",
+      "category": "over-ear",
+      "preamp": -6.5,
+      "filters": [
+        {"type": "LSC", "fc": 105, "gain": 7.7, "q": 0.70},
+        {"type": "PK", "fc": 9076, "gain": 5.1, "q": 1.64},
+        {"type": "PK", "fc": 87, "gain": -4.1, "q": 0.38},
+        {"type": "PK", "fc": 1248, "gain": -1.6, "q": 1.99},
+        {"type": "PK", "fc": 2196, "gain": 1.9, "q": 2.69},
+        {"type": "HSC", "fc": 10000, "gain": -1.3, "q": 0.70},
+        {"type": "PK", "fc": 5351, "gain": -3.6, "q": 5.79},
+        {"type": "PK", "fc": 4274, "gain": 3.0, "q": 6.00},
+        {"type": "PK", "fc": 6663, "gain": 3.2, "q": 5.91},
+        {"type": "PK", "fc": 5761, "gain": -1.3, "q": 4.40}
+      ]
+    },
+    {
+      "name": "Sennheiser HD 660 S",
+      "source": "oratory1990",
+      "category": "over-ear",
+      "preamp": -6.3,
+      "filters": [
+        {"type": "LSC", "fc": 105, "gain": 6.5, "q": 0.70},
+        {"type": "PK", "fc": 7899, "gain": 6.5, "q": 0.68},
+        {"type": "PK", "fc": 178, "gain": -3.2, "q": 0.49},
+        {"type": "PK", "fc": 5470, "gain": -7.3, "q": 4.40},
+        {"type": "PK", "fc": 1222, "gain": -2.3, "q": 2.34},
+        {"type": "HSC", "fc": 10000, "gain": -1.1, "q": 0.70},
+        {"type": "PK", "fc": 2250, "gain": 1.3, "q": 3.58},
+        {"type": "PK", "fc": 3380, "gain": -0.9, "q": 2.84},
+        {"type": "PK", "fc": 6701, "gain": 1.2, "q": 6.00},
+        {"type": "PK", "fc": 784, "gain": -0.4, "q": 3.52}
+      ]
+    },
+    {
+      "name": "Sennheiser HD 660S2",
+      "source": "oratory1990",
+      "category": "over-ear",
+      "preamp": -6.4,
+      "filters": [
+        {"type": "LSC", "fc": 105, "gain": 7.6, "q": 0.70},
+        {"type": "PK", "fc": 98, "gain": -3.5, "q": 0.31},
+        {"type": "PK", "fc": 8089, "gain": 4.7, "q": 0.53},
+        {"type": "PK", "fc": 5567, "gain": -6.6, "q": 3.92},
+        {"type": "PK", "fc": 1206, "gain": -2.0, "q": 2.46},
+        {"type": "HSC", "fc": 10000, "gain": -3.8, "q": 0.70},
+        {"type": "PK", "fc": 2218, "gain": 1.1, "q": 3.75},
+        {"type": "PK", "fc": 3206, "gain": -1.2, "q": 3.51},
+        {"type": "PK", "fc": 4367, "gain": 1.3, "q": 6.00},
+        {"type": "PK", "fc": 115, "gain": 0.1, "q": 1.26}
+      ]
+    },
+    {
+      "name": "Sennheiser HD 560S",
+      "source": "oratory1990",
+      "category": "over-ear",
+      "preamp": -6.6,
+      "filters": [
+        {"type": "LSC", "fc": 105, "gain": 9.0, "q": 0.70},
+        {"type": "PK", "fc": 8983, "gain": 4.4, "q": 2.63},
+        {"type": "PK", "fc": 54, "gain": -5.4, "q": 0.48},
+        {"type": "PK", "fc": 1148, "gain": -1.5, "q": 2.38},
+        {"type": "PK", "fc": 491, "gain": 0.6, "q": 1.23},
+        {"type": "HSC", "fc": 10000, "gain": -3.9, "q": 0.70},
+        {"type": "PK", "fc": 7451, "gain": 2.0, "q": 3.91},
+        {"type": "PK", "fc": 4502, "gain": -1.7, "q": 6.00},
+        {"type": "PK", "fc": 1937, "gain": 0.9, "q": 3.93},
+        {"type": "PK", "fc": 5639, "gain": -0.9, "q": 6.00}
+      ]
+    },
+    {
+      "name": "Sennheiser HD 599",
+      "source": "oratory1990",
+      "category": "over-ear",
+      "preamp": -6.2,
+      "filters": [
+        {"type": "LSC", "fc": 105, "gain": 6.1, "q": 0.70},
+        {"type": "PK", "fc": 152, "gain": -4.3, "q": 0.59},
+        {"type": "PK", "fc": 1751, "gain": 4.4, "q": 1.45},
+        {"type": "PK", "fc": 4485, "gain": -1.9, "q": 2.72},
+        {"type": "PK", "fc": 40, "gain": 1.0, "q": 3.06},
+        {"type": "HSC", "fc": 10000, "gain": -0.7, "q": 0.70},
+        {"type": "PK", "fc": 9629, "gain": 6.0, "q": 1.71},
+        {"type": "PK", "fc": 5771, "gain": -2.8, "q": 5.56},
+        {"type": "PK", "fc": 3175, "gain": -2.0, "q": 4.70},
+        {"type": "PK", "fc": 3690, "gain": 0.7, "q": 4.38}
+      ]
+    },
+    {
+      "name": "Sennheiser HD 800 S",
+      "source": "oratory1990",
+      "category": "over-ear",
+      "preamp": -6.2,
+      "filters": [
+        {"type": "LSC", "fc": 105, "gain": 6.6, "q": 0.70},
+        {"type": "PK", "fc": 142, "gain": -2.3, "q": 0.30},
+        {"type": "PK", "fc": 1959, "gain": 2.5, "q": 0.88},
+        {"type": "PK", "fc": 5679, "gain": -4.4, "q": 4.36},
+        {"type": "PK", "fc": 212, "gain": -0.5, "q": 2.36},
+        {"type": "HSC", "fc": 10000, "gain": -4.3, "q": 0.70},
+        {"type": "PK", "fc": 1043, "gain": -1.0, "q": 2.89},
+        {"type": "PK", "fc": 1445, "gain": 1.0, "q": 3.43},
+        {"type": "PK", "fc": 2640, "gain": -0.9, "q": 4.01},
+        {"type": "PK", "fc": 3421, "gain": 1.3, "q": 5.47}
+      ]
+    },
+    {
+      "name": "Sennheiser Momentum 4 Wireless",
+      "source": "oratory1990",
+      "category": "over-ear",
+      "preamp": -6.4,
+      "filters": [
+        {"type": "LSC", "fc": 105, "gain": -7.4, "q": 0.70},
+        {"type": "PK", "fc": 195, "gain": -3.6, "q": 1.22},
+        {"type": "PK", "fc": 2393, "gain": 6.1, "q": 1.81},
+        {"type": "PK", "fc": 1726, "gain": 1.6, "q": 1.71},
+        {"type": "PK", "fc": 2893, "gain": -3.2, "q": 5.94},
+        {"type": "HSC", "fc": 10000, "gain": 0.5, "q": 0.70},
+        {"type": "PK", "fc": 63, "gain": 1.7, "q": 2.86},
+        {"type": "PK", "fc": 652, "gain": 1.2, "q": 2.25},
+        {"type": "PK", "fc": 952, "gain": -1.0, "q": 3.69},
+        {"type": "PK", "fc": 316, "gain": -0.9, "q": 3.46}
+      ]
+    },
+    {
+      "name": "Beyerdynamic DT 770 Pro",
+      "source": "oratory1990",
+      "category": "over-ear",
+      "preamp": -5.1,
+      "filters": [
+        {"type": "LSC", "fc": 105, "gain": -3.0, "q": 0.70},
+        {"type": "PK", "fc": 6430, "gain": -4.2, "q": 0.97},
+        {"type": "PK", "fc": 3684, "gain": 6.8, "q": 2.88},
+        {"type": "PK", "fc": 213, "gain": 3.5, "q": 2.46},
+        {"type": "PK", "fc": 139, "gain": -3.9, "q": 4.92},
+        {"type": "HSC", "fc": 10000, "gain": -5.4, "q": 0.70},
+        {"type": "PK", "fc": 93, "gain": 3.5, "q": 3.00},
+        {"type": "PK", "fc": 9561, "gain": 2.3, "q": 1.86},
+        {"type": "PK", "fc": 45, "gain": -1.3, "q": 1.74},
+        {"type": "PK", "fc": 119, "gain": -2.1, "q": 5.83}
+      ]
+    },
+    {
+      "name": "Beyerdynamic DT 880",
+      "source": "oratory1990",
+      "category": "over-ear",
+      "preamp": -6.4,
+      "filters": [
+        {"type": "LSC", "fc": 105, "gain": 7.4, "q": 0.70},
+        {"type": "PK", "fc": 112, "gain": -3.4, "q": 0.30},
+        {"type": "PK", "fc": 1320, "gain": 2.1, "q": 0.54},
+        {"type": "PK", "fc": 5760, "gain": -6.1, "q": 4.97},
+        {"type": "PK", "fc": 4480, "gain": 3.9, "q": 4.24},
+        {"type": "HSC", "fc": 10000, "gain": -3.1, "q": 0.70},
+        {"type": "PK", "fc": 480, "gain": 0.5, "q": 2.40},
+        {"type": "PK", "fc": 234, "gain": -0.4, "q": 2.41},
+        {"type": "PK", "fc": 940, "gain": -0.6, "q": 4.04},
+        {"type": "PK", "fc": 2939, "gain": -0.5, "q": 4.92}
+      ]
+    },
+    {
+      "name": "Beyerdynamic DT 990 Pro",
+      "source": "oratory1990",
+      "category": "over-ear",
+      "preamp": -6.7,
+      "filters": [
+        {"type": "LSC", "fc": 105, "gain": 10.1, "q": 0.70},
+        {"type": "PK", "fc": 541, "gain": 3.1, "q": 0.52},
+        {"type": "PK", "fc": 64, "gain": -7.4, "q": 0.38},
+        {"type": "PK", "fc": 7731, "gain": -4.6, "q": 1.06},
+        {"type": "PK", "fc": 640, "gain": 0.6, "q": 2.47},
+        {"type": "HSC", "fc": 10000, "gain": -9.8, "q": 0.70},
+        {"type": "PK", "fc": 7136, "gain": 3.1, "q": 2.08},
+        {"type": "PK", "fc": 5897, "gain": -4.8, "q": 5.30},
+        {"type": "PK", "fc": 4193, "gain": 1.1, "q": 1.51},
+        {"type": "PK", "fc": 9436, "gain": 2.7, "q": 3.53}
+      ]
+    },
+    {
+      "name": "Beyerdynamic DT 900 Pro X",
+      "source": "oratory1990",
+      "category": "over-ear",
+      "preamp": -4.5,
+      "filters": [
+        {"type": "LSC", "fc": 105, "gain": 5.7, "q": 0.70},
+        {"type": "PK", "fc": 94, "gain": -2.3, "q": 0.22},
+        {"type": "PK", "fc": 6103, "gain": -5.3, "q": 1.81},
+        {"type": "PK", "fc": 4103, "gain": 3.8, "q": 4.69},
+        {"type": "PK", "fc": 6339, "gain": 1.5, "q": 0.18},
+        {"type": "HSC", "fc": 10000, "gain": -1.2, "q": 0.70},
+        {"type": "PK", "fc": 2503, "gain": -0.8, "q": 3.03},
+        {"type": "PK", "fc": 59, "gain": -0.3, "q": 1.39},
+        {"type": "PK", "fc": 82, "gain": 0.7, "q": 3.97},
+        {"type": "PK", "fc": 2966, "gain": 1.0, "q": 6.00}
+      ]
+    },
+    {
+      "name": "Beyerdynamic DT 1990 (Analytic)",
+      "source": "oratory1990",
+      "category": "over-ear",
+      "preamp": -6.0,
+      "filters": [
+        {"type": "LSC", "fc": 105, "gain": 6.3, "q": 0.70},
+        {"type": "PK", "fc": 148, "gain": -2.1, "q": 0.34},
+        {"type": "PK", "fc": 4154, "gain": 4.2, "q": 4.02},
+        {"type": "PK", "fc": 857, "gain": 1.5, "q": 0.52},
+        {"type": "PK", "fc": 254, "gain": -0.4, "q": 0.68},
+        {"type": "HSC", "fc": 10000, "gain": -7.6, "q": 0.70},
+        {"type": "PK", "fc": 7370, "gain": -3.1, "q": 3.39},
+        {"type": "PK", "fc": 10000, "gain": -1.4, "q": 4.81},
+        {"type": "PK", "fc": 4428, "gain": 1.7, "q": 5.06},
+        {"type": "PK", "fc": 119, "gain": 0.2, "q": 1.75}
+      ]
+    },
+    {
+      "name": "AKG K371",
+      "source": "oratory1990",
+      "category": "over-ear",
+      "preamp": -5.6,
+      "filters": [
+        {"type": "LSC", "fc": 105, "gain": -2.7, "q": 0.70},
+        {"type": "PK", "fc": 182, "gain": -2.3, "q": 1.23},
+        {"type": "PK", "fc": 4038, "gain": 5.0, "q": 3.60},
+        {"type": "PK", "fc": 67, "gain": 3.1, "q": 1.41},
+        {"type": "PK", "fc": 1066, "gain": -0.8, "q": 2.57},
+        {"type": "HSC", "fc": 10000, "gain": 2.4, "q": 0.70},
+        {"type": "PK", "fc": 5564, "gain": -1.6, "q": 3.89},
+        {"type": "PK", "fc": 4232, "gain": 0.9, "q": 5.03},
+        {"type": "PK", "fc": 524, "gain": 0.3, "q": 1.66},
+        {"type": "PK", "fc": 2048, "gain": 0.5, "q": 4.67}
+      ]
+    },
+    {
+      "name": "AKG K701",
+      "source": "oratory1990",
+      "category": "over-ear",
+      "preamp": -6.1,
+      "filters": [
+        {"type": "LSC", "fc": 105, "gain": 7.5, "q": 0.70},
+        {"type": "PK", "fc": 131, "gain": -4.1, "q": 0.21},
+        {"type": "PK", "fc": 937, "gain": 3.7, "q": 0.65},
+        {"type": "PK", "fc": 2378, "gain": -3.3, "q": 2.56},
+        {"type": "PK", "fc": 3536, "gain": 3.6, "q": 3.04},
+        {"type": "HSC", "fc": 10000, "gain": -0.6, "q": 0.70},
+        {"type": "PK", "fc": 5837, "gain": -2.9, "q": 5.42},
+        {"type": "PK", "fc": 55, "gain": -0.9, "q": 1.90},
+        {"type": "PK", "fc": 116, "gain": 1.2, "q": 3.55},
+        {"type": "PK", "fc": 27, "gain": 0.7, "q": 3.27}
+      ]
+    },
+    {
+      "name": "AKG K712",
+      "source": "oratory1990",
+      "category": "over-ear",
+      "preamp": -5.8,
+      "filters": [
+        {"type": "LSC", "fc": 105, "gain": 6.9, "q": 0.70},
+        {"type": "PK", "fc": 143, "gain": -3.6, "q": 0.23},
+        {"type": "PK", "fc": 1217, "gain": 5.0, "q": 1.43},
+        {"type": "PK", "fc": 3049, "gain": 4.8, "q": 3.18},
+        {"type": "PK", "fc": 2178, "gain": -3.4, "q": 3.30},
+        {"type": "HSC", "fc": 10000, "gain": -0.3, "q": 0.70},
+        {"type": "PK", "fc": 5868, "gain": -2.6, "q": 5.87},
+        {"type": "PK", "fc": 67, "gain": -0.6, "q": 1.75},
+        {"type": "PK", "fc": 157, "gain": 0.9, "q": 1.87},
+        {"type": "PK", "fc": 243, "gain": -0.5, "q": 2.27}
+      ]
+    },
+    {
+      "name": "Audio-Technica ATH-M50x",
+      "source": "oratory1990",
+      "category": "over-ear",
+      "preamp": -3.1,
+      "filters": [
+        {"type": "LSC", "fc": 105, "gain": 0.6, "q": 0.70},
+        {"type": "PK", "fc": 156, "gain": -5.2, "q": 0.73},
+        {"type": "PK", "fc": 326, "gain": 5.3, "q": 1.59},
+        {"type": "PK", "fc": 7077, "gain": 2.8, "q": 2.22},
+        {"type": "PK", "fc": 3483, "gain": 2.1, "q": 5.82},
+        {"type": "HSC", "fc": 10000, "gain": -4.1, "q": 0.70},
+        {"type": "PK", "fc": 45, "gain": -1.1, "q": 1.90},
+        {"type": "PK", "fc": 66, "gain": 1.4, "q": 3.59},
+        {"type": "PK", "fc": 787, "gain": -0.5, "q": 1.79},
+        {"type": "PK", "fc": 1640, "gain": 0.9, "q": 3.41}
+      ]
+    },
+    {
+      "name": "Audio-Technica ATH-R70x",
+      "source": "oratory1990",
+      "category": "over-ear",
+      "preamp": -6.6,
+      "filters": [
+        {"type": "LSC", "fc": 105, "gain": 7.5, "q": 0.70},
+        {"type": "PK", "fc": 4308, "gain": 4.8, "q": 0.51},
+        {"type": "PK", "fc": 93, "gain": -4.4, "q": 0.43},
+        {"type": "PK", "fc": 3519, "gain": -3.2, "q": 4.05},
+        {"type": "PK", "fc": 2149, "gain": -3.1, "q": 0.96},
+        {"type": "HSC", "fc": 10000, "gain": -1.5, "q": 0.70},
+        {"type": "PK", "fc": 4518, "gain": 1.3, "q": 6.00},
+        {"type": "PK", "fc": 58, "gain": -0.6, "q": 2.31},
+        {"type": "PK", "fc": 34, "gain": 0.7, "q": 3.60},
+        {"type": "PK", "fc": 106, "gain": 0.3, "q": 1.84}
+      ]
+    },
+    {
+      "name": "HIFIMAN Sundara",
+      "source": "oratory1990",
+      "category": "over-ear",
+      "preamp": -6.6,
+      "filters": [
+        {"type": "LSC", "fc": 105, "gain": 8.9, "q": 0.70},
+        {"type": "PK", "fc": 56, "gain": -4.5, "q": 0.40},
+        {"type": "PK", "fc": 971, "gain": -1.8, "q": 1.62},
+        {"type": "PK", "fc": 2115, "gain": 2.1, "q": 2.21},
+        {"type": "PK", "fc": 8270, "gain": 1.4, "q": 0.96},
+        {"type": "HSC", "fc": 10000, "gain": -3.1, "q": 0.70},
+        {"type": "PK", "fc": 246, "gain": -0.6, "q": 1.21},
+        {"type": "PK", "fc": 128, "gain": 0.7, "q": 1.44},
+        {"type": "PK", "fc": 59, "gain": -0.6, "q": 2.26},
+        {"type": "PK", "fc": 35, "gain": 0.2, "q": 1.56}
+      ]
+    },
+    {
+      "name": "HIFIMAN Ananda",
+      "source": "oratory1990",
+      "category": "over-ear",
+      "preamp": -5.6,
+      "filters": [
+        {"type": "LSC", "fc": 105, "gain": 6.4, "q": 0.70},
+        {"type": "PK", "fc": 1755, "gain": 5.0, "q": 1.29},
+        {"type": "PK", "fc": 116, "gain": -2.6, "q": 0.27},
+        {"type": "PK", "fc": 3131, "gain": -3.7, "q": 2.16},
+        {"type": "PK", "fc": 945, "gain": -2.1, "q": 3.57},
+        {"type": "HSC", "fc": 10000, "gain": -1.5, "q": 0.70},
+        {"type": "PK", "fc": 572, "gain": -0.4, "q": 2.88},
+        {"type": "PK", "fc": 5534, "gain": 1.9, "q": 5.98},
+        {"type": "PK", "fc": 4472, "gain": -0.7, "q": 3.39},
+        {"type": "PK", "fc": 67, "gain": -0.5, "q": 2.78}
+      ]
+    },
+    {
+      "name": "HIFIMAN Edition XS",
+      "source": "oratory1990",
+      "category": "over-ear",
+      "preamp": -4.8,
+      "filters": [
+        {"type": "LSC", "fc": 105, "gain": 5.8, "q": 0.70},
+        {"type": "PK", "fc": 87, "gain": -2.8, "q": 0.33},
+        {"type": "PK", "fc": 1896, "gain": 4.0, "q": 1.92},
+        {"type": "PK", "fc": 2896, "gain": -3.7, "q": 3.11},
+        {"type": "PK", "fc": 1420, "gain": 1.3, "q": 3.89},
+        {"type": "HSC", "fc": 10000, "gain": -5.8, "q": 0.70},
+        {"type": "PK", "fc": 5585, "gain": 1.7, "q": 6.00},
+        {"type": "PK", "fc": 70, "gain": -0.4, "q": 2.12},
+        {"type": "PK", "fc": 111, "gain": 0.4, "q": 1.64},
+        {"type": "PK", "fc": 927, "gain": -0.9, "q": 6.00}
+      ]
+    },
+    {
+      "name": "HIFIMAN HE400se",
+      "source": "oratory1990",
+      "category": "over-ear",
+      "preamp": -6.0,
+      "filters": [
+        {"type": "LSC", "fc": 105, "gain": 6.7, "q": 0.70},
+        {"type": "PK", "fc": 1968, "gain": 5.1, "q": 2.37},
+        {"type": "PK", "fc": 861, "gain": -2.3, "q": 1.86},
+        {"type": "PK", "fc": 101, "gain": -2.4, "q": 0.32},
+        {"type": "PK", "fc": 1619, "gain": 1.1, "q": 3.53},
+        {"type": "HSC", "fc": 10000, "gain": -2.6, "q": 0.70},
+        {"type": "PK", "fc": 138, "gain": 0.7, "q": 1.98},
+        {"type": "PK", "fc": 64, "gain": -0.7, "q": 1.95},
+        {"type": "PK", "fc": 251, "gain": -0.4, "q": 2.33},
+        {"type": "PK", "fc": 29, "gain": 0.5, "q": 2.63}
+      ]
+    },
+    {
+      "name": "Focal Clear",
+      "source": "oratory1990",
+      "category": "over-ear",
+      "preamp": -5.8,
+      "filters": [
+        {"type": "LSC", "fc": 105, "gain": 7.3, "q": 0.70},
+        {"type": "PK", "fc": 8789, "gain": 4.5, "q": 1.48},
+        {"type": "PK", "fc": 1236, "gain": -3.8, "q": 2.26},
+        {"type": "PK", "fc": 73, "gain": -3.6, "q": 0.36},
+        {"type": "PK", "fc": 4557, "gain": 3.8, "q": 4.14},
+        {"type": "HSC", "fc": 10000, "gain": -1.6, "q": 0.70},
+        {"type": "PK", "fc": 2219, "gain": 2.0, "q": 3.33},
+        {"type": "PK", "fc": 3136, "gain": -1.1, "q": 3.33},
+        {"type": "PK", "fc": 1563, "gain": -0.9, "q": 4.71},
+        {"type": "PK", "fc": 5934, "gain": -0.8, "q": 6.00}
+      ]
+    },
+    {
+      "name": "Focal Utopia",
+      "source": "oratory1990",
+      "category": "over-ear",
+      "preamp": -6.4,
+      "filters": [
+        {"type": "LSC", "fc": 105, "gain": 8.5, "q": 0.70},
+        {"type": "PK", "fc": 8972, "gain": 5.4, "q": 1.61},
+        {"type": "PK", "fc": 68, "gain": -5.0, "q": 0.37},
+        {"type": "PK", "fc": 1245, "gain": -2.9, "q": 2.09},
+        {"type": "PK", "fc": 1946, "gain": 3.4, "q": 3.68},
+        {"type": "HSC", "fc": 10000, "gain": -2.0, "q": 0.70},
+        {"type": "PK", "fc": 5903, "gain": -3.1, "q": 6.00},
+        {"type": "PK", "fc": 6765, "gain": 2.6, "q": 5.89},
+        {"type": "PK", "fc": 2714, "gain": -1.7, "q": 5.90},
+        {"type": "PK", "fc": 3557, "gain": 1.9, "q": 5.99}
+      ]
+    },
+    {
+      "name": "Audeze LCD-X (2021)",
+      "source": "oratory1990",
+      "category": "over-ear",
+      "preamp": -6.6,
+      "filters": [
+        {"type": "LSC", "fc": 105, "gain": 6.0, "q": 0.70},
+        {"type": "PK", "fc": 771, "gain": -2.3, "q": 1.95},
+        {"type": "PK", "fc": 3763, "gain": 6.7, "q": 1.86},
+        {"type": "PK", "fc": 121, "gain": -3.4, "q": 0.22},
+        {"type": "PK", "fc": 8942, "gain": 2.0, "q": 2.46},
+        {"type": "HSC", "fc": 10000, "gain": -4.9, "q": 0.70},
+        {"type": "PK", "fc": 59, "gain": -0.6, "q": 1.38},
+        {"type": "PK", "fc": 108, "gain": 0.6, "q": 1.44},
+        {"type": "PK", "fc": 1919, "gain": 1.5, "q": 4.66},
+        {"type": "PK", "fc": 5625, "gain": -1.4, "q": 6.00}
+      ]
+    },
+    {
+      "name": "Apple AirPods Max",
+      "source": "oratory1990",
+      "category": "over-ear",
+      "preamp": -4.7,
+      "filters": [
+        {"type": "LSC", "fc": 105, "gain": -3.0, "q": 0.70},
+        {"type": "PK", "fc": 7273, "gain": 3.6, "q": 2.41},
+        {"type": "PK", "fc": 218, "gain": -2.9, "q": 1.41},
+        {"type": "PK", "fc": 1031, "gain": -3.2, "q": 0.99},
+        {"type": "PK", "fc": 3185, "gain": 3.1, "q": 0.56},
+        {"type": "HSC", "fc": 10000, "gain": -5.5, "q": 0.70},
+        {"type": "PK", "fc": 9508, "gain": 2.7, "q": 2.20},
+        {"type": "PK", "fc": 66, "gain": 0.6, "q": 1.65},
+        {"type": "PK", "fc": 4045, "gain": 2.1, "q": 5.82},
+        {"type": "PK", "fc": 4834, "gain": -1.8, "q": 6.00}
+      ]
+    },
+    {
+      "name": "Sony WH-1000XM4",
+      "source": "oratory1990",
+      "category": "over-ear",
+      "preamp": -6.1,
+      "filters": [
+        {"type": "LSC", "fc": 105, "gain": -4.2, "q": 0.70},
+        {"type": "PK", "fc": 143, "gain": -5.2, "q": 1.10},
+        {"type": "PK", "fc": 2289, "gain": 6.1, "q": 1.57},
+        {"type": "PK", "fc": 56, "gain": 1.2, "q": 1.19},
+        {"type": "PK", "fc": 5144, "gain": -3.2, "q": 6.00},
+        {"type": "HSC", "fc": 10000, "gain": -1.0, "q": 0.70},
+        {"type": "PK", "fc": 407, "gain": 1.7, "q": 3.14},
+        {"type": "PK", "fc": 6715, "gain": 3.0, "q": 5.99},
+        {"type": "PK", "fc": 1007, "gain": 1.0, "q": 3.41},
+        {"type": "PK", "fc": 576, "gain": -1.2, "q": 3.55}
+      ]
+    },
+    {
+      "name": "Sony WH-1000XM5",
+      "source": "oratory1990",
+      "category": "over-ear",
+      "preamp": -6.2,
+      "filters": [
+        {"type": "LSC", "fc": 105, "gain": -3.2, "q": 0.70},
+        {"type": "PK", "fc": 2448, "gain": 6.9, "q": 2.46},
+        {"type": "PK", "fc": 173, "gain": -5.6, "q": 0.96},
+        {"type": "PK", "fc": 3028, "gain": -5.4, "q": 2.03},
+        {"type": "PK", "fc": 1327, "gain": 3.3, "q": 0.58},
+        {"type": "HSC", "fc": 10000, "gain": 4.9, "q": 0.70},
+        {"type": "PK", "fc": 6110, "gain": -2.3, "q": 5.81},
+        {"type": "PK", "fc": 875, "gain": -1.2, "q": 4.07},
+        {"type": "PK", "fc": 1197, "gain": 1.0, "q": 3.28},
+        {"type": "PK", "fc": 63, "gain": 0.4, "q": 2.13}
+      ]
+    },
+    {
+      "name": "Sony MDR-7506",
+      "source": "oratory1990",
+      "category": "over-ear",
+      "preamp": -5.8,
+      "filters": [
+        {"type": "LSC", "fc": 105, "gain": 10.3, "q": 0.70},
+        {"type": "PK", "fc": 5435, "gain": -3.8, "q": 0.90},
+        {"type": "PK", "fc": 847, "gain": 1.9, "q": 0.70},
+        {"type": "PK", "fc": 230, "gain": 3.7, "q": 2.08},
+        {"type": "PK", "fc": 48, "gain": -9.5, "q": 0.52},
+        {"type": "HSC", "fc": 10000, "gain": 3.8, "q": 0.70},
+        {"type": "PK", "fc": 7530, "gain": -1.4, "q": 3.26},
+        {"type": "PK", "fc": 2916, "gain": -1.9, "q": 5.57},
+        {"type": "PK", "fc": 3748, "gain": 2.6, "q": 5.91},
+        {"type": "PK", "fc": 4456, "gain": -1.6, "q": 6.00}
+      ]
+    },
+    {
+      "name": "Philips SHP9500",
+      "source": "oratory1990",
+      "category": "over-ear",
+      "preamp": -6.4,
+      "filters": [
+        {"type": "LSC", "fc": 105, "gain": 6.5, "q": 0.70},
+        {"type": "PK", "fc": 5734, "gain": -5.7, "q": 2.84},
+        {"type": "PK", "fc": 110, "gain": -3.0, "q": 0.81},
+        {"type": "PK", "fc": 2130, "gain": 3.7, "q": 2.76},
+        {"type": "PK", "fc": 412, "gain": 1.0, "q": 1.39},
+        {"type": "HSC", "fc": 10000, "gain": -2.4, "q": 0.70},
+        {"type": "PK", "fc": 1113, "gain": -0.6, "q": 2.07},
+        {"type": "PK", "fc": 7370, "gain": 2.1, "q": 5.98},
+        {"type": "PK", "fc": 4477, "gain": -1.7, "q": 6.00},
+        {"type": "PK", "fc": 3566, "gain": 1.3, "q": 6.00}
+      ]
+    },
+    {
+      "name": "Bose QuietComfort 45",
+      "source": "oratory1990",
+      "category": "over-ear",
+      "preamp": -2.2,
+      "filters": [
+        {"type": "LSC", "fc": 105, "gain": -1.4, "q": 0.70},
+        {"type": "PK", "fc": 161, "gain": -2.2, "q": 1.15},
+        {"type": "PK", "fc": 5490, "gain": -7.7, "q": 2.06},
+        {"type": "PK", "fc": 4242, "gain": 3.5, "q": 0.24},
+        {"type": "PK", "fc": 2328, "gain": -5.2, "q": 2.15},
+        {"type": "HSC", "fc": 10000, "gain": -7.0, "q": 0.70},
+        {"type": "PK", "fc": 8352, "gain": 2.9, "q": 1.93},
+        {"type": "PK", "fc": 390, "gain": 0.5, "q": 2.32},
+        {"type": "PK", "fc": 6508, "gain": -1.0, "q": 5.04},
+        {"type": "PK", "fc": 70, "gain": -0.1, "q": 1.97}
+      ]
+    },
+    {
+      "name": "Moondrop Blessing 2",
+      "source": "oratory1990",
+      "category": "in-ear",
+      "preamp": -3.3,
+      "filters": [
+        {"type": "LSC", "fc": 105, "gain": 3.3, "q": 0.70},
+        {"type": "PK", "fc": 1788, "gain": -3.0, "q": 0.66},
+        {"type": "PK", "fc": 820, "gain": 2.2, "q": 1.20},
+        {"type": "PK", "fc": 183, "gain": -1.4, "q": 0.98},
+        {"type": "PK", "fc": 4409, "gain": 2.4, "q": 0.47},
+        {"type": "HSC", "fc": 10000, "gain": -4.5, "q": 0.70},
+        {"type": "PK", "fc": 4129, "gain": 0.9, "q": 3.28},
+        {"type": "PK", "fc": 2785, "gain": -0.8, "q": 3.98},
+        {"type": "PK", "fc": 1939, "gain": 0.5, "q": 3.63},
+        {"type": "PK", "fc": 1358, "gain": -0.4, "q": 4.13}
+      ]
+    },
+    {
+      "name": "Moondrop Aria",
+      "source": "oratory1990",
+      "category": "in-ear",
+      "preamp": -3.4,
+      "filters": [
+        {"type": "LSC", "fc": 105, "gain": -0.2, "q": 0.70},
+        {"type": "PK", "fc": 164, "gain": -2.6, "q": 0.92},
+        {"type": "PK", "fc": 6460, "gain": 3.5, "q": 2.43},
+        {"type": "PK", "fc": 659, "gain": 1.4, "q": 1.59},
+        {"type": "PK", "fc": 3108, "gain": 0.5, "q": 1.51},
+        {"type": "HSC", "fc": 10000, "gain": -5.3, "q": 0.70},
+        {"type": "PK", "fc": 8665, "gain": 2.1, "q": 2.79},
+        {"type": "PK", "fc": 1408, "gain": -0.5, "q": 2.30},
+        {"type": "PK", "fc": 54, "gain": 0.9, "q": 5.32},
+        {"type": "PK", "fc": 31, "gain": -0.4, "q": 2.21}
+      ]
+    },
+    {
+      "name": "Moondrop Chu",
+      "source": "oratory1990",
+      "category": "in-ear",
+      "preamp": -2.2,
+      "filters": [
+        {"type": "LSC", "fc": 105, "gain": 0.8, "q": 0.70},
+        {"type": "PK", "fc": 8728, "gain": 2.3, "q": 2.40},
+        {"type": "PK", "fc": 660, "gain": 1.2, "q": 1.92},
+        {"type": "PK", "fc": 165, "gain": -1.2, "q": 1.08},
+        {"type": "PK", "fc": 69, "gain": 1.7, "q": 1.26},
+        {"type": "HSC", "fc": 10000, "gain": -2.5, "q": 0.70},
+        {"type": "PK", "fc": 1470, "gain": -1.1, "q": 1.68},
+        {"type": "PK", "fc": 942, "gain": 0.7, "q": 2.78},
+        {"type": "PK", "fc": 4153, "gain": 0.6, "q": 3.72},
+        {"type": "PK", "fc": 2772, "gain": -0.5, "q": 3.46}
+      ]
+    },
+    {
+      "name": "Moondrop Variations",
+      "source": "oratory1990",
+      "category": "in-ear",
+      "preamp": -1.6,
+      "filters": [
+        {"type": "LSC", "fc": 105, "gain": -2.7, "q": 0.70},
+        {"type": "PK", "fc": 6390, "gain": 3.0, "q": 0.65},
+        {"type": "PK", "fc": 365, "gain": 1.4, "q": 0.59},
+        {"type": "PK", "fc": 3034, "gain": -2.4, "q": 0.56},
+        {"type": "PK", "fc": 144, "gain": -1.6, "q": 2.30},
+        {"type": "HSC", "fc": 10000, "gain": -2.2, "q": 0.70},
+        {"type": "PK", "fc": 2112, "gain": 1.0, "q": 3.35},
+        {"type": "PK", "fc": 1322, "gain": -0.5, "q": 2.36},
+        {"type": "PK", "fc": 3015, "gain": -0.8, "q": 4.18},
+        {"type": "PK", "fc": 66, "gain": 0.3, "q": 2.02}
+      ]
+    },
+    {
+      "name": "Sony WF-1000XM4",
+      "source": "oratory1990",
+      "category": "tws",
+      "preamp": -7.5,
+      "filters": [
+        {"type": "LSC", "fc": 105, "gain": -0.6, "q": 0.70},
+        {"type": "PK", "fc": 176, "gain": -4.2, "q": 0.60},
+        {"type": "PK", "fc": 9973, "gain": 3.7, "q": 1.01},
+        {"type": "PK", "fc": 6316, "gain": 4.4, "q": 0.91},
+        {"type": "PK", "fc": 498, "gain": -1.4, "q": 1.46},
+        {"type": "HSC", "fc": 10000, "gain": 3.7, "q": 0.70},
+        {"type": "PK", "fc": 1732, "gain": 1.2, "q": 2.28},
+        {"type": "PK", "fc": 3942, "gain": -0.8, "q": 3.10},
+        {"type": "PK", "fc": 978, "gain": -0.3, "q": 1.49},
+        {"type": "PK", "fc": 38, "gain": -0.2, "q": 2.02}
+      ]
+    },
+    {
+      "name": "Sony WF-1000XM5",
+      "source": "oratory1990",
+      "category": "tws",
+      "preamp": -2.6,
+      "filters": [
+        {"type": "LSC", "fc": 105, "gain": 5.4, "q": 0.70},
+        {"type": "PK", "fc": 68, "gain": -4.8, "q": 0.27},
+        {"type": "PK", "fc": 1377, "gain": 2.6, "q": 0.31},
+        {"type": "PK", "fc": 1806, "gain": -3.5, "q": 1.16},
+        {"type": "PK", "fc": 6875, "gain": 1.8, "q": 3.49},
+        {"type": "HSC", "fc": 10000, "gain": 2.3, "q": 0.70},
+        {"type": "PK", "fc": 3757, "gain": 0.3, "q": 2.56},
+        {"type": "PK", "fc": 5057, "gain": -0.7, "q": 5.70},
+        {"type": "PK", "fc": 449, "gain": 0.3, "q": 4.15},
+        {"type": "PK", "fc": 677, "gain": -0.2, "q": 2.75}
+      ]
+    },
+    {
+      "name": "Samsung Galaxy Buds Pro",
+      "source": "oratory1990",
+      "category": "tws",
+      "preamp": -2.9,
+      "filters": [
+        {"type": "LSC", "fc": 105, "gain": 0.4, "q": 0.70},
+        {"type": "PK", "fc": 1366, "gain": 2.8, "q": 0.97},
+        {"type": "PK", "fc": 171, "gain": -2.9, "q": 0.65},
+        {"type": "PK", "fc": 783, "gain": 1.1, "q": 2.15},
+        {"type": "PK", "fc": 3330, "gain": 0.8, "q": 3.58},
+        {"type": "HSC", "fc": 10000, "gain": -5.5, "q": 0.70},
+        {"type": "PK", "fc": 10000, "gain": -0.1, "q": 4.71},
+        {"type": "PK", "fc": 8082, "gain": -0.6, "q": 3.41},
+        {"type": "PK", "fc": 5048, "gain": -0.5, "q": 5.12},
+        {"type": "PK", "fc": 38, "gain": -0.1, "q": 2.07}
+      ]
+    },
+    {
+      "name": "Samsung Galaxy Buds2 Pro",
+      "source": "oratory1990",
+      "category": "tws",
+      "preamp": -2.3,
+      "filters": [
+        {"type": "LSC", "fc": 105, "gain": -2.3, "q": 0.70},
+        {"type": "PK", "fc": 7526, "gain": 2.2, "q": 2.78},
+        {"type": "PK", "fc": 266, "gain": -0.8, "q": 1.35},
+        {"type": "PK", "fc": 3426, "gain": -2.3, "q": 3.70},
+        {"type": "PK", "fc": 64, "gain": 2.2, "q": 1.18},
+        {"type": "HSC", "fc": 10000, "gain": -3.8, "q": 0.70},
+        {"type": "PK", "fc": 8817, "gain": 1.6, "q": 2.28},
+        {"type": "PK", "fc": 2283, "gain": 1.2, "q": 3.75},
+        {"type": "PK", "fc": 4955, "gain": -1.2, "q": 5.11},
+        {"type": "PK", "fc": 977, "gain": 1.0, "q": 5.18}
+      ]
+    },
+    {
+      "name": "Sennheiser IE 200",
+      "source": "oratory1990",
+      "category": "in-ear",
+      "preamp": -4.3,
+      "filters": [
+        {"type": "LSC", "fc": 105, "gain": 0.3, "q": 0.70},
+        {"type": "PK", "fc": 4135, "gain": 4.3, "q": 1.83},
+        {"type": "PK", "fc": 1520, "gain": -1.9, "q": 1.99},
+        {"type": "PK", "fc": 180, "gain": -1.2, "q": 1.14},
+        {"type": "PK", "fc": 67, "gain": 1.0, "q": 1.34},
+        {"type": "HSC", "fc": 10000, "gain": -6.1, "q": 0.70},
+        {"type": "PK", "fc": 727, "gain": 0.8, "q": 1.79},
+        {"type": "PK", "fc": 5480, "gain": 1.2, "q": 3.96},
+        {"type": "PK", "fc": 1154, "gain": -0.6, "q": 3.44},
+        {"type": "PK", "fc": 2978, "gain": 0.4, "q": 3.96}
+      ]
+    },
+    {
+      "name": "Sennheiser IE 600",
+      "source": "oratory1990",
+      "category": "in-ear",
+      "preamp": -5.3,
+      "filters": [
+        {"type": "LSC", "fc": 105, "gain": -2.7, "q": 0.70},
+        {"type": "PK", "fc": 4374, "gain": 5.0, "q": 1.28},
+        {"type": "PK", "fc": 196, "gain": -1.9, "q": 1.50},
+        {"type": "PK", "fc": 1727, "gain": -2.8, "q": 1.16},
+        {"type": "PK", "fc": 798, "gain": 1.5, "q": 1.45},
+        {"type": "HSC", "fc": 10000, "gain": -7.6, "q": 0.70},
+        {"type": "PK", "fc": 72, "gain": 1.4, "q": 1.93},
+        {"type": "PK", "fc": 5857, "gain": 3.3, "q": 5.80},
+        {"type": "PK", "fc": 143, "gain": -0.7, "q": 3.18},
+        {"type": "PK", "fc": 4796, "gain": -0.6, "q": 4.12}
+      ]
+    },
+    {
+      "name": "Sennheiser Momentum TW3",
+      "source": "oratory1990",
+      "category": "tws",
+      "preamp": -5.3,
+      "filters": [
+        {"type": "LSC", "fc": 105, "gain": -2.6, "q": 0.70},
+        {"type": "PK", "fc": 4231, "gain": 5.9, "q": 1.39},
+        {"type": "PK", "fc": 209, "gain": -2.2, "q": 0.78},
+        {"type": "PK", "fc": 1433, "gain": -2.6, "q": 1.99},
+        {"type": "PK", "fc": 69, "gain": 1.5, "q": 1.35},
+        {"type": "HSC", "fc": 10000, "gain": -5.4, "q": 0.70},
+        {"type": "PK", "fc": 5556, "gain": 1.7, "q": 5.29},
+        {"type": "PK", "fc": 759, "gain": 0.5, "q": 2.36},
+        {"type": "PK", "fc": 335, "gain": -0.4, "q": 3.16},
+        {"type": "PK", "fc": 4230, "gain": -0.6, "q": 5.10}
+      ]
+    },
+    {
+      "name": "Etymotic ER2SE",
+      "source": "oratory1990",
+      "category": "in-ear",
+      "preamp": -6.3,
+      "filters": [
+        {"type": "LSC", "fc": 105, "gain": 6.3, "q": 0.70},
+        {"type": "PK", "fc": 7641, "gain": 7.2, "q": 0.59},
+        {"type": "PK", "fc": 1757, "gain": -6.3, "q": 0.29},
+        {"type": "PK", "fc": 803, "gain": 5.2, "q": 0.92},
+        {"type": "PK", "fc": 3742, "gain": 1.8, "q": 2.11},
+        {"type": "HSC", "fc": 10000, "gain": -1.4, "q": 0.70},
+        {"type": "PK", "fc": 74, "gain": 0.6, "q": 2.33},
+        {"type": "PK", "fc": 185, "gain": -0.4, "q": 1.52},
+        {"type": "PK", "fc": 1404, "gain": -0.4, "q": 3.73},
+        {"type": "PK", "fc": 399, "gain": 0.3, "q": 2.15}
+      ]
+    },
+    {
+      "name": "7Hz Salnotes Zero",
+      "source": "oratory1990",
+      "category": "in-ear",
+      "preamp": -2.5,
+      "filters": [
+        {"type": "LSC", "fc": 105, "gain": -0.4, "q": 0.70},
+        {"type": "PK", "fc": 7148, "gain": 2.5, "q": 1.39},
+        {"type": "PK", "fc": 186, "gain": -1.3, "q": 1.35},
+        {"type": "PK", "fc": 65, "gain": 1.7, "q": 1.11},
+        {"type": "PK", "fc": 1677, "gain": -1.1, "q": 1.82},
+        {"type": "HSC", "fc": 10000, "gain": -1.3, "q": 0.70},
+        {"type": "PK", "fc": 857, "gain": 0.9, "q": 1.64},
+        {"type": "PK", "fc": 9824, "gain": 0.9, "q": 1.98},
+        {"type": "PK", "fc": 3316, "gain": -0.6, "q": 2.50},
+        {"type": "PK", "fc": 1261, "gain": -0.7, "q": 3.34}
+      ]
+    },
+    {
+      "name": "Koss Porta Pro",
+      "source": "oratory1990",
+      "category": "on-ear",
+      "preamp": -6.5,
+      "filters": [
+        {"type": "LSC", "fc": 105, "gain": 7.7, "q": 0.70},
+        {"type": "PK", "fc": 9076, "gain": 5.1, "q": 1.64},
+        {"type": "PK", "fc": 87, "gain": -4.1, "q": 0.38},
+        {"type": "PK", "fc": 1248, "gain": -1.6, "q": 1.99},
+        {"type": "PK", "fc": 2196, "gain": 1.9, "q": 2.69},
+        {"type": "HSC", "fc": 10000, "gain": -1.3, "q": 0.70},
+        {"type": "PK", "fc": 5351, "gain": -3.6, "q": 5.79},
+        {"type": "PK", "fc": 4274, "gain": 3.0, "q": 6.00},
+        {"type": "PK", "fc": 6663, "gain": 3.2, "q": 5.91},
+        {"type": "PK", "fc": 5761, "gain": -1.3, "q": 4.40}
+      ]
+    },
+    {
+      "name": "Campfire Audio Andromeda",
+      "source": "oratory1990",
+      "category": "in-ear",
+      "preamp": -6.3,
+      "filters": [
+        {"type": "LSC", "fc": 105, "gain": 4.1, "q": 0.70},
+        {"type": "PK", "fc": 143, "gain": -4.1, "q": 0.42},
+        {"type": "PK", "fc": 3106, "gain": 6.2, "q": 1.44},
+        {"type": "PK", "fc": 8840, "gain": 3.1, "q": 1.71},
+        {"type": "PK", "fc": 323, "gain": -1.5, "q": 1.42},
+        {"type": "HSC", "fc": 10000, "gain": 1.3, "q": 0.70},
+        {"type": "PK", "fc": 896, "gain": 0.7, "q": 2.46},
+        {"type": "PK", "fc": 1576, "gain": -0.8, "q": 2.91},
+        {"type": "PK", "fc": 6105, "gain": -2.2, "q": 6.00},
+        {"type": "PK", "fc": 5376, "gain": 1.7, "q": 6.00}
+      ]
     }
+  ]
+}

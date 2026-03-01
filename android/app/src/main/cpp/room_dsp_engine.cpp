@@ -19,6 +19,7 @@ void RoomDSPEngine::init(int sampleRate, int channels) {
     // EQ init
     graphicEq_.initGraphic((float)sampleRate, MAX_EQ_BANDS);
     parametricEq_.init((float)sampleRate, MAX_EQ_BANDS);
+    speakerEq_.init((float)sampleRate, MAX_EQ_BANDS);
 
     // Tone controls init
     tone_.init((float)sampleRate);
@@ -41,6 +42,7 @@ void RoomDSPEngine::init(int sampleRate, int channels) {
 void RoomDSPEngine::reset() {
     graphicEq_.reinit((float)sampleRate_);
     parametricEq_.reinit((float)sampleRate_);
+    speakerEq_.reinit((float)sampleRate_);
     tone_.reinit((float)sampleRate_);
     limiter_.init(sampleRate_);
     mbc_.reinit((float)sampleRate_);
@@ -100,6 +102,12 @@ void RoomDSPEngine::recomputeAutoGain() {
     float parametricPeak = parametricEq_.getPeakGain();
     float peakBoost = std::max(graphicPeak, parametricPeak);
 
+    // Speaker correction EQ: include its peak in auto-gain
+    if (speakerEqEnabled_.load(std::memory_order_relaxed)) {
+        float speakerPeak = speakerEq_.getPeakGain();
+        peakBoost = std::max(peakBoost, speakerPeak);
+    }
+
     // Tone controls: take max (not sum) — the shelf may overlap with an
     // EQ band, but the limiter handles any residual gracefully.
     if (tone_.isEnabled()) {
@@ -117,6 +125,7 @@ void RoomDSPEngine::process(float* buffer, int numFrames) {
     if (channels_ != 2 || numFrames <= 0) return;
 
     bool doEq = eqEnabled_.load(std::memory_order_relaxed);
+    bool doSpeakerEq = speakerEqEnabled_.load(std::memory_order_relaxed);
     bool doTone = tone_.isEnabled();
     bool doMbc = mbc_.isEnabled();
     bool doExpand = stereoExpandEnabled_.load(std::memory_order_relaxed);
@@ -125,7 +134,7 @@ void RoomDSPEngine::process(float* buffer, int numFrames) {
     bool doLimiter = limiter_.isEnabled();
 
     // Early out if nothing is enabled
-    if (!doEq && !doTone && !doMbc && !doExpand && !doCrossfeed && !doReverb && !doLimiter) return;
+    if (!doEq && !doSpeakerEq && !doTone && !doMbc && !doExpand && !doCrossfeed && !doReverb && !doLimiter) return;
 
     // Deinterleave to separate L/R channels
     constexpr int STACK_LIMIT = 2048;
@@ -149,25 +158,30 @@ void RoomDSPEngine::process(float* buffer, int numFrames) {
     }
 
     // Signal chain:
-    //   [Preamp+AutoGain] -> [Graphic EQ] -> [Parametric EQ]
-    //   -> [Tone Controls] -> [MBC] -> [Stereo Expand]
-    //   -> [Crossfeed] -> [Reverb] -> [Output Limiter]
+    //   [Preamp+AutoGain] -> [Speaker Correction EQ] -> [Graphic EQ]
+    //   -> [Parametric EQ] -> [Tone Controls] -> [MBC]
+    //   -> [Stereo Expand] -> [Crossfeed] -> [Reverb] -> [Output Limiter]
 
-    if (doEq) {
-        // Preamp + auto-gain with asymmetric smoothing.
-        // preampLinear_ includes full auto-reduction for zero-clip headroom.
-        // Instant reduction (prevents transient overshoot when boost is added).
-        // Smooth increase (prevents clicks when boost is removed).
+    // Preamp + auto-gain (applies when EQ or speaker correction is active)
+    if (doEq || doSpeakerEq) {
         float preampTarget = preampLinear_;
         for (int i = 0; i < numFrames; i++) {
             if (preampTarget < preampLinearSmoothed_) {
-                preampLinearSmoothed_ = preampTarget;  // instant reduction
+                preampLinearSmoothed_ = preampTarget;
             } else {
                 preampLinearSmoothed_ += smoothCoeff_ * (preampTarget - preampLinearSmoothed_);
             }
             left[i] *= preampLinearSmoothed_;
             right[i] *= preampLinearSmoothed_;
         }
+    }
+
+    // Speaker correction EQ — flattens headphone response before user EQ
+    if (doSpeakerEq) {
+        speakerEq_.process(left, right, numFrames);
+    }
+
+    if (doEq) {
         graphicEq_.process(left, right, numFrames);
         parametricEq_.process(left, right, numFrames);
     }
@@ -207,4 +221,19 @@ void RoomDSPEngine::process(float* buffer, int numFrames) {
     }
 
     delete[] heapBuf;
+}
+
+void RoomDSPEngine::setSpeakerEqBand(int band, float freq, float gainDb,
+                                      float q, int filterType, bool enabled) {
+    BiquadType type = static_cast<BiquadType>(
+        std::min(std::max(filterType, 0), 6));
+    speakerEq_.setBand(band, freq, gainDb, q, type, enabled);
+    recomputeAutoGain();
+}
+
+void RoomDSPEngine::clearSpeakerEq() {
+    for (int i = 0; i < MAX_EQ_BANDS; i++) {
+        speakerEq_.setBand(i, 1000.0f, 0.0f, 1.0f, BiquadType::Peaking, false);
+    }
+    recomputeAutoGain();
 }
