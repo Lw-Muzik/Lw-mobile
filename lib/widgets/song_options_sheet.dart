@@ -266,7 +266,7 @@ class _SongOptionsSheetState extends State<SongOptionsSheet> {
       await Channel.scanMediaFile(widget.song.data);
 
       // Update in-memory state immediately — no restart needed
-      await controller.updateSongMetadata(widget.song, _result!, artworkChanged: artworkPath != null);
+      await controller.updateSongMetadata(widget.song, _result!);
 
       if (!mounted) return;
 
