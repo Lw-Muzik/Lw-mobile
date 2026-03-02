@@ -63,6 +63,7 @@ dependencies:
     path: plugins/on_audio_query
   flutter_zoom_drawer: ^3.2.0
   id3tag: ^0.2.0
+  vector_math: ^2.2.0
 
 
 dev_dependencies:
