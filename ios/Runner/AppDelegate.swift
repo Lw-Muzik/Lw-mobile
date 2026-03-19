@@ -1,0 +1,629 @@
+import Flutter
+import UIKit
+import AVFoundation
+
+@main
+@objc class AppDelegate: FlutterAppDelegate {
+    private let dsp = DSPManager.shared
+
+    override func application(
+        _ application: UIApplication,
+        didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
+    ) -> Bool {
+        GeneratedPluginRegistrant.register(with: self)
+
+        // Configure audio session for playback
+        let session = AVAudioSession.sharedInstance()
+        do {
+            try session.setCategory(.playback, mode: .default, options: [])
+            try session.setActive(true)
+        } catch {
+            print("AVAudioSession setup failed: \(error)")
+        }
+
+        // Initialize DSP engine
+        let sampleRate = Int(session.sampleRate)
+        dsp.initialize(sampleRate: sampleRate > 0 ? sampleRate : 48000)
+
+        // Set up MethodChannel
+        if let controller = window?.rootViewController as? FlutterViewController {
+            let channel = FlutterMethodChannel(name: "eq_app",
+                                                binaryMessenger: controller.binaryMessenger)
+            channel.setMethodCallHandler { [weak self] call, result in
+                self?.handleMethodCall(call, result: result)
+            }
+        }
+
+        return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+    }
+
+    // MARK: - MethodChannel Handler
+
+    private func handleMethodCall(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
+        let args = call.arguments as? [String: Any]
+
+        switch call.method {
+
+        // ==================== EQ ====================
+        case "init":
+            // Legacy — DSP engine already initialized
+            result(nil)
+
+        case "enableEq":
+            let enable = args?["enable"] as? Bool ?? false
+            dsp.setEqEnabled(enable)
+            result(nil)
+
+        case "isEnabled":
+            // EQ is always available (C++ pipeline)
+            result(true)
+
+        case "setPreamp":
+            let gain = floatArg(args, "gain")
+            dsp.setPreampGain(gain)
+            result(nil)
+
+        case "getPreamp":
+            result(Double(dsp.cachedPreampGain))
+
+        case "enableMbc":
+            let enable = args?["enable"] as? Bool ?? false
+            dsp.setMbcEnabled(enable)
+            result(nil)
+
+        case "isMbcEnabled":
+            result(dsp.cachedMbcEnabled)
+
+        // ==================== Legacy EQ (safe defaults) ====================
+        case "getPresetNames":
+            result(["Flat", "Rock", "Pop", "Jazz", "Classical", "Bass Boost", "Treble Boost"])
+
+        case "setPreset":
+            result(nil)
+
+        case "setBandLevel":
+            result(nil)
+
+        case "getBandLevelRange":
+            result([-1500, 1500])
+
+        case "getBandLevel":
+            result(0)
+
+        case "getSettings":
+            result("")
+
+        case "setSettings":
+            result(nil)
+
+        case "getBandFreq":
+            result([60, 230, 910, 3600, 14000])
+
+        // ==================== Bass Boost (legacy — handled by DSP pipeline) ====================
+        case "initBassBoost":
+            result(nil)
+
+        case "enableBassBoost":
+            result(nil)
+
+        case "isBassEnabled":
+            result(false)
+
+        case "bassBoostStrength":
+            result(0)
+
+        case "setBassBoostStrength":
+            result(nil)
+
+        // ==================== Loudness Enhancer ====================
+        case "initLoudnessEnhancer":
+            result(nil)
+
+        case "enableLoudnessEnhancer":
+            result(nil)
+
+        case "loudnessEnhancerEnabled":
+            result(false)
+
+        case "loudnessEnhancerStrength":
+            result(0.0)
+
+        case "setLoudnessEnhancerStrength":
+            result(nil)
+
+        // ==================== DVC (Limited on iOS) ====================
+        case "enableDvc":
+            // iOS can't max system volume or intercept hardware buttons
+            result(nil)
+
+        case "disableDvc":
+            result(nil)
+
+        case "setDvcGain":
+            result(nil)
+
+        case "getDvcGain":
+            result(0.0)
+
+        case "isDvcActive":
+            result(false)
+
+        case "getSystemVolume":
+            let vol = AVAudioSession.sharedInstance().outputVolume
+            result(Int(vol * 16))
+
+        case "getSystemMaxVolume":
+            result(16)
+
+        // ==================== MBC Compressor ====================
+        case "setDspNoiseThreshold":
+            dsp.setMbcNoiseGate(floatArg(args, "noiseThreshold"))
+            result(nil)
+
+        case "setPreGain":
+            dsp.setMbcPreGain(floatArg(args, "preGain"))
+            result(nil)
+
+        case "expandRatio":
+            dsp.setMbcExpanderRatio(floatArg(args, "expandRatio"))
+            result(nil)
+
+        case "kneeWidth":
+            dsp.setMbcKneeWidth(floatArg(args, "kneeWidth"))
+            result(nil)
+
+        // ==================== Tone Controls ====================
+        case "dspSetToneEnabled":
+            dsp.setToneEnabled(args?["enabled"] as? Bool ?? false)
+            result(nil)
+
+        case "dspSetBassGain":
+            dsp.setBassGain(floatArg(args, "value"))
+            result(nil)
+
+        case "dspSetBassFreq":
+            dsp.setBassFreq(floatArg(args, "value"))
+            result(nil)
+
+        case "dspSetBassQ":
+            dsp.setBassQ(floatArg(args, "value"))
+            result(nil)
+
+        case "dspSetTrebleGain":
+            dsp.setTrebleGain(floatArg(args, "value"))
+            result(nil)
+
+        case "dspSetTrebleFreq":
+            dsp.setTrebleFreq(floatArg(args, "value"))
+            result(nil)
+
+        case "dspSetTrebleQ":
+            dsp.setTrebleQ(floatArg(args, "value"))
+            result(nil)
+
+        // ==================== Output Limiter ====================
+        case "dspSetLimiterEnabled":
+            dsp.setLimiterEnabled(args?["enabled"] as? Bool ?? true)
+            result(nil)
+
+        case "dspSetLimiterCeiling":
+            dsp.setLimiterCeiling(floatArg(args, "value"))
+            result(nil)
+
+        case "dspSetLimiterRelease":
+            dsp.setLimiterRelease(floatArg(args, "value"))
+            result(nil)
+
+        case "dspSetLimiterKnee":
+            dsp.setLimiterKnee(floatArg(args, "value"))
+            result(nil)
+
+        // ==================== 32-Band Graphic EQ ====================
+        case "setGraphicBandGain":
+            let band = args?["band"] as? Int ?? 0
+            let gain = floatArg(args, "gain")
+            dsp.setGraphicBandGain(band: band, dB: gain)
+            result(nil)
+
+        case "getGraphicBandGain":
+            result(0.0)
+
+        case "setGraphicAllBands":
+            if let gains = args?["gains"] as? [Double] {
+                dsp.setGraphicAllBands(gains.map { Float($0) })
+            }
+            result(nil)
+
+        case "getGraphicAllBands":
+            result([Double]())
+
+        // ==================== 32-Band Parametric EQ ====================
+        case "setParametricBand":
+            let band = args?["band"] as? Int ?? 0
+            let freq = floatArg(args, "freq")
+            let gain = floatArg(args, "gain")
+            let q = args?["q"] != nil ? floatArg(args, "q") : 1.4
+            let filterType = args?["filterType"] as? Int ?? 0
+            let enabled = args?["enabled"] as? Bool ?? true
+            dsp.setParametricBand(band: band, freq: freq, gain: gain, q: q,
+                                   filterType: filterType, enabled: enabled)
+            result(nil)
+
+        case "setParametricAllBands":
+            if let freqs = args?["freqs"] as? [Double],
+               let gains = args?["gains"] as? [Double] {
+                let qs = (args?["qs"] as? [Double]) ?? Array(repeating: 1.4, count: freqs.count)
+                dsp.setParametricAllBands(freqs: freqs.map { Float($0) },
+                                           gains: gains.map { Float($0) },
+                                           qs: qs.map { Float($0) })
+            }
+            result(nil)
+
+        // ==================== Speaker Correction EQ ====================
+        case "setSpeakerEqEnabled":
+            dsp.setSpeakerEqEnabled(args?["enabled"] as? Bool ?? false)
+            result(nil)
+
+        case "setSpeakerEqBands":
+            if let freqs = args?["freqs"] as? [Double],
+               let gains = args?["gains"] as? [Double],
+               let qs = args?["qs"] as? [Double],
+               let types = args?["types"] as? [Int] {
+                for i in 0..<min(freqs.count, gains.count, qs.count, types.count) {
+                    dsp.setSpeakerEqBand(band: i, freq: Float(freqs[i]),
+                                          gain: Float(gains[i]), q: Float(qs[i]),
+                                          filterType: types[i], enabled: true)
+                }
+            }
+            result(nil)
+
+        case "clearSpeakerEq":
+            dsp.clearSpeakerEq()
+            result(nil)
+
+        // ==================== Room Effects ====================
+        case "dspSetReverbEnabled":
+            dsp.setReverbEnabled(args?["enabled"] as? Bool ?? false)
+            result(nil)
+
+        case "dspSetRoomSize":
+            dsp.setRoomSize(floatArg(args, "value"))
+            result(nil)
+
+        case "dspSetDecay":
+            dsp.setDecay(floatArg(args, "value"))
+            result(nil)
+
+        case "dspSetDamping":
+            dsp.setDamping(floatArg(args, "value"))
+            result(nil)
+
+        case "dspSetPreDelay":
+            dsp.setPreDelay(floatArg(args, "value"))
+            result(nil)
+
+        case "dspSetDiffusion":
+            dsp.setDiffusion(floatArg(args, "value"))
+            result(nil)
+
+        case "dspSetReverbWetDry":
+            dsp.setReverbWetDry(floatArg(args, "value"))
+            result(nil)
+
+        case "dspSetStereoExpandEnabled":
+            dsp.setStereoExpandEnabled(args?["enabled"] as? Bool ?? false)
+            result(nil)
+
+        case "dspSetStereoWidth":
+            dsp.setStereoWidth(floatArg(args, "value"))
+            result(nil)
+
+        case "dspSetCrossfeedEnabled":
+            dsp.setCrossfeedEnabled(args?["enabled"] as? Bool ?? false)
+            result(nil)
+
+        case "dspSetCrossfeedParams":
+            let cutoff = floatArg(args, "cutoff")
+            let feed = floatArg(args, "feed")
+            dsp.setCrossfeedParams(cutoff: cutoff, feed: feed)
+            result(nil)
+
+        // ==================== Stem Separation ====================
+        case "separateStems":
+            // TODO: Implement with AVAssetReader for decoding
+            result(false)
+
+        case "cancelStemSeparation":
+            result(nil)
+
+        case "checkStemsExist":
+            if let dirPath = args?["dirPath"] as? String {
+                let fm = FileManager.default
+                let exists = fm.fileExists(atPath: dirPath + "/vocals.wav")
+                    && fm.fileExists(atPath: dirPath + "/drums.wav")
+                    && fm.fileExists(atPath: dirPath + "/bass.wav")
+                    && fm.fileExists(atPath: dirPath + "/other.wav")
+                result(exists)
+            } else {
+                result(false)
+            }
+
+        // ==================== Stem Mixer ====================
+        case "loadStems":
+            if let vocals = args?["vocals"] as? String,
+               let drums = args?["drums"] as? String,
+               let bass = args?["bass"] as? String,
+               let other = args?["other"] as? String {
+                let ok = dsp.loadStems(vocals: vocals, drums: drums,
+                                        bass: bass, other: other)
+                result(ok)
+            } else {
+                result(false)
+            }
+
+        case "unloadStems":
+            dsp.unloadStems()
+            result(nil)
+
+        case "activateStemMode":
+            dsp.setStemModeActive(true)
+            result(nil)
+
+        case "deactivateStemMode":
+            dsp.setStemModeActive(false)
+            result(nil)
+
+        case "setStemVolume":
+            let stem = args?["stem"] as? Int ?? 0
+            let vol = floatArg(args, "volume")
+            dsp.setStemVolume(stem: stem, volume: vol)
+            result(nil)
+
+        case "setStemMute":
+            let stem = args?["stem"] as? Int ?? 0
+            let muted = args?["muted"] as? Bool ?? false
+            dsp.setStemMute(stem: stem, muted: muted)
+            result(nil)
+
+        case "setStemSolo":
+            let stem = args?["stem"] as? Int ?? 0
+            let soloed = args?["soloed"] as? Bool ?? false
+            dsp.setStemSolo(stem: stem, soloed: soloed)
+            result(nil)
+
+        case "stemSeek":
+            let pos = args?["samplePosition"] as? Int64 ?? 0
+            dsp.stemSeek(samplePosition: pos)
+            result(nil)
+
+        // ==================== Global EQ (Not available on iOS) ====================
+        case "enableGlobalEq":
+            result(false)
+
+        case "isGlobalEqEnabled":
+            result(false)
+
+        case "isGlobalEqAvailable":
+            result(false)
+
+        // ==================== Device Detection ====================
+        case "isDynamicsProcessingAvailable":
+            result(true)
+
+        case "getAudioOutputType":
+            result(getAudioOutputType())
+
+        // ==================== Audio Metadata Extraction ====================
+        case "extractAudioMetadata":
+            if let url = args?["url"] as? String {
+                let artPath = args?["artworkPath"] as? String
+                extractMetadata(url: url, artworkPath: artPath, result: result)
+            } else {
+                result(nil)
+            }
+            return // async — don't call result again
+
+        // ==================== Audio Fingerprinting ====================
+        case "generateFingerprint":
+            // TODO: Build chromaprint for iOS
+            result(nil)
+
+        // ==================== Tag Writing ====================
+        case "writeTags":
+            // TODO: Implement with TagLib or AudioToolbox
+            result(false)
+
+        case "scanMediaFile":
+            // No MediaStore on iOS — no-op
+            result(nil)
+
+        // ==================== Lyrics ====================
+        case "readLyrics":
+            if let filePath = args?["filePath"] as? String {
+                result(readLyricsFromFile(filePath))
+            } else {
+                result(nil)
+            }
+
+        case "writeLyrics":
+            // TODO: Implement tag writing for iOS
+            result(false)
+
+        // ==================== Visualizer ====================
+        case "activate_visualizer":
+            // TODO: Implement with AVAudioEngine tap
+            result(nil)
+
+        case "enableVisual":
+            result(nil)
+
+        case "getEnabled":
+            result(false)
+
+        case "setScalingMode", "setFrameRate":
+            result(nil)
+
+        // ==================== projectM Visualizer ====================
+        case "projectm_init", "projectm_start", "projectm_stop", "projectm_release",
+             "projectm_set_preset", "projectm_next_preset", "projectm_prev_preset",
+             "projectm_load_preset_index", "projectm_list_presets", "projectm_current_preset",
+             "projectm_set_fps", "projectm_set_beat_sensitivity", "projectm_set_preset_duration",
+             "projectm_set_preset_locked", "projectm_set_size", "projectm_set_mesh_size":
+            // TODO: Port projectM to iOS (Metal-based)
+            if call.method == "projectm_list_presets" {
+                result([String]())
+            } else if call.method == "projectm_init" {
+                result(-1)  // no texture ID
+            } else {
+                result(nil)
+            }
+
+        // ==================== Preset Reverb (legacy) ====================
+        case "initPresetReverb", "enablePresetReverb", "setReverbPreset":
+            result(nil)
+
+        case "getReverbPreset":
+            result(0)
+
+        // ==================== Delete Manager ====================
+        case "deleteManager":
+            if let path = args?["filePath"] as? String {
+                try? FileManager.default.removeItem(atPath: path)
+            }
+            result(nil)
+
+        case "showNativeMessage":
+            // iOS doesn't have Toast — could use a notification but skip for now
+            result(nil)
+
+        // ==================== Legacy DSP stubs ====================
+        case "initDSPEngine", "enableDSP", "disposeDSP", "setDSPSpeakers",
+             "setDSPXBass", "setExtraBass", "setDSPPowerBass", "setDSPXTreble",
+             "setDSPVolume", "setTunerBass", "setCutOffFreq", "setTrebleFreq",
+             "setTunerVocal":
+            result(nil)
+
+        case "getVocalLevel":
+            result(0.0)
+
+        case "release":
+            result(nil)
+
+        default:
+            result(FlutterMethodNotImplemented)
+        }
+    }
+
+    // MARK: - Helpers
+
+    private func floatArg(_ args: [String: Any]?, _ key: String) -> Float {
+        if let v = args?[key] as? Double { return Float(v) }
+        if let v = args?[key] as? Int { return Float(v) }
+        if let v = args?[key] as? Float { return v }
+        return 0.0
+    }
+
+    private func getAudioOutputType() -> String {
+        let route = AVAudioSession.sharedInstance().currentRoute
+        for output in route.outputs {
+            switch output.portType {
+            case .headphones, .headsetMic:
+                return "headset"
+            case .bluetoothA2DP, .bluetoothLE, .bluetoothHFP:
+                return "bluetooth"
+            case .builtInSpeaker:
+                return "speaker"
+            case .airPlay:
+                return "airplay"
+            case .carAudio:
+                return "car"
+            default:
+                return "other"
+            }
+        }
+        return "speaker"
+    }
+
+    private func extractMetadata(url: String, artworkPath: String?,
+                                  result: @escaping FlutterResult) {
+        DispatchQueue.global(qos: .userInitiated).async {
+            var metadata: [String: Any] = [:]
+            var asset: AVAsset?
+
+            if url.hasPrefix("http://") || url.hasPrefix("https://") {
+                guard let assetUrl = URL(string: url) else {
+                    DispatchQueue.main.async { result(nil) }
+                    return
+                }
+                asset = AVURLAsset(url: assetUrl)
+            } else {
+                let fileUrl = URL(fileURLWithPath: url)
+                guard FileManager.default.fileExists(atPath: url) else {
+                    DispatchQueue.main.async { result(nil) }
+                    return
+                }
+                asset = AVURLAsset(url: fileUrl)
+            }
+
+            guard let avAsset = asset else {
+                DispatchQueue.main.async { result(nil) }
+                return
+            }
+
+            // Extract common metadata
+            for item in avAsset.commonMetadata {
+                if let key = item.commonKey {
+                    switch key {
+                    case .commonKeyTitle:
+                        metadata["title"] = item.stringValue
+                    case .commonKeyArtist:
+                        metadata["artist"] = item.stringValue
+                    case .commonKeyAlbumName:
+                        metadata["album"] = item.stringValue
+                    case .commonKeyArtwork:
+                        if let artPath = artworkPath, let data = item.dataValue {
+                            try? data.write(to: URL(fileURLWithPath: artPath))
+                            metadata["hasArtwork"] = true
+                        }
+                    default:
+                        break
+                    }
+                }
+            }
+
+            // Duration
+            let durationMs = Int(CMTimeGetSeconds(avAsset.duration) * 1000)
+            if durationMs > 0 {
+                metadata["durationMs"] = durationMs
+            }
+
+            DispatchQueue.main.async {
+                result(metadata)
+            }
+        }
+    }
+
+    private func readLyricsFromFile(_ filePath: String) -> String? {
+        let url = URL(fileURLWithPath: filePath)
+        let asset = AVURLAsset(url: url)
+
+        for item in asset.lyrics != nil ? [asset] : [] {
+            _ = item // unused
+        }
+
+        // Try to read lyrics from metadata
+        for item in asset.metadata {
+            if let key = item.identifier,
+               key.rawValue.contains("lyrics") || key.rawValue.contains("USLT") {
+                return item.stringValue
+            }
+        }
+
+        // Also check commonMetadata
+        if let lyrics = asset.lyrics {
+            return lyrics
+        }
+
+        return nil
+    }
+}

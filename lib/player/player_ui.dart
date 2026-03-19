@@ -268,8 +268,8 @@ class _CardDeck extends StatelessWidget {
     Navigator.of(context).push(
       PageRouteBuilder(
         opaque: false,
-        pageBuilder: (_, __, ___) => const LyricsView(),
-        transitionsBuilder: (_, anim, __, child) {
+        pageBuilder: (_, _, _) => const LyricsView(),
+        transitionsBuilder: (_, anim, _, child) {
           return SlideTransition(
             position: Tween<Offset>(begin: const Offset(0, 1), end: Offset.zero)
                 .animate(
