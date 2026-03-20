@@ -31,6 +31,10 @@ target 'Runner' do
 
   flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
 
+  # Force AppAuth to 1.7.5 to resolve conflict between
+  # flutter_appauth (wants 2.0.0) and google_sign_in_ios (wants < 2.0)
+  pod 'AppAuth', '~> 1.7.5'
+
   # Local C++ DSP engine pod
   pod 'HypeDSP', :path => './HypeDSP'
 

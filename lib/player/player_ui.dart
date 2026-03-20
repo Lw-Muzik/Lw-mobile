@@ -61,8 +61,8 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
     });
   }
 
-  int _lastSongId = -1;
   StreamSubscription<ProcessingState>? _autoAdvanceSub;
+  int _lastCompletedSongId = -1; // prevent duplicate auto-advance
 
   @override
   void dispose() {
@@ -71,40 +71,30 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
     super.dispose();
   }
 
-  /// Called by next button — animate first, then change track on completion.
   void _onControlNext() {
     final ctrl = context.read<AppController>();
-    if (ctrl.songs.isEmpty || ctrl.songId >= ctrl.songs.length - 1) {
-      // At end of queue — just call next() directly (it handles repeat logic)
-      ctrl.next();
-      return;
-    }
+    if (ctrl.songs.isEmpty) return;
+    // Animate card, then onPageChanged will call ctrl.next()
     _cardKey.currentState?.animateToNext();
   }
 
-  /// Called by prev button — animate first, then change track on completion.
   void _onControlPrev() {
     final ctrl = context.read<AppController>();
-    // If > 3s into track, prev() restarts — no card animation needed
-    if (ctrl.handler.player.position.inSeconds > 3) {
-      ctrl.prev();
-      return;
-    }
-    if (ctrl.songId <= 0) {
-      ctrl.prev();
-      return;
-    }
-    _cardKey.currentState?.animateToPrevious();
+    if (ctrl.songs.isEmpty) return;
+    // Prev always acts immediately — no card throw animation
+    // (card deck only stacks forward, not backward)
+    ctrl.prev();
   }
 
-  /// Trigger animated next when the track auto-advances (song completes).
   void _setupAutoAdvanceListener(AppController controller) {
     _autoAdvanceSub?.cancel();
     _autoAdvanceSub = controller.handler.player.processingStateStream.listen((state) {
       if (state == ProcessingState.completed && mounted) {
-        // Let the card animate, then AppController handles the actual advance
-        // via its own _bindProcessingState listener.
-        // We just trigger the visual animation here.
+        // Prevent duplicate: only trigger once per song completion
+        final currentId = controller.songId;
+        if (currentId == _lastCompletedSongId) return;
+        _lastCompletedSongId = currentId;
+
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) _cardKey.currentState?.animateToNext();
         });
@@ -118,10 +108,9 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
       body: Consumer<AppController>(
         builder: (context, controller, child) {
           // Set up auto-advance listener once
-          if (_lastSongId == -1) {
+          if (_autoAdvanceSub == null) {
             _setupAutoAdvanceListener(controller);
           }
-          _lastSongId = controller.songId;
 
           final player = controller.handler.player;
           final playerKey = Object.hash(
@@ -347,8 +336,13 @@ class _CardDeck extends StatelessWidget {
               onPageChanged: (page) {
                 if (page > controller.songId) {
                   controller.next();
-                } else {
-                  controller.prev();
+                } else if (page < controller.songId) {
+                  // Skip the >3s restart check — card already animated,
+                  // user explicitly chose previous track
+                  controller.songId = page;
+                  controller.artWorkId = controller.songs[page].id;
+                  loadAudioSource(controller.handler, controller.songs[page],
+                      replayGain: controller.replayGain);
                 }
               },
               itemBuilder: (context, index, {bool isActive = false}) {

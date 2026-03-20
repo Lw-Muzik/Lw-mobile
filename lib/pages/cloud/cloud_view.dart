@@ -5,6 +5,7 @@ import '/Routes/routes.dart';
 import '../../controllers/AppController.dart';
 import '../../models/cloud_file.dart';
 import 'cloud_folder_songs.dart';
+import 'hot100_section.dart';
 
 class CloudView extends StatefulWidget {
   const CloudView({super.key});
@@ -207,6 +208,9 @@ class _CloudViewState extends State<CloudView>
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
             children: [
+              // Hot 100 Ugandan music chart
+              const Hot100Section(),
+              const Divider(height: 32),
               _buildProviderRow(controller),
               const SizedBox(height: 20),
               if (_refreshing && hasFolders) _buildRefreshingIndicator(),

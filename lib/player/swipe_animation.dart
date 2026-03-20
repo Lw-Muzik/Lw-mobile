@@ -320,10 +320,12 @@ class AnimatedPlayerCardState extends State<AnimatedPlayerCard>
   }
 
   bool _canSwipe(SwipeDirection direction) {
+    // Only allow forward (right) swipe — the card stack shows next songs only.
+    // Previous is handled by the prev button directly (no card animation).
     if (direction == SwipeDirection.right) {
       return _currentIndex < widget.itemCount - 1;
     }
-    return _currentIndex > 0;
+    return false;
   }
 
   void _initializeCards() {

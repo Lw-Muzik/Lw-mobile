@@ -12,10 +12,11 @@ import '../config/app_config.dart';
 class CloudAuthService {
   static const _driveScope = 'https://www.googleapis.com/auth/drive.readonly';
 
-  // Google — v7 uses singleton + event-based auth
-  final GoogleSignIn _googleSignIn = GoogleSignIn.instance;
+  // Google — v6 API
+  final GoogleSignIn _googleSignIn = GoogleSignIn(
+    scopes: [_driveScope],
+  );
   GoogleSignInAccount? _googleAccount;
-  bool _googleInitialized = false;
 
   // Dropbox
   final FlutterAppAuth _appAuth = const FlutterAppAuth();
@@ -32,53 +33,13 @@ class CloudAuthService {
 
   // --- Google ---
 
-  Future<void> _ensureGoogleInitialized() async {
-    if (_googleInitialized) return;
-    try {
-      await _googleSignIn.initialize();
-      _googleInitialized = true;
-    } catch (e) {
-      dev.log('Google Sign-In init error: $e', name: 'CloudAuth');
-    }
-  }
-
   Future<bool> signInGoogle() async {
     lastError = null;
     try {
-      await _ensureGoogleInitialized();
-
-      // Authenticate (replaces signIn())
-      try {
-        _googleAccount = await _googleSignIn.authenticate().timeout(
-          const Duration(seconds: 30),
-        );
-      } catch (e) {
-        if (e is TimeoutException) {
-          lastError = 'Sign-in timed out.';
-        } else {
-          lastError = 'Sign-in cancelled or failed.';
-        }
-        _googleAccount = null;
-        return false;
-      }
+      _googleAccount = await _googleSignIn.signIn();
 
       if (_googleAccount == null) {
-        lastError =
-            'Sign-in cancelled or timed out. '
-            'Make sure your google-services.json has an OAuth client '
-            'registered with your SHA-1 fingerprint.';
-        return false;
-      }
-
-      // Request Drive scope authorization
-      try {
-        await _googleAccount!.authorizationClient.authorizeScopes([
-          _driveScope,
-        ]);
-      } catch (e) {
-        lastError = 'Failed to authorize Drive scope: $e';
-        await _googleSignIn.signOut();
-        _googleAccount = null;
+        lastError = 'Sign-in cancelled.';
         return false;
       }
 
@@ -107,10 +68,7 @@ class CloudAuthService {
 
   Future<bool> restoreGoogleSession() async {
     try {
-      await _ensureGoogleInitialized();
-
-      // Attempt lightweight (silent) authentication
-      _googleAccount = await _googleSignIn.attemptLightweightAuthentication();
+      _googleAccount = await _googleSignIn.signInSilently();
       return _googleAccount != null;
     } catch (_) {
       _googleAccount = null;
@@ -121,13 +79,20 @@ class CloudAuthService {
   Future<Map<String, String>> getGoogleAuthHeaders() async {
     if (_googleAccount == null) return {};
     try {
-      final authorization = await _googleAccount!.authorizationClient
-          .authorizationForScopes([_driveScope]);
-      final token = authorization?.accessToken;
+      final auth = await _googleAccount!.authentication;
+      final token = auth.accessToken;
       if (token == null) return {};
       return {'Authorization': 'Bearer $token'};
     } catch (_) {
-      return {};
+      // Token might be expired — try silent sign-in to refresh
+      try {
+        _googleAccount = await _googleSignIn.signInSilently();
+        if (_googleAccount == null) return {};
+        final auth = await _googleAccount!.authentication;
+        return {'Authorization': 'Bearer ${auth.accessToken}'};
+      } catch (_) {
+        return {};
+      }
     }
   }
 
@@ -171,13 +136,12 @@ class CloudAuthService {
 
   Future<bool> restoreDropboxSession() async {
     try {
-      _dropboxAccessToken = await _secureStorage.read(
-        key: 'dropbox_access_token',
-      );
-      _dropboxRefreshToken = await _secureStorage.read(
-        key: 'dropbox_refresh_token',
-      );
-      final expiryStr = await _secureStorage.read(key: 'dropbox_token_expiry');
+      _dropboxAccessToken =
+          await _secureStorage.read(key: 'dropbox_access_token');
+      _dropboxRefreshToken =
+          await _secureStorage.read(key: 'dropbox_refresh_token');
+      final expiryStr =
+          await _secureStorage.read(key: 'dropbox_token_expiry');
       if (expiryStr != null) {
         _dropboxTokenExpiry = DateTime.tryParse(expiryStr);
       }
@@ -200,10 +164,9 @@ class CloudAuthService {
   Future<void> _refreshDropboxIfNeeded() async {
     if (_dropboxRefreshToken == null) return;
     if (_dropboxTokenExpiry != null &&
-        _dropboxTokenExpiry!.isAfter(
-          DateTime.now().add(const Duration(minutes: 5)),
-        )) {
-      return; // Token still valid
+        _dropboxTokenExpiry!
+            .isAfter(DateTime.now().add(const Duration(minutes: 5)))) {
+      return;
     }
     try {
       final response = await http.post(
@@ -218,9 +181,8 @@ class CloudAuthService {
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         _dropboxAccessToken = data['access_token'];
-        _dropboxTokenExpiry = DateTime.now().add(
-          Duration(seconds: data['expires_in'] as int),
-        );
+        _dropboxTokenExpiry = DateTime.now()
+            .add(Duration(seconds: data['expires_in'] as int));
         await _persistDropboxTokens();
       }
     } catch (_) {}
@@ -229,21 +191,16 @@ class CloudAuthService {
   Future<void> _persistDropboxTokens() async {
     if (_dropboxAccessToken != null) {
       await _secureStorage.write(
-        key: 'dropbox_access_token',
-        value: _dropboxAccessToken!,
-      );
+          key: 'dropbox_access_token', value: _dropboxAccessToken!);
     }
     if (_dropboxRefreshToken != null) {
       await _secureStorage.write(
-        key: 'dropbox_refresh_token',
-        value: _dropboxRefreshToken!,
-      );
+          key: 'dropbox_refresh_token', value: _dropboxRefreshToken!);
     }
     if (_dropboxTokenExpiry != null) {
       await _secureStorage.write(
-        key: 'dropbox_token_expiry',
-        value: _dropboxTokenExpiry!.toIso8601String(),
-      );
+          key: 'dropbox_token_expiry',
+          value: _dropboxTokenExpiry!.toIso8601String());
     }
   }
 }
