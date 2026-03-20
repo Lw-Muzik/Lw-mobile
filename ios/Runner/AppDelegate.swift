@@ -48,6 +48,57 @@ import AVFoundation
         return super.application(application, didFinishLaunchingWithOptions: launchOptions)
     }
 
+    // MARK: - Open audio files from other apps (Safari, Files, AirDrop, etc.)
+
+    override func application(_ app: UIApplication, open url: URL,
+                              options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {
+        // Check if this is an audio file
+        let ext = url.pathExtension.lowercased()
+        let audioExts: Set<String> = ["mp3", "m4a", "aac", "flac", "wav", "ogg", "wma", "aiff", "alac"]
+        if audioExts.contains(ext) {
+            copyToMusicFolder(url)
+            return true
+        }
+        return super.application(app, open: url, options: options)
+    }
+
+    private func copyToMusicFolder(_ url: URL) {
+        let fm = FileManager.default
+        let docs = fm.urls(for: .documentDirectory, in: .userDomainMask).first!
+        let musicDir = docs.appendingPathComponent("Music")
+
+        // Create Music directory if needed
+        if !fm.fileExists(atPath: musicDir.path) {
+            try? fm.createDirectory(at: musicDir, withIntermediateDirectories: true)
+        }
+
+        let destURL = musicDir.appendingPathComponent(url.lastPathComponent)
+
+        // Access security-scoped resource (for files from other apps)
+        let accessing = url.startAccessingSecurityScopedResource()
+        defer { if accessing { url.stopAccessingSecurityScopedResource() } }
+
+        do {
+            if fm.fileExists(atPath: destURL.path) {
+                try fm.removeItem(at: destURL)
+            }
+            try fm.copyItem(at: url, to: destURL)
+            print("Hype: Imported \(url.lastPathComponent) to Music folder")
+
+            // Notify Dart side that a new file was imported
+            if let channel = visualizerChannel {
+                DispatchQueue.main.async {
+                    channel.invokeMethod("onFileImported", arguments: [
+                        "path": destURL.path,
+                        "name": url.lastPathComponent,
+                    ])
+                }
+            }
+        } catch {
+            print("Hype: Failed to import \(url.lastPathComponent): \(error)")
+        }
+    }
+
     // MARK: - Visualizer Timer
 
     private func startVisualizerTimer() {

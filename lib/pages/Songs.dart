@@ -41,15 +41,22 @@ class _AllSongsState extends State<AllSongs> {
   bool _importing = false;
 
   Future<void> _importFiles() async {
-    if (_importing) return; // prevent double-tap
+    if (_importing) return;
     _importing = true;
     try {
       final count = await LocalMusicScanner.importFiles();
-      if (count > 0 && mounted) {
+      if (!mounted) return;
+      if (count > 0) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Imported $count file${count == 1 ? '' : 's'}')),
         );
         _refreshSongs();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Import failed: $e')),
+        );
       }
     } finally {
       _importing = false;
@@ -185,11 +192,14 @@ class _AllSongsState extends State<AllSongs> {
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 32),
                     child: Text(
-                      "How to add music on iOS:\n"
-                      "1. Tap 'Import Music Files' to pick from Files\n"
-                      "2. Or open Files app > On My iPhone > Hype Muzik\n"
-                      "   and copy your music files there\n"
-                      "3. Tap the refresh button after adding files",
+                      "How to add music on iOS:\n\n"
+                      "1. Tap 'Import' above to pick files\n"
+                      "2. In Safari: download a song → tap it\n"
+                      "   → Share → 'Open in Hype Muzik'\n"
+                      "3. In Files app: browse to On My iPhone\n"
+                      "   → Hype Muzik → drop files there\n\n"
+                      "Songs from Apple Music library\n"
+                      "appear automatically.",
                       textAlign: TextAlign.left,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: Theme.of(context)

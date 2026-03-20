@@ -162,36 +162,51 @@ class LocalMusicScanner {
   /// Copies selected files into the app's Documents/Music directory.
   /// Returns the number of files imported.
   static Future<int> importFiles() async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.audio,
-      allowMultiple: true,
-    );
+    try {
+      // Use custom extension filter — FileType.audio can fail on some iOS versions
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: [
+          'mp3', 'm4a', 'aac', 'flac', 'wav', 'ogg', 'wma', 'aiff', 'alac',
+        ],
+        allowMultiple: true,
+      );
 
-    if (result == null || result.files.isEmpty) return 0;
+      debugPrint('LocalMusicScanner: Picker result: ${result?.files.length ?? 'cancelled'}');
 
-    final musicDir = await getMusicDirectory();
-    int imported = 0;
+      if (result == null || result.files.isEmpty) return 0;
 
-    for (final file in result.files) {
-      if (file.path == null) continue;
-      final src = File(file.path!);
-      if (!src.existsSync()) continue;
+      final musicDir = await getMusicDirectory();
+      int imported = 0;
 
-      final destPath = '${musicDir.path}/${file.name}';
-      // Don't overwrite existing files
-      if (!File(destPath).existsSync()) {
-        try {
-          await src.copy(destPath);
-          imported++;
-        } catch (e) {
-          debugPrint('LocalMusicScanner: Failed to copy ${file.name}: $e');
+      for (final file in result.files) {
+        debugPrint('LocalMusicScanner: Processing ${file.name}, path=${file.path}');
+        if (file.path == null) continue;
+        final src = File(file.path!);
+        if (!src.existsSync()) {
+          debugPrint('LocalMusicScanner: Source file does not exist: ${file.path}');
+          continue;
         }
-      } else {
-        imported++; // Already exists, count as success
-      }
-    }
 
-    debugPrint('LocalMusicScanner: Imported $imported files');
-    return imported;
+        final destPath = '${musicDir.path}/${file.name}';
+        if (!File(destPath).existsSync()) {
+          try {
+            await src.copy(destPath);
+            imported++;
+            debugPrint('LocalMusicScanner: Copied ${file.name}');
+          } catch (e) {
+            debugPrint('LocalMusicScanner: Failed to copy ${file.name}: $e');
+          }
+        } else {
+          imported++; // Already exists
+        }
+      }
+
+      debugPrint('LocalMusicScanner: Imported $imported files');
+      return imported;
+    } catch (e) {
+      debugPrint('LocalMusicScanner: importFiles error: $e');
+      return 0;
+    }
   }
 }
