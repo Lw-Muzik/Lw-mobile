@@ -113,19 +113,28 @@ Widget playerActionBar(AppController controller, BuildContext context) {
             showModalBottomSheet(
               context: context,
               isScrollControlled: true,
+              isDismissible: true,
               backgroundColor: Colors.transparent,
               barrierColor: Colors.black54,
               builder: (context) {
-                return DraggableScrollableSheet(
-                  initialChildSize: 0.55,
-                  minChildSize: 0.3,
-                  maxChildSize: 0.92,
-                  builder: (context, scrollController) {
-                    return NowPlaying(
-                      controller: controller,
-                      scrollController: scrollController,
-                    );
-                  },
+                return GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => Navigator.pop(context),
+                  child: GestureDetector(
+                    onTap: () {}, // absorb taps on the sheet itself
+                    child: DraggableScrollableSheet(
+                      initialChildSize: 0.55,
+                      minChildSize: 0.3,
+                      maxChildSize: 0.92,
+                      expand: false,
+                      builder: (context, scrollController) {
+                        return NowPlaying(
+                          controller: controller,
+                          scrollController: scrollController,
+                        );
+                      },
+                    ),
+                  ),
                 );
               },
             );
