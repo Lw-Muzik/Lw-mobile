@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import '/Helpers/index.dart';
 import '/controllers/PlayerController.dart';
 import '/exports/exports.dart';
@@ -170,6 +171,21 @@ Future<String> fetchMetaData(BuildContext context) async {
   final processor = MetadataProcessor(context, controller, prefs, cache);
 
   try {
+    // On iOS, verify media library permission before querying.
+    // on_audio_query uses MPMediaQuery which requires explicit authorization.
+    if (defaultTargetPlatform == TargetPlatform.iOS) {
+      final hasPermission = await processor.audioQuery.permissionsStatus();
+      if (!hasPermission) {
+        final granted = await processor.audioQuery.permissionsRequest();
+        if (!granted) {
+          controller.textHeader = "";
+          controller.text =
+              "Music library access denied.\nGrant access in Settings > Hype Muzik.";
+          return controller.text;
+        }
+      }
+    }
+
     await processor.processArtists();
     await processor.processAlbums();
     await processor.processGenres();

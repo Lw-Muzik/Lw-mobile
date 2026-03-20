@@ -45,6 +45,21 @@ Future<void> main() async {
     Permission.audio,
   ].request();
 
+  // On iOS, ensure media library permission is fully granted before proceeding.
+  // MPMediaLibrary.requestAuthorization is async — the permission_handler call
+  // above may return before the user has tapped "Allow".
+  if (defaultTargetPlatform == TargetPlatform.iOS) {
+    var status = await Permission.mediaLibrary.status;
+    if (!status.isGranted) {
+      status = await Permission.mediaLibrary.request();
+      // If still not granted after the prompt, wait briefly for the system to
+      // update authorization status (iOS can have a slight delay).
+      if (!status.isGranted) {
+        await Future.delayed(const Duration(milliseconds: 500));
+      }
+    }
+  }
+
   final handler = await AudioService.init<HypeAudioHandler>(
     builder: () => HypeAudioHandler(),
     config: const AudioServiceConfig(
