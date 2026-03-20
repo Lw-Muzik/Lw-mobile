@@ -15,11 +15,18 @@ class ProjectMController {
   List<String> get presetNames => _presetNames;
 
   /// Initialize the projectM renderer and get a Flutter Texture ID.
+  /// Returns null if initialization failed (e.g. no OpenGL ES support).
   Future<int?> init(int width, int height) async {
     final id = await Channel.channel.invokeMethod<int>(
       'projectm_init',
       {'width': width, 'height': height},
     );
+    // Native returns -1 on failure
+    if (id == null || id < 0) {
+      debugPrint('ProjectM init failed: textureId=$id');
+      _textureId = null;
+      return null;
+    }
     _textureId = id;
     debugPrint('ProjectM init: textureId=$id');
     return id;
