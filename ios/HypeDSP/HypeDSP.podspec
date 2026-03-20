@@ -8,9 +8,8 @@ Pod::Spec.new do |s|
   s.source           = { :path => '.' }
   s.ios.deployment_target = '15.0'
 
-  s.source_files = 'src/**/*.{h,cpp}'
+  s.source_files = 'src/**/*.{h,cpp}', 'include/**/*.h'
   s.public_header_files = 'include/**/*.h'
-  s.header_mappings_dir = 'include'
 
   s.pod_target_xcconfig = {
     'CLANG_CXX_LANGUAGE_STANDARD' => 'c++17',

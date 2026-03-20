@@ -81,16 +81,12 @@ Future<void> main() async {
         secret: AppConfig.wiredashSecret,
         options: const WiredashOptionsData(locale: Locale('en')),
         child: MaterialApp(
+          debugShowCheckedModeBanner: false,
           theme: AppThemes.fancyTheme,
           initialRoute: Routes.loader,
           routes: Routes.routes(),
           builder: (context, child) {
-            return Stack(
-              children: [
-                child!,
-                const DvcVolumeOverlay(),
-              ],
-            );
+            return Stack(children: [child!, const DvcVolumeOverlay()]);
           },
         ),
       ),

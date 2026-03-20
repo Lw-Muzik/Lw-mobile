@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:developer' as dev;
 
@@ -11,11 +12,10 @@ import '../config/app_config.dart';
 class CloudAuthService {
   static const _driveScope = 'https://www.googleapis.com/auth/drive.readonly';
 
-  // Google
-  final GoogleSignIn _googleSignIn = GoogleSignIn(
-    scopes: [_driveScope],
-  );
+  // Google — v7 uses singleton + event-based auth
+  final GoogleSignIn _googleSignIn = GoogleSignIn.instance;
   GoogleSignInAccount? _googleAccount;
+  bool _googleInitialized = false;
 
   // Dropbox
   final FlutterAppAuth _appAuth = const FlutterAppAuth();
@@ -32,12 +32,35 @@ class CloudAuthService {
 
   // --- Google ---
 
+  Future<void> _ensureGoogleInitialized() async {
+    if (_googleInitialized) return;
+    try {
+      await _googleSignIn.initialize();
+      _googleInitialized = true;
+    } catch (e) {
+      dev.log('Google Sign-In init error: $e', name: 'CloudAuth');
+    }
+  }
+
   Future<bool> signInGoogle() async {
     lastError = null;
     try {
-      // Timeout after 30 seconds to prevent infinite hang
-      _googleAccount = await _googleSignIn.signIn()
-          .timeout(const Duration(seconds: 30), onTimeout: () => null);
+      await _ensureGoogleInitialized();
+
+      // Authenticate (replaces signIn())
+      try {
+        _googleAccount = await _googleSignIn.authenticate()
+            .timeout(const Duration(seconds: 30));
+      } catch (e) {
+        if (e is TimeoutException) {
+          lastError = 'Sign-in timed out.';
+        } else {
+          lastError = 'Sign-in cancelled or failed.';
+        }
+        _googleAccount = null;
+        return false;
+      }
+
       if (_googleAccount == null) {
         lastError = 'Sign-in cancelled or timed out. '
             'Make sure your google-services.json has an OAuth client '
@@ -45,30 +68,19 @@ class CloudAuthService {
         return false;
       }
 
-      // Ensure Drive scope was granted
-      bool hasScope = true;
+      // Request Drive scope authorization
       try {
-        hasScope = await _googleSignIn.canAccessScopes([_driveScope]);
-      } on UnimplementedError {
-        // canAccessScopes not available on this platform — assume granted
-        // since scopes were requested in GoogleSignIn constructor
-      }
-      if (!hasScope) {
-        // Request the scope explicitly (needed on Android with granular permissions)
-        final granted =
-            await _googleSignIn.requestScopes([_driveScope]);
-        if (!granted) {
+        final authorization = await _googleAccount!
+            .authorizationClient
+            .authorizeScopes([_driveScope]);
+        if (authorization.accessToken == null) {
           lastError = 'Drive permission denied. Grant access to Google Drive.';
           await _googleSignIn.signOut();
           _googleAccount = null;
           return false;
         }
-      }
-
-      // Verify we can actually get an access token
-      final auth = await _googleAccount!.authentication;
-      if (auth.accessToken == null) {
-        lastError = 'Failed to get access token';
+      } catch (e) {
+        lastError = 'Failed to authorize Drive scope: $e';
         await _googleSignIn.signOut();
         _googleAccount = null;
         return false;
@@ -98,20 +110,10 @@ class CloudAuthService {
 
   Future<bool> restoreGoogleSession() async {
     try {
-      _googleAccount = await _googleSignIn.signInSilently();
-      if (_googleAccount != null) {
-        // Check the scope is still valid
-        try {
-          final hasScope =
-              await _googleSignIn.canAccessScopes([_driveScope]);
-          if (!hasScope) {
-            _googleAccount = null;
-            return false;
-          }
-        } on UnimplementedError {
-          // canAccessScopes not available — assume granted
-        }
-      }
+      await _ensureGoogleInitialized();
+
+      // Attempt lightweight (silent) authentication
+      _googleAccount = await _googleSignIn.attemptLightweightAuthentication();
       return _googleAccount != null;
     } catch (_) {
       _googleAccount = null;
@@ -122,9 +124,12 @@ class CloudAuthService {
   Future<Map<String, String>> getGoogleAuthHeaders() async {
     if (_googleAccount == null) return {};
     try {
-      final auth = await _googleAccount!.authentication;
-      if (auth.accessToken == null) return {};
-      return {'Authorization': 'Bearer ${auth.accessToken}'};
+      final authorization = await _googleAccount!
+          .authorizationClient
+          .authorizationForScopes([_driveScope]);
+      final token = authorization?.accessToken;
+      if (token == null) return {};
+      return {'Authorization': 'Bearer $token'};
     } catch (_) {
       return {};
     }

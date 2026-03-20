@@ -96,6 +96,7 @@ flutter:
   assets:
     - assets/
     - assets/shaders/
+    - assets/milkdrop_presets/
   shaders:
     - assets/shaders/sea.frag
   #   - images/a_dot_ham.jpeg
