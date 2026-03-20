@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../controllers/AppController.dart';
 import '../../controllers/stem_controller.dart';
-import '../../models/stem_model.dart';
 import '../../pages/stem_mixer_view.dart';
 import '../../pages/stem_processing_view.dart';
 import '../../Routes/routes.dart';
@@ -129,24 +128,37 @@ class StemButton extends StatelessWidget {
       ),
       builder: (ctx) => Padding(
         padding: EdgeInsets.fromLTRB(
-          24, 24, 24, MediaQuery.of(ctx).padding.bottom + 24),
+          24,
+          24,
+          24,
+          MediaQuery.of(ctx).padding.bottom + 24,
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 40, height: 4,
+              width: 40,
+              height: 4,
               margin: const EdgeInsets.only(bottom: 20),
               decoration: BoxDecoration(
                 color: Colors.white24,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
-            const Icon(Icons.multitrack_audio_rounded,
-              color: Color(0xFF9C27B0), size: 48),
+            const Icon(
+              Icons.multitrack_audio_rounded,
+              color: Color(0xFF9C27B0),
+              size: 48,
+            ),
             const SizedBox(height: 12),
-            const Text('Separate Stems',
-              style: TextStyle(color: Colors.white, fontSize: 18,
-                fontWeight: FontWeight.w600)),
+            const Text(
+              'Separate Stems',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
             const SizedBox(height: 8),
             Text(
               'Split "${song.title}" into vocals, drums, bass, and instruments.',
@@ -171,10 +183,13 @@ class StemButton extends StatelessWidget {
                   backgroundColor: const Color(0xFF9C27B0),
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
-                child: const Text('Start Separation',
-                  style: TextStyle(color: Colors.white, fontSize: 15)),
+                child: const Text(
+                  'Start Separation',
+                  style: TextStyle(color: Colors.white, fontSize: 15),
+                ),
               ),
             ),
           ],

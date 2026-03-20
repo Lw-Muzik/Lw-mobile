@@ -64,6 +64,8 @@ dependencies:
   flutter_zoom_drawer: ^3.2.0
   id3tag: ^0.2.0
   vector_math: ^2.2.0
+  file_picker: ^10.3.10
+  connectivity_plus: ^7.0.0
 
 
 dev_dependencies:
@@ -96,6 +98,7 @@ flutter:
   assets:
     - assets/
     - assets/shaders/
+    - assets/milkdrop_presets/
   shaders:
     - assets/shaders/sea.frag
   #   - images/a_dot_ham.jpeg

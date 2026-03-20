@@ -48,37 +48,39 @@ class FingerprintService {
       return cached;
     }
 
-    // Step 1: Generate fingerprint (use local cache path for cloud files)
-    final fpData = await Channel.generateFingerprint(fingerprintPath ?? path);
-    if (fpData == null) {
-      debugPrint('FingerprintService: fingerprint generation failed for $path');
-      return null;
-    }
-
-    final fingerprint = fpData['fingerprint'] as String?;
-    final duration = fpData['duration'] as int?;
-    if (fingerprint == null || duration == null || duration == 0) return null;
-
-    // Step 2: AcoustID lookup
     RecognitionResult? result;
-    final acoustIdResult = await _lookupAcoustId(fingerprint, duration);
+    final actualPath = fingerprintPath ?? path;
 
-    if (acoustIdResult != null) {
-      // Step 3: MusicBrainz enrichment (if we have a recording ID)
-      result = acoustIdResult;
-      if (acoustIdResult.musicBrainzRecordingId != null) {
-        final enriched = await _enrichFromMusicBrainz(
-          acoustIdResult.musicBrainzRecordingId!,
-          acoustIdResult,
-        );
-        if (enriched != null) result = enriched;
+    // Step 1: Generate Chromaprint fingerprint (not available on iOS)
+    final fpData = await Channel.generateFingerprint(actualPath);
+
+    if (fpData != null) {
+      final fingerprint = fpData['fingerprint'] as String?;
+      final duration = fpData['duration'] as int?;
+
+      if (fingerprint != null && duration != null && duration > 0) {
+        // Step 2: AcoustID lookup
+        final acoustIdResult = await _lookupAcoustId(fingerprint, duration);
+        if (acoustIdResult != null) {
+          result = acoustIdResult;
+          // Step 3: MusicBrainz enrichment
+          if (acoustIdResult.musicBrainzRecordingId != null) {
+            final enriched = await _enrichFromMusicBrainz(
+              acoustIdResult.musicBrainzRecordingId!,
+              acoustIdResult,
+            );
+            if (enriched != null) result = enriched;
+          }
+        }
       }
+    } else {
+      debugPrint('FingerprintService: Chromaprint unavailable, skipping AcoustID');
     }
 
-    // Step 4: ACRCloud fallback if AcoustID found nothing
+    // Step 4: ACRCloud fallback (works on all platforms — uses raw audio bytes)
     if (result == null && AppConfig.acrCloudAccessKey.isNotEmpty) {
-      debugPrint('FingerprintService: AcoustID miss, trying ACRCloud for $path');
-      result = await _lookupAcrCloud(path);
+      debugPrint('FingerprintService: Trying ACRCloud for $actualPath');
+      result = await _lookupAcrCloud(actualPath);
     }
 
     if (result == null) return null;

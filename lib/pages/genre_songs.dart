@@ -12,6 +12,7 @@ import '/widgets/ArtworkWidget.dart';
 import '/widgets/BottomPlayer.dart';
 import '/widgets/song_options_sheet.dart';
 import '/widgets/song_tile.dart';
+import '/Helpers/Files.dart';
 
 class GenreSongs extends StatefulWidget {
   final int? genreId;
@@ -105,10 +106,7 @@ class _GenreSongsState extends State<GenreSongs> {
                     context,
                   ).scaffoldBackgroundColor.withValues(alpha: 0.8),
                   body: FutureBuilder<List<SongModel>>(
-                    future: OnAudioQuery.platform.queryAudiosFrom(
-                      AudiosFromType.GENRE_ID,
-                      widget.genreId!,
-                    ),
+                    future: Files.fetchSongsForGenre(widget.genreId!),
                     builder: (context, snapshot) {
                       if (!snapshot.hasData) {
                         return const Center(

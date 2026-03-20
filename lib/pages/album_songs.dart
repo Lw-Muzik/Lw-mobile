@@ -11,6 +11,7 @@ import '/widgets/ArtworkWidget.dart';
 import '/widgets/BottomPlayer.dart';
 import '/widgets/song_options_sheet.dart';
 import '/widgets/song_tile.dart';
+import '/Helpers/Files.dart';
 
 class AlbumSongs extends StatefulWidget {
   final int? albumId;
@@ -106,10 +107,7 @@ class _AlbumSongsState extends State<AlbumSongs> {
               builder: (context, service) {
                 return Scaffold(
                   body: FutureBuilder<List<SongModel>>(
-                    future: OnAudioQuery.platform.queryAudiosFrom(
-                      AudiosFromType.ALBUM_ID,
-                      widget.albumId!,
-                    ),
+                    future: Files.fetchSongsForAlbum(widget.albumId!),
                     builder: (context, snapshot) {
                       if (!snapshot.hasData) {
                         return const Center(

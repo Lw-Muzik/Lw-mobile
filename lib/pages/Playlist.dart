@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:eq_app/Helpers/index.dart';
 import 'package:eq_app/Routes/routes.dart';
 import 'package:eq_app/controllers/AppController.dart';
@@ -23,7 +24,12 @@ class _PlayListViewState extends State<PlayListView> {
   }
 
   void _loadPlaylists() {
-    _playlistFuture = OnAudioQuery().queryPlaylists();
+    // queryPlaylists is NOT supported on iOS — returns error/crash
+    if (Platform.isIOS) {
+      _playlistFuture = Future.value([]);
+    } else {
+      _playlistFuture = OnAudioQuery().queryPlaylists();
+    }
   }
 
   // void _refresh() {

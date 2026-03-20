@@ -25,40 +25,60 @@ class Home extends StatefulWidget {
 
 class _HomeState extends State<Home> with TickerProviderStateMixin {
   late final TabController _tabController;
-  // ignore: constant_identifier_names
-  static const int TAB_COUNT = 7;
 
   // Cache commonly used values
   late final AppController _appController;
   bool _isAndroid = false;
 
-  static const List<_TabDef> _tabDefs = [
-    _TabDef(Icons.folder_rounded, 'Folders'),
-    _TabDef(Icons.queue_music_rounded, 'Playlists'),
-    _TabDef(Icons.person_rounded, 'Artists'),
-    _TabDef(Icons.album_rounded, 'Albums'),
-    _TabDef(Icons.category_rounded, 'Genres'),
-    _TabDef(Icons.music_note_rounded, 'Songs'),
-    _TabDef(Icons.cloud_rounded, 'Cloud'),
-  ];
-
-  static const List<Widget> _tabViews = [
-    Folders(),
-    PlayListView(),
-    Artists(),
-    Albums(),
-    Genres(),
-    AllSongs(),
-    CloudView(),
-  ];
+  // Tabs differ per platform — Folders and Playlists are Android-only
+  late final List<_TabDef> _tabDefs;
+  late final List<Widget> _tabViews;
 
   bool _initialized = false;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: TAB_COUNT, vsync: this);
     _isAndroid = Platform.isAndroid;
+
+    if (_isAndroid) {
+      _tabDefs = const [
+        _TabDef(Icons.folder_rounded, 'Folders'),
+        _TabDef(Icons.queue_music_rounded, 'Playlists'),
+        _TabDef(Icons.person_rounded, 'Artists'),
+        _TabDef(Icons.album_rounded, 'Albums'),
+        _TabDef(Icons.category_rounded, 'Genres'),
+        _TabDef(Icons.music_note_rounded, 'Songs'),
+        _TabDef(Icons.cloud_rounded, 'Cloud'),
+      ];
+      _tabViews = const [
+        Folders(),
+        PlayListView(),
+        Artists(),
+        Albums(),
+        Genres(),
+        AllSongs(),
+        CloudView(),
+      ];
+    } else {
+      // iOS: no Folders (no filesystem access), no Playlists (unsupported)
+      _tabDefs = const [
+        _TabDef(Icons.person_rounded, 'Artists'),
+        _TabDef(Icons.album_rounded, 'Albums'),
+        _TabDef(Icons.category_rounded, 'Genres'),
+        _TabDef(Icons.music_note_rounded, 'Songs'),
+        _TabDef(Icons.cloud_rounded, 'Cloud'),
+      ];
+      _tabViews = const [
+        Artists(),
+        Albums(),
+        Genres(),
+        AllSongs(),
+        CloudView(),
+      ];
+    }
+
+    _tabController = TabController(length: _tabDefs.length, vsync: this);
   }
 
   @override

@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../Visualizers/wave-visualizer.dart';
@@ -25,18 +26,53 @@ class _VisualUIState extends State<VisualUI>
   bool _projectMInitialized = false;
   String _presetName = '';
 
-  static const _visualizers = {
-    'circular': _VisualPreset(
-      name: 'Circular',
-      icon: Icons.circle_outlined,
-      description: 'Circular bars',
+  static Map<String, _VisualPreset> get _visualizers => {
+    'radial': const _VisualPreset(
+      name: 'Radial',
+      icon: Icons.flare_rounded,
+      description: 'Circular burst',
     ),
-    'bars': _VisualPreset(
+    'bars': const _VisualPreset(
       name: 'Spectrum',
       icon: Icons.bar_chart_rounded,
       description: 'Classic analyzer',
     ),
-    'milkdrop': _VisualPreset(
+    'mirror_bars': const _VisualPreset(
+      name: 'Mirror',
+      icon: Icons.align_vertical_center_rounded,
+      description: 'Mirrored bars',
+    ),
+    'line': const _VisualPreset(
+      name: 'Waveform',
+      icon: Icons.show_chart_rounded,
+      description: 'Oscilloscope',
+    ),
+    'terrain': const _VisualPreset(
+      name: 'Terrain',
+      icon: Icons.terrain_rounded,
+      description: 'Mountain peaks',
+    ),
+    'dots': const _VisualPreset(
+      name: 'Matrix',
+      icon: Icons.grid_on_rounded,
+      description: 'Dot grid',
+    ),
+    'silk': const _VisualPreset(
+      name: 'Silk',
+      icon: Icons.animation_rounded,
+      description: 'Layered ribbon waves',
+    ),
+    'lissajous': const _VisualPreset(
+      name: 'Lissajous',
+      icon: Icons.all_inclusive_rounded,
+      description: 'Twisting curves',
+    ),
+    'windmill': const _VisualPreset(
+      name: 'Windmill',
+      icon: Icons.rotate_right_rounded,
+      description: 'Radial arc fan',
+    ),
+    if (!Platform.isIOS) 'milkdrop': const _VisualPreset(
       name: 'MilkDrop',
       icon: Icons.blur_on_rounded,
       description: 'MilkDrop presets',
@@ -119,10 +155,13 @@ class _VisualUIState extends State<VisualUI>
     } else {
       // Scale down so longest edge = maxEdge, preserve aspect ratio
       final longest = fullW > fullH ? fullW : fullH;
-      final scale = maxEdge / longest;
+      final scale = maxEdge.toDouble() / longest.toDouble();
       w = (fullW * scale).toInt();
       h = (fullH * scale).toInt();
     }
+    // Ensure minimum resolution
+    w = w.clamp(64, fullW);
+    h = h.clamp(64, fullH);
 
     final textureId = await _projectM.init(w, h);
     if (textureId != null) {
@@ -318,7 +357,7 @@ class _VisualUIState extends State<VisualUI>
     final reactivity = ctrl.visualizerReactivity;
 
     return VisualizerWidget(
-      builder: (context, fft, x) {
+      builder: (context, waveform, fft, x) {
         return AnimatedSwitcher(
           duration: const Duration(milliseconds: 500),
           transitionBuilder: (child, animation) {
@@ -329,7 +368,8 @@ class _VisualUIState extends State<VisualUI>
             color: color,
             width: width,
             height: height,
-            audioData: fft,
+            audioData: waveform,
+            fftData: fft,
             selector: style,
             reactivity: reactivity,
           ),
@@ -504,79 +544,49 @@ class _SettingsPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final isMilkDrop = selectedVisual == 'milkdrop';
 
+    final activeStyle = visualizers[selectedVisual];
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Section: Visualizer type
-          const Text(
-            'STYLE',
-            style: TextStyle(
-              color: Colors.white38,
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 1.0,
-            ),
-          ),
-          const SizedBox(height: 10),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            physics: const BouncingScrollPhysics(),
-            child: Row(
-              children: visualizers.entries.map((entry) {
-                final isSelected = entry.key == selectedVisual;
-
-                return Padding(
-                  padding: const EdgeInsets.only(right: 10),
-                  child: GestureDetector(
-                    onTap: () => onSelectVisual(entry.key),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 10,
-                      ),
-                      decoration: BoxDecoration(
-                        color: isSelected
-                            ? _accentColor.withValues(alpha: 0.2)
-                            : Colors.white.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(
-                          color: isSelected
-                              ? _accentColor.withValues(alpha: 0.5)
-                              : Colors.transparent,
-                          width: 1.5,
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            entry.value.icon,
-                            color: isSelected ? _accentColor : Colors.white54,
-                            size: 18,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            entry.value.name,
-                            style: TextStyle(
-                              color: isSelected ? _accentColor : Colors.white70,
-                              fontSize: 13,
-                              fontWeight: isSelected
-                                  ? FontWeight.w600
-                                  : FontWeight.w400,
-                            ),
-                          ),
-                        ],
-                      ),
+          // Visualizer style — tap to open picker sheet
+          GestureDetector(
+            onTap: () => _openStylePicker(context),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+              ),
+              child: Row(
+                children: [
+                  Icon(activeStyle?.icon ?? Icons.equalizer_rounded,
+                      size: 18, color: _accentColor.withValues(alpha: 0.8)),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Style',
+                            style: TextStyle(fontSize: 11,
+                                color: Colors.white.withValues(alpha: 0.45))),
+                        const SizedBox(height: 1),
+                        Text(activeStyle?.name ?? 'Select',
+                            style: const TextStyle(fontSize: 14,
+                                fontWeight: FontWeight.w600, color: Colors.white)),
+                      ],
                     ),
                   ),
-                );
-              }).toList(),
+                  Icon(Icons.keyboard_arrow_down_rounded, size: 22,
+                      color: Colors.white.withValues(alpha: 0.4)),
+                ],
+              ),
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
           // Section: Color palette (hidden for milkdrop — projectM handles its own colors)
           if (!isMilkDrop) ...[
             const Text(
@@ -750,6 +760,19 @@ class _SettingsPanel extends StatelessWidget {
             const SizedBox(height: 12),
           ],
         ],
+      ),
+    );
+  }
+
+  void _openStylePicker(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _StylePickerSheet(
+        visualizers: visualizers,
+        selected: selectedVisual,
+        onSelected: onSelectVisual,
       ),
     );
   }
@@ -1025,6 +1048,136 @@ class _PresetPickerSheetState extends State<_PresetPickerSheet> {
 }
 
 /// Small circle button for the bottom bar.
+/// Bottom sheet for picking a visualizer style.
+class _StylePickerSheet extends StatelessWidget {
+  final Map<String, _VisualPreset> visualizers;
+  final String selected;
+  final ValueChanged<String> onSelected;
+
+  static const _accent = Color(0xFFD4A825);
+
+  const _StylePickerSheet({
+    required this.visualizers,
+    required this.selected,
+    required this.onSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final entries = visualizers.entries.toList();
+
+    return Container(
+      constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.5),
+      decoration: const BoxDecoration(
+        color: Color(0xFF1A1A1A),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Drag handle
+          Center(
+            child: Container(
+              margin: const EdgeInsets.only(top: 10, bottom: 6),
+              width: 36, height: 4,
+              decoration: BoxDecoration(
+                color: Colors.white24,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          // Title
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+            child: Row(
+              children: [
+                const Icon(Icons.equalizer_rounded, color: _accent, size: 20),
+                const SizedBox(width: 8),
+                const Text('Visualizer Style',
+                    style: TextStyle(color: Colors.white, fontSize: 16,
+                        fontWeight: FontWeight.w600)),
+                const Spacer(),
+                Text('${entries.length} styles',
+                    style: TextStyle(fontSize: 12,
+                        color: Colors.white.withValues(alpha: 0.4))),
+              ],
+            ),
+          ),
+          // List
+          Flexible(
+            child: ListView.builder(
+              shrinkWrap: true,
+              padding: EdgeInsets.only(
+                  bottom: MediaQuery.of(context).padding.bottom + 16),
+              itemCount: entries.length,
+              itemBuilder: (context, index) {
+                final key = entries[index].key;
+                final preset = entries[index].value;
+                final isActive = key == selected;
+
+                return InkWell(
+                  onTap: () {
+                    onSelected(key);
+                    Navigator.pop(context);
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 12),
+                    color: isActive ? _accent.withValues(alpha: 0.1) : null,
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 36, height: 36,
+                          decoration: BoxDecoration(
+                            color: isActive
+                                ? _accent.withValues(alpha: 0.2)
+                                : Colors.white.withValues(alpha: 0.06),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Icon(preset.icon, size: 18,
+                              color: isActive
+                                  ? _accent
+                                  : Colors.white.withValues(alpha: 0.4)),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(preset.name,
+                                  style: TextStyle(
+                                    color: isActive
+                                        ? _accent
+                                        : Colors.white.withValues(alpha: 0.85),
+                                    fontSize: 14,
+                                    fontWeight: isActive
+                                        ? FontWeight.w600
+                                        : FontWeight.w400,
+                                  )),
+                              Text(preset.description,
+                                  style: TextStyle(fontSize: 11,
+                                      color: Colors.white
+                                          .withValues(alpha: 0.35))),
+                            ],
+                          ),
+                        ),
+                        if (isActive)
+                          const Icon(Icons.check_rounded,
+                              color: _accent, size: 20),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _CircleButton extends StatelessWidget {
   final IconData icon;
   final VoidCallback onTap;

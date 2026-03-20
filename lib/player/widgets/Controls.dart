@@ -26,8 +26,8 @@ class Controls extends StatelessWidget {
               _SkipButton(
                 icon: Icons.skip_previous_rounded,
                 onPressed: () {
+                  // Animate first, then skip (prev callback triggers controller.prev)
                   onPrevPressed?.call();
-                  controller.prev();
                 },
               ),
               const SizedBox(width: 16),
@@ -36,8 +36,8 @@ class Controls extends StatelessWidget {
               _SkipButton(
                 icon: Icons.skip_next_rounded,
                 onPressed: () {
+                  // Animate first, then skip (next callback triggers controller.next)
                   onNextPressed?.call();
-                  controller.next();
                 },
               ),
               const SizedBox(width: 12),
@@ -144,49 +144,46 @@ class _SkipButton extends StatelessWidget {
   }
 }
 
-/// Shuffle toggle — 48dp tap target with visible active state.
+/// Shuffle toggle — uses app-level shuffle (not just_audio's internal mode).
 class _ShuffleButton extends StatelessWidget {
   final AppController controller;
   const _ShuffleButton({required this.controller});
 
+  static const _accent = Color(0xFFD4A825);
+
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<bool>(
-      stream: context.read<HypeAudioHandler>().player.shuffleModeEnabledStream,
-      builder: (context, snapshot) {
-        final enabled = snapshot.data ?? false;
-        return Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: () {
-              final next = !enabled;
-              controller.isShuffled = next;
-              if (next) controller.shuffleSongs();
-              context
-                  .read<HypeAudioHandler>()
-                  .player
-                  .setShuffleModeEnabled(next);
-            },
-            borderRadius: BorderRadius.circular(20),
-            child: Container(
-              width: 40,
-              height: 40,
-              alignment: Alignment.center,
-              decoration: enabled
-                  ? BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: const Color(0xFFD4A825).withValues(alpha: 0.15),
-                    )
-                  : null,
-              child: Icon(
-                Icons.shuffle_rounded,
-                color: enabled ? const Color(0xFFD4A825) : Colors.white38,
-                size: 22,
-              ),
-            ),
+    final enabled = controller.isShuffled;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          if (enabled) {
+            controller.isShuffled = false;
+            controller.unshuffleSongs();
+          } else {
+            controller.isShuffled = true;
+            controller.shuffleSongs();
+          }
+        },
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          width: 40,
+          height: 40,
+          alignment: Alignment.center,
+          decoration: enabled
+              ? BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: _accent.withValues(alpha: 0.15),
+                )
+              : null,
+          child: Icon(
+            Icons.shuffle_rounded,
+            color: enabled ? _accent : Colors.white38,
+            size: 22,
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 }

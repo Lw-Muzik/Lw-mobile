@@ -22,11 +22,11 @@ class AppConfig {
   );
   static const String firebaseAppIdIos = String.fromEnvironment(
     'FIREBASE_APP_ID_IOS',
-    defaultValue: '1:618382337035:ios:2c2d37fc7c83fabe02d30e',
+    defaultValue: '1:618382337035:ios:4ce8b675b479c9f902d30e',
   );
   static const String firebaseIosBundleId = String.fromEnvironment(
     'FIREBASE_IOS_BUNDLE_ID',
-    defaultValue: 'com.example.eqApp',
+    defaultValue: 'x.a.zix',
   );
 
   // Firebase shared

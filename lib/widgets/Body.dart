@@ -73,7 +73,7 @@ class Body extends StatelessWidget {
               ),
             if (controller.isVisualInBackground)
               VisualizerWidget(
-                builder: (context, fft, rate) {
+                builder: (context, fft, _, rate) {
                   return CustomPaint(
                     painter: CircularBarVisualizer(
                       color: Theme.of(

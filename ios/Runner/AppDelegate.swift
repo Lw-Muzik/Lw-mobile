@@ -5,6 +5,9 @@ import AVFoundation
 @main
 @objc class AppDelegate: FlutterAppDelegate {
     private let dsp = DSPManager.shared
+    private var visualizerTimer: CADisplayLink?
+    private var visualizerChannel: FlutterMethodChannel?
+    private var projectMRenderer: ProjectMRenderer?
 
     override func application(
         _ application: UIApplication,
@@ -25,6 +28,11 @@ import AVFoundation
         let sampleRate = Int(session.sampleRate)
         dsp.initialize(sampleRate: sampleRate > 0 ? sampleRate : 48000)
 
+        // Pass DSP handle to audio tap
+        if let handle = dsp.handle {
+            HypeAudioTap.shared().setDspHandle(handle)
+        }
+
         // Set up MethodChannel
         if let controller = window?.rootViewController as? FlutterViewController {
             let channel = FlutterMethodChannel(name: "eq_app",
@@ -32,9 +40,99 @@ import AVFoundation
             channel.setMethodCallHandler { [weak self] call, result in
                 self?.handleMethodCall(call, result: result)
             }
+
+            // Separate channel for visualizer data (matches Android pattern)
+            visualizerChannel = channel
         }
 
         return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+    }
+
+    // MARK: - Open audio files from other apps (Safari, Files, AirDrop, etc.)
+
+    override func application(_ app: UIApplication, open url: URL,
+                              options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {
+        // Check if this is an audio file
+        let ext = url.pathExtension.lowercased()
+        let audioExts: Set<String> = ["mp3", "m4a", "aac", "flac", "wav", "ogg", "wma", "aiff", "alac"]
+        if audioExts.contains(ext) {
+            copyToMusicFolder(url)
+            return true
+        }
+        return super.application(app, open: url, options: options)
+    }
+
+    private func copyToMusicFolder(_ url: URL) {
+        let fm = FileManager.default
+        let docs = fm.urls(for: .documentDirectory, in: .userDomainMask).first!
+        let musicDir = docs.appendingPathComponent("Music")
+
+        // Create Music directory if needed
+        if !fm.fileExists(atPath: musicDir.path) {
+            try? fm.createDirectory(at: musicDir, withIntermediateDirectories: true)
+        }
+
+        let destURL = musicDir.appendingPathComponent(url.lastPathComponent)
+
+        // Access security-scoped resource (for files from other apps)
+        let accessing = url.startAccessingSecurityScopedResource()
+        defer { if accessing { url.stopAccessingSecurityScopedResource() } }
+
+        do {
+            if fm.fileExists(atPath: destURL.path) {
+                try fm.removeItem(at: destURL)
+            }
+            try fm.copyItem(at: url, to: destURL)
+            print("Hype: Imported \(url.lastPathComponent) to Music folder")
+
+            // Notify Dart side that a new file was imported
+            if let channel = visualizerChannel {
+                DispatchQueue.main.async {
+                    channel.invokeMethod("onFileImported", arguments: [
+                        "path": destURL.path,
+                        "name": url.lastPathComponent,
+                    ])
+                }
+            }
+        } catch {
+            print("Hype: Failed to import \(url.lastPathComponent): \(error)")
+        }
+    }
+
+    // MARK: - Visualizer Timer
+
+    private func startVisualizerTimer() {
+        guard visualizerTimer == nil else { return }
+        let link = CADisplayLink(target: self, selector: #selector(sendVisualizerData))
+        link.preferredFrameRateRange = CAFrameRateRange(minimum: 15, maximum: 30, preferred: 30)
+        link.add(to: .main, forMode: .common)
+        visualizerTimer = link
+    }
+
+    private func stopVisualizerTimer() {
+        visualizerTimer?.invalidate()
+        visualizerTimer = nil
+    }
+
+    @objc private func sendVisualizerData() {
+        guard let channel = visualizerChannel else { return }
+        let tap = HypeAudioTap.shared()
+
+        // Send waveform as raw bytes (NSData → Uint8List in Dart, matches Android byte[])
+        if let waveform = tap.latestWaveformBytes() {
+            let args: [String: Any] = [
+                "waveform": FlutterStandardTypedData(bytes: waveform),
+                "sampleRate": tap.currentSampleRate()
+            ]
+            channel.invokeMethod("onWaveformVisualization", arguments: args)
+        }
+
+        if let fft = tap.latestFftBytes() {
+            let args: [String: Any] = [
+                "fft": FlutterStandardTypedData(bytes: fft)
+            ]
+            channel.invokeMethod("onFftVisualization", arguments: args)
+        }
     }
 
     // MARK: - MethodChannel Handler
@@ -46,7 +144,6 @@ import AVFoundation
 
         // ==================== EQ ====================
         case "init":
-            // Legacy — DSP engine already initialized
             result(nil)
 
         case "enableEq":
@@ -55,7 +152,6 @@ import AVFoundation
             result(nil)
 
         case "isEnabled":
-            // EQ is always available (C++ pipeline)
             result(true)
 
         case "setPreamp":
@@ -133,7 +229,6 @@ import AVFoundation
 
         // ==================== DVC (Limited on iOS) ====================
         case "enableDvc":
-            // iOS can't max system volume or intercept hardware buttons
             result(nil)
 
         case "disableDvc":
@@ -330,7 +425,6 @@ import AVFoundation
 
         // ==================== Stem Separation ====================
         case "separateStems":
-            // TODO: Implement with AVAssetReader for decoding
             result(false)
 
         case "cancelStemSeparation":
@@ -421,20 +515,17 @@ import AVFoundation
             } else {
                 result(nil)
             }
-            return // async — don't call result again
+            return // async
 
         // ==================== Audio Fingerprinting ====================
         case "generateFingerprint":
-            // TODO: Build chromaprint for iOS
             result(nil)
 
         // ==================== Tag Writing ====================
         case "writeTags":
-            // TODO: Implement with TagLib or AudioToolbox
             result(false)
 
         case "scanMediaFile":
-            // No MediaStore on iOS — no-op
             result(nil)
 
         // ==================== Lyrics ====================
@@ -446,37 +537,124 @@ import AVFoundation
             }
 
         case "writeLyrics":
-            // TODO: Implement tag writing for iOS
             result(false)
 
         // ==================== Visualizer ====================
         case "activate_visualizer":
-            // TODO: Implement with AVAudioEngine tap
+            HypeAudioTap.shared().visualizerEnabled = true
+            startVisualizerTimer()
             result(nil)
 
         case "enableVisual":
+            let enable = args?["enableVisual"] as? Bool ?? false
+            HypeAudioTap.shared().visualizerEnabled = enable
+            if enable {
+                startVisualizerTimer()
+            } else {
+                stopVisualizerTimer()
+            }
             result(nil)
 
         case "getEnabled":
-            result(false)
+            result(HypeAudioTap.shared().visualizerEnabled)
+
+        case "deactivate_visualizer":
+            HypeAudioTap.shared().visualizerEnabled = false
+            stopVisualizerTimer()
+            result(nil)
 
         case "setScalingMode", "setFrameRate":
             result(nil)
 
         // ==================== projectM Visualizer ====================
-        case "projectm_init", "projectm_start", "projectm_stop", "projectm_release",
-             "projectm_set_preset", "projectm_next_preset", "projectm_prev_preset",
-             "projectm_load_preset_index", "projectm_list_presets", "projectm_current_preset",
-             "projectm_set_fps", "projectm_set_beat_sensitivity", "projectm_set_preset_duration",
-             "projectm_set_preset_locked", "projectm_set_size", "projectm_set_mesh_size":
-            // TODO: Port projectM to iOS (Metal-based)
-            if call.method == "projectm_list_presets" {
-                result([String]())
-            } else if call.method == "projectm_init" {
-                result(-1)  // no texture ID
+        case "projectm_init":
+            let w = args?["width"] as? Int ?? 720
+            let h = args?["height"] as? Int ?? 480
+            if let controller = window?.rootViewController as? FlutterViewController {
+                let renderer = ProjectMRenderer()
+                let texId = renderer.initialize(
+                    registrar: controller.engine.textureRegistry,
+                    width: w, height: h
+                )
+                if let texId = texId {
+                    projectMRenderer = renderer
+                    // Enable visualization tap so projectM gets PCM data
+                    HypeAudioTap.shared().visualizerEnabled = true
+                    result(texId)
+                } else {
+                    result(-1)
+                }
             } else {
-                result(nil)
+                result(-1)
             }
+
+        case "projectm_start":
+            projectMRenderer?.start()
+            result(nil)
+
+        case "projectm_stop":
+            projectMRenderer?.stop()
+            result(nil)
+
+        case "projectm_release":
+            projectMRenderer?.release()
+            projectMRenderer = nil
+            result(nil)
+
+        case "projectm_set_preset":
+            if let path = args?["path"] as? String {
+                result(projectMRenderer?.loadPresetByIndex(0) ?? "")
+            } else {
+                result("")
+            }
+
+        case "projectm_next_preset":
+            result(projectMRenderer?.nextPreset() ?? "")
+
+        case "projectm_prev_preset":
+            result(projectMRenderer?.previousPreset() ?? "")
+
+        case "projectm_load_preset_index":
+            let index = args?["index"] as? Int ?? 0
+            result(projectMRenderer?.loadPresetByIndex(index) ?? "")
+
+        case "projectm_list_presets":
+            result(projectMRenderer?.listPresets() ?? [String]())
+
+        case "projectm_current_preset":
+            result(projectMRenderer?.getCurrentPresetName() ?? "")
+
+        case "projectm_set_fps":
+            let fps = args?["fps"] as? Int ?? 30
+            projectMRenderer?.setFps(fps)
+            result(nil)
+
+        case "projectm_set_beat_sensitivity":
+            let sensitivity = floatArg(args, "sensitivity")
+            projectMRenderer?.setBeatSensitivity(sensitivity)
+            result(nil)
+
+        case "projectm_set_preset_duration":
+            let seconds = args?["seconds"] as? Double ?? 30.0
+            projectMRenderer?.setPresetDuration(seconds)
+            result(nil)
+
+        case "projectm_set_preset_locked":
+            let locked = args?["locked"] as? Bool ?? false
+            projectMRenderer?.setPresetLocked(locked)
+            result(nil)
+
+        case "projectm_set_size":
+            let w = args?["width"] as? Int ?? 720
+            let h = args?["height"] as? Int ?? 480
+            projectMRenderer?.setSize(w, h)
+            result(nil)
+
+        case "projectm_set_mesh_size":
+            let w = args?["width"] as? Int ?? 32
+            let h = args?["height"] as? Int ?? 24
+            projectMRenderer?.setMeshSize(w, h)
+            result(nil)
 
         // ==================== Preset Reverb (legacy) ====================
         case "initPresetReverb", "enablePresetReverb", "setReverbPreset":
@@ -493,7 +671,6 @@ import AVFoundation
             result(nil)
 
         case "showNativeMessage":
-            // iOS doesn't have Toast — could use a notification but skip for now
             result(nil)
 
         // ==================== Legacy DSP stubs ====================
@@ -570,7 +747,6 @@ import AVFoundation
                 return
             }
 
-            // Extract common metadata
             for item in avAsset.commonMetadata {
                 if let key = item.commonKey {
                     switch key {
@@ -591,7 +767,6 @@ import AVFoundation
                 }
             }
 
-            // Duration
             let durationMs = Int(CMTimeGetSeconds(avAsset.duration) * 1000)
             if durationMs > 0 {
                 metadata["durationMs"] = durationMs
@@ -607,11 +782,6 @@ import AVFoundation
         let url = URL(fileURLWithPath: filePath)
         let asset = AVURLAsset(url: url)
 
-        for item in asset.lyrics != nil ? [asset] : [] {
-            _ = item // unused
-        }
-
-        // Try to read lyrics from metadata
         for item in asset.metadata {
             if let key = item.identifier,
                key.rawValue.contains("lyrics") || key.rawValue.contains("USLT") {
@@ -619,7 +789,6 @@ import AVFoundation
             }
         }
 
-        // Also check commonMetadata
         if let lyrics = asset.lyrics {
             return lyrics
         }

@@ -1,5 +1,5 @@
 import '/exports/exports.dart';
-
+import '/Helpers/Files.dart';
 import '/Routes/routes.dart';
 import '/extensions/index.dart';
 import '/pages/album_songs.dart';
@@ -19,7 +19,7 @@ class _AlbumsState extends State<Albums> {
   @override
   void initState() {
     super.initState();
-    _albumsFuture = OnAudioQuery().queryAlbums();
+    _albumsFuture = Files.fetchAllAlbums();
   }
 
   @override

@@ -1,3 +1,4 @@
+import 'dart:io';
 import '/extensions/index.dart';
 import '/Helpers/index.dart';
 import '/Routes/routes.dart';
@@ -21,7 +22,9 @@ class _PlaylistWidgetState extends State<PlaylistWidget> {
   @override
   void initState() {
     super.initState();
-    _playlistFuture = OnAudioQuery().queryPlaylists();
+    _playlistFuture = Platform.isIOS
+        ? Future.value([])
+        : OnAudioQuery().queryPlaylists();
   }
 
   @override

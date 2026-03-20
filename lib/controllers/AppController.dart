@@ -112,12 +112,12 @@ class AppController with ChangeNotifier {
 
   // Room effects state (custom DSP engine — float params 0.0-1.0)
   bool _reverbEnabled = false;
-  double _dspRoomSize = 0.5;
-  double _dspDecay = 0.5;
-  double _dspDamping = 0.3;
-  double _dspPreDelay = 10.0; // ms (0-200)
-  double _dspDiffusion = 0.7;
-  double _dspWetDry = 0.3;
+  double _dspRoomSize = 0.0;
+  double _dspDecay = 0.0;
+  double _dspDamping = 0.0;
+  double _dspPreDelay = 0.0; // ms (0-200)
+  double _dspDiffusion = 0.0;
+  double _dspWetDry = 0.0;
   String _activeRoomPresetName = 'Off';
 
   // M/S stereo expander
@@ -733,8 +733,9 @@ class AppController with ChangeNotifier {
   }
 
   /// Listen to hardware volume button events forwarded by DvcController.
-  /// Adjusts DVC internal gain instead of system volume.
+  /// Android-only: iOS has no volume button interception API.
   void _bindDvcVolumeButtons() {
+    if (!Platform.isAndroid) return;
     _dvcVolumeSub?.cancel();
     _dvcVolumeSub = Channel.dvcVolumeButtonStream.listen((direction) {
       if (!_dvcEnabled) return;
@@ -755,6 +756,12 @@ class AppController with ChangeNotifier {
     _processingSub = handler.player.processingStateStream.listen((event) {
       if (event == ProcessingState.ready) {
         preCacheNextCloudTracks();
+        // On iOS, the MTAudioProcessingTap calls dsp_reinit() when a new
+        // AVPlayerItem starts, resetting all DSP filters to defaults.
+        // Re-apply all EQ/reverb/tone settings to the native engine.
+        if (Platform.isIOS) {
+          _applyAllDspParams();
+        }
       }
       if (event == ProcessingState.completed) {
         if (_gaplessPlayback && handler.player.audioSources.length > 1) {
@@ -805,6 +812,10 @@ class AppController with ChangeNotifier {
     _bindCurrentIndex();
     _setupCrossfadeListener();
     _bindAudioSessionId();
+    // After crossfade swap, the new player's tap has reinited the DSP engine
+    if (Platform.isIOS) {
+      _applyAllDspParams();
+    }
     notifyListeners();
   }
 
@@ -913,19 +924,32 @@ class AppController with ChangeNotifier {
     }
   }
 
-  /// Build and load a queue for gapless playback
+  /// Build and load a queue for gapless playback.
+  /// Cached cloud tracks play from disk; uncached ones stream with auth headers.
   Future<void> loadGaplessQueue(int startIndex) async {
     if (songs.isEmpty) return;
     final sources = <AudioSource>[];
-    for (final s in songs) {
+
+    // Get auth headers once (reused for all cloud tracks of same provider)
+    Map<String, String>? gdriveHeaders;
+    Map<String, String>? dropboxHeaders;
+
+    for (int i = 0; i < songs.length; i++) {
+      final s = songs[i];
       if (s.data.startsWith('http')) {
         final fileId = s.id.toString();
         if (cloudCache.isCached(fileId)) {
           sources.add(AudioSource.file(cloudCache.cacheFile(fileId).path));
         } else {
-          final headers = s.data.contains('googleapis.com')
-              ? await cloudAuth.getGoogleAuthHeaders()
-              : <String, String>{};
+          // All cloud tracks need auth headers
+          Map<String, String> headers;
+          if (s.data.contains('googleapis.com')) {
+            gdriveHeaders ??= await cloudAuth.getGoogleAuthHeaders();
+            headers = gdriveHeaders;
+          } else {
+            dropboxHeaders ??= <String, String>{};
+            headers = dropboxHeaders;
+          }
           sources.add(
             LockCachingAudioSource(
               Uri.parse(s.data),
@@ -935,7 +959,12 @@ class AppController with ChangeNotifier {
           );
         }
       } else {
-        sources.add(AudioSource.uri(Uri.parse(s.data)));
+        // Local file paths start with "/", use AudioSource.file to handle spaces/special chars
+        if (s.data.startsWith('/')) {
+          sources.add(AudioSource.file(s.data));
+        } else {
+          sources.add(AudioSource.uri(Uri.parse(s.data)));
+        }
       }
     }
     await handler.player.setAudioSources(sources, initialIndex: startIndex);
@@ -1020,12 +1049,12 @@ class AppController with ChangeNotifier {
     _milkdropQuality = _prefs.getInt("milkdropQuality") ?? 1;
     // Room effects (custom DSP)
     _reverbEnabled = _prefs.getBool("reverbEnabled") ?? false;
-    _dspRoomSize = _prefs.getDouble("dspRoomSize") ?? 0.5;
-    _dspDecay = _prefs.getDouble("dspDecay") ?? 0.5;
-    _dspDamping = _prefs.getDouble("dspDamping") ?? 0.3;
-    _dspPreDelay = _prefs.getDouble("dspPreDelay") ?? 10.0;
-    _dspDiffusion = _prefs.getDouble("dspDiffusion") ?? 0.7;
-    _dspWetDry = _prefs.getDouble("dspWetDry") ?? 0.3;
+    _dspRoomSize = _prefs.getDouble("dspRoomSize") ?? 0.0;
+    _dspDecay = _prefs.getDouble("dspDecay") ?? 0.0;
+    _dspDamping = _prefs.getDouble("dspDamping") ?? 0.0;
+    _dspPreDelay = _prefs.getDouble("dspPreDelay") ?? 0.0;
+    _dspDiffusion = _prefs.getDouble("dspDiffusion") ?? 0.0;
+    _dspWetDry = _prefs.getDouble("dspWetDry") ?? 0.0;
     _activeRoomPresetName = _prefs.getString("activeRoomPresetName") ?? 'Off';
     _stereoExpandEnabled = _prefs.getBool("stereoExpandEnabled") ?? false;
     _stereoWidth = _prefs.getDouble("dspStereoWidth") ?? 1.0;
@@ -1162,8 +1191,26 @@ class AppController with ChangeNotifier {
   bool get reverbEnabled => _reverbEnabled;
   set reverbEnabled(bool v) {
     _prefs.setBool("reverbEnabled", v);
+    final wasOff = !_reverbEnabled;
     _reverbEnabled = v;
     Channel.dspSetReverbEnabled(v);
+
+    // When turning on for the first time (or from Off), reset to zeros
+    // so the user starts with a clean slate before picking a preset.
+    if (v && wasOff && _activeRoomPresetName == 'Off') {
+      _dspRoomSize = 0.0;
+      _dspDecay = 0.0;
+      _dspDamping = 0.0;
+      _dspPreDelay = 0.0;
+      _dspDiffusion = 0.0;
+      _dspWetDry = 0.0;
+      Channel.dspSetRoomSize(0.0);
+      Channel.dspSetDecay(0.0);
+      Channel.dspSetDamping(0.0);
+      Channel.dspSetPreDelay(0.0);
+      Channel.dspSetDiffusion(0.0);
+      Channel.dspSetReverbWetDry(0.0);
+    }
     notifyListeners();
   }
 
@@ -1406,8 +1453,8 @@ class AppController with ChangeNotifier {
   }
 
   set songs(List<SongModel> value) {
-    _shuffledSongs = value;
-    _songs = value;
+    _songs = List.from(value);
+    _shuffledSongs = List.from(value);
     notifyListeners();
   }
 
@@ -1427,21 +1474,44 @@ class AppController with ChangeNotifier {
     notifyListeners();
   }
 
+  /// Shuffle the song list, keeping the currently playing song at position 0.
+  /// Does NOT restart playback — the current song continues uninterrupted.
   void shuffleSongs() {
-    List sample = shuffledSongs;
-    final random = math.Random();
-    for (var i = 0; i < sample.length; i++) {
-      final j = random.nextInt(i + 1);
-      final temp = sample[i];
-      sample[i] = sample[j];
-      sample[j] = temp;
+    if (_songs.isEmpty) return;
+
+    // Preserve the currently playing song
+    final currentSong = (_songId >= 0 && _songId < _songs.length)
+        ? _songs[_songId]
+        : null;
+
+    _shuffledSongs = List.from(_songs);
+    _shuffledSongs.shuffle(math.Random());
+
+    // Move the current song to index 0 so playback continues seamlessly
+    if (currentSong != null) {
+      _shuffledSongs.remove(currentSong);
+      _shuffledSongs.insert(0, currentSong);
+      _songId = 0;
     }
-    songId = 0;
-    if (_gaplessPlayback && _crossfadeDuration == 0) {
-      loadGaplessQueue(0);
-    } else {
-      loadAudioSource(handler, sample[0], replayGain: _replayGain);
+
+    notifyListeners();
+  }
+
+  /// Restore original (unshuffled) order, keeping the current song selected.
+  void unshuffleSongs() {
+    if (_songs.isEmpty) return;
+
+    final currentSong = (_songId >= 0 && _songId < songs.length)
+        ? songs[_songId]
+        : null;
+
+    // Find the song's position in the original list
+    if (currentSong != null) {
+      final origIdx = _songs.indexWhere((s) => s.id == currentSong.id);
+      if (origIdx >= 0) _songId = origIdx;
     }
+
+    notifyListeners();
   }
 
   set songId(int id) {
@@ -1543,9 +1613,27 @@ class AppController with ChangeNotifier {
   }
 
   void next() {
+    if (songs.isEmpty) return;
+    final loopMode = handler.player.loopMode;
+
+    if (loopMode == LoopMode.one) {
+      // Repeat-one: restart current track
+      handler.player.seek(Duration.zero);
+      handler.player.play();
+      return;
+    }
+
     if (songId >= songs.length - 1) {
-      songId = 0;
-      handler.player.stop();
+      if (loopMode == LoopMode.all) {
+        // Repeat-all: wrap to first song
+        songId = 0;
+        artWorkId = songs[0].id;
+        loadAudioSource(handler, songs[0], replayGain: _replayGain);
+      } else {
+        // No repeat: stop at end
+        songId = 0;
+        handler.player.stop();
+      }
     } else if (_gaplessPlayback && handler.player.audioSources.length > 1) {
       handler.player.seekToNext();
     } else {
@@ -1556,9 +1644,32 @@ class AppController with ChangeNotifier {
   }
 
   void prev() {
+    if (songs.isEmpty) return;
+    final loopMode = handler.player.loopMode;
+
+    // If more than 3 seconds in, restart current track (standard behavior)
+    final position = handler.player.position;
+    if (position.inSeconds > 3) {
+      handler.player.seek(Duration.zero);
+      return;
+    }
+
+    if (loopMode == LoopMode.one) {
+      handler.player.seek(Duration.zero);
+      handler.player.play();
+      return;
+    }
+
     if (songId == 0) {
-      songId = 0;
-      handler.player.stop();
+      if (loopMode == LoopMode.all) {
+        // Repeat-all: wrap to last song
+        songId = songs.length - 1;
+        artWorkId = songs[songId].id;
+        loadAudioSource(handler, songs[songId], replayGain: _replayGain);
+      } else {
+        // No repeat: restart first song
+        handler.player.seek(Duration.zero);
+      }
     } else if (_gaplessPlayback && handler.player.audioSources.length > 1) {
       handler.player.seekToPrevious();
     } else {

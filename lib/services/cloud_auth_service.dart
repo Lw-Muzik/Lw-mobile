@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:developer' as dev;
 
@@ -11,11 +12,10 @@ import '../config/app_config.dart';
 class CloudAuthService {
   static const _driveScope = 'https://www.googleapis.com/auth/drive.readonly';
 
-  // Google
-  final GoogleSignIn _googleSignIn = GoogleSignIn(
-    scopes: [_driveScope],
-  );
+  // Google — v7 uses singleton + event-based auth
+  final GoogleSignIn _googleSignIn = GoogleSignIn.instance;
   GoogleSignInAccount? _googleAccount;
+  bool _googleInitialized = false;
 
   // Dropbox
   final FlutterAppAuth _appAuth = const FlutterAppAuth();
@@ -32,43 +32,51 @@ class CloudAuthService {
 
   // --- Google ---
 
+  Future<void> _ensureGoogleInitialized() async {
+    if (_googleInitialized) return;
+    try {
+      await _googleSignIn.initialize();
+      _googleInitialized = true;
+    } catch (e) {
+      dev.log('Google Sign-In init error: $e', name: 'CloudAuth');
+    }
+  }
+
   Future<bool> signInGoogle() async {
     lastError = null;
     try {
-      // Timeout after 30 seconds to prevent infinite hang
-      _googleAccount = await _googleSignIn.signIn()
-          .timeout(const Duration(seconds: 30), onTimeout: () => null);
+      await _ensureGoogleInitialized();
+
+      // Authenticate (replaces signIn())
+      try {
+        _googleAccount = await _googleSignIn.authenticate().timeout(
+          const Duration(seconds: 30),
+        );
+      } catch (e) {
+        if (e is TimeoutException) {
+          lastError = 'Sign-in timed out.';
+        } else {
+          lastError = 'Sign-in cancelled or failed.';
+        }
+        _googleAccount = null;
+        return false;
+      }
+
       if (_googleAccount == null) {
-        lastError = 'Sign-in cancelled or timed out. '
+        lastError =
+            'Sign-in cancelled or timed out. '
             'Make sure your google-services.json has an OAuth client '
             'registered with your SHA-1 fingerprint.';
         return false;
       }
 
-      // Ensure Drive scope was granted
-      bool hasScope = true;
+      // Request Drive scope authorization
       try {
-        hasScope = await _googleSignIn.canAccessScopes([_driveScope]);
-      } on UnimplementedError {
-        // canAccessScopes not available on this platform — assume granted
-        // since scopes were requested in GoogleSignIn constructor
-      }
-      if (!hasScope) {
-        // Request the scope explicitly (needed on Android with granular permissions)
-        final granted =
-            await _googleSignIn.requestScopes([_driveScope]);
-        if (!granted) {
-          lastError = 'Drive permission denied. Grant access to Google Drive.';
-          await _googleSignIn.signOut();
-          _googleAccount = null;
-          return false;
-        }
-      }
-
-      // Verify we can actually get an access token
-      final auth = await _googleAccount!.authentication;
-      if (auth.accessToken == null) {
-        lastError = 'Failed to get access token';
+        await _googleAccount!.authorizationClient.authorizeScopes([
+          _driveScope,
+        ]);
+      } catch (e) {
+        lastError = 'Failed to authorize Drive scope: $e';
         await _googleSignIn.signOut();
         _googleAccount = null;
         return false;
@@ -78,7 +86,8 @@ class CloudAuthService {
     } catch (e) {
       final msg = e.toString();
       if (msg.contains('DEVELOPER_ERROR') || msg.contains('10:')) {
-        lastError = 'OAuth not configured. Add your SHA-1 fingerprint '
+        lastError =
+            'OAuth not configured. Add your SHA-1 fingerprint '
             'to Firebase Console and re-download google-services.json.';
       } else if (msg.contains('sign_in_canceled') || msg.contains('12501')) {
         lastError = 'Sign-in was cancelled';
@@ -98,20 +107,10 @@ class CloudAuthService {
 
   Future<bool> restoreGoogleSession() async {
     try {
-      _googleAccount = await _googleSignIn.signInSilently();
-      if (_googleAccount != null) {
-        // Check the scope is still valid
-        try {
-          final hasScope =
-              await _googleSignIn.canAccessScopes([_driveScope]);
-          if (!hasScope) {
-            _googleAccount = null;
-            return false;
-          }
-        } on UnimplementedError {
-          // canAccessScopes not available — assume granted
-        }
-      }
+      await _ensureGoogleInitialized();
+
+      // Attempt lightweight (silent) authentication
+      _googleAccount = await _googleSignIn.attemptLightweightAuthentication();
       return _googleAccount != null;
     } catch (_) {
       _googleAccount = null;
@@ -122,9 +121,11 @@ class CloudAuthService {
   Future<Map<String, String>> getGoogleAuthHeaders() async {
     if (_googleAccount == null) return {};
     try {
-      final auth = await _googleAccount!.authentication;
-      if (auth.accessToken == null) return {};
-      return {'Authorization': 'Bearer ${auth.accessToken}'};
+      final authorization = await _googleAccount!.authorizationClient
+          .authorizationForScopes([_driveScope]);
+      final token = authorization?.accessToken;
+      if (token == null) return {};
+      return {'Authorization': 'Bearer $token'};
     } catch (_) {
       return {};
     }
@@ -170,12 +171,13 @@ class CloudAuthService {
 
   Future<bool> restoreDropboxSession() async {
     try {
-      _dropboxAccessToken =
-          await _secureStorage.read(key: 'dropbox_access_token');
-      _dropboxRefreshToken =
-          await _secureStorage.read(key: 'dropbox_refresh_token');
-      final expiryStr =
-          await _secureStorage.read(key: 'dropbox_token_expiry');
+      _dropboxAccessToken = await _secureStorage.read(
+        key: 'dropbox_access_token',
+      );
+      _dropboxRefreshToken = await _secureStorage.read(
+        key: 'dropbox_refresh_token',
+      );
+      final expiryStr = await _secureStorage.read(key: 'dropbox_token_expiry');
       if (expiryStr != null) {
         _dropboxTokenExpiry = DateTime.tryParse(expiryStr);
       }
@@ -198,8 +200,9 @@ class CloudAuthService {
   Future<void> _refreshDropboxIfNeeded() async {
     if (_dropboxRefreshToken == null) return;
     if (_dropboxTokenExpiry != null &&
-        _dropboxTokenExpiry!
-            .isAfter(DateTime.now().add(const Duration(minutes: 5)))) {
+        _dropboxTokenExpiry!.isAfter(
+          DateTime.now().add(const Duration(minutes: 5)),
+        )) {
       return; // Token still valid
     }
     try {
@@ -215,8 +218,9 @@ class CloudAuthService {
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         _dropboxAccessToken = data['access_token'];
-        _dropboxTokenExpiry = DateTime.now()
-            .add(Duration(seconds: data['expires_in'] as int));
+        _dropboxTokenExpiry = DateTime.now().add(
+          Duration(seconds: data['expires_in'] as int),
+        );
         await _persistDropboxTokens();
       }
     } catch (_) {}
@@ -225,16 +229,21 @@ class CloudAuthService {
   Future<void> _persistDropboxTokens() async {
     if (_dropboxAccessToken != null) {
       await _secureStorage.write(
-          key: 'dropbox_access_token', value: _dropboxAccessToken!);
+        key: 'dropbox_access_token',
+        value: _dropboxAccessToken!,
+      );
     }
     if (_dropboxRefreshToken != null) {
       await _secureStorage.write(
-          key: 'dropbox_refresh_token', value: _dropboxRefreshToken!);
+        key: 'dropbox_refresh_token',
+        value: _dropboxRefreshToken!,
+      );
     }
     if (_dropboxTokenExpiry != null) {
       await _secureStorage.write(
-          key: 'dropbox_token_expiry',
-          value: _dropboxTokenExpiry!.toIso8601String());
+        key: 'dropbox_token_expiry',
+        value: _dropboxTokenExpiry!.toIso8601String(),
+      );
     }
   }
 }

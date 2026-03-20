@@ -316,34 +316,57 @@ class _SpaceViewState extends State<SpaceView> {
   }
 
   Widget _buildPresetChips(AppController controller, ThemeData theme) {
-    return SizedBox(
-      height: 38,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 8),
-        itemCount: RoomPreset.builtIn.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
-        itemBuilder: (context, index) {
-          final preset = RoomPreset.builtIn[index];
-          final isSelected = controller.activeRoomPresetName == preset.name;
-          return FilterChip(
-            label: Text(preset.name),
-            selected: isSelected,
-            onSelected: (_) => controller.applyRoomPreset(preset),
-            selectedColor: theme.colorScheme.primary,
-            labelStyle: TextStyle(
-              color: isSelected
-                  ? theme.colorScheme.onPrimary
-                  : theme.colorScheme.onSurface,
-              fontSize: 13,
-            ),
-            showCheckmark: false,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
-            ),
-          );
-        },
+    final accent = theme.colorScheme.primary;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      child: GestureDetector(
+        onTap: () => _openRoomPresetSheet(context, controller),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.06),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.spatial_audio_rounded, size: 18,
+                  color: accent.withValues(alpha: 0.8)),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text("Preset",
+                        style: TextStyle(fontSize: 11,
+                            color: Colors.white.withValues(alpha: 0.45))),
+                    const SizedBox(height: 1),
+                    Text(
+                      controller.activeRoomPresetName.isEmpty
+                          ? 'Custom'
+                          : controller.activeRoomPresetName,
+                      style: const TextStyle(
+                          fontSize: 14, fontWeight: FontWeight.w600,
+                          color: Colors.white),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.keyboard_arrow_down_rounded, size: 22,
+                  color: Colors.white.withValues(alpha: 0.4)),
+            ],
+          ),
+        ),
       ),
+    );
+  }
+
+  void _openRoomPresetSheet(BuildContext context, AppController controller) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _RoomPresetBottomSheet(controller: controller),
     );
   }
 
@@ -457,6 +480,165 @@ class _SpaceViewState extends State<SpaceView> {
         content: Text(message),
         duration: const Duration(seconds: 2),
         behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+}
+
+// =============================================================================
+// Room Preset Bottom Sheet
+// =============================================================================
+
+class _RoomPresetBottomSheet extends StatelessWidget {
+  final AppController controller;
+  const _RoomPresetBottomSheet({required this.controller});
+
+  static const _accent = Color(0xFFD4A825);
+
+  IconData _iconForPreset(String name) {
+    final lower = name.toLowerCase();
+    if (lower == 'off') return Icons.volume_off_rounded;
+    if (lower.contains('small')) return Icons.weekend_rounded;
+    if (lower.contains('medium')) return Icons.living_rounded;
+    if (lower.contains('large')) return Icons.home_rounded;
+    if (lower.contains('hall')) return Icons.account_balance_rounded;
+    if (lower.contains('cathedral')) return Icons.church_rounded;
+    if (lower.contains('plate')) return Icons.rectangle_rounded;
+    if (lower.contains('studio')) return Icons.headphones_rounded;
+    if (lower.contains('chamber')) return Icons.door_sliding_rounded;
+    if (lower.contains('arena')) return Icons.stadium_rounded;
+    if (lower.contains('concert')) return Icons.theater_comedy_rounded;
+    return Icons.spatial_audio_rounded;
+  }
+
+  String _description(RoomPreset p) {
+    if (p.name == 'Off') return 'No reverb';
+    final sizeLabel = p.roomSize < 0.3
+        ? 'Tight'
+        : p.roomSize < 0.6
+            ? 'Medium'
+            : 'Spacious';
+    final decayLabel = p.decay < 0.3
+        ? 'short decay'
+        : p.decay < 0.6
+            ? 'moderate decay'
+            : 'long decay';
+    return '$sizeLabel, $decayLabel, ${(p.wetDry * 100).round()}% wet';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final presets = RoomPreset.builtIn;
+    final active = controller.activeRoomPresetName;
+
+    return Container(
+      constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.55),
+      decoration: const BoxDecoration(
+        color: Color(0xFF1A1A1A),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Drag handle
+          Center(
+            child: Container(
+              margin: const EdgeInsets.only(top: 10, bottom: 6),
+              width: 36, height: 4,
+              decoration: BoxDecoration(
+                color: Colors.white24,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          // Title
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+            child: Row(
+              children: [
+                const Icon(Icons.spatial_audio_rounded,
+                    color: _accent, size: 20),
+                const SizedBox(width: 8),
+                const Text("Room Presets",
+                    style: TextStyle(color: Colors.white, fontSize: 16,
+                        fontWeight: FontWeight.w600)),
+                const Spacer(),
+                Text("${presets.length} presets",
+                    style: TextStyle(fontSize: 12,
+                        color: Colors.white.withValues(alpha: 0.4))),
+              ],
+            ),
+          ),
+          // Preset list
+          Flexible(
+            child: ListView.builder(
+              shrinkWrap: true,
+              padding: EdgeInsets.only(
+                  bottom: MediaQuery.of(context).padding.bottom + 16),
+              itemCount: presets.length,
+              itemBuilder: (context, index) {
+                final preset = presets[index];
+                final isActive = preset.name == active;
+                return InkWell(
+                  onTap: () {
+                    controller.applyRoomPreset(preset);
+                    Navigator.pop(context);
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 12),
+                    color: isActive ? _accent.withValues(alpha: 0.1) : null,
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 36, height: 36,
+                          decoration: BoxDecoration(
+                            color: isActive
+                                ? _accent.withValues(alpha: 0.2)
+                                : Colors.white.withValues(alpha: 0.06),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Icon(
+                            _iconForPreset(preset.name), size: 18,
+                            color: isActive
+                                ? _accent
+                                : Colors.white.withValues(alpha: 0.4),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(preset.name,
+                                  style: TextStyle(
+                                    color: isActive
+                                        ? _accent
+                                        : Colors.white.withValues(alpha: 0.85),
+                                    fontSize: 14,
+                                    fontWeight: isActive
+                                        ? FontWeight.w600
+                                        : FontWeight.w400,
+                                  )),
+                              Text(_description(preset),
+                                  style: TextStyle(fontSize: 11,
+                                      color: Colors.white
+                                          .withValues(alpha: 0.35))),
+                            ],
+                          ),
+                        ),
+                        if (isActive)
+                          const Icon(Icons.check_rounded,
+                              color: _accent, size: 20),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }

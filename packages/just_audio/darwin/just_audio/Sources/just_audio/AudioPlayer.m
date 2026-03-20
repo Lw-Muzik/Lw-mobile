@@ -407,6 +407,15 @@
 }
 
 - (void)addItemObservers:(AVPlayerItem *)playerItem {
+    // Install HypeDSP audio processing tap
+    Class tapClass = NSClassFromString(@"HypeAudioTap");
+    if (tapClass) {
+        id tap = [tapClass performSelector:@selector(shared)];
+        if (tap) {
+            [tap performSelector:@selector(installTapOnPlayerItem:) withObject:playerItem];
+        }
+    }
+
     // Get notified when the item is loaded or had an error loading
     [playerItem addObserver:self forKeyPath:@"status" options:NSKeyValueObservingOptionNew context:nil];
     // Get notified of the buffer state

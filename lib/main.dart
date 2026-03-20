@@ -25,6 +25,7 @@ import 'controllers/PlayerController.dart';
 import 'controllers/PlaylistController.dart';
 import 'firebase_options.dart';
 import 'widgets/DvcVolumeOverlay.dart';
+import 'services/streaming_data_guard.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -44,6 +45,21 @@ Future<void> main() async {
     Permission.storage,
     Permission.audio,
   ].request();
+
+  // On iOS, ensure media library permission is fully granted before proceeding.
+  // MPMediaLibrary.requestAuthorization is async — the permission_handler call
+  // above may return before the user has tapped "Allow".
+  if (defaultTargetPlatform == TargetPlatform.iOS) {
+    var status = await Permission.mediaLibrary.status;
+    if (!status.isGranted) {
+      status = await Permission.mediaLibrary.request();
+      // If still not granted after the prompt, wait briefly for the system to
+      // update authorization status (iOS can have a slight delay).
+      if (!status.isGranted) {
+        await Future.delayed(const Duration(milliseconds: 500));
+      }
+    }
+  }
 
   final handler = await AudioService.init<HypeAudioHandler>(
     builder: () => HypeAudioHandler(),
@@ -66,6 +82,9 @@ Future<void> main() async {
   // Initialize SharedPreferences once before the app starts
   final prefs = await SharedPreferences.getInstance();
 
+  // Initialize streaming data guard (network-aware cloud streaming)
+  await StreamingDataGuard.init(prefs);
+
   runApp(
     MultiBlocProvider(
       providers: [
@@ -81,16 +100,12 @@ Future<void> main() async {
         secret: AppConfig.wiredashSecret,
         options: const WiredashOptionsData(locale: Locale('en')),
         child: MaterialApp(
+          debugShowCheckedModeBanner: false,
           theme: AppThemes.fancyTheme,
           initialRoute: Routes.loader,
           routes: Routes.routes(),
           builder: (context, child) {
-            return Stack(
-              children: [
-                child!,
-                const DvcVolumeOverlay(),
-              ],
-            );
+            return Stack(children: [child!, const DvcVolumeOverlay()]);
           },
         ),
       ),
