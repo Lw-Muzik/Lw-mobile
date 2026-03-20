@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/physics.dart';
 import 'package:vector_math/vector_math_64.dart' show Vector3;
 export 'swipe_animation.dart';
 
@@ -7,27 +8,27 @@ export 'swipe_animation.dart';
 
 class CardAnimationConfig {
   static const int maxVisibleCards = 4;
-
-  /// Scale reduction per card depth level (5% smaller per level).
   static const double scaleFraction = 0.05;
-
-  /// Vertical offset per card depth level (cards stack upward).
   static const double yOffset = 12.0;
 
-  /// Horizontal drag threshold (fraction of screen width) to trigger throw.
-  static const double swipeThreshold = 0.12;
+  /// Fraction of screen width to count as a swipe.
+  static const double swipeThreshold = 0.15;
 
-  /// Duration of the throw animation (front card flies away).
-  static const Duration throwDuration = Duration(milliseconds: 500);
+  /// Minimum fling velocity (px/s) to trigger a swipe regardless of distance.
+  static const double flingVelocity = 600.0;
 
-  /// Duration of background cards popping up to fill the gap.
-  static const Duration popUpDuration = Duration(milliseconds: 300);
+  static const Duration throwDuration = Duration(milliseconds: 380);
+  static const Duration popUpDuration = Duration(milliseconds: 350);
+  static const Duration snapBackDuration = Duration(milliseconds: 250);
 
-  /// Rotation angle during throw (full 360°).
-  static const double throwRotationDeg = 360.0;
+  /// Rotation during throw (degrees).
+  static const double throwRotationDeg = 25.0;
 
-  /// How far the card flies away (multiplier of screen dimension).
-  static const double throwDistance = 1.6;
+  /// How far the card flies off (multiplier of screen width).
+  static const double throwDistance = 1.5;
+
+  /// Max tilt angle during drag (radians).
+  static const double maxDragTilt = 0.08;
 }
 
 enum SwipeDirection { left, right }
@@ -41,23 +42,26 @@ class CardController extends ChangeNotifier {
 
   late AnimationController _throwController;
   late AnimationController _popUpController;
+  late AnimationController _snapBackController;
 
-  // ── Throw animations (front card) ──
+  // Throw animations
   late Animation<double> _throwSlideX;
   late Animation<double> _throwSlideY;
   late Animation<double> _throwRotation;
-  late Animation<double> _throwScale;
+  late Animation<double> _throwOpacity;
 
   double get throwProgress => _throwController.value;
   double get popUpProgress => _popUpController.value;
 
   bool get isAnimating =>
-      _throwController.isAnimating || _popUpController.isAnimating;
+      _throwController.isAnimating ||
+      _popUpController.isAnimating ||
+      _snapBackController.isAnimating;
 
   SwipeDirection _direction = SwipeDirection.right;
   SwipeDirection get direction => _direction;
 
-  /// Drag state.
+  // Drag state
   double _dragDx = 0.0;
   double _dragDy = 0.0;
   double get dragDx => _dragDx;
@@ -67,11 +71,11 @@ class CardController extends ChangeNotifier {
   bool _isControlAnimation = false;
   bool get isControlAnimation => _isControlAnimation;
 
-  /// Gate drag-swipes at playlist boundaries.
   bool Function(SwipeDirection)? canSwipe;
 
-  /// Whether the drag started on the right half of the card (affects rotation).
-  bool _dragStartedRight = true;
+  // Snap-back animated values
+  double _snapStartDx = 0.0;
+  double _snapStartDy = 0.0;
 
   CardController({
     required this.vsync,
@@ -86,71 +90,59 @@ class CardController extends ChangeNotifier {
       vsync: vsync,
       duration: CardAnimationConfig.popUpDuration,
     );
+    _snapBackController = AnimationController(
+      vsync: vsync,
+      duration: CardAnimationConfig.snapBackDuration,
+    );
 
-    // Initialize with identity animations.
-    _setupThrowAnimations(SwipeDirection.right);
+    _setupThrowAnimations(SwipeDirection.right, 0.0);
 
     _throwController.addListener(notifyListeners);
     _popUpController.addListener(notifyListeners);
+    _snapBackController.addListener(() {
+      // Interpolate drag back to zero
+      final t = Curves.easeOutCubic.transform(_snapBackController.value);
+      _dragDx = _snapStartDx * (1.0 - t);
+      _dragDy = _snapStartDy * (1.0 - t);
+      notifyListeners();
+    });
   }
 
-  void updateScreenSize(Size newSize) {
-    screenSize = newSize;
-  }
+  void updateScreenSize(Size newSize) => screenSize = newSize;
 
-  void _setupThrowAnimations(SwipeDirection dir) {
+  void _setupThrowAnimations(SwipeDirection dir, double startDx) {
     final isRight = dir == SwipeDirection.right;
-
-    // Card flies to the side and upward.
     final endX = (isRight ? 1 : -1) *
         screenSize.width *
         CardAnimationConfig.throwDistance;
 
-    _throwSlideX = Tween<double>(begin: 0, end: endX).animate(
-      CurvedAnimation(
-        parent: _throwController,
-        curve: const Interval(0, 0.8, curve: Curves.easeInQuad),
-      ),
+    _throwSlideX = Tween<double>(begin: startDx, end: endX).animate(
+      CurvedAnimation(parent: _throwController, curve: Curves.easeInCubic),
+    );
+    _throwSlideY = Tween<double>(begin: _dragDy * 0.3, end: -40.0).animate(
+      CurvedAnimation(parent: _throwController, curve: Curves.easeOut),
     );
 
-    _throwSlideY = Tween<double>(begin: 0, end: -screenSize.height * 0.35)
-        .animate(
-      CurvedAnimation(
-        parent: _throwController,
-        curve: const Interval(0, 0.7, curve: Curves.easeOutQuad),
-      ),
-    );
-
-    // 360° rotation, direction based on drag start position.
-    final rotDeg = CardAnimationConfig.throwRotationDeg *
-        (_dragStartedRight ? -1.0 : 1.0);
+    final rotDeg = CardAnimationConfig.throwRotationDeg * (isRight ? 1.0 : -1.0);
     _throwRotation = Tween<double>(begin: 0, end: rotDeg).animate(
-      CurvedAnimation(
-        parent: _throwController,
-        curve: Curves.easeInOut,
-      ),
+      CurvedAnimation(parent: _throwController, curve: Curves.easeInOut),
     );
-
-    // Shrink slightly as it flies.
-    _throwScale = Tween<double>(begin: 1.0, end: 0.6).animate(
+    _throwOpacity = Tween<double>(begin: 1.0, end: 0.0).animate(
       CurvedAnimation(
         parent: _throwController,
-        curve: const Interval(0, 0.6, curve: Curves.easeIn),
+        curve: const Interval(0.5, 1.0, curve: Curves.easeIn),
       ),
     );
   }
 
-  // ── Gesture Handling ──
+  // ── Gestures ──
 
   void onPanStart(DragStartDetails details) {
     if (isAnimating) return;
     isDragging = true;
     _dragDx = 0;
     _dragDy = 0;
-    // Determine rotation direction from start position.
-    _dragStartedRight =
-        details.localPosition.dx > screenSize.width * 0.5;
-    notifyListeners();
+    _snapBackController.reset();
   }
 
   void onPanUpdate(DragUpdateDetails details) {
@@ -164,37 +156,41 @@ class CardController extends ChangeNotifier {
     if (!isDragging) return;
     isDragging = false;
 
-    final magnitude = _dragDx.abs() / screenSize.width;
-    if (magnitude > CardAnimationConfig.swipeThreshold) {
-      final dir =
-          _dragDx > 0 ? SwipeDirection.right : SwipeDirection.left;
+    final velocity = details.velocity.pixelsPerSecond.dx;
+    final distance = _dragDx.abs() / screenSize.width;
+    final isFling = velocity.abs() > CardAnimationConfig.flingVelocity;
+    final isPastThreshold = distance > CardAnimationConfig.swipeThreshold;
+
+    if (isFling || isPastThreshold) {
+      final dir = (isFling ? velocity > 0 : _dragDx > 0)
+          ? SwipeDirection.right
+          : SwipeDirection.left;
 
       if (canSwipe != null && !canSwipe!(dir)) {
-        _snapBack();
+        _animateSnapBack();
         return;
       }
 
       _isControlAnimation = false;
-      _launchThrow(dir);
+      _launchThrow(dir, _dragDx);
     } else {
-      _snapBack();
+      _animateSnapBack();
     }
   }
 
-  void _snapBack() {
-    _dragDx = 0;
-    _dragDy = 0;
-    notifyListeners();
+  void _animateSnapBack() {
+    _snapStartDx = _dragDx;
+    _snapStartDy = _dragDy;
+    _snapBackController.forward(from: 0);
   }
 
-  void _launchThrow(SwipeDirection dir) {
+  void _launchThrow(SwipeDirection dir, double startDx) {
     _direction = dir;
+    _setupThrowAnimations(dir, startDx);
     _dragDx = 0;
     _dragDy = 0;
-    _setupThrowAnimations(dir);
     _throwController.forward(from: 0);
     _popUpController.forward(from: 0);
-
     _throwController.addStatusListener(_onThrowComplete);
   }
 
@@ -205,41 +201,40 @@ class CardController extends ChangeNotifier {
     }
   }
 
-  // ── Programmatic Animations ──
+  // ── Programmatic ──
 
   void animateToNext() {
     if (isAnimating) return;
     _isControlAnimation = true;
-    _dragStartedRight = true;
-    _launchThrow(SwipeDirection.right);
+    _launchThrow(SwipeDirection.right, 0.0);
   }
 
   void animateToPrevious() {
     if (isAnimating) return;
     _isControlAnimation = true;
-    _dragStartedRight = false;
-    _launchThrow(SwipeDirection.left);
+    _launchThrow(SwipeDirection.left, 0.0);
   }
 
   void resetImmediate() {
     _throwController.reset();
     _popUpController.reset();
+    _snapBackController.reset();
     _dragDx = 0;
     _dragDy = 0;
     isDragging = false;
     _isControlAnimation = false;
   }
 
-  /// Transform values for the front card during throw.
   double get throwX => _throwSlideX.value;
   double get throwY => _throwSlideY.value;
   double get throwRotation => _throwRotation.value;
-  double get throwScaleValue => _throwScale.value;
+  double get throwOpacity => _throwOpacity.value;
 
   @override
   void dispose() {
     _throwController.dispose();
     _popUpController.dispose();
+    _snapBackController.dispose();
     super.dispose();
   }
 }
@@ -309,11 +304,14 @@ class AnimatedPlayerCardState extends State<AnimatedPlayerCard>
   void didUpdateWidget(AnimatedPlayerCard oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.itemCount > 0 && _currentIndex >= widget.itemCount) {
-      setState(() {
-        _currentIndex = widget.itemCount - 1;
-      });
+      setState(() => _currentIndex = widget.itemCount - 1);
     }
-    if (widget.currentSongId != _currentIndex && !_animatingFromControls) {
+    // Only snap index if no animation is in progress — during animated
+    // transitions the card deck manages its own index via _handleSwipeComplete.
+    final anyAnimating = _cardControllers.any((c) => c.isAnimating);
+    if (widget.currentSongId != _currentIndex &&
+        !_animatingFromControls &&
+        !anyAnimating) {
       setState(() {
         _currentIndex =
             widget.currentSongId.clamp(0, math.max(0, widget.itemCount - 1));
@@ -340,8 +338,8 @@ class AnimatedPlayerCardState extends State<AnimatedPlayerCard>
   }
 
   void _updateControllerScreenSizes() {
-    for (var controller in _cardControllers) {
-      controller.updateScreenSize(_screenSize);
+    for (var c in _cardControllers) {
+      c.updateScreenSize(_screenSize);
     }
   }
 
@@ -351,9 +349,7 @@ class AnimatedPlayerCardState extends State<AnimatedPlayerCard>
         : _currentIndex - 1;
 
     if (nextIndex >= 0 && nextIndex < widget.itemCount) {
-      setState(() {
-        _currentIndex = nextIndex;
-      });
+      setState(() => _currentIndex = nextIndex);
       if (!_animatingFromControls) {
         widget.onPageChanged(nextIndex);
       }
@@ -370,8 +366,8 @@ class AnimatedPlayerCardState extends State<AnimatedPlayerCard>
 
   @override
   void dispose() {
-    for (var controller in _cardControllers) {
-      controller.dispose();
+    for (var c in _cardControllers) {
+      c.dispose();
     }
     super.dispose();
   }
@@ -383,97 +379,81 @@ class AnimatedPlayerCardState extends State<AnimatedPlayerCard>
     return AnimatedBuilder(
       animation: Listenable.merge(_cardControllers),
       builder: (context, _) {
-        final isThrowing = frontCtrl.isAnimating;
-        final popProgress = Curves.easeOutBack
+        final isThrowing = frontCtrl.isAnimating && !frontCtrl.isDragging;
+        final popProgress = Curves.easeOutCubic
             .transform(frontCtrl.popUpProgress.clamp(0.0, 1.0));
 
-        // During drag, compute a drag influence (0→1) for back card movement.
+        // Back cards respond to drag AND throw
         final dragInfluence = frontCtrl.isDragging
-            ? (frontCtrl.dragDx.abs() / (_screenSize.width * 0.4))
+            ? (frontCtrl.dragDx.abs() / (_screenSize.width * 0.5))
                 .clamp(0.0, 1.0)
             : 0.0;
-        final backProgress = isThrowing ? popProgress : dragInfluence * 0.3;
+        final backProgress =
+            isThrowing ? popProgress : dragInfluence * 0.4;
 
         final cards = <Widget>[];
 
-        // Build back cards first (bottom of z-order), then front card on top.
         for (int i = CardAnimationConfig.maxVisibleCards - 1; i >= 0; i--) {
           final itemIndex = _currentIndex + i;
           if (itemIndex < 0 || itemIndex >= widget.itemCount) continue;
 
           if (i == 0) {
-            // Front card — the one that gets thrown away.
-            cards.add(
-              _buildFrontCard(itemIndex, frontCtrl),
-            );
+            cards.add(_buildFrontCard(itemIndex, frontCtrl));
           } else {
-            // Background stacked cards — pop up during throw.
-            cards.add(
-              _buildBackCard(itemIndex, i, backProgress),
-            );
+            cards.add(_buildBackCard(itemIndex, i, backProgress));
           }
         }
 
-        return Stack(
-          fit: StackFit.expand,
-          children: [
-            // Back cards rendered first.
-            ...cards.sublist(0, math.max(0, cards.length - 1)),
-            // Front card on top with gesture detection.
-            if (cards.isNotEmpty)
-              GestureDetector(
-                onPanStart: frontCtrl.onPanStart,
-                onPanUpdate: frontCtrl.onPanUpdate,
-                onPanEnd: frontCtrl.onPanEnd,
-                child: cards.last,
-              ),
-          ],
+        return GestureDetector(
+          behavior: HitTestBehavior.translucent,
+          onPanStart: frontCtrl.onPanStart,
+          onPanUpdate: frontCtrl.onPanUpdate,
+          onPanEnd: frontCtrl.onPanEnd,
+          child: Stack(
+            fit: StackFit.expand,
+            children: cards,
+          ),
         );
       },
     );
   }
 
-  /// Front card: during idle shows normally, during throw it flies away
-  /// with rotation, during drag it tilts slightly.
   Widget _buildFrontCard(int itemIndex, CardController ctrl) {
-    if (ctrl.isAnimating) {
-      // Throw animation — card flies away with rotation.
+    final child = RepaintBoundary(
+      child: widget.itemBuilder(context, itemIndex, isActive: true),
+    );
+
+    if (ctrl.isAnimating && !ctrl.isDragging) {
+      // Throw — card flies away
       return Transform(
         transform: Matrix4.identity()
           ..translateByVector3(Vector3(ctrl.throwX, ctrl.throwY, 0.0))
-          ..rotateZ(ctrl.throwRotation * (math.pi / 180))
-          ..scaleByVector3(Vector3.all(ctrl.throwScaleValue)),
+          ..rotateZ(ctrl.throwRotation * (math.pi / 180)),
         alignment: Alignment.center,
         child: Opacity(
-          opacity: (1.0 - ctrl.throwProgress * 0.5).clamp(0.0, 1.0),
-          child: widget.itemBuilder(context, itemIndex, isActive: true),
+          opacity: ctrl.throwOpacity.clamp(0.0, 1.0),
+          child: child,
         ),
       );
     }
 
-    if (ctrl.isDragging) {
-      // Drag — card follows finger with subtle tilt.
-      final tiltAngle = (ctrl.dragDx / _screenSize.width) * 0.15;
+    // Drag or snap-back — card follows finger 1:1
+    if (ctrl.dragDx.abs() > 0.5 || ctrl.dragDy.abs() > 0.5) {
+      final tilt = (ctrl.dragDx / _screenSize.width) *
+          CardAnimationConfig.maxDragTilt;
       return Transform(
         transform: Matrix4.identity()
-          ..translateByVector3(Vector3(ctrl.dragDx * 0.6, ctrl.dragDy * 0.3, 0.0))
-          ..rotateZ(tiltAngle),
+          ..translateByVector3(Vector3(ctrl.dragDx, ctrl.dragDy * 0.4, 0.0))
+          ..rotateZ(tilt),
         alignment: Alignment.center,
-        child: widget.itemBuilder(context, itemIndex, isActive: true),
+        child: child,
       );
     }
 
-    // Idle — static front card.
-    return widget.itemBuilder(context, itemIndex, isActive: true);
+    return child;
   }
 
-  /// Background cards: stacked behind with cascading scale and vertical offset.
-  /// During throw, they pop up and grow to fill the gap.
   Widget _buildBackCard(int depth, int depthIndex, double animProgress) {
-    // Target state: each card moves up one level in the stack.
-    // depth = 1 → becomes front (scale 1.0, offset 0)
-    // depth = 2 → becomes depth 1 (scale 0.95, offset 12)
-    // etc.
     final currentScale =
         1.0 - (depthIndex * CardAnimationConfig.scaleFraction);
     final targetScale =
@@ -485,7 +465,7 @@ class AnimatedPlayerCardState extends State<AnimatedPlayerCard>
     final yOff = currentY + (targetY - currentY) * animProgress;
 
     final opacity =
-        (1.0 - (depthIndex * 0.15) + animProgress * 0.15).clamp(0.0, 1.0);
+        (1.0 - depthIndex * 0.12 + animProgress * 0.12).clamp(0.0, 1.0);
 
     return Transform(
       transform: Matrix4.identity()
@@ -494,7 +474,9 @@ class AnimatedPlayerCardState extends State<AnimatedPlayerCard>
       alignment: Alignment.center,
       child: Opacity(
         opacity: opacity,
-        child: widget.itemBuilder(context, depth, isActive: false),
+        child: RepaintBoundary(
+          child: widget.itemBuilder(context, depth, isActive: false),
+        ),
       ),
     );
   }

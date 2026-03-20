@@ -38,21 +38,24 @@ class AudioVisualizer {
     channel.setMethodCallHandler((MethodCall call) async {
       switch (call.method) {
         case 'onFftVisualization':
-          List<int> samples = call.arguments['fft'];
+          final raw = call.arguments['fft'];
+          // Android sends byte[] → Uint8List; iOS sends FlutterStandardTypedData → Uint8List
+          final List<int> samples = raw is List<int> ? raw : List<int>.from(raw);
           for (Function callback in _fftCallbacks) {
             callback(samples);
           }
           break;
         case 'onWaveformVisualization':
-          List<int> samples = call.arguments['waveform'];
-          int sampleRate = call.arguments['sampleRate'];
+          final raw = call.arguments['waveform'];
+          final List<int> samples = raw is List<int> ? raw : List<int>.from(raw);
+          final int sampleRate = call.arguments['sampleRate'] as int;
           for (Function callback in _waveformCallbacks) {
             callback(samples, sampleRate);
           }
           break;
         default:
-          throw UnimplementedError(
-              '${call.method} is not implemented for audio visualization channel.');
+          // Don't throw — other method calls may arrive on this channel
+          break;
       }
     });
   }

@@ -1,4 +1,6 @@
 // ignore_for_file: library_private_types_in_public_api, depend_on_referenced_packages
+import 'dart:async';
+import 'package:just_audio/just_audio.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:rxdart/rxdart.dart';
 import 'package:flutter/material.dart';
@@ -59,18 +61,55 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
     });
   }
 
+  int _lastSongId = -1;
+  StreamSubscription<ProcessingState>? _autoAdvanceSub;
+
   @override
   void dispose() {
     _animationController?.dispose();
+    _autoAdvanceSub?.cancel();
     super.dispose();
   }
 
+  /// Called by next button — animate first, then change track on completion.
   void _onControlNext() {
+    final ctrl = context.read<AppController>();
+    if (ctrl.songs.isEmpty || ctrl.songId >= ctrl.songs.length - 1) {
+      // At end of queue — just call next() directly (it handles repeat logic)
+      ctrl.next();
+      return;
+    }
     _cardKey.currentState?.animateToNext();
   }
 
+  /// Called by prev button — animate first, then change track on completion.
   void _onControlPrev() {
+    final ctrl = context.read<AppController>();
+    // If > 3s into track, prev() restarts — no card animation needed
+    if (ctrl.handler.player.position.inSeconds > 3) {
+      ctrl.prev();
+      return;
+    }
+    if (ctrl.songId <= 0) {
+      ctrl.prev();
+      return;
+    }
     _cardKey.currentState?.animateToPrevious();
+  }
+
+  /// Trigger animated next when the track auto-advances (song completes).
+  void _setupAutoAdvanceListener(AppController controller) {
+    _autoAdvanceSub?.cancel();
+    _autoAdvanceSub = controller.handler.player.processingStateStream.listen((state) {
+      if (state == ProcessingState.completed && mounted) {
+        // Let the card animate, then AppController handles the actual advance
+        // via its own _bindProcessingState listener.
+        // We just trigger the visual animation here.
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _cardKey.currentState?.animateToNext();
+        });
+      }
+    });
   }
 
   @override
@@ -78,6 +117,12 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
     return Scaffold(
       body: Consumer<AppController>(
         builder: (context, controller, child) {
+          // Set up auto-advance listener once
+          if (_lastSongId == -1) {
+            _setupAutoAdvanceListener(controller);
+          }
+          _lastSongId = controller.songId;
+
           final player = controller.handler.player;
           final playerKey = Object.hash(
             controller.songId,

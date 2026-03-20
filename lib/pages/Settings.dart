@@ -536,16 +536,15 @@ class _SettingsState extends State<Settings> {
 
   // -- Visualizer Section --
 
-  static const _visualizerStyles = {
-    'circular': ('Circular', Icons.circle_outlined),
+  static Map<String, (String, IconData)> get _visualizerStyles => {
+    'radial': ('Radial', Icons.flare_rounded),
     'bars': ('Spectrum', Icons.bar_chart_rounded),
-    'milkdrop': ('MilkDrop', Icons.blur_on_rounded),
-    'sphere': ('Sphere', Icons.radio_button_unchecked),
-    'flower': ('Plasma', Icons.blur_circular),
-    'fabric': ('Fabric', Icons.texture),
-    'sea': ('Ocean', Icons.water),
-    'cube': ('Cube', Icons.view_in_ar),
-    'ripple': ('Ripple', Icons.waves),
+    'mirror_bars': ('Mirror', Icons.align_vertical_center_rounded),
+    'line': ('Waveform', Icons.show_chart_rounded),
+    'terrain': ('Terrain', Icons.terrain_rounded),
+    'dots': ('Matrix', Icons.grid_on_rounded),
+    'circular': ('Circular', Icons.circle_outlined),
+    if (!Platform.isIOS) 'milkdrop': ('MilkDrop', Icons.blur_on_rounded),
   };
 
   static const _visualizerColors = [
@@ -747,8 +746,8 @@ class _SettingsState extends State<Settings> {
           ),
         ]),
 
-        // MilkDrop settings (shown when milkdrop style is active)
-        if (controller.visualizerStyle == 'milkdrop') ...[
+        // MilkDrop settings (Android only, shown when milkdrop style is active)
+        if (!Platform.isIOS && controller.visualizerStyle == 'milkdrop') ...[
           const SizedBox(height: 12),
           _buildSectionHeader(Icons.blur_on_rounded, "MilkDrop"),
           _buildSectionCard([

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'CircularBarVisualizer.dart';
 import 'spectrum-visualiser.dart';
+import 'poweramp_visualizers.dart';
 
 class WaveVisualizer extends StatefulWidget {
   final List<int> audioData;
@@ -28,7 +29,8 @@ class WaveVisualizer extends StatefulWidget {
 class _WaveVisualizerState extends State<WaveVisualizer>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
-  final List<double> _smoothedData = List.filled(512, 0.0);
+  final List<double> _smoothedData = List.filled(512, 0.0);   // amplitude 0..1
+  final List<double> _signedData = List.filled(512, 0.5);     // signed 0..1 (0.5=center)
 
   /// Decay factor — always half the attack so bars don't snap back
   /// to zero between beats.
@@ -46,9 +48,9 @@ class _WaveVisualizerState extends State<WaveVisualizer>
 
   void _updateAudioData() {
     if (widget.audioData.isEmpty) {
-      // Decay to silence smoothly
       for (int i = 0; i < _smoothedData.length; i++) {
         _smoothedData[i] += (0.0 - _smoothedData[i]) * _smoothingDown;
+        _signedData[i] += (0.5 - _signedData[i]) * _smoothingDown;
       }
       return;
     }
@@ -59,11 +61,18 @@ class _WaveVisualizerState extends State<WaveVisualizer>
         0,
         inputLength - 1,
       );
-      final target = widget.audioData[rawIndex].abs() / 128.0;
+      final raw = widget.audioData[rawIndex];
 
-      // Attack / decay envelope — rise fast on beats, fall slowly
-      final factor = target > _smoothedData[i] ? _smoothingUp : _smoothingDown;
-      _smoothedData[i] += (target - _smoothedData[i]) * factor;
+      // Amplitude (0.0 = silence, 1.0 = max) — for bars, radial, dots, terrain
+      final ampTarget = (raw - 128).abs() / 128.0;
+      final ampFactor = ampTarget > _smoothedData[i] ? _smoothingUp : _smoothingDown;
+      _smoothedData[i] += (ampTarget - _smoothedData[i]) * ampFactor;
+
+      // Signed waveform (0.0 = max negative, 0.5 = silence, 1.0 = max positive) — for line, helix
+      final signedTarget = raw / 255.0;
+      final signedFactor = (signedTarget - _signedData[i]).abs() > (_signedData[i] - 0.5).abs()
+          ? _smoothingUp : _smoothingDown;
+      _signedData[i] += (signedTarget - _signedData[i]) * signedFactor;
     }
   }
 
@@ -86,22 +95,48 @@ class _WaveVisualizerState extends State<WaveVisualizer>
   }
 
   Widget _buildVisualizer(String selector) {
-    return CustomPaint(
-      size: Size(widget.width, widget.height),
-      painter: switch (selector) {
-        'bars' => SpectrumVisualizer(
-          audioData: _smoothedData,
-          color: widget.color,
-          time: _controller.value,
-        ),
-
-        _ => CircularBarVisualizer(
-          waveData: widget.audioData,
-          height: widget.height,
-          width: widget.width,
-          color: widget.color,
-        ),
-      },
+    return RepaintBoundary(
+      child: CustomPaint(
+        size: Size(widget.width, widget.height),
+        painter: switch (selector) {
+          'bars' => SpectrumVisualizer(
+            audioData: _smoothedData,
+            color: widget.color,
+            time: _controller.value,
+          ),
+          'radial' => RadialBurstVisualizer(
+            audioData: _smoothedData,
+            color: widget.color,
+            time: _controller.value,
+          ),
+          'mirror_bars' => MirrorBarsVisualizer(
+            audioData: _smoothedData,
+            color: widget.color,
+            time: _controller.value,
+          ),
+          'line' => WaveformLineVisualizer(
+            audioData: _signedData,  // signed waveform for oscilloscope
+            color: widget.color,
+            time: _controller.value,
+          ),
+          'terrain' => TerrainVisualizer(
+            audioData: _smoothedData,
+            color: widget.color,
+            time: _controller.value,
+          ),
+          'dots' => DotMatrixVisualizer(
+            audioData: _smoothedData,
+            color: widget.color,
+            time: _controller.value,
+          ),
+          _ => CircularBarVisualizer(
+            waveData: widget.audioData,
+            height: widget.height,
+            width: widget.width,
+            color: widget.color,
+          ),
+        },
+      ),
     );
   }
 }
