@@ -350,9 +350,8 @@ class AnimatedPlayerCardState extends State<AnimatedPlayerCard>
 
     if (nextIndex >= 0 && nextIndex < widget.itemCount) {
       setState(() => _currentIndex = nextIndex);
-      if (!_animatingFromControls) {
-        widget.onPageChanged(nextIndex);
-      }
+      // Always notify — this triggers controller.next()/prev() to change the track
+      widget.onPageChanged(nextIndex);
       _animatingFromControls = false;
 
       final swipedController = _cardControllers.removeAt(0);
