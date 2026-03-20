@@ -756,6 +756,12 @@ class AppController with ChangeNotifier {
     _processingSub = handler.player.processingStateStream.listen((event) {
       if (event == ProcessingState.ready) {
         preCacheNextCloudTracks();
+        // On iOS, the MTAudioProcessingTap calls dsp_reinit() when a new
+        // AVPlayerItem starts, resetting all DSP filters to defaults.
+        // Re-apply all EQ/reverb/tone settings to the native engine.
+        if (Platform.isIOS) {
+          _applyAllDspParams();
+        }
       }
       if (event == ProcessingState.completed) {
         if (_gaplessPlayback && handler.player.audioSources.length > 1) {
@@ -806,6 +812,10 @@ class AppController with ChangeNotifier {
     _bindCurrentIndex();
     _setupCrossfadeListener();
     _bindAudioSessionId();
+    // After crossfade swap, the new player's tap has reinited the DSP engine
+    if (Platform.isIOS) {
+      _applyAllDspParams();
+    }
     notifyListeners();
   }
 

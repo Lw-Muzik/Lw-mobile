@@ -131,7 +131,6 @@ Widget playerActionBar(AppController controller, BuildContext context) {
             );
           },
         ),
-        StemButton(controller: controller),
         _ActionItem(
           icon: Icons.hearing_rounded,
           label: 'Listen',

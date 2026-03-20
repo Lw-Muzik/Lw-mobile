@@ -55,11 +55,11 @@ class Files {
         "_id": name.hashCode.abs(),
         "album": name,
         "artist": s.artist ?? 'Unknown Artist',
-        "number_of_songs": 0,
-        "album_id": name.hashCode.abs(),
+        "artist_id": (s.artist ?? 'Unknown Artist').hashCode.abs(),
+        "numsongs": 0,
       });
-      albumMap[name]!["number_of_songs"] =
-          (albumMap[name]!["number_of_songs"] as int) + 1;
+      albumMap[name]!["numsongs"] =
+          (albumMap[name]!["numsongs"] as int) + 1;
     }
     return albumMap.values.map((m) => AlbumModel(m)).toList();
   }
@@ -109,11 +109,11 @@ class Files {
       if (name == 'Unknown') continue; // skip songs without genre metadata
       genreMap.putIfAbsent(name, () => {
         "_id": name.hashCode.abs(),
-        "genre": name,
-        "number_of_songs": 0,
+        "name": name,
+        "num_of_songs": 0,
       });
-      genreMap[name]!["number_of_songs"] =
-          (genreMap[name]!["number_of_songs"] as int) + 1;
+      genreMap[name]!["num_of_songs"] =
+          (genreMap[name]!["num_of_songs"] as int) + 1;
     }
     return genreMap.values.map((m) => GenreModel(m)).toList();
   }
