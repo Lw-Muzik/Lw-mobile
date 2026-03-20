@@ -119,10 +119,13 @@ class _VisualUIState extends State<VisualUI>
     } else {
       // Scale down so longest edge = maxEdge, preserve aspect ratio
       final longest = fullW > fullH ? fullW : fullH;
-      final scale = maxEdge / longest;
+      final scale = maxEdge.toDouble() / longest.toDouble();
       w = (fullW * scale).toInt();
       h = (fullH * scale).toInt();
     }
+    // Ensure minimum resolution
+    w = w.clamp(64, fullW);
+    h = h.clamp(64, fullH);
 
     final textureId = await _projectM.init(w, h);
     if (textureId != null) {

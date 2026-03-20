@@ -1,13 +1,13 @@
 import Flutter
 import OpenGLES
-import Accelerate
+import CoreVideo
 import AVFoundation
 
-// OpenGL ES BGRA extension constant
-let GL_BGRA_EXT = GLenum(0x80E1)
+private let GL_BGRA_EXT = GLenum(0x80E1)
 
-/// Renders projectM visualizations using OpenGL ES 3.0 and shares frames
-/// with Flutter via TextureRegistry (CVPixelBuffer-backed).
+/// ProjectM renderer for iOS.
+/// Key insight: projectM hardcodes glBindFramebuffer(0) for its final output,
+/// so we render to FBO 0 (a color renderbuffer), then blit to our CVPixelBuffer FBO.
 class ProjectMRenderer: NSObject, FlutterTexture {
     private var registrar: FlutterTextureRegistry?
     private var textureId: Int64 = -1
@@ -16,249 +16,192 @@ class ProjectMRenderer: NSObject, FlutterTexture {
 
     // OpenGL ES
     private var eaglContext: EAGLContext?
-    private var framebuffer: GLuint = 0
-    private var depthRenderbuffer: GLuint = 0
-    private var glTexture: GLuint = 0
 
-    // CVPixelBuffer for Flutter texture sharing
-    private var pixelBuffer: CVPixelBuffer?
+    // FBO 0: projectM renders here (color renderbuffer + depth)
+    private var defaultFBO: GLuint = 0
+    private var colorRBO: GLuint = 0
+    private var depthRBO: GLuint = 0
+
+    // Resolve FBO: CVPixelBuffer-backed texture for Flutter display
+    private var resolveFBOs: [GLuint] = [0, 0]
+    private var resolveTextures: [GLuint] = [0, 0]
+    private var pixelBuffers: [CVPixelBuffer?] = [nil, nil]
+    private var cvTextures: [CVOpenGLESTexture?] = [nil, nil]
     private var textureCache: CVOpenGLESTextureCache?
-    private var cvTexture: CVOpenGLESTexture?
-    private var useFallbackReadback = false
+    private var displayBuffer: CVPixelBuffer?
+    private var currentIdx: Int = 0
+    private var zeroCopy = false
 
-    // projectM handle
+    // projectM
     private var pmHandle: OpaquePointer?
 
     // Render loop
     private var renderThread: Thread?
     private var rendering = false
-    private var targetFps: Int = 24
-
-    // Pending preset load (queued from non-GL thread, applied on GL thread)
-    private var pendingPresetPath: String?
-    private let presetLock = NSLock()
+    private var targetFps: Int = 30
 
     // Presets
+    private var pendingPresetPath: String?
+    private let presetLock = NSLock()
     private var presetPaths: [String] = []
     private var currentPresetIndex: Int = 0
 
-    // MARK: - Public API
+    // MARK: - Init
 
     func initialize(registrar: FlutterTextureRegistry, width: Int, height: Int) -> Int64? {
         self.registrar = registrar
-        self.width = width
-        self.height = height
+        self.width = max(width, 2)
+        self.height = max(height, 2)
 
-        // Create OpenGL ES 3.0 context (fall back to 2.0 on simulator)
-        var context = EAGLContext(api: .openGLES3)
-        if context == nil {
-            print("ProjectM: GLES3 unavailable, trying GLES2")
-            context = EAGLContext(api: .openGLES2)
+        guard let ctx = EAGLContext(api: .openGLES3) ?? EAGLContext(api: .openGLES2) else {
+            print("ProjectM: No EAGL context"); return nil
         }
-        guard let glContext = context else {
-            print("ProjectM: Failed to create any EAGL context")
-            return nil
-        }
-        eaglContext = glContext
-        print("ProjectM: EAGL context created (API: \(glContext.api.rawValue))")
+        eaglContext = ctx
+        EAGLContext.setCurrent(ctx)
 
-        // Set up on GL thread
-        EAGLContext.setCurrent(glContext)
-
-        // Create CVOpenGLESTextureCache for sharing with Flutter
+        // Texture cache
         var cache: CVOpenGLESTextureCache?
-        let cacheResult = CVOpenGLESTextureCacheCreate(
-            kCFAllocatorDefault, nil,
-            glContext, nil, &cache
-        )
-        guard cacheResult == kCVReturnSuccess, let textureCache = cache else {
-            print("ProjectM: Failed to create texture cache")
-            return nil
-        }
-        self.textureCache = textureCache
+        guard CVOpenGLESTextureCacheCreate(kCFAllocatorDefault, nil, ctx, nil, &cache) == kCVReturnSuccess,
+              let tc = cache else { print("ProjectM: No texture cache"); return nil }
+        textureCache = tc
 
-        // Create CVPixelBuffer backed by IOSurface for GPU-CPU zero-copy sharing
-        let pbAttrs: NSDictionary = [
-            kCVPixelBufferOpenGLESCompatibilityKey: true,
-            kCVPixelBufferIOSurfacePropertiesKey: NSDictionary(),
-            kCVPixelBufferWidthKey: width,
-            kCVPixelBufferHeightKey: height,
-            kCVPixelBufferPixelFormatTypeKey: kCVPixelFormatType_32BGRA,
-        ]
-        var pbPool: CVPixelBufferPool?
-        CVPixelBufferPoolCreate(kCFAllocatorDefault, nil, pbAttrs, &pbPool)
+        // --- FBO 0: where projectM renders its final output ---
+        glGenFramebuffers(1, &defaultFBO)
+        glGenRenderbuffers(1, &colorRBO)
+        glGenRenderbuffers(1, &depthRBO)
 
-        var pb: CVPixelBuffer?
-        if let pool = pbPool {
-            CVPixelBufferPoolCreatePixelBuffer(kCFAllocatorDefault, pool, &pb)
-        }
-        // Fallback: direct create if pool fails
-        if pb == nil {
-            CVPixelBufferCreate(kCFAllocatorDefault, width, height,
-                                kCVPixelFormatType_32BGRA, pbAttrs, &pb)
-        }
-        guard let pixelBuffer = pb else {
-            print("ProjectM: Failed to create pixel buffer")
-            return nil
-        }
-        self.pixelBuffer = pixelBuffer
-        print("ProjectM: PixelBuffer created \(width)x\(height)")
+        glBindFramebuffer(GLenum(GL_FRAMEBUFFER), defaultFBO)
 
-        // Try to create a GL texture backed by the CVPixelBuffer (zero-copy path)
-        var cvTex: CVOpenGLESTexture?
-        let texStatus = CVOpenGLESTextureCacheCreateTextureFromImage(
-            kCFAllocatorDefault,
-            textureCache,
-            pixelBuffer,
-            nil,
-            GLenum(GL_TEXTURE_2D),
-            GLint(GL_RGBA),
-            GLsizei(width),
-            GLsizei(height),
-            GL_BGRA_EXT,
-            GLenum(GL_UNSIGNED_BYTE),
-            0,
-            &cvTex
-        )
-        if texStatus == kCVReturnSuccess, let texture = cvTex {
-            self.cvTexture = texture
-            glTexture = CVOpenGLESTextureGetName(texture)
-            // Configure texture sampling
-            glBindTexture(GLenum(GL_TEXTURE_2D), glTexture)
-            glTexParameteri(GLenum(GL_TEXTURE_2D), GLenum(GL_TEXTURE_MIN_FILTER), GL_LINEAR)
-            glTexParameteri(GLenum(GL_TEXTURE_2D), GLenum(GL_TEXTURE_MAG_FILTER), GL_LINEAR)
-            glTexParameteri(GLenum(GL_TEXTURE_2D), GLenum(GL_TEXTURE_WRAP_S), GL_CLAMP_TO_EDGE)
-            glTexParameteri(GLenum(GL_TEXTURE_2D), GLenum(GL_TEXTURE_WRAP_T), GL_CLAMP_TO_EDGE)
-            print("ProjectM: CV texture zero-copy (GL id: \(glTexture))")
-        } else {
-            print("ProjectM: CV texture failed (\(texStatus)), using glReadPixels fallback")
-            glGenTextures(1, &glTexture)
-            glBindTexture(GLenum(GL_TEXTURE_2D), glTexture)
-            glTexImage2D(GLenum(GL_TEXTURE_2D), 0, GL_RGBA,
-                         GLsizei(width), GLsizei(height), 0,
-                         GLenum(GL_RGBA), GLenum(GL_UNSIGNED_BYTE), nil)
-            glTexParameteri(GLenum(GL_TEXTURE_2D), GLenum(GL_TEXTURE_MIN_FILTER), GL_LINEAR)
-            glTexParameteri(GLenum(GL_TEXTURE_2D), GLenum(GL_TEXTURE_MAG_FILTER), GL_LINEAR)
-            useFallbackReadback = true
-        }
+        glBindRenderbuffer(GLenum(GL_RENDERBUFFER), colorRBO)
+        glRenderbufferStorage(GLenum(GL_RENDERBUFFER), GLenum(GL_RGBA8),
+                              GLsizei(self.width), GLsizei(self.height))
+        glFramebufferRenderbuffer(GLenum(GL_FRAMEBUFFER), GLenum(GL_COLOR_ATTACHMENT0),
+                                  GLenum(GL_RENDERBUFFER), colorRBO)
 
-        // Set up framebuffer with color + depth attachments
-        glGenFramebuffers(1, &framebuffer)
-        glBindFramebuffer(GLenum(GL_FRAMEBUFFER), framebuffer)
-        glFramebufferTexture2D(GLenum(GL_FRAMEBUFFER), GLenum(GL_COLOR_ATTACHMENT0),
-                               GLenum(GL_TEXTURE_2D), glTexture, 0)
-
-        // Depth buffer — required by projectM for 3D mesh rendering
-        glGenRenderbuffers(1, &depthRenderbuffer)
-        glBindRenderbuffer(GLenum(GL_RENDERBUFFER), depthRenderbuffer)
+        glBindRenderbuffer(GLenum(GL_RENDERBUFFER), depthRBO)
         glRenderbufferStorage(GLenum(GL_RENDERBUFFER), GLenum(GL_DEPTH_COMPONENT16),
-                              GLsizei(width), GLsizei(height))
+                              GLsizei(self.width), GLsizei(self.height))
         glFramebufferRenderbuffer(GLenum(GL_FRAMEBUFFER), GLenum(GL_DEPTH_ATTACHMENT),
-                                  GLenum(GL_RENDERBUFFER), depthRenderbuffer)
+                                  GLenum(GL_RENDERBUFFER), depthRBO)
 
-        let fbStatus = glCheckFramebufferStatus(GLenum(GL_FRAMEBUFFER))
-        if fbStatus != GLenum(GL_FRAMEBUFFER_COMPLETE) {
-            print("ProjectM: Framebuffer incomplete: \(fbStatus)")
-            return nil
-        }
-        print("ProjectM: Framebuffer complete (\(width)x\(height), fallback=\(useFallbackReadback))")
-
-        // When using CPU readback, cap FPS to avoid overload
-        if useFallbackReadback {
-            targetFps = min(targetFps, 24)
+        guard glCheckFramebufferStatus(GLenum(GL_FRAMEBUFFER)) == GLenum(GL_FRAMEBUFFER_COMPLETE) else {
+            print("ProjectM: Default FBO incomplete"); return nil
         }
 
-        // Create projectM instance — must be called with GL context current and FBO bound
-        pmHandle = projectm_create()
-        if pmHandle == nil {
-            print("ProjectM: projectm_create() returned nil — check GL errors")
-            let err = glGetError()
-            if err != GLenum(GL_NO_ERROR) {
-                print("ProjectM: GL error after create: \(err)")
+        // --- Resolve FBOs: CVPixelBuffer-backed for Flutter ---
+        zeroCopy = true
+        for i in 0..<2 {
+            let attrs: NSDictionary = [
+                kCVPixelBufferIOSurfacePropertiesKey: NSDictionary(),
+                kCVPixelBufferOpenGLESCompatibilityKey: true,
+            ]
+            var pb: CVPixelBuffer?
+            CVPixelBufferCreate(kCFAllocatorDefault, self.width, self.height,
+                                kCVPixelFormatType_32BGRA, attrs, &pb)
+            guard let pixelBuffer = pb else { print("ProjectM: No PB \(i)"); return nil }
+            pixelBuffers[i] = pixelBuffer
+
+            var cvTex: CVOpenGLESTexture?
+            let st = CVOpenGLESTextureCacheCreateTextureFromImage(
+                kCFAllocatorDefault, tc, pixelBuffer, nil,
+                GLenum(GL_TEXTURE_2D), GLint(GL_RGBA),
+                GLsizei(self.width), GLsizei(self.height),
+                GL_BGRA_EXT, GLenum(GL_UNSIGNED_BYTE), 0, &cvTex)
+
+            var fbo: GLuint = 0
+            glGenFramebuffers(1, &fbo)
+            resolveFBOs[i] = fbo
+
+            if st == kCVReturnSuccess, let tex = cvTex {
+                cvTextures[i] = tex
+                let glTex = CVOpenGLESTextureGetName(tex)
+                resolveTextures[i] = glTex
+                glBindTexture(GLenum(GL_TEXTURE_2D), glTex)
+                glTexParameteri(GLenum(GL_TEXTURE_2D), GLenum(GL_TEXTURE_MIN_FILTER), GL_LINEAR)
+                glTexParameteri(GLenum(GL_TEXTURE_2D), GLenum(GL_TEXTURE_MAG_FILTER), GL_LINEAR)
+
+                glBindFramebuffer(GLenum(GL_FRAMEBUFFER), fbo)
+                glFramebufferTexture2D(GLenum(GL_FRAMEBUFFER), GLenum(GL_COLOR_ATTACHMENT0),
+                                       GLenum(GL_TEXTURE_2D), glTex, 0)
+            } else {
+                // Fallback: plain GL texture
+                zeroCopy = false
+                var tex: GLuint = 0
+                glGenTextures(1, &tex)
+                resolveTextures[i] = tex
+                glBindTexture(GLenum(GL_TEXTURE_2D), tex)
+                glTexImage2D(GLenum(GL_TEXTURE_2D), 0, GL_RGBA,
+                             GLsizei(self.width), GLsizei(self.height), 0,
+                             GLenum(GL_RGBA), GLenum(GL_UNSIGNED_BYTE), nil)
+                glTexParameteri(GLenum(GL_TEXTURE_2D), GLenum(GL_TEXTURE_MIN_FILTER), GL_LINEAR)
+                glTexParameteri(GLenum(GL_TEXTURE_2D), GLenum(GL_TEXTURE_MAG_FILTER), GL_LINEAR)
+
+                glBindFramebuffer(GLenum(GL_FRAMEBUFFER), fbo)
+                glFramebufferTexture2D(GLenum(GL_FRAMEBUFFER), GLenum(GL_COLOR_ATTACHMENT0),
+                                       GLenum(GL_TEXTURE_2D), tex, 0)
             }
-            // Still extract presets even if GL fails
-            extractPresets()
-            EAGLContext.setCurrent(nil)
-            return nil
         }
-        print("ProjectM: projectm_create() succeeded")
-        projectm_set_window_size(pmHandle, width, height)
+        print("ProjectM: zeroCopy=\(zeroCopy), \(self.width)x\(self.height)")
 
-        // Extract presets
+        // Create projectM with defaultFBO bound
+        glBindFramebuffer(GLenum(GL_FRAMEBUFFER), defaultFBO)
+        glViewport(0, 0, GLsizei(self.width), GLsizei(self.height))
+
+        pmHandle = projectm_create()
+        guard pmHandle != nil else {
+            print("ProjectM: projectm_create failed"); extractPresets()
+            EAGLContext.setCurrent(nil); return nil
+        }
+        projectm_set_window_size(pmHandle, self.width, self.height)
+
         extractPresets()
-
-        // Register Flutter texture
+        displayBuffer = pixelBuffers[1]
         textureId = registrar.register(self)
-
         EAGLContext.setCurrent(nil)
-
+        print("ProjectM: Ready, textureId=\(textureId)")
         return textureId
     }
 
     func start() {
         guard !rendering, pmHandle != nil else { return }
         rendering = true
-        renderThread = Thread(target: self, selector: #selector(renderLoop), object: nil)
-        renderThread?.name = "projectm-gl"
-        renderThread?.qualityOfService = .userInteractive
-        renderThread?.start()
+        let t = Thread(target: self, selector: #selector(renderLoop), object: nil)
+        t.name = "projectm-gl"
+        t.qualityOfService = .userInteractive
+        renderThread = t
+        t.start()
     }
 
     func stop() {
         rendering = false
-        // Wait for the render thread to actually exit
-        while renderThread?.isExecuting == true {
-            Thread.sleep(forTimeInterval: 0.01)
-        }
+        while renderThread?.isExecuting == true { Thread.sleep(forTimeInterval: 0.01) }
         renderThread = nil
     }
 
     func release() {
         stop()
+        guard let ctx = eaglContext else { return }
+        EAGLContext.setCurrent(ctx)
 
-        if let ctx = eaglContext {
-            EAGLContext.setCurrent(ctx)
+        if let h = pmHandle { projectm_destroy(h); pmHandle = nil }
+        if defaultFBO != 0 { glDeleteFramebuffers(1, &defaultFBO) }
+        if colorRBO != 0 { glDeleteRenderbuffers(1, &colorRBO) }
+        if depthRBO != 0 { glDeleteRenderbuffers(1, &depthRBO) }
+        for i in 0..<2 {
+            if resolveFBOs[i] != 0 { glDeleteFramebuffers(1, &resolveFBOs[i]) }
+            if cvTextures[i] == nil && resolveTextures[i] != 0 { glDeleteTextures(1, &resolveTextures[i]) }
+            cvTextures[i] = nil; pixelBuffers[i] = nil
         }
-
-        if let handle = pmHandle {
-            projectm_destroy(handle)
-            pmHandle = nil
-        }
-
-        if framebuffer != 0 {
-            glDeleteFramebuffers(1, &framebuffer)
-            framebuffer = 0
-        }
-        if depthRenderbuffer != 0 {
-            glDeleteRenderbuffers(1, &depthRenderbuffer)
-            depthRenderbuffer = 0
-        }
-        if glTexture != 0 && useFallbackReadback {
-            glDeleteTextures(1, &glTexture)
-            glTexture = 0
-        }
-
-        cvTexture = nil
-        pixelBuffer = nil
-
-        if let cache = textureCache {
-            CVOpenGLESTextureCacheFlush(cache, 0)
-            textureCache = nil
-        }
-
-        EAGLContext.setCurrent(nil)
-        eaglContext = nil
-
-        if textureId >= 0 {
-            registrar?.unregisterTexture(textureId)
-            textureId = -1
-        }
+        if let c = textureCache { CVOpenGLESTextureCacheFlush(c, 0) }
+        textureCache = nil
+        EAGLContext.setCurrent(nil); eaglContext = nil
+        if textureId >= 0 { registrar?.unregisterTexture(textureId); textureId = -1 }
     }
 
     // MARK: - FlutterTexture
 
     func copyPixelBuffer() -> Unmanaged<CVPixelBuffer>? {
-        guard let pb = pixelBuffer else { return nil }
+        guard let pb = displayBuffer else { return nil }
         return Unmanaged.passRetained(pb)
     }
 
@@ -268,93 +211,84 @@ class ProjectMRenderer: NSObject, FlutterTexture {
         guard let ctx = eaglContext else { return }
         EAGLContext.setCurrent(ctx)
 
-        // Temporary buffer for vertical flip when using glReadPixels fallback
+        // For non-zero-copy: readback buffer
         let rowBytes = width * 4
-        let tempReadBuffer = useFallbackReadback
-            ? UnsafeMutableRawPointer.allocate(byteCount: rowBytes * height, alignment: 16)
-            : nil
-
-        while rendering {
-            autoreleasepool {
-                let frameStart = CACurrentMediaTime()
-
-                guard pmHandle != nil, framebuffer != 0 else { return }
-
-                // Apply any pending preset load on the GL thread
-                presetLock.lock()
-                let pendingPath = pendingPresetPath
-                pendingPresetPath = nil
-                presetLock.unlock()
-                if let path = pendingPath, let handle = pmHandle {
-                    projectm_load_preset_file(handle, path, true)
-                }
-
-                // Bind our framebuffer
-                glBindFramebuffer(GLenum(GL_FRAMEBUFFER), framebuffer)
-                glViewport(0, 0, GLsizei(width), GLsizei(height))
-
-                // Feed PCM audio data from the visualization tap
-                feedAudioData()
-
-                // Render projectM frame
-                if let handle = pmHandle {
-                    projectm_opengl_render_frame(handle)
-                }
-
-                // If using fallback, read pixels into CVPixelBuffer and flip vertically
-                if useFallbackReadback, let pb = pixelBuffer, let tmp = tempReadBuffer {
-                    glFinish()
-                    // Read into temp buffer (GL origin = bottom-left)
-                    glReadPixels(0, 0, GLsizei(width), GLsizei(height),
-                                 GL_BGRA_EXT, GLenum(GL_UNSIGNED_BYTE), tmp)
-
-                    // Flip into CVPixelBuffer using vImage (fast SIMD)
-                    CVPixelBufferLockBaseAddress(pb, [])
-                    if let dest = CVPixelBufferGetBaseAddress(pb) {
-                        let stride = CVPixelBufferGetBytesPerRow(pb)
-                        var src = vImage_Buffer(data: tmp, height: vImagePixelCount(height),
-                                                width: vImagePixelCount(width), rowBytes: rowBytes)
-                        var dst = vImage_Buffer(data: dest, height: vImagePixelCount(height),
-                                                width: vImagePixelCount(width), rowBytes: stride)
-                        vImageVerticalReflect_ARGB8888(&src, &dst, vImage_Flags(kvImageNoFlags))
-                    }
-                    CVPixelBufferUnlockBaseAddress(pb, [])
-                } else {
-                    glFlush()
-                }
-
-                // Notify Flutter that a new frame is ready
-                if rendering, textureId >= 0 {
-                    DispatchQueue.main.async { [weak self] in
-                        guard let self = self, self.rendering, self.textureId >= 0 else { return }
-                        self.registrar?.textureFrameAvailable(self.textureId)
-                    }
-                }
-
-                // Frame rate limiting
-                let elapsed = CACurrentMediaTime() - frameStart
-                let targetInterval = 1.0 / Double(targetFps)
-                let sleepTime = targetInterval - elapsed
-                if sleepTime > 0 {
-                    Thread.sleep(forTimeInterval: sleepTime)
-                }
-            }
+        var readBuf: UnsafeMutableRawPointer?
+        if !zeroCopy {
+            readBuf = .allocate(byteCount: rowBytes * height, alignment: 16)
+            targetFps = min(targetFps, 20)
         }
 
-        tempReadBuffer?.deallocate()
+        while rendering {
+            let t0 = CACurrentMediaTime()
+            guard let handle = pmHandle else { break }
+
+            // Pending preset
+            presetLock.lock()
+            let pp = pendingPresetPath; pendingPresetPath = nil
+            presetLock.unlock()
+            if let p = pp { projectm_load_preset_file(handle, p, true) }
+
+            // 1) Render projectM to defaultFBO (it binds FBO 0 internally,
+            //    but we made defaultFBO our "FBO 0" by binding it before create)
+            glBindFramebuffer(GLenum(GL_FRAMEBUFFER), defaultFBO)
+            glViewport(0, 0, GLsizei(width), GLsizei(height))
+            feedAudioData()
+            projectm_opengl_render_frame(handle)
+
+            // 2) Blit from defaultFBO to resolve FBO (CVPixelBuffer-backed)
+            let resolveIdx = currentIdx
+            glBindFramebuffer(GLenum(GL_READ_FRAMEBUFFER), defaultFBO)
+            glBindFramebuffer(GLenum(GL_DRAW_FRAMEBUFFER), resolveFBOs[resolveIdx])
+            glBlitFramebuffer(0, 0, GLint(width), GLint(height),
+                              0, 0, GLint(width), GLint(height),
+                              GLbitfield(GL_COLOR_BUFFER_BIT), GLenum(GL_NEAREST))
+
+            if !zeroCopy, let pb = pixelBuffers[resolveIdx], let buf = readBuf {
+                // Readback fallback: read from resolve FBO
+                glBindFramebuffer(GLenum(GL_FRAMEBUFFER), resolveFBOs[resolveIdx])
+                glFinish()
+                glReadPixels(0, 0, GLsizei(width), GLsizei(height),
+                             GL_BGRA_EXT, GLenum(GL_UNSIGNED_BYTE), buf)
+                // Flip vertically
+                CVPixelBufferLockBaseAddress(pb, [])
+                if let dest = CVPixelBufferGetBaseAddress(pb) {
+                    let stride = CVPixelBufferGetBytesPerRow(pb)
+                    for row in 0..<height {
+                        memcpy(dest.advanced(by: row * stride),
+                               buf.advanced(by: (height - 1 - row) * rowBytes), rowBytes)
+                    }
+                }
+                CVPixelBufferUnlockBaseAddress(pb, [])
+            } else {
+                glFlush()
+            }
+
+            // Swap display buffer
+            displayBuffer = pixelBuffers[resolveIdx]
+            currentIdx = 1 - resolveIdx
+
+            if rendering, textureId >= 0 {
+                DispatchQueue.main.async { [weak self] in
+                    guard let s = self, s.rendering, s.textureId >= 0 else { return }
+                    s.registrar?.textureFrameAvailable(s.textureId)
+                }
+            }
+
+            let elapsed = CACurrentMediaTime() - t0
+            let budget = 1.0 / Double(targetFps)
+            if elapsed < budget { Thread.sleep(forTimeInterval: budget - elapsed) }
+        }
+
+        readBuf?.deallocate()
         EAGLContext.setCurrent(nil)
     }
 
     private func feedAudioData() {
-        guard let handle = pmHandle else { return }
-        let tap = HypeAudioTap.shared()
-        guard let pcmData = tap.latestPcmFloat() else { return }
-
-        pcmData.withUnsafeBytes { rawBuffer in
-            guard let ptr = rawBuffer.baseAddress?.assumingMemoryBound(to: Float.self) else { return }
-            let count = pcmData.count / MemoryLayout<Float>.size
-            // Feed as mono (projectM handles mono input)
-            projectm_pcm_add_float(handle, ptr, UInt32(count), PROJECTM_MONO)
+        guard let h = pmHandle, let pcm = HypeAudioTap.shared().latestPcmFloat() else { return }
+        pcm.withUnsafeBytes { raw in
+            guard let p = raw.baseAddress?.assumingMemoryBound(to: Float.self) else { return }
+            projectm_pcm_add_float(h, p, UInt32(pcm.count / 4), PROJECTM_MONO)
         }
     }
 
@@ -363,176 +297,71 @@ class ProjectMRenderer: NSObject, FlutterTexture {
     private func extractPresets() {
         let fm = FileManager.default
         let cachePath = NSSearchPathForDirectoriesInDomains(.cachesDirectory, .userDomainMask, true).first!
-        let presetsDir = (cachePath as NSString).appendingPathComponent("milkdrop_presets")
+        let dir = (cachePath as NSString).appendingPathComponent("milkdrop_presets")
 
-        // Check if already extracted
-        if fm.fileExists(atPath: presetsDir) {
-            loadPresetsFromDirectory(presetsDir)
-            if !presetPaths.isEmpty {
-                print("ProjectM: Found \(presetPaths.count) cached presets")
-                return
-            }
+        if fm.fileExists(atPath: dir) {
+            loadPresetsFrom(dir)
+            if !presetPaths.isEmpty { return }
         }
 
-        // Find Flutter asset bundle — try multiple known paths
-        let candidatePaths: [String] = {
-            var paths = [String]()
+        let candidates: [String] = [
+            Bundle.main.privateFrameworksPath.map { ($0 as NSString).appendingPathComponent("App.framework/flutter_assets/assets/milkdrop_presets") },
+            Bundle.main.resourcePath.map { ($0 as NSString).appendingPathComponent("Frameworks/App.framework/flutter_assets/assets/milkdrop_presets") },
+            Bundle.main.path(forResource: "flutter_assets", ofType: nil).map { ($0 as NSString).appendingPathComponent("assets/milkdrop_presets") },
+        ].compactMap { $0 }
 
-            // Standard: Frameworks/App.framework/flutter_assets
-            if let frameworkPath = Bundle.main.privateFrameworksPath {
-                let appFw = (frameworkPath as NSString).appendingPathComponent("App.framework/flutter_assets/assets/milkdrop_presets")
-                paths.append(appFw)
-            }
+        guard let src = candidates.first(where: { fm.fileExists(atPath: $0) }),
+              let files = try? fm.contentsOfDirectory(atPath: src) else { return }
+        let milks = files.filter { $0.hasSuffix(".milk") }
+        guard !milks.isEmpty else { return }
 
-            // Direct bundle resource
-            if let resPath = Bundle.main.resourcePath {
-                paths.append((resPath as NSString).appendingPathComponent("flutter_assets/assets/milkdrop_presets"))
-                paths.append((resPath as NSString).appendingPathComponent("Frameworks/App.framework/flutter_assets/assets/milkdrop_presets"))
-            }
-
-            // Bundle.main.path lookup
-            if let faPath = Bundle.main.path(forResource: "flutter_assets", ofType: nil) {
-                paths.append((faPath as NSString).appendingPathComponent("assets/milkdrop_presets"))
-            }
-
-            return paths
-        }()
-
-        var srcDir: String?
-        for candidate in candidatePaths {
-            if fm.fileExists(atPath: candidate) {
-                srcDir = candidate
-                print("ProjectM: Found presets at \(candidate)")
-                break
-            } else {
-                print("ProjectM: Not found at \(candidate)")
-            }
+        try? fm.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        for f in milks {
+            let dst = (dir as NSString).appendingPathComponent(f)
+            if !fm.fileExists(atPath: dst) { try? fm.copyItem(atPath: (src as NSString).appendingPathComponent(f), toPath: dst) }
         }
-
-        guard let foundDir = srcDir else {
-            print("ProjectM: ERROR — Could not find milkdrop_presets in any known path")
-            return
-        }
-
-        guard let files = try? fm.contentsOfDirectory(atPath: foundDir) else {
-            print("ProjectM: ERROR — Could not list directory: \(foundDir)")
-            return
-        }
-        let milkFiles = files.filter { $0.hasSuffix(".milk") }
-        print("ProjectM: Found \(milkFiles.count) .milk files to extract")
-        guard !milkFiles.isEmpty else { return }
-
-        try? fm.createDirectory(atPath: presetsDir, withIntermediateDirectories: true)
-        for file in milkFiles {
-            let src = (foundDir as NSString).appendingPathComponent(file)
-            let dst = (presetsDir as NSString).appendingPathComponent(file)
-            if !fm.fileExists(atPath: dst) {
-                try? fm.copyItem(atPath: src, toPath: dst)
-            }
-        }
-
-        loadPresetsFromDirectory(presetsDir)
-        print("ProjectM: Extracted \(presetPaths.count) presets to cache")
+        loadPresetsFrom(dir)
     }
 
-    private func loadPresetsFromDirectory(_ dir: String) {
+    private func loadPresetsFrom(_ dir: String) {
         guard let files = try? FileManager.default.contentsOfDirectory(atPath: dir) else { return }
-        presetPaths = files
-            .filter { $0.hasSuffix(".milk") }
-            .sorted()
+        presetPaths = files.filter { $0.hasSuffix(".milk") }.sorted()
             .map { (dir as NSString).appendingPathComponent($0) }
-
-        // Set texture search paths for projectM
-        if let handle = pmHandle, !presetPaths.isEmpty {
-            let dirCStr = (dir as NSString).utf8String!
-            var paths: [UnsafePointer<CChar>?] = [dirCStr]
-            paths.withUnsafeMutableBufferPointer { buffer in
-                projectm_set_texture_search_paths(handle, buffer.baseAddress!, 1)
-            }
-
-            // Load first preset
-            if let first = presetPaths.first {
-                projectm_load_preset_file(handle, first, true)
-            }
+        if let h = pmHandle, !presetPaths.isEmpty {
+            var cStr: UnsafePointer<CChar>? = (dir as NSString).utf8String
+            withUnsafeMutablePointer(to: &cStr) { projectm_set_texture_search_paths(h, $0, 1) }
+            projectm_load_preset_file(h, presetPaths[0], true)
         }
     }
 
-    func listPresets() -> [String] {
-        return presetPaths.map { path in
-            let filename = (path as NSString).lastPathComponent
-                .replacingOccurrences(of: ".milk", with: "")
-            // Flutter asset bundling percent-encodes filenames — decode them
-            return filename.removingPercentEncoding ?? filename
-        }
+    private func dn(_ p: String) -> String {
+        let n = (p as NSString).lastPathComponent.replacingOccurrences(of: ".milk", with: "")
+        return n.removingPercentEncoding ?? n
     }
 
-    func loadPresetByIndex(_ index: Int) -> String {
-        guard index >= 0 && index < presetPaths.count else { return "" }
-        currentPresetIndex = index
-        let path = presetPaths[index]
-
-        // Queue preset load for the GL thread — projectM requires GL context
-        presetLock.lock()
-        pendingPresetPath = path
-        presetLock.unlock()
-
-        return decodedPresetName(path)
+    func listPresets() -> [String] { presetPaths.map { dn($0) } }
+    func getCurrentPresetName() -> String {
+        currentPresetIndex < presetPaths.count ? dn(presetPaths[currentPresetIndex]) : ""
     }
-
+    func loadPresetByIndex(_ i: Int) -> String {
+        guard i >= 0 && i < presetPaths.count else { return "" }
+        currentPresetIndex = i
+        presetLock.lock(); pendingPresetPath = presetPaths[i]; presetLock.unlock()
+        return dn(presetPaths[i])
+    }
     func nextPreset() -> String {
         guard !presetPaths.isEmpty else { return "" }
-        currentPresetIndex = (currentPresetIndex + 1) % presetPaths.count
-        return loadPresetByIndex(currentPresetIndex)
+        return loadPresetByIndex((currentPresetIndex + 1) % presetPaths.count)
     }
-
     func previousPreset() -> String {
         guard !presetPaths.isEmpty else { return "" }
-        currentPresetIndex = (currentPresetIndex - 1 + presetPaths.count) % presetPaths.count
-        return loadPresetByIndex(currentPresetIndex)
+        return loadPresetByIndex((currentPresetIndex - 1 + presetPaths.count) % presetPaths.count)
     }
 
-    func getCurrentPresetName() -> String {
-        guard currentPresetIndex >= 0 && currentPresetIndex < presetPaths.count else { return "" }
-        return decodedPresetName(presetPaths[currentPresetIndex])
-    }
-
-    private func decodedPresetName(_ path: String) -> String {
-        let name = (path as NSString).lastPathComponent
-            .replacingOccurrences(of: ".milk", with: "")
-        return name.removingPercentEncoding ?? name
-    }
-
-    // MARK: - Parameters
-
-    func setFps(_ fps: Int) {
-        let maxFps = useFallbackReadback ? 30 : 60
-        targetFps = max(15, min(maxFps, fps))
-    }
-
-    func setBeatSensitivity(_ sensitivity: Float) {
-        guard let handle = pmHandle else { return }
-        projectm_set_beat_sensitivity(handle, sensitivity)
-    }
-
-    func setPresetDuration(_ seconds: Double) {
-        guard let handle = pmHandle else { return }
-        projectm_set_preset_duration(handle, seconds)
-    }
-
-    func setPresetLocked(_ locked: Bool) {
-        guard let handle = pmHandle else { return }
-        projectm_set_preset_locked(handle, locked)
-    }
-
-    func setSize(_ w: Int, _ h: Int) {
-        width = w
-        height = h
-        guard let handle = pmHandle else { return }
-        projectm_set_window_size(handle, w, h)
-    }
-
-    func setMeshSize(_ w: Int, _ h: Int) {
-        guard let handle = pmHandle else { return }
-        projectm_set_mesh_size(handle, w, h)
-    }
+    func setFps(_ fps: Int) { targetFps = max(15, min(zeroCopy ? 60 : 24, fps)) }
+    func setBeatSensitivity(_ s: Float) { pmHandle.map { projectm_set_beat_sensitivity($0, s) } }
+    func setPresetDuration(_ s: Double) { pmHandle.map { projectm_set_preset_duration($0, s) } }
+    func setPresetLocked(_ l: Bool) { pmHandle.map { projectm_set_preset_locked($0, l) } }
+    func setSize(_ w: Int, _ h: Int) { width = w; height = h; pmHandle.map { projectm_set_window_size($0, w, h) } }
+    func setMeshSize(_ w: Int, _ h: Int) { pmHandle.map { projectm_set_mesh_size($0, w, h) } }
 }
