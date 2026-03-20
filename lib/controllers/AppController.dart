@@ -733,8 +733,9 @@ class AppController with ChangeNotifier {
   }
 
   /// Listen to hardware volume button events forwarded by DvcController.
-  /// Adjusts DVC internal gain instead of system volume.
+  /// Android-only: iOS has no volume button interception API.
   void _bindDvcVolumeButtons() {
+    if (!Platform.isAndroid) return;
     _dvcVolumeSub?.cancel();
     _dvcVolumeSub = Channel.dvcVolumeButtonStream.listen((direction) {
       if (!_dvcEnabled) return;

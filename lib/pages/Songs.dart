@@ -38,13 +38,21 @@ class _AllSongsState extends State<AllSongs> {
     });
   }
 
+  bool _importing = false;
+
   Future<void> _importFiles() async {
-    final count = await LocalMusicScanner.importFiles();
-    if (count > 0 && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Imported $count file${count == 1 ? '' : 's'}')),
-      );
-      _refreshSongs();
+    if (_importing) return; // prevent double-tap
+    _importing = true;
+    try {
+      final count = await LocalMusicScanner.importFiles();
+      if (count > 0 && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Imported $count file${count == 1 ? '' : 's'}')),
+        );
+        _refreshSongs();
+      }
+    } finally {
+      _importing = false;
     }
   }
 
@@ -102,7 +110,13 @@ class _AllSongsState extends State<AllSongs> {
                       ),
                     ),
                     const Spacer(),
-                    if (Platform.isIOS)
+                    if (Platform.isIOS) ...[
+                      GestureDetector(
+                        onTap: _refreshSongs,
+                        child: Icon(Icons.refresh_rounded, size: 20,
+                            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4)),
+                      ),
+                      const SizedBox(width: 12),
                       GestureDetector(
                         onTap: _importFiles,
                         child: Row(
@@ -118,6 +132,7 @@ class _AllSongsState extends State<AllSongs> {
                           ],
                         ),
                       ),
+                    ],
                   ],
                 ),
               ),
@@ -158,7 +173,7 @@ class _AllSongsState extends State<AllSongs> {
                 const SizedBox(height: 12),
                 Text(
                   Platform.isIOS
-                      ? "No songs found.\nImport music or add files via the Files app."
+                      ? "No songs found"
                       : "No songs available.",
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.titleMedium,
@@ -166,15 +181,23 @@ class _AllSongsState extends State<AllSongs> {
                 if (Platform.isIOS) ...[
                   const SizedBox(height: 20),
                   _ImportButton(onTap: _importFiles),
-                  const SizedBox(height: 12),
-                  Text(
-                    "Or copy files to Hype Muzik in the Files app",
+                  const SizedBox(height: 16),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 32),
+                    child: Text(
+                      "How to add music on iOS:\n"
+                      "1. Tap 'Import Music Files' to pick from Files\n"
+                      "2. Or open Files app > On My iPhone > Hype Muzik\n"
+                      "   and copy your music files there\n"
+                      "3. Tap the refresh button after adding files",
+                      textAlign: TextAlign.left,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: Theme.of(context)
                           .colorScheme
                           .onSurface
                           .withValues(alpha: 0.5),
                     ),
+                  ),
                   ),
                 ],
               ],

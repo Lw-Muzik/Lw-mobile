@@ -316,34 +316,57 @@ class _SpaceViewState extends State<SpaceView> {
   }
 
   Widget _buildPresetChips(AppController controller, ThemeData theme) {
-    return SizedBox(
-      height: 38,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 8),
-        itemCount: RoomPreset.builtIn.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
-        itemBuilder: (context, index) {
-          final preset = RoomPreset.builtIn[index];
-          final isSelected = controller.activeRoomPresetName == preset.name;
-          return FilterChip(
-            label: Text(preset.name),
-            selected: isSelected,
-            onSelected: (_) => controller.applyRoomPreset(preset),
-            selectedColor: theme.colorScheme.primary,
-            labelStyle: TextStyle(
-              color: isSelected
-                  ? theme.colorScheme.onPrimary
-                  : theme.colorScheme.onSurface,
-              fontSize: 13,
-            ),
-            showCheckmark: false,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
-            ),
-          );
-        },
+    final accent = theme.colorScheme.primary;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      child: GestureDetector(
+        onTap: () => _openRoomPresetSheet(context, controller),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.06),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.spatial_audio_rounded, size: 18,
+                  color: accent.withValues(alpha: 0.8)),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text("Preset",
+                        style: TextStyle(fontSize: 11,
+                            color: Colors.white.withValues(alpha: 0.45))),
+                    const SizedBox(height: 1),
+                    Text(
+                      controller.activeRoomPresetName.isEmpty
+                          ? 'Custom'
+                          : controller.activeRoomPresetName,
+                      style: const TextStyle(
+                          fontSize: 14, fontWeight: FontWeight.w600,
+                          color: Colors.white),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.keyboard_arrow_down_rounded, size: 22,
+                  color: Colors.white.withValues(alpha: 0.4)),
+            ],
+          ),
+        ),
       ),
+    );
+  }
+
+  void _openRoomPresetSheet(BuildContext context, AppController controller) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _RoomPresetBottomSheet(controller: controller),
     );
   }
 

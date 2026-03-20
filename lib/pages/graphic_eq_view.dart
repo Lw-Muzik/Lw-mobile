@@ -368,102 +368,59 @@ class _GraphicEqViewState extends State<GraphicEqView> {
   }
 
   // ---------------------------------------------------------------------------
-  // 3. Presets with integrated save
+  // 3. Preset button + bottom sheet
   // ---------------------------------------------------------------------------
 
   Widget _buildPresetsRow(AppController controller) {
-    final presetNames = BuiltInPresets.names;
-    final savedNames = controller.savedPresets.keys
-        .where((k) => !k.startsWith('_device_'))
-        .toList();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(left: 4, bottom: 4),
-          child: Text(
-            "Presets",
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: Colors.white.withValues(alpha: 0.35),
+    return GestureDetector(
+      onTap: () => _openPresetSheet(context, controller),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.06),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.tune_rounded, size: 18,
+                color: _kAccent.withValues(alpha: 0.8)),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text("Preset",
+                      style: TextStyle(fontSize: 11,
+                          color: Colors.white.withValues(alpha: 0.45))),
+                  const SizedBox(height: 1),
+                  Text(
+                    controller.activePresetName.isEmpty
+                        ? 'Custom'
+                        : controller.activePresetName,
+                    style: const TextStyle(
+                        fontSize: 14, fontWeight: FontWeight.w600,
+                        color: Colors.white),
+                  ),
+                ],
+              ),
             ),
-          ),
+            Icon(Icons.keyboard_arrow_down_rounded, size: 22,
+                color: Colors.white.withValues(alpha: 0.4)),
+          ],
         ),
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          physics: const BouncingScrollPhysics(),
-          child: Row(
-            children: [
-              ...presetNames.map((name) => _presetChip(name, controller)),
-              ...savedNames.map(
-                (name) => _presetChip(name, controller, isUser: true),
-              ),
-              // Inline save action
-              Padding(
-                padding: const EdgeInsets.only(left: 2),
-                child: ActionChip(
-                  avatar: Icon(
-                    Icons.add_rounded,
-                    size: 16,
-                    color: Colors.white.withValues(alpha: 0.35),
-                  ),
-                  label: Text(
-                    "Save",
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.5),
-                      fontSize: 12,
-                    ),
-                  ),
-                  backgroundColor: Colors.transparent,
-                  side: BorderSide(
-                    color: Colors.white.withValues(alpha: 0.12),
-                  ),
-                  onPressed: () => _showSaveDialog(context, controller),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
+      ),
     );
   }
 
-  Widget _presetChip(
-    String name,
-    AppController controller, {
-    bool isUser = false,
-  }) {
-    final isSelected = controller.activePresetName == name;
-    return Padding(
-      padding: const EdgeInsets.only(right: 8),
-      child: ChoiceChip(
-        label: Text(name),
-        selected: isSelected,
-        selectedColor: _kAccent.withValues(alpha: 0.25),
-        labelStyle: TextStyle(
-          color: isSelected ? _kAccent : Colors.white70,
-          fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-          fontSize: 12,
-        ),
-        side: BorderSide(color: isSelected ? _kAccent : Colors.white24),
-        backgroundColor: Colors.transparent,
-        visualDensity: VisualDensity.compact,
-        avatar: isUser
-            ? Icon(
-                Icons.person,
-                size: 16,
-                color: isSelected ? _kAccent : Colors.white38,
-              )
-            : null,
-        onSelected: (_) {
-          if (isUser) {
-            controller.loadPreset(name);
-          } else {
-            controller.applyBuiltInPreset(name);
-          }
-        },
+  void _openPresetSheet(BuildContext context, AppController controller) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _PresetBottomSheet(
+        controller: controller,
+        onSave: () => _showSaveDialog(context, controller),
       ),
     );
   }
@@ -513,6 +470,237 @@ class _GraphicEqViewState extends State<GraphicEqView> {
             child: const Text("Save"),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// =============================================================================
+// Preset Bottom Sheet
+// =============================================================================
+
+class _PresetBottomSheet extends StatefulWidget {
+  final AppController controller;
+  final VoidCallback onSave;
+
+  const _PresetBottomSheet({required this.controller, required this.onSave});
+
+  @override
+  State<_PresetBottomSheet> createState() => _PresetBottomSheetState();
+}
+
+class _PresetBottomSheetState extends State<_PresetBottomSheet> {
+  String _query = '';
+  final _searchController = TextEditingController();
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final builtIn = BuiltInPresets.names;
+    final saved = widget.controller.savedPresets.keys
+        .where((k) => !k.startsWith('_device_'))
+        .toList();
+    final all = [...builtIn, ...saved];
+    final filtered = _query.isEmpty
+        ? all
+        : all.where((n) => n.toLowerCase().contains(_query.toLowerCase())).toList();
+    final active = widget.controller.activePresetName;
+    final screenH = MediaQuery.of(context).size.height;
+
+    return Container(
+      constraints: BoxConstraints(maxHeight: screenH * 0.6),
+      decoration: const BoxDecoration(
+        color: Color(0xFF1A1A1A),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Drag handle
+          Center(
+            child: Container(
+              margin: const EdgeInsets.only(top: 10, bottom: 6),
+              width: 36, height: 4,
+              decoration: BoxDecoration(
+                color: Colors.white24,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          // Title row
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 8, 8),
+            child: Row(
+              children: [
+                const Icon(Icons.tune_rounded, color: _kAccent, size: 20),
+                const SizedBox(width: 8),
+                const Text("EQ Presets",
+                    style: TextStyle(color: Colors.white, fontSize: 16,
+                        fontWeight: FontWeight.w600)),
+                const Spacer(),
+                // Save button
+                TextButton.icon(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    widget.onSave();
+                  },
+                  icon: const Icon(Icons.add_rounded, size: 18),
+                  label: const Text("Save Current"),
+                  style: TextButton.styleFrom(
+                    foregroundColor: _kAccent,
+                    textStyle: const TextStyle(fontSize: 13),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Search
+          if (all.length > 8)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: TextField(
+                controller: _searchController,
+                onChanged: (v) => setState(() => _query = v),
+                style: const TextStyle(color: Colors.white, fontSize: 14),
+                decoration: InputDecoration(
+                  hintText: 'Search presets...',
+                  hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.3)),
+                  prefixIcon: Icon(Icons.search_rounded, size: 20,
+                      color: Colors.white.withValues(alpha: 0.3)),
+                  filled: true,
+                  fillColor: Colors.white.withValues(alpha: 0.08),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+            ),
+          // Preset list
+          Flexible(
+            child: ListView.builder(
+              shrinkWrap: true,
+              padding: EdgeInsets.only(
+                  bottom: MediaQuery.of(context).padding.bottom + 16),
+              itemCount: filtered.length,
+              itemBuilder: (context, index) {
+                final name = filtered[index];
+                final isActive = name == active;
+                final isUser = saved.contains(name);
+                return _PresetTile(
+                  name: name,
+                  isActive: isActive,
+                  isUser: isUser,
+                  onTap: () {
+                    if (isUser) {
+                      widget.controller.loadPreset(name);
+                    } else {
+                      widget.controller.applyBuiltInPreset(name);
+                    }
+                    Navigator.pop(context);
+                  },
+                  onDelete: isUser ? () {
+                    widget.controller.deletePreset(name);
+                    setState(() {});
+                  } : null,
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PresetTile extends StatelessWidget {
+  final String name;
+  final bool isActive;
+  final bool isUser;
+  final VoidCallback onTap;
+  final VoidCallback? onDelete;
+
+  const _PresetTile({
+    required this.name,
+    required this.isActive,
+    required this.isUser,
+    required this.onTap,
+    this.onDelete,
+  });
+
+  IconData get _icon {
+    final lower = name.toLowerCase();
+    if (lower.contains('bass')) return Icons.speaker_rounded;
+    if (lower.contains('rock')) return Icons.whatshot_rounded;
+    if (lower.contains('pop')) return Icons.stars_rounded;
+    if (lower.contains('jazz')) return Icons.piano_rounded;
+    if (lower.contains('classical')) return Icons.music_note_rounded;
+    if (lower.contains('vocal') || lower.contains('voice')) return Icons.mic_rounded;
+    if (lower.contains('dance') || lower.contains('edm')) return Icons.nightlife_rounded;
+    if (lower.contains('flat')) return Icons.horizontal_rule_rounded;
+    if (lower.contains('treble')) return Icons.graphic_eq_rounded;
+    if (lower.contains('loudness')) return Icons.volume_up_rounded;
+    if (isUser) return Icons.person_rounded;
+    return Icons.equalizer_rounded;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        color: isActive ? _kAccent.withValues(alpha: 0.1) : null,
+        child: Row(
+          children: [
+            Container(
+              width: 36, height: 36,
+              decoration: BoxDecoration(
+                color: isActive
+                    ? _kAccent.withValues(alpha: 0.2)
+                    : Colors.white.withValues(alpha: 0.06),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(_icon, size: 18,
+                  color: isActive ? _kAccent : Colors.white.withValues(alpha: 0.4)),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(name,
+                      style: TextStyle(
+                        color: isActive ? _kAccent : Colors.white.withValues(alpha: 0.85),
+                        fontSize: 14,
+                        fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
+                      )),
+                  if (isUser)
+                    Text("Custom preset",
+                        style: TextStyle(fontSize: 11,
+                            color: Colors.white.withValues(alpha: 0.35))),
+                ],
+              ),
+            ),
+            if (isActive)
+              const Icon(Icons.check_rounded, color: _kAccent, size: 20),
+            if (onDelete != null && !isActive)
+              GestureDetector(
+                onTap: onDelete,
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 8),
+                  child: Icon(Icons.delete_outline_rounded, size: 18,
+                      color: Colors.white.withValues(alpha: 0.25)),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
