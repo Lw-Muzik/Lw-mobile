@@ -2,6 +2,7 @@ import 'package:eq_app/Routes/routes.dart';
 import 'package:eq_app/extensions/index.dart';
 import 'package:eq_app/pages/genre_songs.dart';
 import '/exports/exports.dart';
+import '/Helpers/Files.dart';
 
 class Genres extends StatefulWidget {
   const Genres({super.key});
@@ -16,7 +17,7 @@ class _GenresState extends State<Genres> {
   @override
   void initState() {
     super.initState();
-    _genresFuture = OnAudioQuery.platform.queryGenres();
+    _genresFuture = Files.fetchAllGenres();
   }
 
   Color _genreColor(String name) {

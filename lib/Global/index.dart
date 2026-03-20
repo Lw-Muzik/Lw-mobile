@@ -437,9 +437,17 @@ void loadAudioSource(
     // Prefetch next track in background
     _prefetchNextTrack();
   } else {
-    await handler.player.setAudioSource(
-      AudioSource.uri(Uri.parse(item.id), tag: item),
-    );
+    // Local file: use AudioSource.file for proper path handling (spaces, special chars)
+    // AudioSource.uri(Uri.parse(...)) fails on paths with spaces/parentheses
+    if (song.data.startsWith('/')) {
+      await handler.player.setAudioSource(
+        AudioSource.file(song.data, tag: item),
+      );
+    } else {
+      await handler.player.setAudioSource(
+        AudioSource.uri(Uri.parse(item.id), tag: item),
+      );
+    }
   }
 
   // Replay gain only for local files (needs ID3 tags)

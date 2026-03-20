@@ -12,6 +12,7 @@ import '/exports/exports.dart';
 import '../player/player_ui.dart';
 import '../widgets/ArtworkWidget.dart';
 import '../widgets/BottomPlayer.dart';
+import '/Helpers/Files.dart';
 
 class ArtistSongs extends StatefulWidget {
   final int? artistId;
@@ -132,11 +133,7 @@ class _ArtistSongsState extends State<ArtistSongs> {
       builder: (context, service) {
         return Scaffold(
           body: FutureBuilder<List<SongModel>>(
-            future: OnAudioQuery.platform.queryAudiosFrom(
-              AudiosFromType.ARTIST_ID,
-              widget.artistId ?? 0,
-              ignoreCase: true,
-            ),
+            future: Files.fetchSongsForArtist(widget.artistId ?? 0),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(

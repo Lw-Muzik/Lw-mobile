@@ -1,6 +1,7 @@
 import 'package:eq_app/Routes/routes.dart';
 import 'package:eq_app/extensions/index.dart';
 import '/exports/exports.dart';
+import '/Helpers/Files.dart';
 
 import '../widgets/ArtworkWidget.dart';
 import 'artist_songs.dart';
@@ -18,12 +19,7 @@ class _ArtistsState extends State<Artists> {
   @override
   void initState() {
     super.initState();
-    _artistsFuture = OnAudioQuery.platform.queryArtists(
-      sortType: null,
-      orderType: OrderType.ASC_OR_SMALLER,
-      uriType: UriType.EXTERNAL,
-      ignoreCase: true,
-    );
+    _artistsFuture = Files.fetchAllArtists();
   }
 
   @override

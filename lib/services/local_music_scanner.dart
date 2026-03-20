@@ -1,3 +1,4 @@
+import 'dart:developer';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
@@ -10,7 +11,15 @@ import '/exports/exports.dart';
 /// This supplements on_audio_query's MPMediaQuery which only sees iTunes library.
 class LocalMusicScanner {
   static const _audioExtensions = {
-    '.mp3', '.m4a', '.aac', '.flac', '.wav', '.ogg', '.wma', '.aiff', '.alac',
+    '.mp3',
+    '.m4a',
+    '.aac',
+    '.flac',
+    '.wav',
+    '.ogg',
+    '.wma',
+    '.aiff',
+    '.alac',
   };
 
   /// Get or create the local music directory inside the app's Documents folder.
@@ -62,6 +71,7 @@ class LocalMusicScanner {
 
     final songs = <SongModel>[];
     for (final file in unique) {
+      log('LocalMusicScanner: Processing ${file.path}');
       final song = await _fileToSongModel(file);
       if (song != null) songs.add(song);
     }
@@ -113,7 +123,9 @@ class LocalMusicScanner {
           }
         }
       } catch (e) {
-        debugPrint('LocalMusicScanner: Metadata extraction failed for $filename: $e');
+        debugPrint(
+          'LocalMusicScanner: Metadata extraction failed for $filename: $e',
+        );
       }
 
       // If no metadata title, try to parse "Artist - Title" from filename
@@ -153,7 +165,9 @@ class LocalMusicScanner {
         "track": null,
       });
     } catch (e) {
-      debugPrint('LocalMusicScanner: Failed to create SongModel for ${file.path}: $e');
+      debugPrint(
+        'LocalMusicScanner: Failed to create SongModel for ${file.path}: $e',
+      );
       return null;
     }
   }
@@ -167,12 +181,22 @@ class LocalMusicScanner {
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: [
-          'mp3', 'm4a', 'aac', 'flac', 'wav', 'ogg', 'wma', 'aiff', 'alac',
+          'mp3',
+          'm4a',
+          'aac',
+          'flac',
+          'wav',
+          'ogg',
+          'wma',
+          'aiff',
+          'alac',
         ],
         allowMultiple: true,
       );
 
-      debugPrint('LocalMusicScanner: Picker result: ${result?.files.length ?? 'cancelled'}');
+      debugPrint(
+        'LocalMusicScanner: Picker result: ${result?.files.length ?? 'cancelled'}',
+      );
 
       if (result == null || result.files.isEmpty) return 0;
 
@@ -180,11 +204,15 @@ class LocalMusicScanner {
       int imported = 0;
 
       for (final file in result.files) {
-        debugPrint('LocalMusicScanner: Processing ${file.name}, path=${file.path}');
+        debugPrint(
+          'LocalMusicScanner: Processing ${file.name}, path=${file.path}',
+        );
         if (file.path == null) continue;
         final src = File(file.path!);
         if (!src.existsSync()) {
-          debugPrint('LocalMusicScanner: Source file does not exist: ${file.path}');
+          debugPrint(
+            'LocalMusicScanner: Source file does not exist: ${file.path}',
+          );
           continue;
         }
 

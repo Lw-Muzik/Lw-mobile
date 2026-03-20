@@ -949,7 +949,12 @@ class AppController with ChangeNotifier {
           );
         }
       } else {
-        sources.add(AudioSource.uri(Uri.parse(s.data)));
+        // Local file paths start with "/", use AudioSource.file to handle spaces/special chars
+        if (s.data.startsWith('/')) {
+          sources.add(AudioSource.file(s.data));
+        } else {
+          sources.add(AudioSource.uri(Uri.parse(s.data)));
+        }
       }
     }
     await handler.player.setAudioSources(sources, initialIndex: startIndex);
