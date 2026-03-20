@@ -13,6 +13,7 @@ import '../Helpers/Files.dart';
 import '../Routes/routes.dart';
 import '../Visualizers/MultiwaveVisualizer.dart';
 import '../controllers/AppController.dart';
+import '../services/streaming_data_guard.dart';
 import '../pages/visual_ui.dart';
 import '../player/widgets/NowPlaying.dart';
 import '../player/widgets/TrackInfo.dart';
@@ -413,9 +414,11 @@ void loadAudioSource(
 
     AudioSource source;
     if (cache.isCached(fileId)) {
+      // Cached — play from disk, zero data usage
       cache.markAccessed(fileId);
       source = AudioSource.file(cache.cacheFile(fileId).path, tag: item);
     } else {
+      // Not cached — stream and cache simultaneously
       final headers = song.data.contains('googleapis.com')
           ? await auth.getGoogleAuthHeaders()
           : <String, String>{};
@@ -425,8 +428,14 @@ void loadAudioSource(
         headers: headers,
         tag: item,
       );
+
+      // When download completes, mark in our metadata so future plays are cache hits
+      _monitorCacheCompletion(cache, fileId);
     }
     await handler.player.setAudioSource(source);
+
+    // Prefetch next track in background
+    _prefetchNextTrack();
   } else {
     await handler.player.setAudioSource(
       AudioSource.uri(Uri.parse(item.id), tag: item),
@@ -442,6 +451,56 @@ void loadAudioSource(
   }
 
   handler.player.play();
+}
+
+/// Monitor a LockCachingAudioSource download and mark cache metadata complete.
+void _monitorCacheCompletion(dynamic cache, String fileId) {
+  // Check periodically if the cache file appeared (LockCaching writes it)
+  Future.delayed(const Duration(seconds: 5), () async {
+    for (int i = 0; i < 120; i++) {
+      // Check for up to 10 minutes
+      if (cache.isCached(fileId)) return;
+      final file = cache.cacheFile(fileId) as File;
+      if (file.existsSync() && file.lengthSync() > 0) {
+        // Check if the .part file is gone (LockCaching renames on completion)
+        final partFile = File('${file.path}.part');
+        if (!partFile.existsSync()) {
+          cache.markComplete(fileId);
+          return;
+        }
+      }
+      await Future.delayed(const Duration(seconds: 5));
+    }
+  });
+}
+
+/// Prefetch the next track in the current queue if conditions allow.
+void _prefetchNextTrack() async {
+  try {
+    final ctrl = AppController.instance;
+    final guard = StreamingDataGuard.instance;
+    if (!guard.shouldPrefetch()) return;
+
+    final songs = ctrl.songs;
+    final currentIdx = ctrl.songId;
+    if (songs.isEmpty || currentIdx >= songs.length - 1) return;
+
+    final nextSong = songs[currentIdx + 1];
+    if (!nextSong.data.startsWith('http')) return;
+
+    final fileId = nextSong.id.toString();
+    final cache = ctrl.cloudCache;
+    if (cache.isCached(fileId)) return;
+
+    debugPrint('Prefetch: Starting next track ${nextSong.title}');
+    final headers = nextSong.data.contains('googleapis.com')
+        ? await ctrl.cloudAuth.getGoogleAuthHeaders()
+        : <String, String>{};
+
+    await cache.preCacheTrack(nextSong.data, fileId, headers);
+  } catch (e) {
+    debugPrint('Prefetch failed: $e');
+  }
 }
 
 Future<String?> _downloadCloudArtwork(String url, int songId) async {

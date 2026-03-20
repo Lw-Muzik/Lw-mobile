@@ -52,19 +52,19 @@ class DefaultFirebaseOptions {
   }
 
   static FirebaseOptions get android => FirebaseOptions(
-        apiKey: AppConfig.firebaseAndroidApiKey,
-        appId: AppConfig.firebaseAppIdAndroid,
-        messagingSenderId: AppConfig.firebaseMessagingSenderId,
-        projectId: AppConfig.firebaseProjectId,
-        storageBucket: AppConfig.firebaseStorageBucket,
-      );
+    apiKey: AppConfig.firebaseAndroidApiKey,
+    appId: AppConfig.firebaseAppIdAndroid,
+    messagingSenderId: AppConfig.firebaseMessagingSenderId,
+    projectId: AppConfig.firebaseProjectId,
+    storageBucket: AppConfig.firebaseStorageBucket,
+  );
 
   static FirebaseOptions get ios => FirebaseOptions(
-        apiKey: AppConfig.firebaseIosApiKey,
-        appId: AppConfig.firebaseAppIdIos,
-        messagingSenderId: AppConfig.firebaseMessagingSenderId,
-        projectId: AppConfig.firebaseProjectId,
-        storageBucket: AppConfig.firebaseStorageBucket,
-        iosBundleId: AppConfig.firebaseIosBundleId,
-      );
+    apiKey: AppConfig.firebaseIosApiKey,
+    appId: AppConfig.firebaseAppIdIos,
+    messagingSenderId: AppConfig.firebaseMessagingSenderId,
+    projectId: AppConfig.firebaseProjectId,
+    storageBucket: AppConfig.firebaseStorageBucket,
+    iosBundleId: AppConfig.firebaseIosBundleId,
+  );
 }

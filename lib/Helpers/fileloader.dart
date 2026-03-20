@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import '/Helpers/index.dart';
 import '/controllers/PlayerController.dart';
 import '/exports/exports.dart';
+import '/services/local_music_scanner.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class MetadataCache {
@@ -73,9 +74,38 @@ class MetadataProcessor {
   }
 
   Future<void> processArtists() async {
-    final artists = await audioQuery.queryArtists();
-    if (artists.isEmpty) return;
+    List<ArtistModel> artists;
+    try {
+      artists = await audioQuery.queryArtists();
+    } catch (_) {
+      artists = [];
+    }
 
+    // On iOS, if MPMediaQuery returned nothing, derive artists from local songs
+    if (artists.isEmpty && defaultTargetPlatform == TargetPlatform.iOS) {
+      final localSongs = await LocalMusicScanner.scanLocalFiles();
+      final artistMap = <String, int>{};
+      for (final s in localSongs) {
+        final name = s.artist ?? 'Unknown Artist';
+        artistMap[name] = (artistMap[name] ?? 0) + 1;
+      }
+      for (final entry in artistMap.entries) {
+        final id = entry.key.hashCode.abs();
+        if (!cache.processedIds.contains(id.toString())) {
+          cache.processedIds.add(id.toString());
+          cache.modelCache["artists"]?.add({
+            "_id": id,
+            "artist": entry.key,
+            "number_of_albums": 0,
+            "number_of_tracks": entry.value,
+          });
+        }
+      }
+      if (artistMap.isNotEmpty) controller.textHeader = "Processing artists";
+      return;
+    }
+
+    if (artists.isEmpty) return;
     controller.textHeader = "Processing artists";
     await _processBatch<ArtistModel>(
       "artists",
@@ -97,9 +127,38 @@ class MetadataProcessor {
   }
 
   Future<void> processAlbums() async {
-    final albums = await audioQuery.queryAlbums();
-    if (albums.isEmpty) return;
+    List<AlbumModel> albums;
+    try {
+      albums = await audioQuery.queryAlbums();
+    } catch (_) {
+      albums = [];
+    }
 
+    // On iOS, derive albums from local songs
+    if (albums.isEmpty && defaultTargetPlatform == TargetPlatform.iOS) {
+      final localSongs = await LocalMusicScanner.scanLocalFiles();
+      final albumMap = <String, Map<String, dynamic>>{};
+      for (final s in localSongs) {
+        final name = (s.album != null && s.album!.isNotEmpty) ? s.album! : 'Unknown Album';
+        albumMap.putIfAbsent(name, () => {
+          "_id": name.hashCode.abs(),
+          "album": name,
+          "artist": s.artist ?? 'Unknown Artist',
+          "number_of_songs": 0,
+        });
+        albumMap[name]!["number_of_songs"] = (albumMap[name]!["number_of_songs"] as int) + 1;
+      }
+      for (final entry in albumMap.values) {
+        final id = entry["_id"].toString();
+        if (!cache.processedIds.contains(id)) {
+          cache.processedIds.add(id);
+          cache.modelCache["albums"]?.add(entry);
+        }
+      }
+      return;
+    }
+
+    if (albums.isEmpty) return;
     controller.textHeader = "Processing albums";
     await _processBatch<AlbumModel>(
       "albums",
@@ -121,7 +180,14 @@ class MetadataProcessor {
   }
 
   Future<void> processGenres() async {
-    final genres = await audioQuery.queryGenres();
+    List<GenreModel> genres;
+    try {
+      genres = await audioQuery.queryGenres();
+    } catch (_) {
+      genres = [];
+    }
+
+    // On iOS, derive genres from local songs (skip — genre metadata rarely in local files)
     if (genres.isEmpty) return;
 
     controller.textHeader = "Processing genres";
@@ -145,7 +211,28 @@ class MetadataProcessor {
   }
 
   Future<void> processSongs() async {
-    final songs = await audioQuery.querySongs();
+    List<SongModel> songs;
+    try {
+      songs = await audioQuery.querySongs();
+    } catch (_) {
+      songs = [];
+    }
+
+    // On iOS, also scan the local Documents/Music directory for imported files
+    if (defaultTargetPlatform == TargetPlatform.iOS) {
+      try {
+        final localSongs = await LocalMusicScanner.scanLocalFiles();
+        if (localSongs.isNotEmpty) {
+          // Merge: avoid duplicates by path
+          final existingPaths = songs.map((s) => s.data).toSet();
+          final newLocal = localSongs.where((s) => !existingPaths.contains(s.data));
+          songs = [...songs, ...newLocal];
+        }
+      } catch (e) {
+        debugPrint('LocalMusicScanner error: $e');
+      }
+    }
+
     if (songs.isEmpty) return;
 
     controller.textHeader = "Processing songs";

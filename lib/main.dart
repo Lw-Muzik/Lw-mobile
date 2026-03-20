@@ -25,6 +25,7 @@ import 'controllers/PlayerController.dart';
 import 'controllers/PlaylistController.dart';
 import 'firebase_options.dart';
 import 'widgets/DvcVolumeOverlay.dart';
+import 'services/streaming_data_guard.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -80,6 +81,9 @@ Future<void> main() async {
 
   // Initialize SharedPreferences once before the app starts
   final prefs = await SharedPreferences.getInstance();
+
+  // Initialize streaming data guard (network-aware cloud streaming)
+  await StreamingDataGuard.init(prefs);
 
   runApp(
     MultiBlocProvider(
