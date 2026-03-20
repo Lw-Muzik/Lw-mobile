@@ -915,15 +915,14 @@ class AppController with ChangeNotifier {
   }
 
   /// Build and load a queue for gapless playback.
-  /// Only creates streaming sources for current + next few tracks to avoid
-  /// opening many concurrent HTTP connections (which wastes data).
+  /// Cached cloud tracks play from disk; uncached ones stream with auth headers.
   Future<void> loadGaplessQueue(int startIndex) async {
     if (songs.isEmpty) return;
     final sources = <AudioSource>[];
-    // Only create streaming (LockCaching) sources for ±3 tracks around current.
-    // Other uncached cloud tracks get a lazy URI source — they'll be resolved
-    // when the player actually reaches them.
-    const streamWindow = 3;
+
+    // Get auth headers once (reused for all cloud tracks of same provider)
+    Map<String, String>? gdriveHeaders;
+    Map<String, String>? dropboxHeaders;
 
     for (int i = 0; i < songs.length; i++) {
       final s = songs[i];
@@ -931,11 +930,16 @@ class AppController with ChangeNotifier {
         final fileId = s.id.toString();
         if (cloudCache.isCached(fileId)) {
           sources.add(AudioSource.file(cloudCache.cacheFile(fileId).path));
-        } else if ((i - startIndex).abs() <= streamWindow) {
-          // Within window — create proper caching source
-          final headers = s.data.contains('googleapis.com')
-              ? await cloudAuth.getGoogleAuthHeaders()
-              : <String, String>{};
+        } else {
+          // All cloud tracks need auth headers
+          Map<String, String> headers;
+          if (s.data.contains('googleapis.com')) {
+            gdriveHeaders ??= await cloudAuth.getGoogleAuthHeaders();
+            headers = gdriveHeaders;
+          } else {
+            dropboxHeaders ??= <String, String>{};
+            headers = dropboxHeaders;
+          }
           sources.add(
             LockCachingAudioSource(
               Uri.parse(s.data),
@@ -943,10 +947,6 @@ class AppController with ChangeNotifier {
               headers: headers,
             ),
           );
-        } else {
-          // Outside window — use a lightweight URI source.
-          // Will be re-resolved with proper headers when reached.
-          sources.add(AudioSource.uri(Uri.parse(s.data)));
         }
       } else {
         sources.add(AudioSource.uri(Uri.parse(s.data)));

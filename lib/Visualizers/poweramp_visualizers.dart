@@ -25,9 +25,20 @@ class RadialBurstVisualizer extends CustomPainter {
     final cx = size.width / 2;
     final cy = size.height / 2;
     final maxR = math.min(cx, cy);
-    final innerR = maxR * 0.18;
-    final maxBarLen = maxR * 0.75; // bars can reach 75% of radius
     if (audioData.isEmpty) return;
+
+    // Bass energy: average the lowest 10% of frequency bands
+    final bassCount = math.max(1, (audioData.length * 0.1).round());
+    double bassEnergy = 0;
+    for (int i = 0; i < bassCount; i++) {
+      bassEnergy += audioData[i];
+    }
+    bassEnergy = (bassEnergy / bassCount).clamp(0.0, 1.0);
+
+    // Inner radius pulses gently with bass
+    final baseInnerR = maxR * 0.18;
+    final innerR = baseInnerR + bassEnergy * maxR * 0.08;
+    final maxBarLen = maxR * 0.75;
 
     final paint = Paint()
       ..strokeCap = StrokeCap.round
@@ -73,14 +84,14 @@ class RadialBurstVisualizer extends CustomPainter {
       );
     }
 
-    // Inner circle ring
+    // Inner circle ring — glows brighter on bass hits
     canvas.drawCircle(
       Offset(cx, cy),
       innerR,
       Paint()
-        ..color = color.withValues(alpha: 0.25)
+        ..color = color.withValues(alpha: 0.2 + bassEnergy * 0.4)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.5,
+        ..strokeWidth = 1.5 + bassEnergy * 1.5,
     );
   }
 
@@ -544,28 +555,30 @@ class SilkWavesVisualizer extends CustomPainter {
 
     for (int layer = 0; layer < _layers; layer++) {
       final t = layer / _layers;
-      // Each layer has a slight phase offset and amplitude variation
-      final phaseOffset = t * 0.6;
-      final ampScale = 0.5 + (1.0 - (t - 0.5).abs() * 2) * 0.5; // peak at center
-      final alpha = (0.08 + (1.0 - t) * 0.15).clamp(0.0, 0.25);
+      final ampScale = 0.6 + (1.0 - (t - 0.5).abs() * 2) * 0.4;
+      // Brighter at center layers, still visible at edges
+      final alpha = (0.15 + (1.0 - (t - 0.5).abs() * 2) * 0.55).clamp(0.1, 0.7);
 
       final paint = Paint()
         ..color = color.withValues(alpha: alpha)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.0
+        ..strokeWidth = 1.2
         ..isAntiAlias = true;
 
       final path = Path();
       for (int i = 0; i <= _points; i++) {
         final x = i / _points;
-        final dataIdx = (x * audioData.length).floor().clamp(0, audioData.length - 1);
+        // Offset each layer's data read for visual separation
+        final dataOffset = (t * audioData.length * 0.15).floor();
+        final dataIdx = ((x * audioData.length).floor() + dataOffset)
+            .clamp(0, audioData.length - 1);
         final amp = audioData[dataIdx].clamp(-1.0, 1.0);
 
         // Envelope: taper to zero at edges
         final envelope = math.sin(x * math.pi);
-        final yOffset = amp * ampScale * envelope * h * 0.35;
-        // Phase offset creates the layered spread
-        final spread = (t - 0.5) * 2.0 * h * 0.08;
+        final yOffset = amp * ampScale * envelope * h * 0.45;
+        // Spread layers vertically for ribbon depth
+        final spread = (t - 0.5) * 2.0 * h * 0.15;
         final y = midY + yOffset + spread;
         final px = x * w;
 
@@ -624,7 +637,7 @@ class LissajousVisualizer extends CustomPainter {
       final bandIdx = (t * audioData.length).floor().clamp(0, audioData.length - 1);
       final bandAmp = audioData[bandIdx].clamp(0.0, 1.0);
 
-      final alpha = (0.06 + bandAmp * 0.12).clamp(0.0, 0.2);
+      final alpha = (0.15 + bandAmp * 0.45).clamp(0.1, 0.6);
       // Color shift across layers
       final hue = (color.computeLuminance() > 0.5 ? 340.0 : 0.0) + t * 60;
       final layerColor = HSLColor.fromAHSL(alpha, hue % 360, 0.8, 0.6).toColor();
@@ -632,7 +645,7 @@ class LissajousVisualizer extends CustomPainter {
       final paint = Paint()
         ..color = layerColor
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 0.8
+        ..strokeWidth = 1.0
         ..isAntiAlias = true;
 
       final path = Path();
@@ -678,30 +691,33 @@ class WindmillVisualizer extends CustomPainter {
     final innerR = maxR * 0.1;
     if (audioData.isEmpty) return;
 
-    final rotation = time * math.pi * 2 * 0.3; // slow rotation
+    final rotation = time * math.pi * 2 * 0.3;
 
     final paint = Paint()
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 0.8
       ..isAntiAlias = true;
 
     for (int blade = 0; blade < _blades; blade++) {
       final bladeAngle = (blade / _blades) * math.pi * 2 + rotation;
 
-      // Each blade's amplitude from a different freq band
-      final bandIdx = (blade * audioData.length / _blades).floor()
-          .clamp(0, audioData.length - 1);
+      // Each blade's amplitude from a different freq band (log-mapped)
+      final t = blade / _blades;
+      final logIdx = math.pow(t, 1.5) * audioData.length;
+      final bandIdx = logIdx.floor().clamp(0, audioData.length - 1);
       final bladeAmp = audioData[bandIdx].clamp(0.0, 1.0);
 
-      // Sweep angle driven by amplitude
-      final sweepAngle = (0.1 + bladeAmp * 0.7) * (math.pi * 2 / _blades);
+      // Sweep angle driven by amplitude — bigger sweep for louder bands
+      final sweepAngle = (0.15 + bladeAmp * 0.6) * (math.pi * 2 / _blades);
 
       for (int arc = 0; arc < _arcsPerBlade; arc++) {
-        final t = arc / _arcsPerBlade;
-        final r = innerR + t * (maxR - innerR) * (0.3 + bladeAmp * 0.7);
-        final alpha = (0.05 + (1.0 - t) * 0.15 * bladeAmp).clamp(0.0, 0.2);
+        final at = arc / _arcsPerBlade;
+        final r = innerR + at * (maxR - innerR) * (0.4 + bladeAmp * 0.6);
+        // Much more visible: bright at inner arcs, fade outward
+        final alpha = (0.2 + (1.0 - at) * 0.5 * (0.3 + bladeAmp * 0.7)).clamp(0.05, 0.7);
 
-        paint.color = color.withValues(alpha: alpha);
+        paint
+          ..color = color.withValues(alpha: alpha)
+          ..strokeWidth = 1.2 + bladeAmp * 1.0;
 
         canvas.drawArc(
           Rect.fromCircle(center: Offset(cx, cy), radius: r),
