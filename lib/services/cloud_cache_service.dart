@@ -71,7 +71,10 @@ class CloudCacheService {
   /// Downloads the file, resuming from partial if available.
   /// Respects cellular data guard.
   Future<bool> preCacheTrack(
-      String url, String fileId, Map<String, String> headers) async {
+    String url,
+    String fileId,
+    Map<String, String> headers,
+  ) async {
     if (isCached(fileId)) return true;
     if (_prefetchingFileId == fileId) return false; // already in progress
 
@@ -116,10 +119,8 @@ class CloudCacheService {
       }
 
       // Stream to file, tracking data usage
-      int bytesWritten = 0;
       await for (final chunk in response.stream) {
         sink.add(chunk);
-        bytesWritten += chunk.length;
 
         // Track cellular data usage
         try {
@@ -147,7 +148,9 @@ class CloudCacheService {
       _saveMetadata();
       await _evictIfNeeded();
 
-      debugPrint('CloudCache: Cached $fileId (${_formatBytes(stat.size)}, resumed=$existingBytes)');
+      debugPrint(
+        'CloudCache: Cached $fileId (${_formatBytes(stat.size)}, resumed=$existingBytes)',
+      );
       _prefetchingFileId = null;
       return true;
     } catch (e) {
@@ -170,7 +173,9 @@ class CloudCacheService {
       complete: true,
     );
     _saveMetadata();
-    debugPrint('CloudCache: Marked complete $fileId (${_formatBytes(stat.size)})');
+    debugPrint(
+      'CloudCache: Marked complete $fileId (${_formatBytes(stat.size)})',
+    );
   }
 
   void markAccessed(String fileId) {
@@ -200,8 +205,9 @@ class CloudCacheService {
   String _listKey(CloudProvider provider) =>
       provider == CloudProvider.googleDrive ? _gdriveListKey : _dropboxListKey;
 
-  String _tsKey(CloudProvider provider) =>
-      provider == CloudProvider.googleDrive ? _gdriveListTsKey : _dropboxListTsKey;
+  String _tsKey(CloudProvider provider) => provider == CloudProvider.googleDrive
+      ? _gdriveListTsKey
+      : _dropboxListTsKey;
 
   void saveFileList(CloudProvider provider, List<CloudFile> files) {
     final jsonList = files.map((f) => f.toJson()).toList();
@@ -266,7 +272,9 @@ class CloudCacheService {
 
       final file = cacheFile(lruId);
       if (file.existsSync()) {
-        try { file.deleteSync(); } catch (_) {}
+        try {
+          file.deleteSync();
+        } catch (_) {}
       }
       _metadata.remove(lruId);
     }
@@ -328,14 +336,14 @@ class _CacheEntry {
   });
 
   Map<String, dynamic> toJson() => {
-        'size': size,
-        'lastAccess': lastAccess.toIso8601String(),
-        'complete': complete,
-      };
+    'size': size,
+    'lastAccess': lastAccess.toIso8601String(),
+    'complete': complete,
+  };
 
   factory _CacheEntry.fromJson(Map<String, dynamic> json) => _CacheEntry(
-        size: json['size'] as int,
-        lastAccess: DateTime.parse(json['lastAccess'] as String),
-        complete: json['complete'] as bool,
-      );
+    size: json['size'] as int,
+    lastAccess: DateTime.parse(json['lastAccess'] as String),
+    complete: json['complete'] as bool,
+  );
 }

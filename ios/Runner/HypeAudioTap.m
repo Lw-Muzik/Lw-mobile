@@ -121,22 +121,33 @@ static void captureVisualization(TapContext *ctx, const float *interleavedData, 
         int log2n = (int)log2f((float)VIZ_CAPTURE_SIZE);
         vDSP_fft_zrip(ctx->fftSetup, &splitComplex, 1, log2n, FFT_FORWARD);
 
-        // Convert to byte pairs [real, imag] matching Android format
-        // Scale factor to get reasonable byte values
-        float scale = 2.0f / (float)VIZ_CAPTURE_SIZE;
+        // Convert FFT output to magnitude bytes [0-255] per frequency bin.
+        // vDSP_fft_zrip output is scaled by 2x, so divide by N to normalize.
+        float scale = 1.0f / (float)VIZ_CAPTURE_SIZE;
         int half = VIZ_CAPTURE_SIZE / 2;
+
+        // First pass: find peak magnitude for adaptive normalization
+        float peakMag = 0.0001f;
+        for (int i = 1; i < half; i++) { // skip DC bin
+            float re = ctx->fftRealp[i] * scale;
+            float im = ctx->fftImagp[i] * scale;
+            float mag = sqrtf(re * re + im * im);
+            if (mag > peakMag) peakMag = mag;
+        }
+
+        // Second pass: normalize relative to peak, with dB mapping
         for (int i = 0; i < half; i++) {
             float re = ctx->fftRealp[i] * scale;
             float im = ctx->fftImagp[i] * scale;
-            // Compute magnitude, scale to 0-255
             float mag = sqrtf(re * re + im * im);
-            float dbVal = 20.0f * log10f(mag + 1e-10f);
-            // Map dB range [-60, 0] to [0, 255]
-            float norm = (dbVal + 60.0f) / 60.0f;
+            // dB relative to peak: 0 dB at peak, negative below
+            float dbVal = 20.0f * log10f(mag / peakMag + 1e-10f);
+            // Map [-40 dB, 0 dB] to [0, 255]
+            float norm = (dbVal + 40.0f) / 40.0f;
             if (norm < 0.0f) norm = 0.0f;
             if (norm > 1.0f) norm = 1.0f;
-            ctx->vizFft[i * 2]     = (uint8_t)(norm * 255.0f); // real/magnitude
-            ctx->vizFft[i * 2 + 1] = 0; // imaginary (simplified)
+            ctx->vizFft[i * 2]     = (uint8_t)(norm * 255.0f);
+            ctx->vizFft[i * 2 + 1] = 0;
         }
         __atomic_store_n(&ctx->vizFftReady, 1, __ATOMIC_RELEASE);
     }

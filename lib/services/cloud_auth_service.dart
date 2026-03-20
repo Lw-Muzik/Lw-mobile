@@ -49,8 +49,9 @@ class CloudAuthService {
 
       // Authenticate (replaces signIn())
       try {
-        _googleAccount = await _googleSignIn.authenticate()
-            .timeout(const Duration(seconds: 30));
+        _googleAccount = await _googleSignIn.authenticate().timeout(
+          const Duration(seconds: 30),
+        );
       } catch (e) {
         if (e is TimeoutException) {
           lastError = 'Sign-in timed out.';
@@ -62,7 +63,8 @@ class CloudAuthService {
       }
 
       if (_googleAccount == null) {
-        lastError = 'Sign-in cancelled or timed out. '
+        lastError =
+            'Sign-in cancelled or timed out. '
             'Make sure your google-services.json has an OAuth client '
             'registered with your SHA-1 fingerprint.';
         return false;
@@ -70,15 +72,9 @@ class CloudAuthService {
 
       // Request Drive scope authorization
       try {
-        final authorization = await _googleAccount!
-            .authorizationClient
-            .authorizeScopes([_driveScope]);
-        if (authorization.accessToken == null) {
-          lastError = 'Drive permission denied. Grant access to Google Drive.';
-          await _googleSignIn.signOut();
-          _googleAccount = null;
-          return false;
-        }
+        await _googleAccount!.authorizationClient.authorizeScopes([
+          _driveScope,
+        ]);
       } catch (e) {
         lastError = 'Failed to authorize Drive scope: $e';
         await _googleSignIn.signOut();
@@ -90,7 +86,8 @@ class CloudAuthService {
     } catch (e) {
       final msg = e.toString();
       if (msg.contains('DEVELOPER_ERROR') || msg.contains('10:')) {
-        lastError = 'OAuth not configured. Add your SHA-1 fingerprint '
+        lastError =
+            'OAuth not configured. Add your SHA-1 fingerprint '
             'to Firebase Console and re-download google-services.json.';
       } else if (msg.contains('sign_in_canceled') || msg.contains('12501')) {
         lastError = 'Sign-in was cancelled';
@@ -124,8 +121,7 @@ class CloudAuthService {
   Future<Map<String, String>> getGoogleAuthHeaders() async {
     if (_googleAccount == null) return {};
     try {
-      final authorization = await _googleAccount!
-          .authorizationClient
+      final authorization = await _googleAccount!.authorizationClient
           .authorizationForScopes([_driveScope]);
       final token = authorization?.accessToken;
       if (token == null) return {};
@@ -175,12 +171,13 @@ class CloudAuthService {
 
   Future<bool> restoreDropboxSession() async {
     try {
-      _dropboxAccessToken =
-          await _secureStorage.read(key: 'dropbox_access_token');
-      _dropboxRefreshToken =
-          await _secureStorage.read(key: 'dropbox_refresh_token');
-      final expiryStr =
-          await _secureStorage.read(key: 'dropbox_token_expiry');
+      _dropboxAccessToken = await _secureStorage.read(
+        key: 'dropbox_access_token',
+      );
+      _dropboxRefreshToken = await _secureStorage.read(
+        key: 'dropbox_refresh_token',
+      );
+      final expiryStr = await _secureStorage.read(key: 'dropbox_token_expiry');
       if (expiryStr != null) {
         _dropboxTokenExpiry = DateTime.tryParse(expiryStr);
       }
@@ -203,8 +200,9 @@ class CloudAuthService {
   Future<void> _refreshDropboxIfNeeded() async {
     if (_dropboxRefreshToken == null) return;
     if (_dropboxTokenExpiry != null &&
-        _dropboxTokenExpiry!
-            .isAfter(DateTime.now().add(const Duration(minutes: 5)))) {
+        _dropboxTokenExpiry!.isAfter(
+          DateTime.now().add(const Duration(minutes: 5)),
+        )) {
       return; // Token still valid
     }
     try {
@@ -220,8 +218,9 @@ class CloudAuthService {
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         _dropboxAccessToken = data['access_token'];
-        _dropboxTokenExpiry = DateTime.now()
-            .add(Duration(seconds: data['expires_in'] as int));
+        _dropboxTokenExpiry = DateTime.now().add(
+          Duration(seconds: data['expires_in'] as int),
+        );
         await _persistDropboxTokens();
       }
     } catch (_) {}
@@ -230,16 +229,21 @@ class CloudAuthService {
   Future<void> _persistDropboxTokens() async {
     if (_dropboxAccessToken != null) {
       await _secureStorage.write(
-          key: 'dropbox_access_token', value: _dropboxAccessToken!);
+        key: 'dropbox_access_token',
+        value: _dropboxAccessToken!,
+      );
     }
     if (_dropboxRefreshToken != null) {
       await _secureStorage.write(
-          key: 'dropbox_refresh_token', value: _dropboxRefreshToken!);
+        key: 'dropbox_refresh_token',
+        value: _dropboxRefreshToken!,
+      );
     }
     if (_dropboxTokenExpiry != null) {
       await _secureStorage.write(
-          key: 'dropbox_token_expiry',
-          value: _dropboxTokenExpiry!.toIso8601String());
+        key: 'dropbox_token_expiry',
+        value: _dropboxTokenExpiry!.toIso8601String(),
+      );
     }
   }
 }

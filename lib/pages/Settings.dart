@@ -543,7 +543,9 @@ class _SettingsState extends State<Settings> {
     'line': ('Waveform', Icons.show_chart_rounded),
     'terrain': ('Terrain', Icons.terrain_rounded),
     'dots': ('Matrix', Icons.grid_on_rounded),
-    'circular': ('Circular', Icons.circle_outlined),
+    'silk': ('Silk', Icons.animation_rounded),
+    'lissajous': ('Lissajous', Icons.all_inclusive_rounded),
+    'windmill': ('Windmill', Icons.rotate_right_rounded),
     if (!Platform.isIOS) 'milkdrop': ('MilkDrop', Icons.blur_on_rounded),
   };
 

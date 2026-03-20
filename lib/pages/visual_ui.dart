@@ -57,10 +57,20 @@ class _VisualUIState extends State<VisualUI>
       icon: Icons.grid_on_rounded,
       description: 'Dot grid',
     ),
-    'circular': const _VisualPreset(
-      name: 'Circular',
-      icon: Icons.circle_outlined,
-      description: 'Circular bars',
+    'silk': const _VisualPreset(
+      name: 'Silk',
+      icon: Icons.animation_rounded,
+      description: 'Layered ribbon waves',
+    ),
+    'lissajous': const _VisualPreset(
+      name: 'Lissajous',
+      icon: Icons.all_inclusive_rounded,
+      description: 'Twisting curves',
+    ),
+    'windmill': const _VisualPreset(
+      name: 'Windmill',
+      icon: Icons.rotate_right_rounded,
+      description: 'Radial arc fan',
     ),
     if (!Platform.isIOS) 'milkdrop': const _VisualPreset(
       name: 'MilkDrop',
@@ -347,7 +357,7 @@ class _VisualUIState extends State<VisualUI>
     final reactivity = ctrl.visualizerReactivity;
 
     return VisualizerWidget(
-      builder: (context, fft, x) {
+      builder: (context, waveform, fft, x) {
         return AnimatedSwitcher(
           duration: const Duration(milliseconds: 500),
           transitionBuilder: (child, animation) {
@@ -358,7 +368,8 @@ class _VisualUIState extends State<VisualUI>
             color: color,
             width: width,
             height: height,
-            audioData: fft,
+            audioData: waveform,
+            fftData: fft,
             selector: style,
             reactivity: reactivity,
           ),
@@ -533,7 +544,7 @@ class _SettingsPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final isMilkDrop = selectedVisual == 'milkdrop';
 
-    final currentPreset = visualizers[selectedVisual];
+    final activeStyle = visualizers[selectedVisual];
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
@@ -552,7 +563,7 @@ class _SettingsPanel extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  Icon(currentPreset?.icon ?? Icons.equalizer_rounded,
+                  Icon(activeStyle?.icon ?? Icons.equalizer_rounded,
                       size: 18, color: _accentColor.withValues(alpha: 0.8)),
                   const SizedBox(width: 10),
                   Expanded(
@@ -563,7 +574,7 @@ class _SettingsPanel extends StatelessWidget {
                             style: TextStyle(fontSize: 11,
                                 color: Colors.white.withValues(alpha: 0.45))),
                         const SizedBox(height: 1),
-                        Text(currentPreset?.name ?? 'Select',
+                        Text(activeStyle?.name ?? 'Select',
                             style: const TextStyle(fontSize: 14,
                                 fontWeight: FontWeight.w600, color: Colors.white)),
                       ],

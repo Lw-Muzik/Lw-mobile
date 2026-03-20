@@ -37,7 +37,7 @@ PreferredSizeWidget kAppBar = AppBar(
 
 Widget playerVisual(AppController controller) {
   return VisualizerWidget(
-    builder: (context, fft, rate) {
+    builder: (context, fft, _, rate) {
       return fft.isNotEmpty
           ? CustomPaint(
               painter: MultiWaveVisualizer(
