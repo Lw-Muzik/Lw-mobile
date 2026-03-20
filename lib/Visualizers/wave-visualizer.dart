@@ -53,6 +53,18 @@ class _WaveVisualizerState extends State<WaveVisualizer>
     )..repeat();
   }
 
+  /// Detect iOS FFT format: all odd-index bytes are 0 (imaginary = 0).
+  /// Android format has varying imaginary components.
+  bool _isIosFormatFft(List<int> fft) {
+    if (fft.length < 8) return false;
+    int zeroCount = 0;
+    final checkCount = math.min(10, fft.length ~/ 2);
+    for (int i = 0; i < checkCount; i++) {
+      if (fft[i * 2 + 1] == 0) zeroCount++;
+    }
+    return zeroCount >= checkCount - 1;
+  }
+
   @override
   void dispose() {
     _controller.dispose();
@@ -60,22 +72,83 @@ class _WaveVisualizerState extends State<WaveVisualizer>
   }
 
   /// Process FFT data into frequency bands.
-  /// FFT format: pairs of [magnitude, phase] bytes (0-255).
-  /// Lower indices = lower frequencies (bass), higher = treble.
+  ///
+  /// Android FFT format (from Visualizer API):
+  ///   [DC, Nyquist, Re[1], Im[1], Re[2], Im[2], ...]
+  ///   Values are signed bytes (-128..127) transmitted as unsigned (0..255).
+  ///   Magnitude = sqrt(Re² + Im²), then normalize.
+  ///
+  /// iOS FFT format (from HypeAudioTap):
+  ///   [mag[0], 0, mag[1], 0, mag[2], 0, ...]
+  ///   Magnitudes already computed natively, 0-255 with adaptive normalization.
   void _updateFreqBands() {
     if (widget.fftData.length >= 4) {
-      // Use real FFT data — extract magnitude from byte pairs
-      final halfLen = widget.fftData.length ~/ 2;
-      final bandCount = math.min(halfLen, _freqBands.length);
+      final fftLen = widget.fftData.length;
+      final numBins = (fftLen - 2) ~/ 2; // skip DC and Nyquist
+      if (numBins <= 0) return;
 
+      // Step 1: Compute magnitude for each FFT bin
+      // Detect format: iOS sends [mag, 0, mag, 0, ...] — imaginary is always 0
+      // Android sends [DC, Nyq, Re, Im, Re, Im, ...] — imaginary varies
+      final isIosFormat = _isIosFormatFft(widget.fftData);
+
+      final magnitudes = List<double>.filled(numBins, 0.0);
+      double peakMag = 0.0001;
+
+      if (isIosFormat) {
+        // iOS: even indices are pre-computed magnitudes (0-255)
+        for (int i = 0; i < numBins; i++) {
+          magnitudes[i] = widget.fftData[i * 2].clamp(0, 255) / 255.0;
+          if (magnitudes[i] > peakMag) peakMag = magnitudes[i];
+        }
+      } else {
+        // Android: compute magnitude from signed Re/Im pairs
+        // Skip byte[0] (DC) and byte[1] (Nyquist)
+        for (int i = 0; i < numBins; i++) {
+          final rawRe = widget.fftData[2 + i * 2];
+          final rawIm = widget.fftData[2 + i * 2 + 1];
+          // Convert unsigned byte to signed: 0..127 stays, 128..255 → -128..-1
+          final re = (rawRe > 127 ? rawRe - 256 : rawRe).toDouble();
+          final im = (rawIm > 127 ? rawIm - 256 : rawIm).toDouble();
+          magnitudes[i] = math.sqrt(re * re + im * im);
+          if (magnitudes[i] > peakMag) peakMag = magnitudes[i];
+        }
+      }
+
+      // Step 2: Map bins to frequency bands with logarithmic scaling
       for (int i = 0; i < _freqBands.length; i++) {
-        final fftIdx = (i * bandCount ~/ _freqBands.length).clamp(0, halfLen - 1);
-        // Magnitude is in even indices (real part of pair)
-        final mag = widget.fftData[fftIdx * 2].clamp(0, 255) / 255.0;
+        final t = i / _freqBands.length;
+        // Log frequency mapping: more resolution for bass
+        final binIdx = (math.pow(t, 1.6) * numBins).floor().clamp(0, numBins - 1);
 
-        final target = mag;
-        final factor = target > _freqBands[i] ? _attackRate : _decayRate;
-        _freqBands[i] += (target - _freqBands[i]) * factor;
+        // Average a small neighborhood for smoother bands
+        double sum = 0;
+        int count = 0;
+        final spread = math.max(1, numBins ~/ _freqBands.length);
+        for (int j = -spread; j <= spread; j++) {
+          final idx = (binIdx + j).clamp(0, numBins - 1);
+          sum += magnitudes[idx];
+          count++;
+        }
+        final avgMag = sum / count;
+
+        // Normalize relative to peak for consistent 0..1 range
+        double normalized;
+        if (isIosFormat) {
+          normalized = avgMag; // iOS data is already 0..1
+        } else {
+          // Android: normalize with dB-like curve for perceptual loudness
+          final linear = avgMag / peakMag;
+          // Compress dynamic range: emphasize quiet frequencies
+          normalized = math.pow(linear, 0.6).clamp(0.0, 1.0).toDouble();
+        }
+
+        // Bass boost for lowest bands
+        final bassBoost = (1.0 - t) * 0.3;
+        final boosted = (normalized * (1.0 + bassBoost)).clamp(0.0, 1.0);
+
+        final factor = boosted > _freqBands[i] ? _attackRate : _decayRate;
+        _freqBands[i] += (boosted - _freqBands[i]) * factor;
       }
     } else if (widget.audioData.isNotEmpty) {
       // Fallback: approximate frequency bands from waveform using zero-crossing

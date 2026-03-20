@@ -860,7 +860,9 @@ class AppController with ChangeNotifier {
         );
       }
     } else {
-      nextSource = AudioSource.uri(Uri.parse(nextSong.data));
+      nextSource = nextSong.data.startsWith('/')
+          ? AudioSource.file(nextSong.data)
+          : AudioSource.uri(Uri.parse(nextSong.data));
     }
 
     await handler.beginCrossfade(

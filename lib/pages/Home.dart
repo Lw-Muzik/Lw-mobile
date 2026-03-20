@@ -15,6 +15,7 @@ import '/widgets/Body.dart';
 import '/widgets/BottomPlayer.dart';
 import '../Helpers/Channel.dart';
 import '../controllers/AppController.dart';
+import '../onboarding/home_guide.dart';
 
 class Home extends StatefulWidget {
   const Home({super.key});
@@ -120,9 +121,10 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    return Body(
-      child: Consumer<AppController>(
-        builder: (context, controller, _) => Scaffold(
+    return HomeGuide(
+      child: Body(
+        child: Consumer<AppController>(
+          builder: (context, controller, _) => Scaffold(
           backgroundColor: controller.isFancy
               ? Colors.transparent
               : Theme.of(context).scaffoldBackgroundColor,
@@ -132,9 +134,10 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
             ],
             body: TabBarView(controller: _tabController, children: _tabViews),
           ),
-          bottomNavigationBar: controller.handler.player.playing
-              ? BottomPlayer(controller: controller)
-              : null,
+            bottomNavigationBar: controller.handler.player.playing
+                ? BottomPlayer(controller: controller)
+                : null,
+          ),
         ),
       ),
     );

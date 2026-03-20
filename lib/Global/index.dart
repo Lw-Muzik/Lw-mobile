@@ -121,7 +121,7 @@ Widget playerActionBar(AppController controller, BuildContext context) {
                   behavior: HitTestBehavior.opaque,
                   onTap: () => Navigator.pop(context),
                   child: GestureDetector(
-                    onTap: () {}, // absorb taps on the sheet itself
+                    onTap: () {},
                     child: DraggableScrollableSheet(
                       initialChildSize: 0.55,
                       minChildSize: 0.3,

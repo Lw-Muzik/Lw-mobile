@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../Helpers/fileloader.dart';
 import '../Routes/routes.dart';
 import '../controllers/PlayerController.dart';
+import '../onboarding/onboarding_screen.dart';
 
 class AssetLoader extends StatefulWidget {
   const AssetLoader({super.key});
@@ -145,6 +146,24 @@ class _AssetLoaderState extends State<AssetLoader>
   Future<void> _loadAssets() async {
     try {
       final prefs = await SharedPreferences.getInstance();
+
+      // Check if onboarding is needed (first launch)
+      final onboardingDone = prefs.getBool('onboarding_complete') ?? false;
+      if (!onboardingDone && mounted) {
+        _isNavigating = true;
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (ctx) => OnboardingScreen(
+              onComplete: () {
+                Navigator.of(ctx).pushNamedAndRemoveUntil(
+                    Routes.loader, (route) => false);
+              },
+            ),
+          ),
+        );
+        return;
+      }
+
       await fetchMetaData(context);
       await prefs.setBool("artworkLoaded", true);
 
