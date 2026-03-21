@@ -511,7 +511,8 @@ import AVFoundation
         case "extractAudioMetadata":
             if let url = args?["url"] as? String {
                 let artPath = args?["artworkPath"] as? String
-                extractMetadata(url: url, artworkPath: artPath, result: result)
+                let headers = args?["headers"] as? [String: String] ?? [:]
+                extractMetadata(url: url, headers: headers, artworkPath: artPath, result: result)
             } else {
                 result(nil)
             }
@@ -721,7 +722,8 @@ import AVFoundation
         return "speaker"
     }
 
-    private func extractMetadata(url: String, artworkPath: String?,
+    private func extractMetadata(url: String, headers: [String: String],
+                                  artworkPath: String?,
                                   result: @escaping FlutterResult) {
         DispatchQueue.global(qos: .userInitiated).async {
             var metadata: [String: Any] = [:]
@@ -732,7 +734,13 @@ import AVFoundation
                     DispatchQueue.main.async { result(nil) }
                     return
                 }
-                asset = AVURLAsset(url: assetUrl)
+                if headers.isEmpty {
+                    asset = AVURLAsset(url: assetUrl)
+                } else {
+                    asset = AVURLAsset(url: assetUrl, options: [
+                        "AVURLAssetHTTPHeaderFieldsKey": headers
+                    ])
+                }
             } else {
                 let fileUrl = URL(fileURLWithPath: url)
                 guard FileManager.default.fileExists(atPath: url) else {

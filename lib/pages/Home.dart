@@ -43,7 +43,7 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
   final _searchKey = GlobalKey();
   final _tabBarKey = GlobalKey();
   final _menuKey = GlobalKey();
-  final _coachController = CoachMarkController();
+  final _coachController = CoachMarkController('home');
 
   @override
   void initState() {
@@ -108,11 +108,10 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
     if (_isAndroid) {
       await _loadAndroidSettings();
     }
-    _tryShowCoachMarks();
   }
 
   Future<void> _tryShowCoachMarks() async {
-    final shown = await CoachMarkController.hasBeenShown();
+    final shown = await _coachController.hasBeenShown();
     if (shown || !mounted) return;
 
     // Wait for layout to fully settle (tabs need ScrollPosition ready)
@@ -126,11 +125,9 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
 
     void safeAnimateTab(int index) {
       if (!mounted) return;
-      try {
-        _tabController.animateTo(index);
-      } catch (_) {
-        // TabBar not ready yet — ignore
-      }
+      // Use index setter instead of animateTo — avoids crash when
+      // TabBar's ScrollPosition hasn't attached a viewport yet
+      _tabController.index = index;
     }
 
     _coachController.start(context, [
@@ -205,6 +202,7 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     return HomeGuide(
+      onComplete: _tryShowCoachMarks,
       child: Body(
         child: Consumer<AppController>(
           builder: (context, controller, _) => Scaffold(

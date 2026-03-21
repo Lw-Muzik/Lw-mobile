@@ -1183,14 +1183,16 @@ class _SettingsState extends State<Settings> {
               await prefs.remove('onboarding_complete');
               await prefs.remove('home_guide_shown');
               await prefs.remove('interactions_guide_shown');
-              await CoachMarkController.reset();
+              await CoachMarkController.resetAll();
               if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Guides will show on next launch'),
-                    behavior: SnackBarBehavior.floating,
-                  ),
-                );
+                ScaffoldMessenger.of(context)
+                  ..clearSnackBars()
+                  ..showSnackBar(
+                    const SnackBar(
+                      content: Text('Guides will show on next launch'),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
               }
             },
           ),

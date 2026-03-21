@@ -4,20 +4,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 /// A single step in the walkthrough.
 class CoachStep {
-  /// Key of the widget to spotlight.
   final GlobalKey targetKey;
-
-  /// Instruction text (e.g. "Tap here to search for songs").
   final String title;
   final String description;
-
-  /// Icon shown in the tooltip.
   final IconData icon;
-
-  /// Where to position the tooltip relative to the target.
   final TooltipPosition tooltipPosition;
-
-  /// Optional callback fired when this step is shown (e.g. to switch tabs).
   final VoidCallback? onShow;
 
   const CoachStep({
@@ -32,38 +23,41 @@ class CoachStep {
 
 enum TooltipPosition { above, below }
 
-/// Persistence key for tracking whether the walkthrough has been shown.
-const _prefsKey = 'coach_walkthrough_shown';
-
 /// Launches a step-by-step coach mark walkthrough over the current screen.
-/// Each step spotlights a widget (via its GlobalKey) and shows instructions.
-/// Tapping the spotlight area or "Next" advances to the next step.
+/// Each instance uses its own [id] for persistence, so different screens
+/// can have independent walkthroughs.
 class CoachMarkController {
+  final String id;
   OverlayEntry? _entry;
   int _currentStep = 0;
   late List<CoachStep> _steps;
   late BuildContext _context;
   VoidCallback? onComplete;
 
-  /// Whether the walkthrough has already been shown.
-  static Future<bool> hasBeenShown() async {
+  CoachMarkController(this.id);
+
+  String get _prefsKey => 'coach_shown_$id';
+
+  Future<bool> hasBeenShown() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getBool(_prefsKey) ?? false;
   }
 
-  /// Mark as shown.
-  static Future<void> markShown() async {
+  Future<void> markShown() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_prefsKey, true);
   }
 
-  /// Reset so it shows again.
-  static Future<void> reset() async {
+  /// Reset all coach marks across the app.
+  static Future<void> resetAll() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_prefsKey);
+    final keys = prefs.getKeys().where((k) => k.startsWith('coach_shown_'));
+    for (final key in keys) {
+      await prefs.remove(key);
+    }
   }
 
-  /// Start the walkthrough. Call after the UI has laid out (e.g. post-frame).
+  /// Start the walkthrough. Call after the UI has laid out.
   void start(BuildContext context, List<CoachStep> steps,
       {VoidCallback? onComplete}) {
     if (steps.isEmpty) return;
@@ -74,8 +68,15 @@ class CoachMarkController {
     _showStep();
   }
 
+  void _safeRemoveEntry() {
+    if (_entry != null && _entry!.mounted) {
+      _entry!.remove();
+    }
+    _entry = null;
+  }
+
   void _showStep() {
-    _entry?.remove();
+    _safeRemoveEntry();
 
     if (_currentStep >= _steps.length) {
       markShown();
@@ -86,11 +87,10 @@ class CoachMarkController {
     final step = _steps[_currentStep];
     step.onShow?.call();
 
-    // Wait two frames for layout changes from onShow to settle, then retry
-    _showStepWithRetry(step, retries: 5);
+    _showStepWithRetry(step, retries: 8);
   }
 
-  void _showStepWithRetry(CoachStep step, {int retries = 5}) {
+  void _showStepWithRetry(CoachStep step, {int retries = 8}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (_currentStep >= _steps.length) return;
@@ -98,12 +98,10 @@ class CoachMarkController {
         final targetRect = _getTargetRect(step.targetKey);
         if (targetRect == null) {
           if (retries > 0) {
-            // Target not visible yet — retry after a short delay
             Future.delayed(const Duration(milliseconds: 300), () {
               _showStepWithRetry(step, retries: retries - 1);
             });
           } else {
-            // Give up on this step after all retries
             _currentStep++;
             _showStep();
           }
@@ -129,7 +127,10 @@ class CoachMarkController {
     final renderBox = key.currentContext?.findRenderObject() as RenderBox?;
     if (renderBox == null || !renderBox.hasSize) return null;
     final position = renderBox.localToGlobal(Offset.zero);
-    return position & renderBox.size;
+    final rect = position & renderBox.size;
+    // Verify the target is actually on screen
+    if (rect.top < -50 || rect.bottom < 0) return null;
+    return rect;
   }
 
   void _next() {
@@ -138,15 +139,13 @@ class CoachMarkController {
   }
 
   void _skip() {
-    _entry?.remove();
-    _entry = null;
+    _safeRemoveEntry();
     markShown();
     onComplete?.call();
   }
 
   void dispose() {
-    _entry?.remove();
-    _entry = null;
+    _safeRemoveEntry();
   }
 }
 
@@ -207,18 +206,17 @@ class _CoachOverlayState extends State<_CoachOverlay>
     final padding = MediaQuery.of(context).padding;
     final isLast = widget.stepIndex == widget.totalSteps - 1;
 
-    // Expand target rect slightly for the spotlight
     final spotlight = widget.targetRect.inflate(8);
 
-    // Tooltip positioning
-    final bool showBelow =
-        widget.step.tooltipPosition == TooltipPosition.below ||
-            (widget.step.tooltipPosition == TooltipPosition.above &&
-                spotlight.top < 120);
+    // Decide tooltip position based on available space
+    final spaceBelow = size.height - spotlight.bottom;
+    final spaceAbove = spotlight.top;
+    final showBelow = widget.step.tooltipPosition == TooltipPosition.below
+        ? spaceBelow > 220
+        : spaceAbove < 220;
 
-    final tooltipTop = showBelow ? spotlight.bottom + 20 : null;
-    final tooltipBottom =
-        showBelow ? null : size.height - spotlight.top + 20;
+    final tooltipTop = showBelow ? spotlight.bottom + 16 : null;
+    final tooltipBottom = showBelow ? null : size.height - spotlight.top + 16;
 
     return FadeTransition(
       opacity: _fadeAnim,
@@ -231,35 +229,35 @@ class _CoachOverlayState extends State<_CoachOverlay>
               onTap: widget.onNext,
               child: CustomPaint(
                 size: size,
-                painter: _SpotlightPainter(
-                  spotlight: spotlight,
-                  opacity: _fadeAnim.value,
-                ),
+                painter: _SpotlightPainter(spotlight: spotlight),
               ),
             ),
 
-            // Pulsing ring around target
+            // Soft glow around target
             Positioned(
-              left: spotlight.left - 4,
-              top: spotlight.top - 4,
+              left: spotlight.left - 12,
+              top: spotlight.top - 12,
               child: IgnorePointer(
                 child: Container(
-                  width: spotlight.width + 8,
-                  height: spotlight.height + 8,
+                  width: spotlight.width + 24,
+                  height: spotlight.height + 24,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(
-                      spotlight.shortestSide / 2 + 4,
+                      spotlight.shortestSide / 2 + 12,
                     ),
-                    border: Border.all(
-                      color: const Color(0xFFD4A825).withValues(alpha: 0.6),
-                      width: 2,
-                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFFD4A825).withValues(alpha: 0.35),
+                        blurRadius: 20,
+                        spreadRadius: 2,
+                      ),
+                    ],
                   ),
                 ),
               ),
             ),
 
-            // Tap target — advances to next step
+            // Tap target
             Positioned.fromRect(
               rect: spotlight,
               child: GestureDetector(
@@ -277,9 +275,8 @@ class _CoachOverlayState extends State<_CoachOverlay>
               bottom: tooltipBottom,
               child: ScaleTransition(
                 scale: _scaleAnim,
-                alignment: showBelow
-                    ? Alignment.topCenter
-                    : Alignment.bottomCenter,
+                alignment:
+                    showBelow ? Alignment.topCenter : Alignment.bottomCenter,
                 child: Container(
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
@@ -324,7 +321,6 @@ class _CoachOverlayState extends State<_CoachOverlay>
                               ),
                             ),
                           ),
-                          // Step counter
                           Container(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 8,
@@ -361,7 +357,7 @@ class _CoachOverlayState extends State<_CoachOverlay>
                           TextButton(
                             onPressed: widget.onSkip,
                             child: Text(
-                              'Skip All',
+                              'Skip',
                               style: TextStyle(
                                 color: Colors.white.withValues(alpha: 0.4),
                                 fontSize: 14,
@@ -382,7 +378,7 @@ class _CoachOverlayState extends State<_CoachOverlay>
                               ),
                             ),
                             child: Text(
-                              isLast ? 'Done' : 'Next',
+                              isLast ? 'Got It' : 'Next',
                               style: const TextStyle(
                                 fontWeight: FontWeight.w700,
                                 fontSize: 14,
@@ -429,36 +425,29 @@ class _CoachOverlayState extends State<_CoachOverlay>
 }
 
 // =============================================================================
-// Spotlight painter — dark backdrop with rounded-rect cutout
+// Spotlight painter
 // =============================================================================
 
 class _SpotlightPainter extends CustomPainter {
   final Rect spotlight;
-  final double opacity;
 
-  _SpotlightPainter({required this.spotlight, required this.opacity});
+  _SpotlightPainter({required this.spotlight});
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()..color = Colors.black.withValues(alpha: 0.8 * opacity);
-
-    // Full screen path
+    final paint = Paint()..color = Colors.black.withValues(alpha: 0.8);
     final fullPath = Path()..addRect(Offset.zero & size);
-
-    // Cutout with rounded corners
     final radius = spotlight.shortestSide / 2;
     final cutout = Path()
       ..addRRect(RRect.fromRectAndRadius(
         spotlight,
         Radius.circular(radius.clamp(8, 24)),
       ));
-
-    // Combine: full screen minus cutout
     final combined = Path.combine(PathOperation.difference, fullPath, cutout);
     canvas.drawPath(combined, paint);
   }
 
   @override
   bool shouldRepaint(covariant _SpotlightPainter old) =>
-      old.spotlight != spotlight || old.opacity != opacity;
+      old.spotlight != spotlight;
 }

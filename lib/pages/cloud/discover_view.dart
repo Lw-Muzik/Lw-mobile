@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../Routes/routes.dart';
+import '../../onboarding/coach_marks.dart';
 import 'hot100_section.dart';
 import 'popular_section.dart';
 import 'artists_section.dart';
@@ -15,8 +16,67 @@ class DiscoverView extends StatefulWidget {
 
 class _DiscoverViewState extends State<DiscoverView>
     with AutomaticKeepAliveClientMixin {
+  final _coachController = CoachMarkController('discover');
+  final _searchBarKey = GlobalKey();
+  final _hot100Key = GlobalKey();
+  final _popularKey = GlobalKey();
+  final _artistsKey = GlobalKey();
+
   @override
   bool get wantKeepAlive => true;
+
+  @override
+  void initState() {
+    super.initState();
+    Future.delayed(const Duration(milliseconds: 2000), _maybeShowCoachMarks);
+  }
+
+  Future<void> _maybeShowCoachMarks() async {
+    if (!mounted) return;
+    final shown = await _coachController.hasBeenShown();
+    if (shown || !mounted) return;
+
+    _coachController.start(context, [
+      CoachStep(
+        targetKey: _searchBarKey,
+        title: 'Search',
+        description:
+            'Search for any song, artist, or album across the music catalog.',
+        icon: Icons.search_rounded,
+        tooltipPosition: TooltipPosition.below,
+      ),
+      CoachStep(
+        targetKey: _hot100Key,
+        title: 'Hot 100',
+        description:
+            'The Hot 100 chart shows trending Ugandan music. Tap any song to play.',
+        icon: Icons.local_fire_department_rounded,
+        tooltipPosition: TooltipPosition.below,
+      ),
+      CoachStep(
+        targetKey: _popularKey,
+        title: 'Popular',
+        description:
+            'Popular songs updated regularly. Tap \'View More\' to see the full list.',
+        icon: Icons.trending_up_rounded,
+        tooltipPosition: TooltipPosition.above,
+      ),
+      CoachStep(
+        targetKey: _artistsKey,
+        title: 'Artists',
+        description:
+            'Browse artists. Tap an artist to see their profile and songs.',
+        icon: Icons.people_rounded,
+        tooltipPosition: TooltipPosition.above,
+      ),
+    ]);
+  }
+
+  @override
+  void dispose() {
+    _coachController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -28,22 +88,22 @@ class _DiscoverViewState extends State<DiscoverView>
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
       children: [
         // Search bar
-        _buildSearchBar(context, theme),
+        KeyedSubtree(key: _searchBarKey, child: _buildSearchBar(context, theme)),
 
         const SizedBox(height: 4),
 
         // Hot 100 chart
-        const Hot100Section(),
+        KeyedSubtree(key: _hot100Key, child: const Hot100Section()),
 
         _buildSectionDivider(theme),
 
         // Popular / trending songs
-        const PopularSection(),
+        KeyedSubtree(key: _popularKey, child: const PopularSection()),
 
         _buildSectionDivider(theme),
 
         // Artists directory
-        const ArtistsSection(),
+        KeyedSubtree(key: _artistsKey, child: const ArtistsSection()),
 
         const SizedBox(height: 80),
       ],

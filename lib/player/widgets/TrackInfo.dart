@@ -103,22 +103,25 @@ class TrackInfoWidget extends StatelessWidget {
                           );
                         },
                       ),
-                      _ActionTile(
-                        icon: Icons.album_rounded,
-                        label: 'Go to Album',
-                        subtitle: song.album ?? 'Unknown Album',
-                        onTap: () {
-                          Routes.pop(context);
-                          Routes.routeTo(
-                            AlbumSongs(
-                              albumId: song.albumId,
-                              album: song.album ?? 'Unknown Album',
-                              songs: 0,
-                            ),
-                            context,
-                          );
-                        },
-                      ),
+                      if (song.album != null &&
+                          song.album!.isNotEmpty &&
+                          !song.album!.startsWith('http'))
+                        _ActionTile(
+                          icon: Icons.album_rounded,
+                          label: 'Go to Album',
+                          subtitle: song.album!,
+                          onTap: () {
+                            Routes.pop(context);
+                            Routes.routeTo(
+                              AlbumSongs(
+                                albumId: song.albumId,
+                                album: song.album!,
+                                songs: 0,
+                              ),
+                              context,
+                            );
+                          },
+                        ),
                       _ActionTile(
                         icon: Icons.image_outlined,
                         label: 'Find Artwork',
@@ -220,7 +223,9 @@ class _TrackHeader extends StatelessWidget {
                 Row(
                   children: [
                     Text(
-                      song.album ?? 'Unknown Album',
+                      (song.album != null && !song.album!.startsWith('http'))
+                          ? song.album!
+                          : 'Single',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(

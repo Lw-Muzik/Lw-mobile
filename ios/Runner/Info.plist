@@ -44,9 +44,37 @@
 				<key>CFBundleTypeRole</key>
 				<string>Editor</string>
 			</dict>
+			<dict>
+				<key>CFBundleURLSchemes</key>
+				<array>
+					<string>x.a.zix</string>
+				</array>
+				<key>CFBundleTypeRole</key>
+				<string>Editor</string>
+			</dict>
 		</array>
 		<key>GIDClientID</key>
 		<string>618382337035-e27v6qskmsklrq0m1jgdc6fjuapn64qm.apps.googleusercontent.com</string>
+		<key>NSAppTransportSecurity</key>
+		<dict>
+			<key>NSExceptionDomains</key>
+			<dict>
+				<key>37.60.225.220</key>
+				<dict>
+					<key>NSExceptionAllowsInsecureHTTPLoads</key>
+					<true/>
+					<key>NSIncludesSubdomains</key>
+					<true/>
+				</dict>
+				<key>nowviba.com</key>
+				<dict>
+					<key>NSExceptionAllowsInsecureHTTPLoads</key>
+					<true/>
+					<key>NSIncludesSubdomains</key>
+					<true/>
+				</dict>
+			</dict>
+		</dict>
 		<key>UIFileSharingEnabled</key>
 		<true/>
 		<key>LSSupportsOpeningDocumentsInPlace</key>

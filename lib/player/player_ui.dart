@@ -17,6 +17,7 @@ import '/Helpers/index.dart';
 import '/widgets/common.dart';
 import 'swipe_animation.dart';
 import 'lyrics_view.dart';
+import '../onboarding/coach_marks.dart';
 
 // Main Player Widget
 class Player extends StatefulWidget {
@@ -31,6 +32,12 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
   Animation<double>? _animation;
   final GlobalKey<AnimatedPlayerCardState> _cardKey = GlobalKey();
 
+  // Coach marks
+  final _coachController = CoachMarkController('player');
+  final _cardDeckKey = GlobalKey();
+  final _controlsKey = GlobalKey();
+  final _actionBarKey = GlobalKey();
+
   @override
   void initState() {
     super.initState();
@@ -39,6 +46,39 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
     // Detect current audio output device for display
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<AppController>().detectAndApplyDevicePreset();
+    });
+    // Show coach marks on first visit (delayed to let UI settle)
+    Future.delayed(const Duration(milliseconds: 1500), () {
+      if (!mounted) return;
+      _coachController.hasBeenShown().then((shown) {
+        if (!shown && mounted) {
+          _coachController.start(context, [
+            CoachStep(
+              targetKey: _cardDeckKey,
+              title: 'Album Artwork',
+              description:
+                  'Swipe left or right to change tracks. Long press for track details.',
+              icon: Icons.swipe_rounded,
+              tooltipPosition: TooltipPosition.below,
+            ),
+            CoachStep(
+              targetKey: _controlsKey,
+              title: 'Playback Controls',
+              description: 'Play, pause, skip tracks, shuffle, and repeat.',
+              icon: Icons.play_circle_outline_rounded,
+              tooltipPosition: TooltipPosition.above,
+            ),
+            CoachStep(
+              targetKey: _actionBarKey,
+              title: 'Quick Actions',
+              description:
+                  'Tap EQ for equalizer, Lyrics for synced lyrics, Visual for visualizer, Queue to manage your playlist.',
+              icon: Icons.dashboard_customize_rounded,
+              tooltipPosition: TooltipPosition.above,
+            ),
+          ]);
+        }
+      });
     });
   }
 
@@ -66,6 +106,7 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
 
   @override
   void dispose() {
+    _coachController.dispose();
     _animationController?.dispose();
     _autoAdvanceSub?.cancel();
     super.dispose();
@@ -142,6 +183,9 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
                       cardKey: _cardKey,
                       onControlNext: _onControlNext,
                       onControlPrev: _onControlPrev,
+                      cardDeckKey: _cardDeckKey,
+                      controlsKey: _controlsKey,
+                      actionBarKey: _actionBarKey,
                     ),
                   ],
                 ),
@@ -161,6 +205,9 @@ class _PlayerLayout extends StatelessWidget {
   final GlobalKey<AnimatedPlayerCardState> cardKey;
   final VoidCallback onControlNext;
   final VoidCallback onControlPrev;
+  final GlobalKey cardDeckKey;
+  final GlobalKey controlsKey;
+  final GlobalKey actionBarKey;
 
   const _PlayerLayout({
     required this.controller,
@@ -168,6 +215,9 @@ class _PlayerLayout extends StatelessWidget {
     required this.cardKey,
     required this.onControlNext,
     required this.onControlPrev,
+    required this.cardDeckKey,
+    required this.controlsKey,
+    required this.actionBarKey,
   });
 
   @override
@@ -200,14 +250,21 @@ class _PlayerLayout extends StatelessWidget {
             controller: controller,
             animation: animation,
             cardKey: cardKey,
+            spotlightKey: cardDeckKey,
           ),
           _TrackInfo(controller: controller),
           SizedBox(height: gap),
           _WaveformProgress(controller: controller),
           SizedBox(height: gap * 1.4),
-          Controls(onNextPressed: onControlNext, onPrevPressed: onControlPrev),
+          KeyedSubtree(
+            key: controlsKey,
+            child: Controls(onNextPressed: onControlNext, onPrevPressed: onControlPrev),
+          ),
           SizedBox(height: gap * 1.4),
-          playerActionBar(controller, context),
+          KeyedSubtree(
+            key: actionBarKey,
+            child: playerActionBar(controller, context),
+          ),
           SizedBox(height: bottomPadding + gap),
         ],
       ),
@@ -248,6 +305,7 @@ class _PlayerLayout extends StatelessWidget {
                           animation: animation,
                           cardKey: cardKey,
                           landscape: true,
+                          spotlightKey: cardDeckKey,
                         ),
                         _TrackInfo(controller: controller),
                       ],
@@ -264,12 +322,18 @@ class _PlayerLayout extends StatelessWidget {
                       children: [
                         _WaveformProgress(controller: controller),
                         SizedBox(height: gap * 1.4),
-                        Controls(
-                          onNextPressed: onControlNext,
-                          onPrevPressed: onControlPrev,
+                        KeyedSubtree(
+                          key: controlsKey,
+                          child: Controls(
+                            onNextPressed: onControlNext,
+                            onPrevPressed: onControlPrev,
+                          ),
                         ),
                         SizedBox(height: gap * 1.4),
-                        playerActionBar(controller, context),
+                        KeyedSubtree(
+                          key: actionBarKey,
+                          child: playerActionBar(controller, context),
+                        ),
                       ],
                     ),
                   ),
@@ -290,12 +354,14 @@ class _CardDeck extends StatelessWidget {
   final Animation<double> animation;
   final GlobalKey<AnimatedPlayerCardState> cardKey;
   final bool landscape;
+  final GlobalKey? spotlightKey;
 
   const _CardDeck({
     required this.controller,
     required this.animation,
     required this.cardKey,
     this.landscape = false,
+    this.spotlightKey,
   });
 
   void _openLyrics(BuildContext context) {
@@ -319,7 +385,7 @@ class _CardDeck extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final card = GestureDetector(
+    final cardContent = GestureDetector(
       behavior: HitTestBehavior.translucent,
       onVerticalDragEnd: (details) {
         if (details.velocity.pixelsPerSecond.dy < -300) {
@@ -374,6 +440,10 @@ class _CardDeck extends StatelessWidget {
         ],
       ),
     );
+
+    final card = spotlightKey != null
+        ? KeyedSubtree(key: spotlightKey, child: cardContent)
+        : cardContent;
 
     // In landscape the parent Column is centered — use a constrained size
     // instead of Expanded so mainAxisAlignment: center can work.
@@ -450,7 +520,9 @@ class _TrackInfo extends StatelessWidget {
           const SizedBox(height: 4),
           Row(
             children: [
-              if (song.album != null && song.album!.isNotEmpty) ...[
+              if (song.album != null &&
+                  song.album!.isNotEmpty &&
+                  !song.album!.startsWith('http')) ...[
                 Flexible(
                   child: Text(
                     song.album!,

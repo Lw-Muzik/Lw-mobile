@@ -67,6 +67,14 @@ class CloudCacheService {
     return 0;
   }
 
+  /// Check if a download is already in progress (prefetch or LockCachingAudioSource).
+  bool isDownloading(String fileId) {
+    if (_prefetchingFileId == fileId) return true;
+    // LockCachingAudioSource uses cacheFile.path + '.part'
+    final lockPart = File('${cacheFile(fileId).path}.part');
+    return lockPart.existsSync() || _partialFile(fileId).existsSync();
+  }
+
   /// Pre-cache a track with resume support.
   /// Downloads the file, resuming from partial if available.
   /// Respects cellular data guard.

@@ -2,6 +2,7 @@ import '../exports/exports.dart';
 import '/controllers/AppController.dart';
 import '/Helpers/Channel.dart';
 import '/widgets/Body.dart';
+import '../onboarding/coach_marks.dart';
 import 'graphic_eq_view.dart';
 import 'tone_view.dart';
 import 'parametric_eq_view.dart';
@@ -19,15 +20,44 @@ class Equalizer extends StatefulWidget {
 
 class _EqualizerState extends State<Equalizer> with TickerProviderStateMixin {
   late final TabController _tabController;
+  final _coachController = CoachMarkController('equalizer');
+  final _tabBarKey = GlobalKey();
+  final _contentKey = GlobalKey();
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 5, vsync: this);
+    Future.delayed(const Duration(milliseconds: 1500), () {
+      if (!mounted) return;
+      _coachController.hasBeenShown().then((shown) {
+        if (!shown && mounted) {
+          _coachController.start(context, [
+            CoachStep(
+              targetKey: _tabBarKey,
+              title: 'Effect Tabs',
+              description:
+                  'Switch between Graphic EQ, Tone controls, Parametric EQ, and Spatial effects.',
+              icon: Icons.tab,
+              tooltipPosition: TooltipPosition.below,
+            ),
+            CoachStep(
+              targetKey: _contentKey,
+              title: 'Shape Your Sound',
+              description:
+                  'Drag sliders to shape your sound. Tap presets for quick EQ curves.',
+              icon: Icons.equalizer,
+              tooltipPosition: TooltipPosition.above,
+            ),
+          ]);
+        }
+      });
+    });
   }
 
   @override
   void dispose() {
+    _coachController.dispose();
     _tabController.dispose();
     super.dispose();
   }
@@ -54,9 +84,18 @@ class _EqualizerState extends State<Equalizer> with TickerProviderStateMixin {
             ),
             const SizedBox(width: 12),
           ],
-          bottom: _buildTabBar(context),
+          bottom: PreferredSize(
+            preferredSize: const Size.fromHeight(kTextTabBarHeight),
+            child: KeyedSubtree(
+              key: _tabBarKey,
+              child: _buildTabBar(context),
+            ),
+          ),
         ),
-        body: _buildTabBarView(),
+        body: KeyedSubtree(
+          key: _contentKey,
+          child: _buildTabBarView(),
+        ),
       ),
     );
   }

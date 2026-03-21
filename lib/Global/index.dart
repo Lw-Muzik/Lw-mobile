@@ -404,9 +404,14 @@ void loadAudioSource(
     image = await fetchArtworkUrl(song.data, song.id);
   }
 
+  // Don't pass artwork URLs as album name (discover songs store artwork in album field)
+  final albumName = (song.album != null && !song.album!.startsWith('http'))
+      ? song.album
+      : null;
+
   MediaItem item = MediaItem(
     id: song.data,
-    album: song.album,
+    album: albumName,
     title: song.title,
     artist: song.artist,
     duration: Duration(milliseconds: song.duration ?? 0),
@@ -515,7 +520,7 @@ void _prefetchNextTrack() async {
 
     final fileId = nextSong.id.toString();
     final cache = ctrl.cloudCache;
-    if (cache.isCached(fileId)) return;
+    if (cache.isCached(fileId) || cache.isDownloading(fileId)) return;
 
     debugPrint('Prefetch: Starting next track ${nextSong.title}');
     final headers = nextSong.data.contains('googleapis.com')
