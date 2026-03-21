@@ -14,53 +14,67 @@ class PopularSection extends StatefulWidget {
   State<PopularSection> createState() => _PopularSectionState();
 }
 
-class _PopularSectionState extends State<PopularSection> {
+class _PopularSectionState extends State<PopularSection>
+    with SingleTickerProviderStateMixin {
   final _repo = MusicRepositoryImpl();
-  List<MusicSong> _songs = [];
+  final List<MusicSong> _songs = [];
   bool _loading = true;
+  bool _loadingMore = false;
+  bool _hasMore = true;
+  int _offset = 0;
   String? _error;
+  late AnimationController _shimmerCtrl;
 
   @override
   void initState() {
     super.initState();
-    _load();
+    _shimmerCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat();
+    _loadPage();
   }
 
-  Future<void> _load() async {
+  @override
+  void dispose() {
+    _shimmerCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadPage() async {
+    if (_loadingMore) return;
     setState(() {
-      _loading = true;
+      if (_songs.isEmpty) _loading = true;
+      _loadingMore = true;
       _error = null;
     });
-    final result = await _repo.fetchPopular();
+
+    final result = await _repo.fetchPopular(offset: _offset);
     if (!mounted) return;
+
     result.fold(
       (f) => setState(() {
         _loading = false;
+        _loadingMore = false;
         _error = f.message;
       }),
       (songs) => setState(() {
         _loading = false;
-        _songs = songs;
+        _loadingMore = false;
+        _songs.addAll(songs);
+        _hasMore = songs.length >= 50;
+        _offset += 55;
       }),
     );
-  }
-
-  void _playSong(MusicSong song) {
-    MusicPlayerHelper.playSong(context, song);
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    if (_loading) {
-      return const SizedBox(
-        height: 200,
-        child: Center(child: CircularProgressIndicator.adaptive()),
-      );
-    }
+    if (_loading) return _PopularSkeleton(controller: _shimmerCtrl);
 
-    if (_error != null) {
+    if (_error != null && _songs.isEmpty) {
       return Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -72,7 +86,7 @@ class _PopularSectionState extends State<PopularSection> {
             Text(_error!, style: theme.textTheme.bodySmall),
             const SizedBox(height: 8),
             TextButton.icon(
-              onPressed: _load,
+              onPressed: _loadPage,
               icon: const Icon(Icons.refresh, size: 18),
               label: const Text('Retry'),
             ),
@@ -83,86 +97,222 @@ class _PopularSectionState extends State<PopularSection> {
 
     if (_songs.isEmpty) return const SizedBox.shrink();
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-          child: Row(
-            children: [
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.primary.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(6),
+    return NotificationListener<ScrollNotification>(
+      onNotification: (notification) {
+        if (notification is ScrollEndNotification &&
+            _hasMore &&
+            !_loadingMore) {
+          final metrics = notification.metrics;
+          if (metrics.pixels >= metrics.maxScrollExtent - 300) {
+            _loadPage();
+          }
+        }
+        return false;
+      },
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+            child: Row(
+              children: [
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primary.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.trending_up_rounded,
+                          color: theme.colorScheme.primary, size: 16),
+                      const SizedBox(width: 4),
+                      Text('POPULAR',
+                          style: TextStyle(
+                            color: theme.colorScheme.primary,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.5,
+                          )),
+                    ],
+                  ),
                 ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.trending_up_rounded,
-                        color: theme.colorScheme.primary, size: 16),
-                    const SizedBox(width: 4),
-                    Text('POPULAR',
-                        style: TextStyle(
-                          color: theme.colorScheme.primary,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 0.5,
-                        )),
-                  ],
-                ),
-              ),
-              const Spacer(),
-              Text('${_songs.length} songs',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color:
-                        theme.colorScheme.onSurface.withValues(alpha: 0.5),
-                  )),
-            ],
+                const Spacer(),
+                Text('${_songs.length} songs',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurface
+                          .withValues(alpha: 0.5),
+                    )),
+              ],
+            ),
           ),
-        ),
 
-        // Horizontal scroll — top 10 featured
-        SizedBox(
-          height: 190,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            itemCount: _songs.length.clamp(0, 10),
-            itemBuilder: (context, index) {
-              final song = _songs[index];
-              return _PopularCard(
-                song: song,
-                rank: index + 1,
-                onTap: () => _playSong(song),
-                onLongPress: () =>
-                    Routes.routeTo(SongDetailPage(songId: song.id), context),
-              );
-            },
+          // Horizontal scroll — top 10 featured
+          SizedBox(
+            height: 190,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              itemCount: _songs.length.clamp(0, 10),
+              itemBuilder: (context, index) {
+                final song = _songs[index];
+                return _PopularCard(
+                  song: song,
+                  rank: index + 1,
+                  onTap: () =>
+                      MusicPlayerHelper.playFromList(context, _songs, index),
+                  onLongPress: () => Routes.routeTo(
+                      SongDetailPage(songId: song.id), context),
+                );
+              },
+            ),
           ),
-        ),
 
-        const SizedBox(height: 8),
+          const SizedBox(height: 8),
 
-        // Full list
-        ...List.generate(
-          _songs.length.clamp(0, 50),
-          (index) {
+          // Full list
+          ...List.generate(_songs.length, (index) {
             final song = _songs[index];
             return _PopularTile(
               song: song,
               rank: index + 1,
-              onTap: () => _playSong(song),
+              onTap: () =>
+                  MusicPlayerHelper.playFromList(context, _songs, index),
               onLongPress: () =>
                   Routes.routeTo(SongDetailPage(songId: song.id), context),
             );
-          },
-        ),
-      ],
+          }),
+
+          // Load more indicator
+          if (_loadingMore)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 16),
+              child: Center(
+                child: SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+            ),
+
+          // Load more button if scroll didn't trigger
+          if (_hasMore && !_loadingMore)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+              child: Center(
+                child: TextButton(
+                  onPressed: _loadPage,
+                  child: const Text('Load more'),
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }
+
+// =============================================================================
+// Skeleton loader
+// =============================================================================
+
+class _PopularSkeleton extends StatelessWidget {
+  final AnimationController controller;
+  const _PopularSkeleton({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final base = theme.colorScheme.surfaceContainerHighest;
+    final highlight = theme.colorScheme.surfaceContainerLow;
+
+    return AnimatedBuilder(
+      animation: controller,
+      builder: (context, _) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+              child: _ShimmerBar(
+                  width: 100, height: 24, offset: controller.value,
+                  base: base, highlight: highlight),
+            ),
+            // Horizontal cards
+            SizedBox(
+              height: 190,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                physics: const NeverScrollableScrollPhysics(),
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                itemCount: 4,
+                itemBuilder: (_, i) {
+                  final off = (controller.value + i * 0.1) % 1.0;
+                  return Container(
+                    width: 140,
+                    margin: const EdgeInsets.symmetric(horizontal: 4),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _ShimmerBar(width: 140, height: 140, radius: 10,
+                            offset: off, base: base, highlight: highlight),
+                        const SizedBox(height: 6),
+                        _ShimmerBar(width: 100, height: 12, offset: off,
+                            base: base, highlight: highlight),
+                        const SizedBox(height: 4),
+                        _ShimmerBar(width: 70, height: 10, offset: off,
+                            base: base, highlight: highlight),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 8),
+            // List tiles
+            ...List.generate(6, (i) {
+              final off = (controller.value + i * 0.08) % 1.0;
+              return Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                child: Row(
+                  children: [
+                    _ShimmerBar(width: 28, height: 14, offset: off,
+                        base: base, highlight: highlight),
+                    const SizedBox(width: 10),
+                    _ShimmerBar(width: 44, height: 44, radius: 6,
+                        offset: off, base: base, highlight: highlight),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _ShimmerBar(width: 140, height: 12, offset: off,
+                              base: base, highlight: highlight),
+                          const SizedBox(height: 4),
+                          _ShimmerBar(width: 90, height: 10, offset: off,
+                              base: base, highlight: highlight),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+          ],
+        );
+      },
+    );
+  }
+}
+
+// =============================================================================
+// Song card & tile widgets
+// =============================================================================
 
 class _PopularCard extends StatelessWidget {
   final MusicSong song;
@@ -199,13 +349,13 @@ class _PopularCard extends StatelessWidget {
                     fit: BoxFit.cover,
                     placeholder: (_, __) => Container(
                       color: Colors.white.withValues(alpha: 0.05),
-                      child: const Icon(Icons.music_note,
-                          color: Colors.white24),
+                      child:
+                          const Icon(Icons.music_note, color: Colors.white24),
                     ),
                     errorWidget: (_, __, ___) => Container(
                       color: Colors.white.withValues(alpha: 0.05),
-                      child: const Icon(Icons.music_note,
-                          color: Colors.white24),
+                      child:
+                          const Icon(Icons.music_note, color: Colors.white24),
                     ),
                   ),
                 ),
@@ -282,8 +432,7 @@ class _PopularTile extends StatelessWidget {
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 13,
-                  fontWeight:
-                      rank <= 3 ? FontWeight.w700 : FontWeight.w500,
+                  fontWeight: rank <= 3 ? FontWeight.w700 : FontWeight.w500,
                   color: rank <= 3
                       ? theme.colorScheme.primary
                       : theme.colorScheme.onSurface.withValues(alpha: 0.5),
@@ -320,9 +469,8 @@ class _PopularTile extends StatelessWidget {
                   Text(song.title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w500,
-                      )),
+                      style: theme.textTheme.bodyMedium
+                          ?.copyWith(fontWeight: FontWeight.w500)),
                   Text(song.artist,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -335,9 +483,45 @@ class _PopularTile extends StatelessWidget {
             ),
             Icon(Icons.play_circle_outline_rounded,
                 size: 24,
-                color:
-                    theme.colorScheme.onSurface.withValues(alpha: 0.3)),
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.3)),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+// =============================================================================
+// Shimmer bar (reusable)
+// =============================================================================
+
+class _ShimmerBar extends StatelessWidget {
+  final double width, height;
+  final double radius;
+  final double offset;
+  final Color base, highlight;
+
+  const _ShimmerBar({
+    required this.width,
+    required this.height,
+    this.radius = 4,
+    required this.offset,
+    required this.base,
+    required this.highlight,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(radius),
+        gradient: LinearGradient(
+          colors: [base, highlight, base],
+          stops: const [0.0, 0.5, 1.0],
+          begin: Alignment(-1.0 + 2.0 * offset, 0),
+          end: Alignment(1.0 + 2.0 * offset, 0),
         ),
       ),
     );

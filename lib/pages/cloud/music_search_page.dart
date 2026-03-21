@@ -188,7 +188,7 @@ class _MusicSearchPageState extends State<MusicSearchPage> {
             onPressed: () =>
                 Routes.routeTo(SongDetailPage(songId: song.id), context),
           ),
-          onTap: () => MusicPlayerHelper.playSong(context, song),
+          onTap: () => MusicPlayerHelper.playFromList(context, _results, index),
         );
       },
     );

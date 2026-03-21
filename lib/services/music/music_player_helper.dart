@@ -10,75 +10,94 @@ import 'music_repository.dart';
 
 /// Resolves audio URLs for MusicSong items and plays them.
 ///
-/// NowViba song list endpoints only return page URLs, not streamable audio.
-/// This helper fetches the song detail to get the actual MP3 URL before playing.
+/// Song list endpoints return page URLs, not streamable audio.
+/// This helper fetches the song detail to get the actual MP3 URL,
+/// plays the tapped song instantly, then resolves remaining songs
+/// in background to build the full queue for continuous playback.
 class MusicPlayerHelper {
   static final _repo = MusicRepositoryImpl();
 
-  /// Resolves the audio URL for a single song and plays it.
-  /// Shows a loading overlay while fetching the audio URL.
-  static Future<void> playSong(
-    BuildContext context,
-    MusicSong song,
-  ) async {
-    final audioUrl = await _resolveAudioUrl(context, song);
-    if (audioUrl == null || !context.mounted) return;
-
-    final controller = context.read<AppController>();
-    final songModel = _toSongModel(song, audioUrl);
-    controller.playSongFromList([songModel], 0);
-    Routes.routeTo(const Player(), context);
-  }
-
-  /// Resolves audio URLs for a list and plays from the given index.
-  /// Only resolves the tapped song immediately; the rest stream on demand.
-  static Future<void> playSongFromList(
+  /// Plays a list of songs starting at [index].
+  /// Resolves the tapped song immediately, starts playback,
+  /// then resolves the rest in background to build the queue.
+  static Future<void> playFromList(
     BuildContext context,
     List<MusicSong> songs,
     int index,
   ) async {
+    if (songs.isEmpty) return;
+
     final tapped = songs[index];
-    final audioUrl = await _resolveAudioUrl(context, tapped);
+    final audioUrl = await _resolveWithOverlay(context, tapped);
     if (audioUrl == null || !context.mounted) return;
 
-    // Build the queue: tapped song gets resolved URL, others use their page URL
-    // (they'll be resolved when the player reaches them via loadAudioSource)
-    // Actually, build a single-song list with the resolved URL for immediate play.
-    // For queue mode, resolve all in background.
     final controller = context.read<AppController>();
-    final songModel = _toSongModel(tapped, audioUrl);
-    controller.playSongFromList([songModel], 0);
+
+    // Play tapped song immediately
+    final tappedModel = _toSongModel(tapped, audioUrl);
+    controller.playSongFromList([tappedModel], 0);
     Routes.routeTo(const Player(), context);
+
+    // Background: resolve all other songs and rebuild queue
+    if (songs.length > 1) {
+      _resolveQueueInBackground(controller, songs, index, audioUrl);
+    }
   }
 
-  static Future<String?> _resolveAudioUrl(
+  /// Resolves all songs concurrently (5 at a time) and rebuilds the player queue.
+  static Future<void> _resolveQueueInBackground(
+    AppController controller,
+    List<MusicSong> songs,
+    int tappedIndex,
+    String tappedAudioUrl,
+  ) async {
+    final resolved = <int, String>{tappedIndex: tappedAudioUrl};
+    const concurrency = 5;
+
+    // Process in batches of [concurrency]
+    for (int batch = 0; batch < songs.length; batch += concurrency) {
+      final futures = <Future>[];
+      for (int i = batch;
+          i < (batch + concurrency).clamp(0, songs.length);
+          i++) {
+        if (i == tappedIndex) continue;
+        futures.add(_repo.fetchSongDetail(songs[i].id).then((result) {
+          result.fold((_) {}, (detail) {
+            if (detail.audioUrls.isNotEmpty) {
+              resolved[i] = detail.audioUrls.first;
+            }
+          });
+        }));
+      }
+      await Future.wait(futures);
+    }
+
+    // Build full queue preserving original order
+    final queue = <SongModel>[];
+    final indexMap = <int, int>{}; // original index → queue index
+    for (int i = 0; i < songs.length; i++) {
+      if (resolved.containsKey(i)) {
+        indexMap[i] = queue.length;
+        queue.add(_toSongModel(songs[i], resolved[i]!));
+      }
+    }
+
+    if (queue.length <= 1) return;
+
+    // Find the new index of the tapped song in the queue
+    final newIndex = indexMap[tappedIndex] ?? 0;
+    controller.playSongFromList(queue, newIndex);
+  }
+
+  /// Shows a loading overlay, fetches audio URL, removes overlay.
+  static Future<String?> _resolveWithOverlay(
     BuildContext context,
     MusicSong song,
   ) async {
-    // Show loading overlay
     final overlay = OverlayEntry(
-      builder: (_) => Container(
-        color: Colors.black.withValues(alpha: 0.3),
-        child: const Center(
-          child: Card(
-            child: Padding(
-              padding: EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  CircularProgressIndicator.adaptive(),
-                  SizedBox(height: 12),
-                  Text('Loading song...'),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
+      builder: (_) => _LoadingOverlay(songTitle: song.title),
     );
-
-    final overlayState = Overlay.of(context);
-    overlayState.insert(overlay);
+    Overlay.of(context).insert(overlay);
 
     try {
       final result = await _repo.fetchSongDetail(song.id);
@@ -115,10 +134,7 @@ class MusicPlayerHelper {
       overlay.remove();
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: $e'),
-            behavior: SnackBarBehavior.floating,
-          ),
+          SnackBar(content: Text('Error: $e'), behavior: SnackBarBehavior.floating),
         );
       }
       return null;
@@ -139,5 +155,49 @@ class MusicPlayerHelper {
       'file_extension': 'mp3',
       'is_music': true,
     });
+  }
+}
+
+class _LoadingOverlay extends StatelessWidget {
+  final String songTitle;
+  const _LoadingOverlay({required this.songTitle});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Material(
+      color: Colors.black.withValues(alpha: 0.4),
+      child: Center(
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 40),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surface,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(
+                width: 32,
+                height: 32,
+                child: CircularProgressIndicator(strokeWidth: 2.5),
+              ),
+              const SizedBox(height: 14),
+              Text(songTitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodyMedium
+                      ?.copyWith(fontWeight: FontWeight.w600)),
+              const SizedBox(height: 4),
+              Text('Loading...',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                  )),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
