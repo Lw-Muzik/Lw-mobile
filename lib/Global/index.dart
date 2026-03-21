@@ -418,6 +418,7 @@ void loadAudioSource(
   if (isCloud) {
     final cache = AppController.instance.cloudCache;
     final auth = AppController.instance.cloudAuth;
+    final guard = StreamingDataGuard.instance;
     final fileId = song.id.toString();
 
     AudioSource source;
@@ -426,6 +427,14 @@ void loadAudioSource(
       cache.markAccessed(fileId);
       source = AudioSource.file(cache.cacheFile(fileId).path, tag: item);
     } else {
+      // Check data guard before streaming
+      final blockReason = guard.shouldBlockStream();
+      if (blockReason != null) {
+        debugPrint('Streaming blocked: $blockReason');
+        // Still set media item so UI shows track info, but don't play
+        return;
+      }
+
       // Not cached — stream and cache simultaneously
       final headers = song.data.contains('googleapis.com')
           ? await auth.getGoogleAuthHeaders()

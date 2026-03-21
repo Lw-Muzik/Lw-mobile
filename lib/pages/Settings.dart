@@ -9,6 +9,7 @@ import 'package:provider/provider.dart';
 import 'package:wiredash/wiredash.dart';
 
 import '../models/eq_models.dart';
+import '../services/streaming_data_guard.dart';
 
 import '/Helpers/AudioHandler.dart';
 import '/widgets/BottomPlayer.dart';
@@ -68,6 +69,8 @@ class _SettingsState extends State<Settings> {
                     _buildLibrarySection(),
                     const SizedBox(height: 12),
                     _buildCloudStorageSection(controller),
+                    const SizedBox(height: 12),
+                    _buildStreamingSection(),
                     const SizedBox(height: 12),
                     _buildAboutSection(context),
                     const SizedBox(height: 24),
@@ -885,6 +888,101 @@ class _SettingsState extends State<Settings> {
     if (value <= 0.18) return "Balanced";
     if (value <= 0.25) return "Responsive";
     return "Snappy";
+  }
+
+  // -- Streaming Section --
+
+  Widget _buildStreamingSection() {
+    final guard = StreamingDataGuard.instance;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionHeader(Icons.wifi_rounded, "Streaming"),
+        _buildSectionCard([
+          SwitchListTile(
+            secondary: const Icon(Icons.data_saver_on_rounded),
+            title: const Text("Data Saver"),
+            subtitle: const Text(
+              "Reduce buffering on cellular to save data",
+            ),
+            value: guard.dataSaver,
+            onChanged: (v) {
+              setState(() => guard.dataSaver = v);
+            },
+          ),
+          const Divider(height: 1, indent: 16, endIndent: 16),
+          SwitchListTile(
+            secondary: const Icon(Icons.cell_tower_rounded),
+            title: const Text("Stream on Cellular"),
+            subtitle: const Text(
+              "Allow streaming when not on WiFi",
+            ),
+            value: guard.streamOnCellular,
+            onChanged: (v) {
+              setState(() => guard.streamOnCellular = v);
+            },
+          ),
+          const Divider(height: 1, indent: 16, endIndent: 16),
+          ListTile(
+            leading: const Icon(Icons.speed_rounded),
+            title: const Text("Cellular Data Limit"),
+            subtitle: Text(
+              guard.cellularLimitMB > 0
+                  ? "${guard.cellularLimitMB} MB per session"
+                  : "Unlimited",
+            ),
+            trailing: DropdownButton<int>(
+              value: guard.cellularLimitMB,
+              underline: const SizedBox.shrink(),
+              items: const [
+                DropdownMenuItem(value: 0, child: Text("Unlimited")),
+                DropdownMenuItem(value: 50, child: Text("50 MB")),
+                DropdownMenuItem(value: 100, child: Text("100 MB")),
+                DropdownMenuItem(value: 200, child: Text("200 MB")),
+                DropdownMenuItem(value: 500, child: Text("500 MB")),
+              ],
+              onChanged: (v) {
+                if (v != null) setState(() => guard.cellularLimitMB = v);
+              },
+            ),
+          ),
+          const Divider(height: 1, indent: 16, endIndent: 16),
+          SwitchListTile(
+            secondary: const Icon(Icons.download_rounded),
+            title: const Text("Prefetch Next Track"),
+            subtitle: const Text(
+              "Download next song in queue for gapless playback",
+            ),
+            value: guard.prefetchNextTrack,
+            onChanged: (v) {
+              setState(() => guard.prefetchNextTrack = v);
+            },
+          ),
+          const Divider(height: 1, indent: 16, endIndent: 16),
+          SwitchListTile(
+            secondary: const Icon(Icons.wifi_lock_rounded),
+            title: const Text("Prefetch on WiFi Only"),
+            subtitle: const Text(
+              "Only prefetch when connected to WiFi",
+            ),
+            value: guard.prefetchOnlyOnWifi,
+            onChanged: (v) {
+              setState(() => guard.prefetchOnlyOnWifi = v);
+            },
+          ),
+          if (guard.cellularBytesUsed > 0 || guard.totalCellularBytes > 0) ...[
+            const Divider(height: 1, indent: 16, endIndent: 16),
+            ListTile(
+              leading: const Icon(Icons.bar_chart_rounded),
+              title: const Text("Cellular Data Used"),
+              subtitle: Text(
+                "Session: ${guard.cellularUsageFormatted} · Total: ${guard.totalCellularFormatted}",
+              ),
+            ),
+          ],
+        ]),
+      ],
+    );
   }
 
   // -- Cloud Storage Section --

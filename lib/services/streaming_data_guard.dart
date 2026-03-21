@@ -35,6 +35,14 @@ class StreamingDataGuard {
   bool get prefetchOnlyOnWifi => _prefs.getBool('prefetchOnlyOnWifi') ?? true;
   set prefetchOnlyOnWifi(bool v) => _prefs.setBool('prefetchOnlyOnWifi', v);
 
+  /// Data saver mode: reduces buffer sizes and limits bitrate on cellular
+  bool get dataSaver => _prefs.getBool('dataSaver') ?? false;
+  set dataSaver(bool v) => _prefs.setBool('dataSaver', v);
+
+  /// Whether data saver should be active right now
+  /// (enabled AND on cellular, or force-enabled)
+  bool get isDataSaverActive => dataSaver && !_isWifi && !_isOffline;
+
   // Runtime state
   bool get isWifi => _isWifi;
   bool get isOffline => _isOffline;

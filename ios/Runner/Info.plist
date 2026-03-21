@@ -39,12 +39,14 @@
 			<dict>
 				<key>CFBundleURLSchemes</key>
 				<array>
-					<string>$(REVERSED_CLIENT_ID)</string>
+					<string>com.googleusercontent.apps.618382337035-e27v6qskmsklrq0m1jgdc6fjuapn64qm</string>
 				</array>
 				<key>CFBundleTypeRole</key>
 				<string>Editor</string>
 			</dict>
 		</array>
+		<key>GIDClientID</key>
+		<string>618382337035-e27v6qskmsklrq0m1jgdc6fjuapn64qm.apps.googleusercontent.com</string>
 		<key>UIFileSharingEnabled</key>
 		<true/>
 		<key>LSSupportsOpeningDocumentsInPlace</key>

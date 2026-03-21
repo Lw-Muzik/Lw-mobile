@@ -10,8 +10,30 @@ import 'package:on_audio_query/on_audio_query.dart';
 import 'index.dart';
 
 class HypeAudioHandler extends BaseAudioHandler {
-  final AudioPlayer _playerA = AudioPlayer();
-  final AudioPlayer _playerB = AudioPlayer();
+  /// Streaming-optimized load configuration:
+  /// - Android: small initial buffer (1.5s) for fast start, large max buffer
+  ///   (2 min) for resilience on flaky connections, quick rebuffer (3s)
+  /// - iOS: auto-wait to minimize stalling, 60s forward buffer
+  static final _streamingLoadConfig = AudioLoadConfiguration(
+    androidLoadControl: const AndroidLoadControl(
+      minBufferDuration: Duration(seconds: 30),
+      maxBufferDuration: Duration(seconds: 120),
+      bufferForPlaybackDuration: Duration(milliseconds: 1500),
+      bufferForPlaybackAfterRebufferDuration: Duration(seconds: 3),
+      prioritizeTimeOverSizeThresholds: true,
+    ),
+    darwinLoadControl: const DarwinLoadControl(
+      automaticallyWaitsToMinimizeStalling: true,
+      preferredForwardBufferDuration: Duration(seconds: 60),
+    ),
+  );
+
+  final AudioPlayer _playerA = AudioPlayer(
+    audioLoadConfiguration: _streamingLoadConfig,
+  );
+  final AudioPlayer _playerB = AudioPlayer(
+    audioLoadConfiguration: _streamingLoadConfig,
+  );
   late AudioPlayer _activePlayer;
   late AudioPlayer _inactivePlayer;
 
