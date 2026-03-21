@@ -3,14 +3,12 @@ class MusicSong {
   final String title;
   final String artist;
   final String artwork;
-  final String url;
 
   const MusicSong({
     required this.id,
     required this.title,
     required this.artist,
     required this.artwork,
-    required this.url,
   });
 
   factory MusicSong.fromJson(Map<String, dynamic> json) => MusicSong(
@@ -18,7 +16,6 @@ class MusicSong {
         title: (json['title'] as String? ?? '').trim(),
         artist: (json['artist'] as String? ?? '').trim(),
         artwork: (json['artwork'] as String? ?? '').trim(),
-        url: (json['url'] as String? ?? '').trim(),
       );
 }
 
@@ -35,7 +32,6 @@ class MusicSongDetail extends MusicSong {
     required super.title,
     required super.artist,
     required super.artwork,
-    required super.url,
     this.duration,
     this.uploadDate,
     this.plays,
@@ -50,7 +46,6 @@ class MusicSongDetail extends MusicSong {
         title: (json['title'] as String? ?? '').trim(),
         artist: (json['artist'] as String? ?? '').trim(),
         artwork: (json['artwork'] as String? ?? '').trim(),
-        url: (json['url'] as String? ?? '').trim(),
         duration: json['duration'] as String?,
         uploadDate: json['uploadDate'] as String?,
         plays: json['plays'] as int?,
@@ -70,20 +65,17 @@ class MusicArtist {
   final String id;
   final String name;
   final String image;
-  final String url;
 
   const MusicArtist({
     required this.id,
     required this.name,
     required this.image,
-    required this.url,
   });
 
   factory MusicArtist.fromJson(Map<String, dynamic> json) => MusicArtist(
         id: (json['id'] as String? ?? '').trim(),
         name: (json['name'] as String? ?? '').trim(),
         image: (json['image'] as String? ?? '').trim(),
-        url: (json['url'] as String? ?? '').trim(),
       );
 }
 
@@ -98,7 +90,6 @@ class MusicArtistDetail extends MusicArtist {
     required super.id,
     required super.name,
     required super.image,
-    required super.url,
     this.bio,
     this.genre,
     this.views,
@@ -111,7 +102,6 @@ class MusicArtistDetail extends MusicArtist {
         id: (json['id'] as String? ?? '').trim(),
         name: (json['name'] as String? ?? '').trim(),
         image: (json['image'] as String? ?? '').trim(),
-        url: (json['url'] as String? ?? '').trim(),
         bio: json['bio'] as String?,
         genre: json['genre'] as String?,
         views: json['views'] as int?,

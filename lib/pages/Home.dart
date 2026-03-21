@@ -11,6 +11,7 @@ import 'search_page.dart';
 import 'songs.dart';
 import 'artists.dart';
 import 'cloud/cloud_view.dart';
+import 'cloud/discover_view.dart';
 import '/widgets/Body.dart';
 import '/widgets/BottomPlayer.dart';
 import '../Helpers/Channel.dart';
@@ -50,6 +51,7 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
         _TabDef(Icons.album_rounded, 'Albums'),
         _TabDef(Icons.category_rounded, 'Genres'),
         _TabDef(Icons.music_note_rounded, 'Songs'),
+        _TabDef(Icons.explore_rounded, 'Discover'),
         _TabDef(Icons.cloud_rounded, 'Cloud'),
       ];
       _tabViews = const [
@@ -59,6 +61,7 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
         Albums(),
         Genres(),
         AllSongs(),
+        DiscoverView(),
         CloudView(),
       ];
     } else {
@@ -68,6 +71,7 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
         _TabDef(Icons.album_rounded, 'Albums'),
         _TabDef(Icons.category_rounded, 'Genres'),
         _TabDef(Icons.music_note_rounded, 'Songs'),
+        _TabDef(Icons.explore_rounded, 'Discover'),
         _TabDef(Icons.cloud_rounded, 'Cloud'),
       ];
       _tabViews = const [
@@ -75,6 +79,7 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
         Albums(),
         Genres(),
         AllSongs(),
+        DiscoverView(),
         CloudView(),
       ];
     }
