@@ -56,7 +56,7 @@ class AppConfig {
   // API
   static const String apiBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://94.72.116.178:5054',
+    defaultValue: 'http://37.60.225.220:3035',
   );
 
   // AcoustID (audio fingerprint recognition)

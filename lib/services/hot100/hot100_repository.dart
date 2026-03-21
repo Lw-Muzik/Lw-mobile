@@ -24,7 +24,7 @@ class Hot100RepositoryImpl implements Hot100Repository {
   @override
   Future<Either<Hot100Failure, List<Hot100Song>>> fetchChart() async {
     try {
-      final response = await _dio.get('/get/hot100');
+      final response = await _dio.get('/api/v1/hot100');
 
       if (response.statusCode != 200) {
         return Left(ServerFailure(

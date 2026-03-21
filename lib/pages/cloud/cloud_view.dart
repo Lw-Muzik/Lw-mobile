@@ -6,6 +6,9 @@ import '../../controllers/AppController.dart';
 import '../../models/cloud_file.dart';
 import 'cloud_folder_songs.dart';
 import 'hot100_section.dart';
+import 'popular_section.dart';
+import 'artists_section.dart';
+import 'music_search_page.dart';
 
 class CloudView extends StatefulWidget {
   const CloudView({super.key});
@@ -208,8 +211,16 @@ class _CloudViewState extends State<CloudView>
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
             children: [
+              // Search bar
+              _buildSearchBar(context),
               // Hot 100 Ugandan music chart
               const Hot100Section(),
+              const Divider(height: 32),
+              // Popular songs
+              const PopularSection(),
+              const Divider(height: 32),
+              // Artists
+              const ArtistsSection(),
               const Divider(height: 32),
               _buildProviderRow(controller),
               const SizedBox(height: 20),
@@ -245,6 +256,39 @@ class _CloudViewState extends State<CloudView>
           ),
         );
       },
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Search bar
+  // ---------------------------------------------------------------------------
+
+  Widget _buildSearchBar(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: GestureDetector(
+        onTap: () => Routes.routeTo(const MusicSearchPage(), context),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surfaceContainerLow,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.search_rounded,
+                  size: 20,
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.4)),
+              const SizedBox(width: 10),
+              Text('Search songs...',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
+                  )),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
