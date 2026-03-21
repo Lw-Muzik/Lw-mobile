@@ -5,6 +5,7 @@ import '../../Routes/routes.dart';
 import '../../services/music/music_models.dart';
 import '../../services/music/music_player_helper.dart';
 import '../../services/music/music_repository.dart';
+import 'popular_page.dart';
 import 'song_detail_page.dart';
 
 class PopularSection extends StatefulWidget {
@@ -17,11 +18,8 @@ class PopularSection extends StatefulWidget {
 class _PopularSectionState extends State<PopularSection>
     with SingleTickerProviderStateMixin {
   final _repo = MusicRepositoryImpl();
-  final List<MusicSong> _songs = [];
+  List<MusicSong> _songs = [];
   bool _loading = true;
-  bool _loadingMore = false;
-  bool _hasMore = true;
-  int _offset = 0;
   String? _error;
   late AnimationController _shimmerCtrl;
 
@@ -32,7 +30,7 @@ class _PopularSectionState extends State<PopularSection>
       vsync: this,
       duration: const Duration(milliseconds: 1200),
     )..repeat();
-    _loadPage();
+    _load();
   }
 
   @override
@@ -41,30 +39,15 @@ class _PopularSectionState extends State<PopularSection>
     super.dispose();
   }
 
-  Future<void> _loadPage() async {
-    if (_loadingMore) return;
-    setState(() {
-      if (_songs.isEmpty) _loading = true;
-      _loadingMore = true;
-      _error = null;
-    });
+  Future<void> _load() async {
+    setState(() { _loading = true; _error = null; });
 
-    final result = await _repo.fetchPopular(offset: _offset);
+    final result = await _repo.fetchPopular();
     if (!mounted) return;
 
     result.fold(
-      (f) => setState(() {
-        _loading = false;
-        _loadingMore = false;
-        _error = f.message;
-      }),
-      (songs) => setState(() {
-        _loading = false;
-        _loadingMore = false;
-        _songs.addAll(songs);
-        _hasMore = songs.length >= 50;
-        _offset += 55;
-      }),
+      (f) => setState(() { _loading = false; _error = f.message; }),
+      (songs) => setState(() { _loading = false; _songs = songs; }),
     );
   }
 
@@ -86,7 +69,7 @@ class _PopularSectionState extends State<PopularSection>
             Text(_error!, style: theme.textTheme.bodySmall),
             const SizedBox(height: 8),
             TextButton.icon(
-              onPressed: _loadPage,
+              onPressed: _load,
               icon: const Icon(Icons.refresh, size: 18),
               label: const Text('Retry'),
             ),
@@ -97,120 +80,109 @@ class _PopularSectionState extends State<PopularSection>
 
     if (_songs.isEmpty) return const SizedBox.shrink();
 
-    return NotificationListener<ScrollNotification>(
-      onNotification: (notification) {
-        if (notification is ScrollEndNotification &&
-            _hasMore &&
-            !_loadingMore) {
-          final metrics = notification.metrics;
-          if (metrics.pixels >= metrics.maxScrollExtent - 300) {
-            _loadPage();
-          }
-        }
-        return false;
-      },
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+    final previewCount = _songs.length.clamp(0, 5);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+          child: Row(
+            children: [
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primary.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.trending_up_rounded,
+                        color: theme.colorScheme.primary, size: 16),
+                    const SizedBox(width: 4),
+                    Text('POPULAR',
+                        style: TextStyle(
+                          color: theme.colorScheme.primary,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.5,
+                        )),
+                  ],
+                ),
+              ),
+              const Spacer(),
+            ],
+          ),
+        ),
+
+        // Horizontal scroll — top 10 featured
+        SizedBox(
+          height: 190,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            itemCount: _songs.length.clamp(0, 10),
+            itemBuilder: (context, index) {
+              final song = _songs[index];
+              return _PopularCard(
+                song: song,
+                rank: index + 1,
+                onTap: () =>
+                    MusicPlayerHelper.playFromList(context, _songs, index),
+                onLongPress: () => Routes.routeTo(
+                    SongDetailPage(songId: song.id), context),
+              );
+            },
+          ),
+        ),
+
+        const SizedBox(height: 8),
+
+        // Preview list (5 items)
+        ...List.generate(previewCount, (index) {
+          final song = _songs[index];
+          return _PopularTile(
+            song: song,
+            rank: index + 1,
+            onTap: () =>
+                MusicPlayerHelper.playFromList(context, _songs, index),
+            onLongPress: () =>
+                Routes.routeTo(SongDetailPage(songId: song.id), context),
+          );
+        }),
+
+        // View More
+        if (_songs.length > 5)
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-            child: Row(
-              children: [
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.primary.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(6),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
+                onPressed: () =>
+                    Routes.routeTo(const PopularPage(), context),
+                style: OutlinedButton.styleFrom(
+                  side: BorderSide(
+                    color: theme.colorScheme.primary.withValues(alpha: 0.4),
                   ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.trending_up_rounded,
-                          color: theme.colorScheme.primary, size: 16),
-                      const SizedBox(width: 4),
-                      Text('POPULAR',
-                          style: TextStyle(
-                            color: theme.colorScheme.primary,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 0.5,
-                          )),
-                    ],
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
                   ),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
                 ),
-                const Spacer(),
-                Text('${_songs.length} songs',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurface
-                          .withValues(alpha: 0.5),
-                    )),
-              ],
-            ),
-          ),
-
-          // Horizontal scroll — top 10 featured
-          SizedBox(
-            height: 190,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              itemCount: _songs.length.clamp(0, 10),
-              itemBuilder: (context, index) {
-                final song = _songs[index];
-                return _PopularCard(
-                  song: song,
-                  rank: index + 1,
-                  onTap: () =>
-                      MusicPlayerHelper.playFromList(context, _songs, index),
-                  onLongPress: () => Routes.routeTo(
-                      SongDetailPage(songId: song.id), context),
-                );
-              },
-            ),
-          ),
-
-          const SizedBox(height: 8),
-
-          // Full list
-          ...List.generate(_songs.length, (index) {
-            final song = _songs[index];
-            return _PopularTile(
-              song: song,
-              rank: index + 1,
-              onTap: () =>
-                  MusicPlayerHelper.playFromList(context, _songs, index),
-              onLongPress: () =>
-                  Routes.routeTo(SongDetailPage(songId: song.id), context),
-            );
-          }),
-
-          // Load more indicator
-          if (_loadingMore)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 16),
-              child: Center(
-                child: SizedBox(
-                  width: 24,
-                  height: 24,
-                  child: CircularProgressIndicator(strokeWidth: 2),
+                child: Text(
+                  'View More',
+                  style: TextStyle(
+                    color: theme.colorScheme.primary,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                  ),
                 ),
               ),
             ),
-
-          // Load more button if scroll didn't trigger
-          if (_hasMore && !_loadingMore)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-              child: Center(
-                child: TextButton(
-                  onPressed: _loadPage,
-                  child: const Text('Load more'),
-                ),
-              ),
-            ),
-        ],
-      ),
+          ),
+      ],
     );
   }
 }

@@ -8,6 +8,7 @@ import '../../controllers/AppController.dart';
 import '../../player/player_ui.dart';
 import '../../services/hot100/hot100_model.dart';
 import '../../services/hot100/hot100_repository.dart';
+import 'hot100_page.dart';
 
 class Hot100Section extends StatefulWidget {
   const Hot100Section({super.key});
@@ -157,15 +158,44 @@ class _Hot100SectionState extends State<Hot100Section> {
 
         const SizedBox(height: 8),
 
-        // Full list
+        // Preview list (5 items)
         ...List.generate(
-          _songs.length.clamp(0, 50),
+          _songs.length.clamp(0, 5),
           (index) => _Hot100Tile(
             song: _songs[index],
             rank: index + 1,
             onTap: () => _playSong(index),
           ),
         ),
+
+        // View More
+        if (_songs.length > 5)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
+                onPressed: () => Routes.routeTo(const Hot100Page(), context),
+                style: OutlinedButton.styleFrom(
+                  side: BorderSide(
+                    color: const Color(0xFFD4A825).withValues(alpha: 0.4),
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+                child: Text(
+                  'View All ${_songs.length} Songs',
+                  style: const TextStyle(
+                    color: Color(0xFFD4A825),
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+            ),
+          ),
       ],
     );
   }

@@ -5,6 +5,7 @@ import '../../Routes/routes.dart';
 import '../../services/music/music_models.dart';
 import '../../services/music/music_repository.dart';
 import 'artist_detail_page.dart';
+import 'artists_page.dart';
 
 class ArtistsSection extends StatefulWidget {
   const ArtistsSection({super.key});
@@ -42,7 +43,7 @@ class _ArtistsSectionState extends State<ArtistsSection>
       _loading = true;
       _error = null;
     });
-    final result = await _repo.fetchArtists();
+    final result = await _repo.fetchArtists(page: 1);
     if (!mounted) return;
     result.fold(
       (f) => setState(() {
@@ -79,11 +80,14 @@ class _ArtistsSectionState extends State<ArtistsSection>
                   style: theme.textTheme.titleMedium
                       ?.copyWith(fontWeight: FontWeight.w600)),
               const Spacer(),
-              Text('${_artists.length}',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurface
-                        .withValues(alpha: 0.5),
-                  )),
+              GestureDetector(
+                onTap: () => Routes.routeTo(const ArtistsPage(), context),
+                child: Text('View All',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.primary,
+                      fontWeight: FontWeight.w600,
+                    )),
+              ),
             ],
           ),
         ),
