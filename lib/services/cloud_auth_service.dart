@@ -4,7 +4,7 @@ import 'dart:developer' as dev;
 
 import 'package:flutter_appauth/flutter_appauth.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:google_sign_in/google_sign_in.dart';
+import 'package:google_sign_in_platform_interface/google_sign_in_platform_interface.dart';
 import 'package:http/http.dart' as http;
 
 import '../config/app_config.dart';
@@ -12,11 +12,9 @@ import '../config/app_config.dart';
 class CloudAuthService {
   static const _driveScope = 'https://www.googleapis.com/auth/drive.readonly';
 
-  // Google — v6 API
-  final GoogleSignIn _googleSignIn = GoogleSignIn(
-    scopes: [_driveScope],
-  );
-  GoogleSignInAccount? _googleAccount;
+  // Google — v7 platform interface API
+  GoogleSignInUserData? _googleUser;
+  bool _googleInitialized = false;
 
   // Dropbox
   final FlutterAppAuth _appAuth = const FlutterAppAuth();
@@ -28,25 +26,37 @@ class CloudAuthService {
   /// Last error message for UI display.
   String? lastError;
 
-  bool get isGoogleConnected => _googleAccount != null;
+  bool get isGoogleConnected => _googleUser != null;
   bool get isDropboxConnected => _dropboxAccessToken != null;
 
   // --- Google ---
 
+  Future<void> _ensureGoogleInit() async {
+    if (_googleInitialized) return;
+    await GoogleSignInPlatform.instance.init(const InitParameters());
+    _googleInitialized = true;
+  }
+
   Future<bool> signInGoogle() async {
     lastError = null;
     try {
-      _googleAccount = await _googleSignIn.signIn();
+      await _ensureGoogleInit();
 
-      if (_googleAccount == null) {
-        lastError = 'Sign-in cancelled.';
-        return false;
-      }
+      final result = await GoogleSignInPlatform.instance.authenticate(
+        const AuthenticateParameters(),
+      );
 
+      _googleUser = result.user;
       return true;
     } catch (e) {
       final msg = e.toString();
-      if (msg.contains('DEVELOPER_ERROR') || msg.contains('10:')) {
+      if (e is GoogleSignInException) {
+        if (e.code == GoogleSignInExceptionCode.canceled) {
+          lastError = 'Sign-in was cancelled';
+        } else {
+          lastError = 'Google sign-in failed: ${e.description}';
+        }
+      } else if (msg.contains('DEVELOPER_ERROR') || msg.contains('10:')) {
         lastError =
             'OAuth not configured. Add your SHA-1 fingerprint '
             'to Firebase Console and re-download google-services.json.';
@@ -56,40 +66,69 @@ class CloudAuthService {
         lastError = 'Google sign-in failed: $msg';
       }
       dev.log('Google sign-in error: $e', name: 'CloudAuth');
-      _googleAccount = null;
+      _googleUser = null;
       return false;
     }
   }
 
   Future<void> signOutGoogle() async {
-    await _googleSignIn.signOut();
-    _googleAccount = null;
+    try {
+      await _ensureGoogleInit();
+      await GoogleSignInPlatform.instance
+          .signOut(const SignOutParams());
+    } catch (_) {}
+    _googleUser = null;
   }
 
   Future<bool> restoreGoogleSession() async {
     try {
-      _googleAccount = await _googleSignIn.signInSilently();
-      return _googleAccount != null;
+      await _ensureGoogleInit();
+      final result = await GoogleSignInPlatform.instance
+          .attemptLightweightAuthentication(
+              const AttemptLightweightAuthenticationParameters());
+      _googleUser = result?.user;
+      return _googleUser != null;
     } catch (_) {
-      _googleAccount = null;
+      _googleUser = null;
       return false;
     }
   }
 
   Future<Map<String, String>> getGoogleAuthHeaders() async {
-    if (_googleAccount == null) return {};
+    if (_googleUser == null) return {};
     try {
-      final auth = await _googleAccount!.authentication;
-      final token = auth.accessToken;
-      if (token == null) return {};
-      return {'Authorization': 'Bearer $token'};
+      await _ensureGoogleInit();
+      final tokens = await GoogleSignInPlatform.instance
+          .clientAuthorizationTokensForScopes(
+              ClientAuthorizationTokensForScopesParameters(
+                  request: AuthorizationRequestDetails(
+        scopes: const [_driveScope],
+        userId: _googleUser!.id,
+        email: _googleUser!.email,
+        promptIfUnauthorized: false,
+      )));
+      if (tokens == null) return {};
+      return {'Authorization': 'Bearer ${tokens.accessToken}'};
     } catch (_) {
-      // Token might be expired — try silent sign-in to refresh
+      // Token might be expired — try lightweight auth to refresh
       try {
-        _googleAccount = await _googleSignIn.signInSilently();
-        if (_googleAccount == null) return {};
-        final auth = await _googleAccount!.authentication;
-        return {'Authorization': 'Bearer ${auth.accessToken}'};
+        final result = await GoogleSignInPlatform.instance
+            .attemptLightweightAuthentication(
+                const AttemptLightweightAuthenticationParameters());
+        _googleUser = result?.user;
+        if (_googleUser == null) return {};
+
+        final tokens = await GoogleSignInPlatform.instance
+            .clientAuthorizationTokensForScopes(
+                ClientAuthorizationTokensForScopesParameters(
+                    request: AuthorizationRequestDetails(
+          scopes: const [_driveScope],
+          userId: _googleUser!.id,
+          email: _googleUser!.email,
+          promptIfUnauthorized: false,
+        )));
+        if (tokens == null) return {};
+        return {'Authorization': 'Bearer ${tokens.accessToken}'};
       } catch (_) {
         return {};
       }
