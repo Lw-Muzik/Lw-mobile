@@ -8,7 +8,7 @@ import 'music_models.dart';
 
 abstract class MusicRepository {
   Future<Either<Hot100Failure, List<MusicSong>>> fetchPopular({int offset = 0});
-  Future<Either<Hot100Failure, List<MusicArtist>>> fetchArtists({int? page});
+  Future<Either<Hot100Failure, List<MusicArtist>>> fetchArtists({int? page, String? query});
   Future<Either<Hot100Failure, List<MusicSong>>> search(String query);
   Future<Either<Hot100Failure, MusicSongDetail>> fetchSongDetail(String id);
   Future<Either<Hot100Failure, MusicArtistDetail>> fetchArtistDetail(
@@ -44,10 +44,11 @@ class MusicRepositoryImpl implements MusicRepository {
   }
 
   @override
-  Future<Either<Hot100Failure, List<MusicArtist>>> fetchArtists({int? page}) async {
+  Future<Either<Hot100Failure, List<MusicArtist>>> fetchArtists({int? page, String? query}) async {
     try {
       final response = await _dio.get('/api/v1/music/artists', queryParameters: {
         if (page != null) 'page': page,
+        if (query != null && query.isNotEmpty) 'q': query,
       });
       final data = response.data;
       if (data is! Map || !data.containsKey('artists')) {

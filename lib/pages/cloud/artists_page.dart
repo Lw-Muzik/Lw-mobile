@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
@@ -17,6 +18,7 @@ class _ArtistsPageState extends State<ArtistsPage>
     with SingleTickerProviderStateMixin {
   final _repo = MusicRepositoryImpl();
   final _scrollController = ScrollController();
+  final _searchController = TextEditingController();
   final List<MusicArtist> _artists = [];
 
   int _page = 1;
@@ -24,6 +26,8 @@ class _ArtistsPageState extends State<ArtistsPage>
   bool _loadingMore = false;
   bool _hasMore = true;
   String? _error;
+  String _searchQuery = '';
+  Timer? _debounce;
   late AnimationController _shimmerCtrl;
 
   @override
@@ -41,11 +45,13 @@ class _ArtistsPageState extends State<ArtistsPage>
   void dispose() {
     _shimmerCtrl.dispose();
     _scrollController.dispose();
+    _searchController.dispose();
+    _debounce?.cancel();
     super.dispose();
   }
 
   void _onScroll() {
-    if (_loadingMore || !_hasMore) return;
+    if (_loadingMore || !_hasMore || _searchQuery.isNotEmpty) return;
     final maxScroll = _scrollController.position.maxScrollExtent;
     final currentScroll = _scrollController.position.pixels;
     if (currentScroll >= maxScroll - 200) {
@@ -53,8 +59,35 @@ class _ArtistsPageState extends State<ArtistsPage>
     }
   }
 
+  void _onSearchChanged(String value) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 400), () {
+      if (value.trim() == _searchQuery) return;
+      setState(() {
+        _searchQuery = value.trim();
+        _artists.clear();
+        _page = 1;
+        _hasMore = true;
+        _loading = true;
+      });
+      _loadPage();
+    });
+  }
+
+  void _clearSearch() {
+    _searchController.clear();
+    setState(() {
+      _searchQuery = '';
+      _artists.clear();
+      _page = 1;
+      _hasMore = true;
+      _loading = true;
+    });
+    _loadPage();
+  }
+
   Future<void> _loadPage() async {
-    if (_loadingMore) return;
+    if (_loadingMore && !_loading) return;
 
     setState(() {
       if (_page == 1) {
@@ -65,7 +98,10 @@ class _ArtistsPageState extends State<ArtistsPage>
       }
     });
 
-    final result = await _repo.fetchArtists(page: _page);
+    final result = await _repo.fetchArtists(
+      page: _searchQuery.isEmpty ? _page : null,
+      query: _searchQuery.isNotEmpty ? _searchQuery : null,
+    );
     if (!mounted) return;
 
     result.fold(
@@ -83,6 +119,8 @@ class _ArtistsPageState extends State<ArtistsPage>
           _artists.addAll(artists);
           _page++;
         }
+        // Search results come as a single filtered list — no pagination
+        if (_searchQuery.isNotEmpty) _hasMore = false;
       }),
     );
   }
@@ -100,7 +138,42 @@ class _ArtistsPageState extends State<ArtistsPage>
 
     return Scaffold(
       appBar: AppBar(title: const Text('Artists')),
-      body: _buildBody(theme),
+      body: Column(
+        children: [
+          // Search bar
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+            child: TextField(
+              controller: _searchController,
+              onChanged: _onSearchChanged,
+              decoration: InputDecoration(
+                hintText: 'Search artists...',
+                hintStyle: TextStyle(
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
+                ),
+                prefixIcon: Icon(Icons.search_rounded,
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.4)),
+                suffixIcon: _searchQuery.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear_rounded, size: 20),
+                        onPressed: _clearSearch,
+                      )
+                    : null,
+                filled: true,
+                fillColor: theme.colorScheme.surfaceContainerLow,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+                contentPadding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+            ),
+          ),
+
+          // Body
+          Expanded(child: _buildBody(theme)),
+        ],
+      ),
     );
   }
 
@@ -140,11 +213,26 @@ class _ArtistsPageState extends State<ArtistsPage>
 
     if (_artists.isEmpty) {
       return Center(
-        child: Text(
-          'No artists found',
-          style: theme.textTheme.bodyMedium?.copyWith(
-            color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
-          ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              _searchQuery.isNotEmpty
+                  ? Icons.search_off_rounded
+                  : Icons.people_outline_rounded,
+              size: 48,
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.3),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              _searchQuery.isNotEmpty
+                  ? 'No artists matching "$_searchQuery"'
+                  : 'No artists found',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+              ),
+            ),
+          ],
         ),
       );
     }
@@ -161,8 +249,8 @@ class _ArtistsPageState extends State<ArtistsPage>
       itemCount: _artists.length + (_loadingMore ? 3 : 0),
       itemBuilder: (context, index) {
         if (index >= _artists.length) {
-          final off = (_shimmerCtrl.value + (index - _artists.length) * 0.1) % 1.0;
-          final theme = Theme.of(context);
+          final off =
+              (_shimmerCtrl.value + (index - _artists.length) * 0.1) % 1.0;
           return AnimatedBuilder(
             animation: _shimmerCtrl,
             builder: (context, _) => _ArtistSkeletonTile(
