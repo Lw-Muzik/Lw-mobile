@@ -31,8 +31,9 @@ target 'Runner' do
 
   flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
 
-  # Force AppAuth to 1.7.5 to resolve conflict between
-  # flutter_appauth (wants 2.0.0) and google_sign_in_ios (wants < 2.0)
+  # AppAuth: flutter_appauth requires 2.0.0, google_sign_in_ios requires >= 1.7.4
+  # google_sign_in pins GoogleSignIn ~> 8.0 which caps AppAuth < 2.0
+  # Upgrade google_sign_in to ^7.x (GoogleSignIn 8.1+) to resolve
   pod 'AppAuth', '~> 1.7.5'
 
   # Local C++ DSP engine pod
