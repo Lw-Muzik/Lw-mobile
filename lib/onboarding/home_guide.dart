@@ -20,31 +20,38 @@ class _HomeGuideState extends State<HomeGuide>
 
   static const _tips = [
     _GuideTip(
-      title: 'Browse Your Music',
+      title: 'Discover Music',
       message:
-          'Swipe between tabs to explore Artists, Albums, Genres, Songs, and Cloud music.',
+          'The Discover tab has trending charts, popular songs, and artists to explore and stream.',
+      icon: Icons.explore_rounded,
+      alignment: Alignment.center,
+    ),
+    _GuideTip(
+      title: 'Browse Your Library',
+      message:
+          'Swipe between tabs for Artists, Albums, Genres, Songs, and Cloud storage.',
       icon: Icons.swipe_rounded,
       alignment: Alignment.center,
     ),
     _GuideTip(
       title: 'Now Playing',
       message:
-          'Tap any song to start playing. The mini player appears at the bottom.',
+          'Tap any song to play. The mini player appears at the bottom — tap it to expand.',
       icon: Icons.play_circle_rounded,
       alignment: Alignment.bottomCenter,
     ),
     _GuideTip(
-      title: 'Player Controls',
+      title: 'Player Features',
       message:
-          'In the player, find EQ, Lyrics, Visualizer, Queue, and Track ID at the bottom.',
+          'In the player: EQ, Lyrics, Visualizer, Queue, and Track ID. Swipe cards to change tracks.',
       icon: Icons.tune_rounded,
       alignment: Alignment.center,
     ),
     _GuideTip(
-      title: 'Swipe for More',
+      title: 'Cloud & Streaming',
       message:
-          'Swipe cards left/right to change tracks. Swipe up on artwork for lyrics.',
-      icon: Icons.touch_app_rounded,
+          'Connect Google Drive or Dropbox in Settings. Enable Data Saver to reduce cellular usage.',
+      icon: Icons.cloud_rounded,
       alignment: Alignment.center,
     ),
   ];

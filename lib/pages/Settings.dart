@@ -6,9 +6,11 @@ import '/controllers/AppController.dart';
 import '/widgets/Body.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wiredash/wiredash.dart';
 
 import '../models/eq_models.dart';
+import '../onboarding/interactions_guide.dart';
 import '../services/streaming_data_guard.dart';
 
 import '/Helpers/AudioHandler.dart';
@@ -1162,6 +1164,33 @@ class _SettingsState extends State<Settings> {
             subtitle: const Text("All you need to know about Hype Music"),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => _showAboutAppDialog(context),
+          ),
+          const Divider(height: 1, indent: 16, endIndent: 16),
+          ListTile(
+            title: const Text("Interactions Guide"),
+            subtitle: const Text("Gestures, shortcuts & tips"),
+            trailing: const Icon(Icons.touch_app_rounded),
+            onTap: () => Routes.routeTo(const InteractionsGuide(), context),
+          ),
+          const Divider(height: 1, indent: 16, endIndent: 16),
+          ListTile(
+            title: const Text("Reset Guides"),
+            subtitle: const Text("Show onboarding & tips again"),
+            trailing: const Icon(Icons.restart_alt_rounded),
+            onTap: () async {
+              final prefs = await SharedPreferences.getInstance();
+              await prefs.remove('onboarding_complete');
+              await prefs.remove('home_guide_shown');
+              await prefs.remove('interactions_guide_shown');
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Guides will show on next launch'),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              }
+            },
           ),
           const Divider(height: 1, indent: 16, endIndent: 16),
           ListTile(
