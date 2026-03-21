@@ -13,7 +13,8 @@ class ArtistsPage extends StatefulWidget {
   State<ArtistsPage> createState() => _ArtistsPageState();
 }
 
-class _ArtistsPageState extends State<ArtistsPage> {
+class _ArtistsPageState extends State<ArtistsPage>
+    with SingleTickerProviderStateMixin {
   final _repo = MusicRepositoryImpl();
   final _scrollController = ScrollController();
   final List<MusicArtist> _artists = [];
@@ -23,16 +24,22 @@ class _ArtistsPageState extends State<ArtistsPage> {
   bool _loadingMore = false;
   bool _hasMore = true;
   String? _error;
+  late AnimationController _shimmerCtrl;
 
   @override
   void initState() {
     super.initState();
+    _shimmerCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat();
     _scrollController.addListener(_onScroll);
     _loadPage();
   }
 
   @override
   void dispose() {
+    _shimmerCtrl.dispose();
     _scrollController.dispose();
     super.dispose();
   }
@@ -99,7 +106,7 @@ class _ArtistsPageState extends State<ArtistsPage> {
 
   Widget _buildBody(ThemeData theme) {
     if (_loading) {
-      return const Center(child: CircularProgressIndicator());
+      return _ArtistGridSkeleton(controller: _shimmerCtrl);
     }
 
     if (_error != null && _artists.isEmpty) {
@@ -151,13 +158,17 @@ class _ArtistsPageState extends State<ArtistsPage> {
         crossAxisSpacing: 12,
         childAspectRatio: 0.75,
       ),
-      itemCount: _artists.length + (_hasMore ? 1 : 0),
+      itemCount: _artists.length + (_loadingMore ? 3 : 0),
       itemBuilder: (context, index) {
         if (index >= _artists.length) {
-          return const Center(
-            child: Padding(
-              padding: EdgeInsets.all(16),
-              child: CircularProgressIndicator(strokeWidth: 2),
+          final off = (_shimmerCtrl.value + (index - _artists.length) * 0.1) % 1.0;
+          final theme = Theme.of(context);
+          return AnimatedBuilder(
+            animation: _shimmerCtrl,
+            builder: (context, _) => _ArtistSkeletonTile(
+              offset: off,
+              base: theme.colorScheme.surfaceContainerHighest,
+              highlight: theme.colorScheme.surfaceContainerLow,
             ),
           );
         }
@@ -179,6 +190,90 @@ class _ArtistsPageState extends State<ArtistsPage> {
           },
         );
       },
+    );
+  }
+}
+
+// =============================================================================
+// Skeleton loaders
+// =============================================================================
+
+class _ArtistGridSkeleton extends StatelessWidget {
+  final AnimationController controller;
+  const _ArtistGridSkeleton({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final base = theme.colorScheme.surfaceContainerHighest;
+    final highlight = theme.colorScheme.surfaceContainerLow;
+
+    return AnimatedBuilder(
+      animation: controller,
+      builder: (context, _) {
+        return GridView.builder(
+          physics: const NeverScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(16),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 3,
+            mainAxisSpacing: 16,
+            crossAxisSpacing: 12,
+            childAspectRatio: 0.75,
+          ),
+          itemCount: 12,
+          itemBuilder: (_, i) {
+            final off = (controller.value + i * 0.06) % 1.0;
+            return _ArtistSkeletonTile(
+                offset: off, base: base, highlight: highlight);
+          },
+        );
+      },
+    );
+  }
+}
+
+class _ArtistSkeletonTile extends StatelessWidget {
+  final double offset;
+  final Color base, highlight;
+  const _ArtistSkeletonTile({
+    required this.offset,
+    required this.base,
+    required this.highlight,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 80,
+          height: 80,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: LinearGradient(
+              colors: [base, highlight, base],
+              stops: const [0.0, 0.5, 1.0],
+              begin: Alignment(-1.0 + 2.0 * offset, 0),
+              end: Alignment(1.0 + 2.0 * offset, 0),
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          width: 60,
+          height: 12,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(4),
+            gradient: LinearGradient(
+              colors: [base, highlight, base],
+              stops: const [0.0, 0.5, 1.0],
+              begin: Alignment(-1.0 + 2.0 * offset, 0),
+              end: Alignment(1.0 + 2.0 * offset, 0),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

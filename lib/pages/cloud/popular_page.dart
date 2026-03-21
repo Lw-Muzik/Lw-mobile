@@ -14,7 +14,8 @@ class PopularPage extends StatefulWidget {
   State<PopularPage> createState() => _PopularPageState();
 }
 
-class _PopularPageState extends State<PopularPage> {
+class _PopularPageState extends State<PopularPage>
+    with SingleTickerProviderStateMixin {
   final _repo = MusicRepositoryImpl();
   final _scrollController = ScrollController();
   final List<MusicSong> _songs = [];
@@ -23,16 +24,22 @@ class _PopularPageState extends State<PopularPage> {
   bool _hasMore = true;
   int _offset = 0;
   String? _error;
+  late AnimationController _shimmerCtrl;
 
   @override
   void initState() {
     super.initState();
+    _shimmerCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat();
     _scrollController.addListener(_onScroll);
     _loadPage();
   }
 
   @override
   void dispose() {
+    _shimmerCtrl.dispose();
     _scrollController.dispose();
     super.dispose();
   }
@@ -126,13 +133,7 @@ class _PopularPageState extends State<PopularPage> {
 
   Widget _buildBody(ThemeData theme) {
     if (_loading) {
-      return const Center(
-        child: SizedBox(
-          width: 32,
-          height: 32,
-          child: CircularProgressIndicator(strokeWidth: 2.5),
-        ),
-      );
+      return _SongListSkeleton(controller: _shimmerCtrl);
     }
 
     if (_error != null && _songs.isEmpty) {
@@ -173,30 +174,10 @@ class _PopularPageState extends State<PopularPage> {
     return ListView.builder(
       controller: _scrollController,
       padding: const EdgeInsets.only(top: 8, bottom: 32),
-      itemCount: _songs.length + (_loadingMore || _hasMore ? 1 : 0),
+      itemCount: _songs.length + (_loadingMore ? 1 : 0),
       itemBuilder: (context, index) {
         if (index >= _songs.length) {
-          if (_loadingMore) {
-            return const Padding(
-              padding: EdgeInsets.symmetric(vertical: 16),
-              child: Center(
-                child: SizedBox(
-                  width: 24,
-                  height: 24,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-              ),
-            );
-          }
-          return Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-            child: Center(
-              child: TextButton(
-                onPressed: _loadPage,
-                child: const Text('Load more'),
-              ),
-            ),
-          );
+          return _LoadMoreSkeleton(controller: _shimmerCtrl);
         }
 
         final song = _songs[index];
@@ -214,7 +195,110 @@ class _PopularPageState extends State<PopularPage> {
 }
 
 // =============================================================================
-// Song tile widget (matches PopularSection._PopularTile)
+// Skeleton loaders
+// =============================================================================
+
+class _SongListSkeleton extends StatelessWidget {
+  final AnimationController controller;
+  const _SongListSkeleton({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final base = theme.colorScheme.surfaceContainerHighest;
+    final highlight = theme.colorScheme.surfaceContainerLow;
+
+    return AnimatedBuilder(
+      animation: controller,
+      builder: (context, _) {
+        return ListView.builder(
+          physics: const NeverScrollableScrollPhysics(),
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          itemCount: 12,
+          itemBuilder: (_, i) {
+            final off = (controller.value + i * 0.06) % 1.0;
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+              child: Row(
+                children: [
+                  _ShimmerBox(width: 28, height: 14, offset: off,
+                      base: base, highlight: highlight),
+                  const SizedBox(width: 10),
+                  _ShimmerBox(width: 44, height: 44, radius: 6, offset: off,
+                      base: base, highlight: highlight),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _ShimmerBox(width: 140, height: 12, offset: off,
+                            base: base, highlight: highlight),
+                        const SizedBox(height: 6),
+                        _ShimmerBox(width: 90, height: 10, offset: off,
+                            base: base, highlight: highlight),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+class _LoadMoreSkeleton extends StatelessWidget {
+  final AnimationController controller;
+  const _LoadMoreSkeleton({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final base = theme.colorScheme.surfaceContainerHighest;
+    final highlight = theme.colorScheme.surfaceContainerLow;
+
+    return AnimatedBuilder(
+      animation: controller,
+      builder: (context, _) {
+        return Column(
+          children: List.generate(3, (i) {
+            final off = (controller.value + i * 0.08) % 1.0;
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+              child: Row(
+                children: [
+                  _ShimmerBox(width: 28, height: 14, offset: off,
+                      base: base, highlight: highlight),
+                  const SizedBox(width: 10),
+                  _ShimmerBox(width: 44, height: 44, radius: 6, offset: off,
+                      base: base, highlight: highlight),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _ShimmerBox(width: 140, height: 12, offset: off,
+                            base: base, highlight: highlight),
+                        const SizedBox(height: 6),
+                        _ShimmerBox(width: 90, height: 10, offset: off,
+                            base: base, highlight: highlight),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+        );
+      },
+    );
+  }
+}
+
+// =============================================================================
+// Song tile widget
 // =============================================================================
 
 class _PopularTile extends StatelessWidget {
@@ -300,6 +384,43 @@ class _PopularTile extends StatelessWidget {
                 size: 24,
                 color: theme.colorScheme.onSurface.withValues(alpha: 0.3)),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+// =============================================================================
+// Shimmer box (reusable)
+// =============================================================================
+
+class _ShimmerBox extends StatelessWidget {
+  final double width, height;
+  final double radius;
+  final double offset;
+  final Color base, highlight;
+
+  const _ShimmerBox({
+    required this.width,
+    required this.height,
+    this.radius = 4,
+    required this.offset,
+    required this.base,
+    required this.highlight,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(radius),
+        gradient: LinearGradient(
+          colors: [base, highlight, base],
+          stops: const [0.0, 0.5, 1.0],
+          begin: Alignment(-1.0 + 2.0 * offset, 0),
+          end: Alignment(1.0 + 2.0 * offset, 0),
         ),
       ),
     );

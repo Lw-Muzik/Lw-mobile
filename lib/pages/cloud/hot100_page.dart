@@ -16,16 +16,28 @@ class Hot100Page extends StatefulWidget {
   State<Hot100Page> createState() => _Hot100PageState();
 }
 
-class _Hot100PageState extends State<Hot100Page> {
+class _Hot100PageState extends State<Hot100Page>
+    with SingleTickerProviderStateMixin {
   final _repo = Hot100RepositoryImpl();
   List<Hot100Song> _songs = [];
   bool _loading = true;
   String? _error;
+  late AnimationController _shimmerCtrl;
 
   @override
   void initState() {
     super.initState();
+    _shimmerCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat();
     _loadChart();
+  }
+
+  @override
+  void dispose() {
+    _shimmerCtrl.dispose();
+    super.dispose();
   }
 
   Future<void> _loadChart() async {
@@ -105,7 +117,7 @@ class _Hot100PageState extends State<Hot100Page> {
 
   Widget _buildBody(ThemeData theme) {
     if (_loading) {
-      return const Center(child: CircularProgressIndicator.adaptive());
+      return _SongListSkeleton(controller: _shimmerCtrl);
     }
 
     if (_error != null) {
@@ -215,6 +227,94 @@ class _Hot100PageState extends State<Hot100Page> {
           ),
         );
       },
+    );
+  }
+}
+
+// =============================================================================
+// Skeleton loader for song list pages
+// =============================================================================
+
+class _SongListSkeleton extends StatelessWidget {
+  final AnimationController controller;
+  const _SongListSkeleton({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final base = theme.colorScheme.surfaceContainerHighest;
+    final highlight = theme.colorScheme.surfaceContainerLow;
+
+    return AnimatedBuilder(
+      animation: controller,
+      builder: (context, _) {
+        return ListView.builder(
+          physics: const NeverScrollableScrollPhysics(),
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          itemCount: 12,
+          itemBuilder: (_, i) {
+            final off = (controller.value + i * 0.06) % 1.0;
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+              child: Row(
+                children: [
+                  _ShimmerBox(width: 28, height: 14, offset: off,
+                      base: base, highlight: highlight),
+                  const SizedBox(width: 10),
+                  _ShimmerBox(width: 44, height: 44, radius: 6, offset: off,
+                      base: base, highlight: highlight),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _ShimmerBox(width: 140, height: 12, offset: off,
+                            base: base, highlight: highlight),
+                        const SizedBox(height: 6),
+                        _ShimmerBox(width: 90, height: 10, offset: off,
+                            base: base, highlight: highlight),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+class _ShimmerBox extends StatelessWidget {
+  final double width, height;
+  final double radius;
+  final double offset;
+  final Color base, highlight;
+
+  const _ShimmerBox({
+    required this.width,
+    required this.height,
+    this.radius = 4,
+    required this.offset,
+    required this.base,
+    required this.highlight,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(radius),
+        gradient: LinearGradient(
+          colors: [base, highlight, base],
+          stops: const [0.0, 0.5, 1.0],
+          begin: Alignment(-1.0 + 2.0 * offset, 0),
+          end: Alignment(1.0 + 2.0 * offset, 0),
+        ),
+      ),
     );
   }
 }

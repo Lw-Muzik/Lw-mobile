@@ -17,16 +17,28 @@ class Hot100Section extends StatefulWidget {
   State<Hot100Section> createState() => _Hot100SectionState();
 }
 
-class _Hot100SectionState extends State<Hot100Section> {
+class _Hot100SectionState extends State<Hot100Section>
+    with SingleTickerProviderStateMixin {
   final _repo = Hot100RepositoryImpl();
   List<Hot100Song> _songs = [];
   bool _loading = true;
   String? _error;
+  late AnimationController _shimmerCtrl;
 
   @override
   void initState() {
     super.initState();
+    _shimmerCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat();
     _loadChart();
+  }
+
+  @override
+  void dispose() {
+    _shimmerCtrl.dispose();
+    super.dispose();
   }
 
   Future<void> _loadChart() async {
@@ -67,10 +79,7 @@ class _Hot100SectionState extends State<Hot100Section> {
     final theme = Theme.of(context);
 
     if (_loading) {
-      return const SizedBox(
-        height: 200,
-        child: Center(child: CircularProgressIndicator.adaptive()),
-      );
+      return _Hot100Skeleton(controller: _shimmerCtrl);
     }
 
     if (_error != null) {
@@ -355,6 +364,134 @@ class _Hot100Tile extends StatelessWidget {
             Icon(Icons.play_circle_outline_rounded, size: 24,
                 color: theme.colorScheme.onSurface.withValues(alpha: 0.3)),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+// =============================================================================
+// Skeleton loader
+// =============================================================================
+
+class _Hot100Skeleton extends StatelessWidget {
+  final AnimationController controller;
+  const _Hot100Skeleton({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final base = theme.colorScheme.surfaceContainerHighest;
+    final highlight = theme.colorScheme.surfaceContainerLow;
+
+    return AnimatedBuilder(
+      animation: controller,
+      builder: (context, _) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+              child: _ShimmerBar(
+                  width: 160, height: 24, offset: controller.value,
+                  base: base, highlight: highlight),
+            ),
+            // Horizontal cards
+            SizedBox(
+              height: 190,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                physics: const NeverScrollableScrollPhysics(),
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                itemCount: 4,
+                itemBuilder: (_, i) {
+                  final off = (controller.value + i * 0.1) % 1.0;
+                  return Container(
+                    width: 140,
+                    margin: const EdgeInsets.symmetric(horizontal: 4),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _ShimmerBar(width: 140, height: 140, radius: 10,
+                            offset: off, base: base, highlight: highlight),
+                        const SizedBox(height: 6),
+                        _ShimmerBar(width: 100, height: 12, offset: off,
+                            base: base, highlight: highlight),
+                        const SizedBox(height: 4),
+                        _ShimmerBar(width: 70, height: 10, offset: off,
+                            base: base, highlight: highlight),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 8),
+            // List tiles
+            ...List.generate(5, (i) {
+              final off = (controller.value + i * 0.08) % 1.0;
+              return Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                child: Row(
+                  children: [
+                    _ShimmerBar(width: 28, height: 14, offset: off,
+                        base: base, highlight: highlight),
+                    const SizedBox(width: 10),
+                    _ShimmerBar(width: 44, height: 44, radius: 6,
+                        offset: off, base: base, highlight: highlight),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _ShimmerBar(width: 140, height: 12, offset: off,
+                              base: base, highlight: highlight),
+                          const SizedBox(height: 4),
+                          _ShimmerBar(width: 90, height: 10, offset: off,
+                              base: base, highlight: highlight),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _ShimmerBar extends StatelessWidget {
+  final double width, height;
+  final double radius;
+  final double offset;
+  final Color base, highlight;
+
+  const _ShimmerBar({
+    required this.width,
+    required this.height,
+    this.radius = 4,
+    required this.offset,
+    required this.base,
+    required this.highlight,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(radius),
+        gradient: LinearGradient(
+          colors: [base, highlight, base],
+          stops: const [0.0, 0.5, 1.0],
+          begin: Alignment(-1.0 + 2.0 * offset, 0),
+          end: Alignment(1.0 + 2.0 * offset, 0),
         ),
       ),
     );

@@ -65,22 +65,22 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
         CloudView(),
       ];
     } else {
-      // iOS: no Folders (no filesystem access), no Playlists (unsupported)
+      // iOS: Discover first, no Folders/Playlists (unsupported)
       _tabDefs = const [
+        _TabDef(Icons.explore_rounded, 'Discover'),
+        _TabDef(Icons.cloud_rounded, 'Cloud'),
         _TabDef(Icons.person_rounded, 'Artists'),
         _TabDef(Icons.album_rounded, 'Albums'),
         _TabDef(Icons.category_rounded, 'Genres'),
         _TabDef(Icons.music_note_rounded, 'Songs'),
-        _TabDef(Icons.explore_rounded, 'Discover'),
-        _TabDef(Icons.cloud_rounded, 'Cloud'),
       ];
       _tabViews = const [
+        DiscoverView(),
+        CloudView(),
         Artists(),
         Albums(),
         Genres(),
         AllSongs(),
-        DiscoverView(),
-        CloudView(),
       ];
     }
 
