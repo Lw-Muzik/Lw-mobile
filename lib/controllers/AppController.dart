@@ -928,8 +928,12 @@ class AppController with ChangeNotifier {
 
   /// Build and load a queue for gapless playback.
   /// Cached cloud tracks play from disk; uncached ones stream with auth headers.
+  bool _loadingQueue = false;
   Future<void> loadGaplessQueue(int startIndex) async {
     if (songs.isEmpty) return;
+    // If already loading, the new call will interrupt the old one in just_audio.
+    // That's fine — just_audio handles cancellation gracefully.
+    _loadingQueue = true;
     final sources = <AudioSource>[];
 
     // Get auth headers once (reused for all cloud tracks of same provider)
@@ -969,9 +973,16 @@ class AppController with ChangeNotifier {
         }
       }
     }
-    await handler.player.setAudioSources(sources, initialIndex: startIndex);
-    await _updateMediaItemForIndex(startIndex);
-    handler.player.play();
+    try {
+      await handler.player.setAudioSources(sources, initialIndex: startIndex);
+      await _updateMediaItemForIndex(startIndex);
+      handler.player.play();
+    } catch (e) {
+      // "Loading interrupted" — a newer load replaced this one; safe to ignore
+      debugPrint('Gapless queue load: $e');
+    } finally {
+      _loadingQueue = false;
+    }
   }
 
   void _loadSettings() {

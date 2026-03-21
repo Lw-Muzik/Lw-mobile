@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'coach_marks.dart';
 
 /// A one-time overlay guide shown on the home screen after onboarding.
 /// Highlights key areas with a semi-transparent backdrop and floating tips.
@@ -70,7 +71,9 @@ class _HomeGuideState extends State<HomeGuide>
   Future<void> _checkShouldShow() async {
     final prefs = await SharedPreferences.getInstance();
     final shown = prefs.getBool('home_guide_shown') ?? false;
-    if (!shown && mounted) {
+    // Don't show if coach marks walkthrough is active (it replaces this)
+    final coachShown = await CoachMarkController.hasBeenShown();
+    if (!shown && coachShown && mounted) {
       setState(() => _show = true);
       _fadeController.forward();
     }

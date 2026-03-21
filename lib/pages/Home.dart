@@ -16,6 +16,7 @@ import '/widgets/Body.dart';
 import '/widgets/BottomPlayer.dart';
 import '../Helpers/Channel.dart';
 import '../controllers/AppController.dart';
+import '../onboarding/coach_marks.dart';
 import '../onboarding/home_guide.dart';
 
 class Home extends StatefulWidget {
@@ -37,6 +38,12 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
   late final List<Widget> _tabViews;
 
   bool _initialized = false;
+
+  // Coach marks — GlobalKeys for walkthrough targets
+  final _searchKey = GlobalKey();
+  final _tabBarKey = GlobalKey();
+  final _menuKey = GlobalKey();
+  final _coachController = CoachMarkController();
 
   @override
   void initState() {
@@ -101,6 +108,76 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
     if (_isAndroid) {
       await _loadAndroidSettings();
     }
+    _tryShowCoachMarks();
+  }
+
+  Future<void> _tryShowCoachMarks() async {
+    final shown = await CoachMarkController.hasBeenShown();
+    if (shown || !mounted) return;
+
+    // Wait for layout to fully settle (tabs need ScrollPosition ready)
+    await Future.delayed(const Duration(milliseconds: 1500));
+    if (!mounted) return;
+
+    final discoverTabIndex =
+        _tabDefs.indexWhere((t) => t.label == 'Discover');
+    final songsTabIndex =
+        _tabDefs.indexWhere((t) => t.label == 'Songs');
+
+    void safeAnimateTab(int index) {
+      if (!mounted) return;
+      try {
+        _tabController.animateTo(index);
+      } catch (_) {
+        // TabBar not ready yet — ignore
+      }
+    }
+
+    _coachController.start(context, [
+      CoachStep(
+        targetKey: _tabBarKey,
+        title: 'Your Music Tabs',
+        description:
+            'Swipe or tap tabs to browse your library — Discover, Artists, Albums, and more.',
+        icon: Icons.tab_rounded,
+        tooltipPosition: TooltipPosition.below,
+      ),
+      if (discoverTabIndex >= 0)
+        CoachStep(
+          targetKey: _tabBarKey,
+          title: 'Discover New Music',
+          description:
+              'Tap the Discover tab to explore trending charts, popular songs, and artists.',
+          icon: Icons.explore_rounded,
+          tooltipPosition: TooltipPosition.below,
+          onShow: () => safeAnimateTab(discoverTabIndex),
+        ),
+      if (songsTabIndex >= 0)
+        CoachStep(
+          targetKey: _tabBarKey,
+          title: 'Your Songs',
+          description:
+              'Tap any song to play it. A mini player appears at the bottom.',
+          icon: Icons.music_note_rounded,
+          tooltipPosition: TooltipPosition.below,
+          onShow: () => safeAnimateTab(songsTabIndex),
+        ),
+      CoachStep(
+        targetKey: _searchKey,
+        title: 'Search',
+        description: 'Tap here to search across your entire music library.',
+        icon: Icons.search_rounded,
+        tooltipPosition: TooltipPosition.below,
+      ),
+      CoachStep(
+        targetKey: _menuKey,
+        title: 'Settings & EQ',
+        description:
+            'Open the menu for Settings, Equalizer, Visualizer, and more.',
+        icon: Icons.menu_rounded,
+        tooltipPosition: TooltipPosition.below,
+      ),
+    ]);
   }
 
   Future<void> _loadAndroidSettings() async {
@@ -116,6 +193,7 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
 
   @override
   void dispose() {
+    _coachController.dispose();
     _tabController.dispose();
     super.dispose();
   }
@@ -163,6 +241,7 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
         title: Row(
           children: [
             IconButton(
+              key: _menuKey,
               icon: const Icon(Icons.menu_rounded),
               onPressed: () {
                 context.read<DrawerProvider>().toggleDrawer();
@@ -183,6 +262,7 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
       ),
       actions: [
         _buildActionButton(
+          key: _searchKey,
           icon: Icons.search_rounded,
           onPressed: _handleSearch,
         ),
@@ -204,12 +284,14 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
   }
 
   Widget _buildActionButton({
+    Key? key,
     required IconData icon,
     required VoidCallback onPressed,
   }) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 2),
       child: IconButton(
+        key: key,
         onPressed: onPressed,
         icon: Icon(icon, size: 22),
         style: IconButton.styleFrom(
@@ -224,6 +306,7 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
     return Container(
       alignment: Alignment.centerLeft,
       child: TabBar(
+        key: _tabBarKey,
         controller: _tabController,
         isScrollable: true,
         tabAlignment: TabAlignment.start,

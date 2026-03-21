@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wiredash/wiredash.dart';
 
 import '../models/eq_models.dart';
+import '../onboarding/coach_marks.dart';
 import '../onboarding/interactions_guide.dart';
 import '../services/streaming_data_guard.dart';
 
@@ -1182,6 +1183,7 @@ class _SettingsState extends State<Settings> {
               await prefs.remove('onboarding_complete');
               await prefs.remove('home_guide_shown');
               await prefs.remove('interactions_guide_shown');
+              await CoachMarkController.reset();
               if (context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
