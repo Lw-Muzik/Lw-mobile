@@ -18,13 +18,25 @@ class _PopularPageState extends State<PopularPage>
     with SingleTickerProviderStateMixin {
   final _repo = MusicRepositoryImpl();
   final _scrollController = ScrollController();
+  final _searchController = TextEditingController();
   final List<MusicSong> _songs = [];
   bool _loading = true;
   bool _loadingMore = false;
   bool _hasMore = true;
   int _offset = 0;
   String? _error;
+  String _searchQuery = '';
   late AnimationController _shimmerCtrl;
+
+  List<MusicSong> get _filtered {
+    if (_searchQuery.isEmpty) return _songs;
+    final q = _searchQuery.toLowerCase();
+    return _songs
+        .where((s) =>
+            s.title.toLowerCase().contains(q) ||
+            s.artist.toLowerCase().contains(q))
+        .toList();
+  }
 
   @override
   void initState() {
@@ -41,10 +53,12 @@ class _PopularPageState extends State<PopularPage>
   void dispose() {
     _shimmerCtrl.dispose();
     _scrollController.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
   void _onScroll() {
+    if (_searchQuery.isNotEmpty) return; // no pagination while filtering
     if (_hasMore &&
         !_loadingMore &&
         _scrollController.position.pixels >=
@@ -118,16 +132,54 @@ class _PopularPageState extends State<PopularPage>
             Padding(
               padding: const EdgeInsets.only(right: 16),
               child: Center(
-                child: Text('${_songs.length} songs',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color:
-                          theme.colorScheme.onSurface.withValues(alpha: 0.5),
-                    )),
+                child: Text(
+                  _searchQuery.isEmpty
+                      ? '${_songs.length} songs'
+                      : '${_filtered.length} of ${_songs.length}',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                  ),
+                ),
               ),
             ),
         ],
       ),
-      body: _buildBody(theme),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+            child: TextField(
+              controller: _searchController,
+              onChanged: (v) => setState(() => _searchQuery = v.trim()),
+              decoration: InputDecoration(
+                hintText: 'Search songs...',
+                hintStyle: TextStyle(
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
+                ),
+                prefixIcon: Icon(Icons.search_rounded,
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.4)),
+                suffixIcon: _searchQuery.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear_rounded, size: 20),
+                        onPressed: () {
+                          _searchController.clear();
+                          setState(() => _searchQuery = '');
+                        },
+                      )
+                    : null,
+                filled: true,
+                fillColor: theme.colorScheme.surfaceContainerLow,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+                contentPadding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+            ),
+          ),
+          Expanded(child: _buildBody(theme)),
+        ],
+      ),
     );
   }
 
@@ -162,30 +214,50 @@ class _PopularPageState extends State<PopularPage>
       );
     }
 
-    if (_songs.isEmpty) {
+    final displayed = _filtered;
+
+    if (displayed.isEmpty) {
       return Center(
-        child: Text('No songs found',
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
-            )),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              _searchQuery.isNotEmpty
+                  ? Icons.search_off_rounded
+                  : Icons.music_off_rounded,
+              size: 48,
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.3),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              _searchQuery.isNotEmpty
+                  ? 'No songs matching "$_searchQuery"'
+                  : 'No songs found',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+              ),
+            ),
+          ],
+        ),
       );
     }
 
     return ListView.builder(
       controller: _scrollController,
       padding: const EdgeInsets.only(top: 8, bottom: 32),
-      itemCount: _songs.length + (_loadingMore ? 1 : 0),
+      itemCount: displayed.length + (_searchQuery.isEmpty && _loadingMore ? 1 : 0),
       itemBuilder: (context, index) {
-        if (index >= _songs.length) {
+        if (index >= displayed.length) {
           return _LoadMoreSkeleton(controller: _shimmerCtrl);
         }
 
-        final song = _songs[index];
-        final rank = index + 1;
+        final song = displayed[index];
+        // Rank reflects original position in full list
+        final rank = _searchQuery.isEmpty ? index + 1 : _songs.indexOf(song) + 1;
         return _PopularTile(
           song: song,
           rank: rank,
-          onTap: () => MusicPlayerHelper.playFromList(context, _songs, index),
+          onTap: () => MusicPlayerHelper.playFromList(context, displayed, index),
           onLongPress: () =>
               Routes.routeTo(SongDetailPage(songId: song.id), context),
         );
