@@ -33,7 +33,9 @@ class CloudAuthService {
 
   Future<void> _ensureGoogleInit() async {
     if (_googleInitialized) return;
-    await GoogleSignInPlatform.instance.init(const InitParameters());
+    await GoogleSignInPlatform.instance.init(InitParameters(
+      serverClientId: AppConfig.googleWebClientId,
+    ));
     _googleInitialized = true;
   }
 

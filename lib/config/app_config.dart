@@ -79,6 +79,12 @@ class AppConfig {
     defaultValue: '7NGOIDIwcEw8jb19jpGuNeyoz1ldKRN11SCl7ZBw',
   );
 
+  // Google Sign-In (Web Client ID — required by google_sign_in_android v7+)
+  static const String googleWebClientId = String.fromEnvironment(
+    'GOOGLE_WEB_CLIENT_ID',
+    defaultValue: '618382337035-9nt8g6k40j6cvbfuekvt2iqliocrb52a.apps.googleusercontent.com',
+  );
+
   // Dropbox OAuth
   static const String dropboxAppKey = String.fromEnvironment(
     'DROPBOX_APP_KEY',
