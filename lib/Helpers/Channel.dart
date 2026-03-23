@@ -180,6 +180,12 @@ class Channel {
     return await _invokeRequired<bool>("isGlobalEqAvailable", false);
   }
 
+  /// Returns list of package names currently playing audio (while global EQ is active).
+  static Future<List<String>> getPlayingApps() async {
+    final result = await _invoke<List<dynamic>>("getPlayingApps", []);
+    return result?.cast<String>() ?? [];
+  }
+
   // ==================== Custom DSP Room Effects ====================
 
   /// Enable/disable FDN reverb

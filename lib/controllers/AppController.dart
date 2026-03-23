@@ -88,6 +88,7 @@ class AppController with ChangeNotifier {
   // Global EQ (system-wide)
   bool _globalEqEnabled = false;
   bool _globalEqAvailable = false;
+  List<String> _playingApps = [];
 
   // Song list/grid zoom scale: 0=list, 1=2-col grid, 2=3-col grid
   int _songGridScale = 0;
@@ -502,6 +503,7 @@ class AppController with ChangeNotifier {
   bool get dvcFineSteps => _dvcFineSteps;
   bool get globalEqEnabled => _globalEqEnabled;
   bool get globalEqAvailable => _globalEqAvailable;
+  List<String> get playingApps => List.unmodifiable(_playingApps);
 
   // Audio feature setters
   set gaplessPlayback(bool value) {
@@ -564,6 +566,14 @@ class AppController with ChangeNotifier {
     _prefs.setBool("globalEqEnabled", value);
     _globalEqEnabled = value;
     Channel.enableGlobalEq(value);
+    if (!value) {
+      _playingApps = [];
+    }
+    notifyListeners();
+  }
+
+  Future<void> refreshPlayingApps() async {
+    _playingApps = await Channel.getPlayingApps();
     notifyListeners();
   }
 

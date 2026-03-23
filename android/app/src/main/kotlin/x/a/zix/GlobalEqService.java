@@ -5,13 +5,10 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
-import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
-import android.content.IntentFilter;
 import android.media.AudioManager;
 import android.media.AudioPlaybackConfiguration;
-import android.media.audiofx.AudioEffect;
 import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
@@ -22,20 +19,22 @@ import androidx.annotation.Nullable;
 import androidx.annotation.RequiresApi;
 import androidx.core.app.NotificationCompat;
 
-import java.util.HashSet;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
- * Foreground service that discovers audio sessions from ALL apps (including Spotify)
- * and attaches DynamicsProcessing EQ via GlobalEqSessionManager.
+ * Foreground service that attaches a global DynamicsProcessing EQ to the audio
+ * output mix (sessionId = 0), applying the current EQ profile to ALL audio apps.
  *
- * Uses two discovery mechanisms:
- * 1. AudioPlaybackCallback (primary) — actively monitors all playback sessions via AudioManager.
- *    This catches apps like Spotify that don't broadcast session events.
- *    Uses reflection on hidden AudioPlaybackConfiguration.getAudioSessionId().
- * 2. BroadcastReceiver (fallback) — listens for ACTION_OPEN/CLOSE_AUDIO_EFFECT_CONTROL_SESSION
- *    for apps that do broadcast (older MediaPlayer-based apps).
+ * Per-session attachment to external apps requires system-level permissions on
+ * Android 10+. Using sessionId = 0 is the standard third-party EQ approach.
+ *
+ * Also tracks which apps are currently playing (for UI display) via the public
+ * AudioPlaybackCallback API (no reflection required).
+ *
+ * Note: To prevent double-EQ on own app's audio, the C++ DSP EQ is bypassed
+ * while this service is active (handled by RoomEffectsProcessor.broadcastGlobalEqActive).
  */
 @RequiresApi(api = Build.VERSION_CODES.P)
 public class GlobalEqService extends Service {
@@ -44,42 +43,38 @@ public class GlobalEqService extends Service {
     private static final int NOTIFICATION_ID = 9002;
     private static final String ACTION_STOP = "x.a.zix.STOP_GLOBAL_EQ";
 
-    private BroadcastReceiver sessionReceiver;
     private AudioManager audioManager;
     private AudioManager.AudioPlaybackCallback playbackCallback;
     private final Handler handler = new Handler(Looper.getMainLooper());
 
-    // Sessions discovered via playback callback (reflection-based)
-    private final Set<Integer> callbackSessions = new HashSet<>();
-    // Sessions discovered via broadcast receiver
-    private final Set<Integer> broadcastSessions = new HashSet<>();
+    // Currently playing app package names (for UI display only)
+    private static final CopyOnWriteArrayList<String> playingApps = new CopyOnWriteArrayList<>();
 
-    // Cache reflected methods to avoid repeated lookups
-    private static java.lang.reflect.Method getAudioSessionIdMethod;
-    private static java.lang.reflect.Method getClientUidMethod;
-    private static boolean reflectionAttempted = false;
-    private int ownUid = -1;
+    /** Returns a snapshot of currently playing app package names. */
+    public static List<String> getPlayingApps() {
+        return new ArrayList<>(playingApps);
+    }
 
     @Override
     public void onCreate() {
         super.onCreate();
         createNotificationChannel();
         startForeground(NOTIFICATION_ID, buildNotification());
-        GlobalEqSessionManager.setEnabled(true);
 
         audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
-        ownUid = android.os.Process.myUid();
 
-        // Primary: AudioPlaybackCallback — catches Spotify and all other apps
+        // Attach global DynamicsProcessing to output mix
+        GlobalEqSessionManager.setEnabled(true);
+        GlobalEqSessionManager.attachGlobal();
+
+        // Bypass C++ EQ in own app to prevent double-processing
+        RoomEffectsProcessor.broadcastGlobalEqActive(true);
+
+        // Track playing apps for UI display (public API, no reflection)
         registerPlaybackCallback();
+        scanPlayingApps();
 
-        // Fallback: BroadcastReceiver — catches apps that broadcast session events
-        registerSessionReceiver();
-
-        // Scan for already-playing sessions (e.g. Spotify already playing when we start)
-        scanActiveSessions();
-
-        Log.i(TAG, "GlobalEqService started");
+        Log.i(TAG, "GlobalEqService started — global output mix EQ active");
     }
 
     @Override
@@ -94,11 +89,11 @@ public class GlobalEqService extends Service {
     @Override
     public void onDestroy() {
         unregisterPlaybackCallback();
-        unregisterSessionReceiver();
+        playingApps.clear();
         GlobalEqSessionManager.setEnabled(false);
         GlobalEqSessionManager.releaseAll();
-        callbackSessions.clear();
-        broadcastSessions.clear();
+        // Restore C++ EQ for own app
+        RoomEffectsProcessor.broadcastGlobalEqActive(false);
         Log.i(TAG, "GlobalEqService stopped");
         super.onDestroy();
     }
@@ -109,7 +104,7 @@ public class GlobalEqService extends Service {
         return null;
     }
 
-    // ---- AudioPlaybackCallback (primary session discovery) ----
+    // ---- AudioPlaybackCallback (display-only: tracks which apps are playing) ----
 
     private void registerPlaybackCallback() {
         if (audioManager == null) return;
@@ -117,7 +112,7 @@ public class GlobalEqService extends Service {
         playbackCallback = new AudioManager.AudioPlaybackCallback() {
             @Override
             public void onPlaybackConfigChanged(List<AudioPlaybackConfiguration> configs) {
-                handlePlaybackConfigChanged(configs);
+                updatePlayingApps(configs);
             }
         };
         audioManager.registerAudioPlaybackCallback(playbackCallback, handler);
@@ -132,175 +127,40 @@ public class GlobalEqService extends Service {
         }
     }
 
-    /**
-     * Called whenever any app's playback state changes.
-     * Discovers new sessions via reflection and detaches ended ones.
-     */
-    private void handlePlaybackConfigChanged(List<AudioPlaybackConfiguration> configs) {
-        if (configs == null) return;
-
-        Set<Integer> activeSessions = new HashSet<>();
-
-        for (AudioPlaybackConfiguration config : configs) {
-            // Skip our own app's sessions (already processed by C++ DSP pipeline)
-            int clientUid = getClientUidFromConfig(config);
-            if (clientUid == ownUid) continue;
-
-            int sessionId = getSessionIdFromConfig(config);
-            if (sessionId <= 0) continue;
-
-            activeSessions.add(sessionId);
-
-            if (!callbackSessions.contains(sessionId) && !broadcastSessions.contains(sessionId)) {
-                callbackSessions.add(sessionId);
-                Log.i(TAG, "Playback session discovered: " + sessionId);
-                GlobalEqSessionManager.attachSession(sessionId, "playback-callback");
-            }
-        }
-
-        // Detach callback-discovered sessions that are no longer active
-        Set<Integer> removed = new HashSet<>();
-        for (int sessionId : callbackSessions) {
-            if (!activeSessions.contains(sessionId)) {
-                removed.add(sessionId);
-            }
-        }
-        for (int sessionId : removed) {
-            callbackSessions.remove(sessionId);
-            Log.i(TAG, "Playback session ended: " + sessionId);
-            GlobalEqSessionManager.detachSession(sessionId);
-        }
-    }
-
-    /**
-     * Extract audio session ID from AudioPlaybackConfiguration via reflection.
-     * The getAudioSessionId() method is @hide but present on all Android 9+ devices.
-     * Returns the session ID, or -1 if reflection fails.
-     */
-    private static int getSessionIdFromConfig(AudioPlaybackConfiguration config) {
-        initReflection();
-        if (getAudioSessionIdMethod == null) return -1;
-
-        try {
-            Object result = getAudioSessionIdMethod.invoke(config);
-            if (result instanceof Integer) {
-                return (Integer) result;
-            }
-        } catch (Exception e) {
-            Log.w(TAG, "getAudioSessionId() invoke failed: " + e.getMessage());
-        }
-
-        return -1;
-    }
-
-    /**
-     * Extract client UID from AudioPlaybackConfiguration via reflection.
-     * Used to filter out our own app's sessions.
-     * Returns -1 if reflection fails.
-     */
-    private static int getClientUidFromConfig(AudioPlaybackConfiguration config) {
-        initReflection();
-        if (getClientUidMethod == null) return -1;
-
-        try {
-            Object result = getClientUidMethod.invoke(config);
-            if (result instanceof Integer) {
-                return (Integer) result;
-            }
-        } catch (Exception e) {
-            // Not critical — worst case we attach to own session and it's a no-op
-        }
-
-        return -1;
-    }
-
-    /** Initialize reflection methods once. */
-    private static void initReflection() {
-        if (reflectionAttempted) return;
-        reflectionAttempted = true;
-
-        try {
-            getAudioSessionIdMethod = AudioPlaybackConfiguration.class
-                    .getDeclaredMethod("getAudioSessionId");
-            getAudioSessionIdMethod.setAccessible(true);
-            Log.i(TAG, "Reflection: getAudioSessionId() available");
-        } catch (NoSuchMethodException e) {
-            Log.w(TAG, "getAudioSessionId() not found — playback callback discovery won't work");
-            getAudioSessionIdMethod = null;
-        }
-
-        try {
-            getClientUidMethod = AudioPlaybackConfiguration.class
-                    .getDeclaredMethod("getClientUid");
-            getClientUidMethod.setAccessible(true);
-        } catch (NoSuchMethodException e) {
-            getClientUidMethod = null;
-        }
-    }
-
     /** Scan for already-active playback sessions on startup. */
-    private void scanActiveSessions() {
+    private void scanPlayingApps() {
         if (audioManager == null) return;
         try {
             List<AudioPlaybackConfiguration> configs =
                     audioManager.getActivePlaybackConfigurations();
-            if (configs != null && !configs.isEmpty()) {
-                Log.i(TAG, "Scanning " + configs.size() + " active playback sessions");
-                handlePlaybackConfigChanged(configs);
+            if (configs != null) {
+                updatePlayingApps(configs);
             }
         } catch (Exception e) {
-            Log.w(TAG, "Failed to scan active sessions: " + e.getMessage());
+            Log.w(TAG, "Failed to scan active playback configs: " + e.getMessage());
         }
     }
 
-    // ---- BroadcastReceiver (fallback session discovery) ----
+    /**
+     * Rebuild the playing-apps list from the current set of active configs.
+     * Uses the public getClientPackageName() API — no reflection needed.
+     * Skips our own package to avoid showing Hype in the "other apps" list.
+     */
+    private void updatePlayingApps(List<AudioPlaybackConfiguration> configs) {
+        if (configs == null) return;
 
-    private void registerSessionReceiver() {
-        sessionReceiver = new BroadcastReceiver() {
-            @Override
-            public void onReceive(Context context, Intent intent) {
-                if (intent == null || intent.getAction() == null) return;
+        List<String> active = new ArrayList<>();
+        String ownPkg = getPackageName();
 
-                int sessionId = intent.getIntExtra(AudioEffect.EXTRA_AUDIO_SESSION, -1);
-                String pkg = intent.getStringExtra(AudioEffect.EXTRA_PACKAGE_NAME);
-                if (sessionId <= 0) return;
-
-                // Skip our own sessions to prevent double-processing
-                if (getPackageName().equals(pkg)) return;
-
-                switch (intent.getAction()) {
-                    case AudioEffect.ACTION_OPEN_AUDIO_EFFECT_CONTROL_SESSION:
-                        Log.i(TAG, "Broadcast session opened: " + sessionId + " (" + pkg + ")");
-                        broadcastSessions.add(sessionId);
-                        GlobalEqSessionManager.attachSession(sessionId, pkg);
-                        break;
-                    case AudioEffect.ACTION_CLOSE_AUDIO_EFFECT_CONTROL_SESSION:
-                        Log.i(TAG, "Broadcast session closed: " + sessionId + " (" + pkg + ")");
-                        broadcastSessions.remove(sessionId);
-                        GlobalEqSessionManager.detachSession(sessionId);
-                        break;
-                }
+        for (AudioPlaybackConfiguration config : configs) {
+            String pkg = config.getClientPackageName();
+            if (pkg != null && !pkg.equals(ownPkg) && !active.contains(pkg)) {
+                active.add(pkg);
             }
-        };
-
-        IntentFilter filter = new IntentFilter();
-        filter.addAction(AudioEffect.ACTION_OPEN_AUDIO_EFFECT_CONTROL_SESSION);
-        filter.addAction(AudioEffect.ACTION_CLOSE_AUDIO_EFFECT_CONTROL_SESSION);
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(sessionReceiver, filter, Context.RECEIVER_EXPORTED);
-        } else {
-            registerReceiver(sessionReceiver, filter);
         }
-    }
 
-    private void unregisterSessionReceiver() {
-        if (sessionReceiver != null) {
-            try {
-                unregisterReceiver(sessionReceiver);
-            } catch (Exception ignored) {}
-            sessionReceiver = null;
-        }
+        playingApps.clear();
+        playingApps.addAll(active);
     }
 
     // ---- Notification ----

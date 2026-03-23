@@ -715,6 +715,13 @@ public class MainActivity extends AudioServiceFragmentActivity {
                         case "isGlobalEqAvailable":
                             result.success(Build.VERSION.SDK_INT >= Build.VERSION_CODES.P);
                             break;
+                        case "getPlayingApps":
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                                result.success(GlobalEqService.getPlayingApps());
+                            } else {
+                                result.success(new java.util.ArrayList<>());
+                            }
+                            break;
 
                         // ==================== Device Detection ====================
                         case "isDynamicsProcessingAvailable":

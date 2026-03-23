@@ -346,9 +346,65 @@ class _SettingsState extends State<Settings> {
                 ],
               ),
             ),
+            const Divider(height: 1, indent: 16, endIndent: 16),
+            _buildPlayingAppsRow(controller),
           ],
         ]),
       ],
+    );
+  }
+
+  Widget _buildPlayingAppsRow(AppController controller) {
+    final apps = controller.playingApps;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 10, 8, 12),
+      child: Row(
+        children: [
+          Icon(Icons.apps, size: 18,
+              color: Theme.of(context).colorScheme.primary),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text("Apps currently playing",
+                    style: Theme.of(context).textTheme.bodyMedium),
+                const SizedBox(height: 4),
+                if (apps.isEmpty)
+                  Text("None detected",
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onSurface
+                                .withValues(alpha: 0.5),
+                          ))
+                else
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 4,
+                    children: apps
+                        .map((pkg) => Chip(
+                              label: Text(
+                                pkg.split('.').last,
+                                style: Theme.of(context).textTheme.labelSmall,
+                              ),
+                              padding: EdgeInsets.zero,
+                              materialTapTargetSize:
+                                  MaterialTapTargetSize.shrinkWrap,
+                              visualDensity: VisualDensity.compact,
+                            ))
+                        .toList(),
+                  ),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.refresh, size: 18),
+            tooltip: "Refresh",
+            onPressed: () => controller.refreshPlayingApps(),
+          ),
+        ],
+      ),
     );
   }
 

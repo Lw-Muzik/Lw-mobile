@@ -27,8 +27,11 @@ public class GlobalEqSessionManager {
         5000f, 6300f, 8000f, 10000f, 12500f, 16000f, 18000f, 20000f
     };
 
-    private static final ConcurrentHashMap<Integer, DynamicsProcessing> sessions =
-            new ConcurrentHashMap<>();
+    // Single global DynamicsProcessing attached to the output mix (sessionId = 0).
+    // Per-session attachment to external apps requires system-level permissions on
+    // Android 10+ and is not available to normal apps. sessionId = 0 is the
+    // standard approach used by third-party EQ apps.
+    private static volatile DynamicsProcessing globalDp = null;
     private static volatile boolean enabled = false;
 
     private GlobalEqSessionManager() {}
@@ -39,72 +42,53 @@ public class GlobalEqSessionManager {
 
     public static void setEnabled(boolean on) {
         enabled = on;
-        if (!on) {
-            releaseAll();
-        }
+        if (!on) releaseAll();
     }
 
     /**
-     * Attach a DynamicsProcessing to an external app's audio session.
-     * Configures 32-band Pre-EQ + Limiter from RoomEffectsProcessor's cached state.
+     * Create and attach the global DynamicsProcessing to the output mix (sessionId = 0).
+     * Affects all audio output from all apps on the device.
      */
-    public static void attachSession(int sessionId, String pkg) {
-        if (!enabled) return;
-        if (sessions.containsKey(sessionId)) return;
-
+    public static void attachGlobal() {
+        if (!enabled || globalDp != null) return;
         try {
-            DynamicsProcessing dp = createConfiguredInstance(sessionId);
-            dp.setEnabled(true);
-            sessions.put(sessionId, dp);
-            Log.i(TAG, "Attached session " + sessionId + " (" + pkg + "), total: " + sessions.size());
+            globalDp = createConfiguredInstance(0); // 0 = global output mix
+            globalDp.setEnabled(true);
+            Log.i(TAG, "Global DynamicsProcessing attached to output mix");
         } catch (Exception e) {
-            Log.e(TAG, "Failed to attach session " + sessionId + ": " + e.getMessage());
+            Log.e(TAG, "Failed to attach global DynamicsProcessing: " + e.getMessage());
+            globalDp = null;
         }
     }
 
-    /** Detach and release a session's DynamicsProcessing. */
-    public static void detachSession(int sessionId) {
-        DynamicsProcessing dp = sessions.remove(sessionId);
-        if (dp != null) {
-            try {
-                dp.setEnabled(false);
-                dp.release();
-            } catch (Exception e) {
-                Log.w(TAG, "Error releasing session " + sessionId, e);
-            }
-            Log.i(TAG, "Detached session " + sessionId + ", remaining: " + sessions.size());
-        }
-    }
-
-    /** Release all sessions (called when service stops). */
+    /** Release the global DynamicsProcessing (called when service stops). */
     public static void releaseAll() {
-        for (Integer id : sessions.keySet()) {
-            DynamicsProcessing dp = sessions.remove(id);
-            if (dp != null) {
-                try {
-                    dp.setEnabled(false);
-                    dp.release();
-                } catch (Exception ignored) {}
-            }
+        if (globalDp != null) {
+            try {
+                globalDp.setEnabled(false);
+                globalDp.release();
+            } catch (Exception ignored) {}
+            globalDp = null;
         }
-        Log.i(TAG, "Released all sessions");
+        Log.i(TAG, "Global EQ released");
     }
 
     /**
-     * Re-apply current EQ state to all active sessions.
+     * Re-apply current EQ state to the global effect.
      * Called whenever the user changes EQ/tone/limiter settings.
      */
     public static void syncAllSessions() {
-        if (!enabled || sessions.isEmpty()) return;
-
-        for (DynamicsProcessing dp : sessions.values()) {
-            try {
-                applyState(dp);
-            } catch (Exception e) {
-                Log.w(TAG, "Error syncing session: " + e.getMessage());
-            }
+        if (!enabled || globalDp == null) return;
+        try {
+            applyState(globalDp);
+        } catch (Exception e) {
+            Log.w(TAG, "Error syncing global EQ: " + e.getMessage());
         }
     }
+
+    // Kept for backward-compatibility — no-ops since we use global sessionId=0.
+    public static void attachSession(int sessionId, String pkg) {}
+    public static void detachSession(int sessionId) {}
 
     /** Create a DynamicsProcessing instance configured from cached state. */
     private static DynamicsProcessing createConfiguredInstance(int sessionId) {
