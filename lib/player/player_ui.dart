@@ -137,7 +137,7 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
         _lastCompletedSongId = currentId;
 
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) _cardKey.currentState?.animateToNext();
+          if (mounted) _cardKey.currentState?.animateAutoAdvance();
         });
       }
     });

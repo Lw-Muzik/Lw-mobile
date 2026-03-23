@@ -271,6 +271,10 @@ class AnimatedPlayerCardState extends State<AnimatedPlayerCard>
   Size _screenSize = Size.zero;
   int _currentIndex = 0;
   bool _animatingFromControls = false;
+  // True when the card is auto-advancing due to natural song end.
+  // In that case AppController already handled audio, so onPageChanged
+  // must be suppressed to prevent a second controller.next() call.
+  bool _isAutoAdvance = false;
 
   @override
   void initState() {
@@ -299,6 +303,17 @@ class AnimatedPlayerCardState extends State<AnimatedPlayerCard>
     if (_currentIndex > 0) {
       _animatingFromControls = true;
       _cardControllers[0].animateToPrevious();
+    }
+  }
+
+  /// Auto-advance: card throws forward visually but onPageChanged is suppressed.
+  /// Use this when AppController has already handled the audio transition
+  /// (natural song end) to avoid a second controller.next() call.
+  void animateAutoAdvance() {
+    if (_currentIndex < widget.itemCount - 1) {
+      _animatingFromControls = true;
+      _isAutoAdvance = true;
+      _cardControllers[0].animateToNext();
     }
   }
 
@@ -356,15 +371,20 @@ class AnimatedPlayerCardState extends State<AnimatedPlayerCard>
 
     if (nextIndex >= 0 && nextIndex < widget.itemCount) {
       setState(() => _currentIndex = nextIndex);
-      // Always notify — this triggers controller.next()/prev() to change the track
-      widget.onPageChanged(nextIndex);
+      // Suppress onPageChanged for auto-advance: AppController already
+      // handled the audio transition, so calling next() again would skip a song.
+      if (!_isAutoAdvance) {
+        widget.onPageChanged(nextIndex);
+      }
       _animatingFromControls = false;
+      _isAutoAdvance = false;
 
       final swipedController = _cardControllers.removeAt(0);
       swipedController.resetImmediate();
       _cardControllers.add(swipedController);
     } else {
       _animatingFromControls = false;
+      _isAutoAdvance = false;
       _cardControllers[0].resetImmediate();
     }
   }
