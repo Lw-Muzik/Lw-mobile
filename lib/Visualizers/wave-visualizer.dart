@@ -42,14 +42,14 @@ class _WaveVisualizerState extends State<WaveVisualizer>
   final List<double> _waveform = List.filled(512, 0.0);
 
   double get _attackRate => widget.reactivity;
-  double get _decayRate => widget.reactivity * 0.45;
+  double get _decayRate => widget.reactivity * 0.7;
 
   @override
   void initState() {
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 4),
+      duration: const Duration(milliseconds: 1200),
     )..repeat();
   }
 
