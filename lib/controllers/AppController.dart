@@ -846,18 +846,23 @@ class AppController with ChangeNotifier {
 
     final AudioSource nextSource;
     if (nextSong.data.startsWith('http')) {
-      final fileId = nextSong.id.toString();
-      if (cloudCache.isCached(fileId)) {
-        nextSource = AudioSource.file(cloudCache.cacheFile(fileId).path);
+      if (nextSong.data.contains('nowviba.com')) {
+        // Discover stream — direct URI, no proxy overhead
+        nextSource = AudioSource.uri(Uri.parse(nextSong.data));
       } else {
-        final headers = nextSong.data.contains('googleapis.com')
-            ? await cloudAuth.getGoogleAuthHeaders()
-            : <String, String>{};
-        nextSource = LockCachingAudioSource(
-          Uri.parse(nextSong.data),
-          cacheFile: cloudCache.cacheFile(fileId),
-          headers: headers,
-        );
+        final fileId = nextSong.id.toString();
+        if (cloudCache.isCached(fileId)) {
+          nextSource = AudioSource.file(cloudCache.cacheFile(fileId).path);
+        } else {
+          final headers = nextSong.data.contains('googleapis.com')
+              ? await cloudAuth.getGoogleAuthHeaders()
+              : <String, String>{};
+          nextSource = LockCachingAudioSource(
+            Uri.parse(nextSong.data),
+            cacheFile: cloudCache.cacheFile(fileId),
+            headers: headers,
+          );
+        }
       }
     } else {
       nextSource = nextSong.data.startsWith('/')
@@ -943,26 +948,30 @@ class AppController with ChangeNotifier {
     for (int i = 0; i < songs.length; i++) {
       final s = songs[i];
       if (s.data.startsWith('http')) {
-        final fileId = s.id.toString();
-        if (cloudCache.isCached(fileId)) {
-          sources.add(AudioSource.file(cloudCache.cacheFile(fileId).path));
+        // Discover streams (nowviba.com) — direct URI, no proxy/cache overhead
+        if (s.data.contains('nowviba.com')) {
+          sources.add(AudioSource.uri(Uri.parse(s.data)));
         } else {
-          // All cloud tracks need auth headers
-          Map<String, String> headers;
-          if (s.data.contains('googleapis.com')) {
-            gdriveHeaders ??= await cloudAuth.getGoogleAuthHeaders();
-            headers = gdriveHeaders;
+          final fileId = s.id.toString();
+          if (cloudCache.isCached(fileId)) {
+            sources.add(AudioSource.file(cloudCache.cacheFile(fileId).path));
           } else {
-            dropboxHeaders ??= <String, String>{};
-            headers = dropboxHeaders;
+            Map<String, String> headers;
+            if (s.data.contains('googleapis.com')) {
+              gdriveHeaders ??= await cloudAuth.getGoogleAuthHeaders();
+              headers = gdriveHeaders;
+            } else {
+              dropboxHeaders ??= <String, String>{};
+              headers = dropboxHeaders;
+            }
+            sources.add(
+              LockCachingAudioSource(
+                Uri.parse(s.data),
+                cacheFile: cloudCache.cacheFile(fileId),
+                headers: headers,
+              ),
+            );
           }
-          sources.add(
-            LockCachingAudioSource(
-              Uri.parse(s.data),
-              cacheFile: cloudCache.cacheFile(fileId),
-              headers: headers,
-            ),
-          );
         }
       } else {
         // Local file paths start with "/", use AudioSource.file to handle spaces/special chars

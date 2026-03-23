@@ -421,43 +421,51 @@ void loadAudioSource(
   handler.setCurrentMediaItem(item);
 
   if (isCloud) {
-    final cache = AppController.instance.cloudCache;
-    final auth = AppController.instance.cloudAuth;
-    final guard = StreamingDataGuard.instance;
-    final fileId = song.id.toString();
-
     AudioSource source;
-    if (cache.isCached(fileId)) {
-      // Cached — play from disk, zero data usage
-      cache.markAccessed(fileId);
-      source = AudioSource.file(cache.cacheFile(fileId).path, tag: item);
+
+    // Discover streams (nowviba.com) — direct URI, no proxy/cache overhead
+    if (song.data.contains('nowviba.com')) {
+      source = AudioSource.uri(Uri.parse(item.id), tag: item);
     } else {
-      // Check data guard before streaming
-      final blockReason = guard.shouldBlockStream();
-      if (blockReason != null) {
-        debugPrint('Streaming blocked: $blockReason');
-        // Still set media item so UI shows track info, but don't play
-        return;
+      // Cloud storage (Google Drive / Dropbox) — cache + auth headers
+      final cache = AppController.instance.cloudCache;
+      final auth = AppController.instance.cloudAuth;
+      final guard = StreamingDataGuard.instance;
+      final fileId = song.id.toString();
+
+      if (cache.isCached(fileId)) {
+        // Cached — play from disk, zero data usage
+        cache.markAccessed(fileId);
+        source = AudioSource.file(cache.cacheFile(fileId).path, tag: item);
+      } else {
+        // Check data guard before streaming
+        final blockReason = guard.shouldBlockStream();
+        if (blockReason != null) {
+          debugPrint('Streaming blocked: $blockReason');
+          // Still set media item so UI shows track info, but don't play
+          return;
+        }
+
+        // Not cached — stream and cache simultaneously
+        final headers = song.data.contains('googleapis.com')
+            ? await auth.getGoogleAuthHeaders()
+            : <String, String>{};
+        source = LockCachingAudioSource(
+          Uri.parse(item.id),
+          cacheFile: cache.cacheFile(fileId),
+          headers: headers,
+          tag: item,
+        );
+
+        // When download completes, mark in our metadata so future plays are cache hits
+        _monitorCacheCompletion(cache, fileId);
       }
 
-      // Not cached — stream and cache simultaneously
-      final headers = song.data.contains('googleapis.com')
-          ? await auth.getGoogleAuthHeaders()
-          : <String, String>{};
-      source = LockCachingAudioSource(
-        Uri.parse(item.id),
-        cacheFile: cache.cacheFile(fileId),
-        headers: headers,
-        tag: item,
-      );
-
-      // When download completes, mark in our metadata so future plays are cache hits
-      _monitorCacheCompletion(cache, fileId);
+      // Prefetch next cloud track in background
+      _prefetchNextTrack();
     }
-    await handler.player.setAudioSource(source);
 
-    // Prefetch next track in background
-    _prefetchNextTrack();
+    await handler.player.setAudioSource(source);
   } else {
     // Local file: use AudioSource.file for proper path handling (spaces, special chars)
     // AudioSource.uri(Uri.parse(...)) fails on paths with spaces/parentheses
