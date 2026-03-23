@@ -1,4 +1,5 @@
 // ignore_for_file: constant_identifier_names
+import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
@@ -180,10 +181,18 @@ class Channel {
     return await _invokeRequired<bool>("isGlobalEqAvailable", false);
   }
 
-  /// Returns list of package names currently playing audio (while global EQ is active).
-  static Future<List<String>> getPlayingApps() async {
+  /// Returns list of {package, name} maps for apps currently playing audio.
+  static Future<List<Map<String, String>>> getPlayingApps() async {
     final result = await _invoke<List<dynamic>>("getPlayingApps", []);
-    return result?.cast<String>() ?? [];
+    if (result == null) return [];
+    return result
+        .map((e) => Map<String, String>.from(e as Map))
+        .toList();
+  }
+
+  /// Returns the PNG icon bytes for a given package name, or null if unavailable.
+  static Future<Uint8List?> getAppIcon(String packageName) async {
+    return await _invoke<Uint8List>("getAppIcon", null, {"package": packageName});
   }
 
   // ==================== Custom DSP Room Effects ====================

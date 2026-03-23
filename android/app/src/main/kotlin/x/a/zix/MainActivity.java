@@ -26,6 +26,14 @@ import androidx.activity.EdgeToEdge;
 
 import com.ryanheise.audioservice.AudioServiceFragmentActivity;
 
+import android.content.pm.ApplicationInfo;
+import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
+import android.graphics.Canvas;
+import android.graphics.drawable.BitmapDrawable;
+import android.graphics.drawable.Drawable;
+
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.util.ArrayList;
@@ -715,13 +723,47 @@ public class MainActivity extends AudioServiceFragmentActivity {
                         case "isGlobalEqAvailable":
                             result.success(Build.VERSION.SDK_INT >= Build.VERSION_CODES.P);
                             break;
-                        case "getPlayingApps":
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                                result.success(GlobalEqService.getPlayingApps());
-                            } else {
-                                result.success(new java.util.ArrayList<>());
+                        case "getPlayingApps": {
+                            PackageManager pm = getPackageManager();
+                            List<String> pkgList = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P
+                                    ? GlobalEqService.getPlayingApps()
+                                    : new ArrayList<>();
+                            List<Map<String, String>> appInfoList = new ArrayList<>();
+                            for (String pkg : pkgList) {
+                                Map<String, String> info = new HashMap<>();
+                                info.put("package", pkg);
+                                try {
+                                    ApplicationInfo ai = pm.getApplicationInfo(pkg, 0);
+                                    info.put("name", pm.getApplicationLabel(ai).toString());
+                                } catch (PackageManager.NameNotFoundException e) {
+                                    info.put("name", pkg.contains(".")
+                                            ? pkg.substring(pkg.lastIndexOf('.') + 1)
+                                            : pkg);
+                                }
+                                appInfoList.add(info);
                             }
+                            result.success(appInfoList);
                             break;
+                        }
+                        case "getAppIcon": {
+                            String iconPkg = call.argument("package");
+                            if (iconPkg == null) { result.success(null); break; }
+                            final String finalPkg = iconPkg;
+                            new Thread(() -> {
+                                try {
+                                    PackageManager ipm = getPackageManager();
+                                    Drawable drawable = ipm.getApplicationIcon(finalPkg);
+                                    Bitmap bitmap = drawableToBitmap(drawable);
+                                    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                                    bitmap.compress(Bitmap.CompressFormat.PNG, 90, baos);
+                                    byte[] bytes = baos.toByteArray();
+                                    new Handler(Looper.getMainLooper()).post(() -> result.success(bytes));
+                                } catch (Exception e) {
+                                    new Handler(Looper.getMainLooper()).post(() -> result.success(null));
+                                }
+                            }).start();
+                            break;
+                        }
 
                         // ==================== Device Detection ====================
                         case "isDynamicsProcessingAvailable":
@@ -1072,6 +1114,20 @@ public class MainActivity extends AudioServiceFragmentActivity {
             // Implement the code to start playing the next track, e.g., with a media player
             // or your audio playback logic.
         }
+    }
+
+    private static Bitmap drawableToBitmap(Drawable drawable) {
+        if (drawable instanceof BitmapDrawable) {
+            Bitmap bmp = ((BitmapDrawable) drawable).getBitmap();
+            if (bmp != null) return bmp;
+        }
+        int w = Math.max(drawable.getIntrinsicWidth(), 1);
+        int h = Math.max(drawable.getIntrinsicHeight(), 1);
+        Bitmap bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
+        Canvas canvas = new Canvas(bitmap);
+        drawable.setBounds(0, 0, canvas.getWidth(), canvas.getHeight());
+        drawable.draw(canvas);
+        return bitmap;
     }
 
 }

@@ -1,6 +1,8 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import '/Helpers/AudioVisualizer.dart';
+import '/Helpers/Channel.dart';
 import '/Routes/routes.dart';
 import '/controllers/AppController.dart';
 import '/widgets/Body.dart';
@@ -356,55 +358,47 @@ class _SettingsState extends State<Settings> {
 
   Widget _buildPlayingAppsRow(AppController controller) {
     final apps = controller.playingApps;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 10, 8, 12),
-      child: Row(
-        children: [
-          Icon(Icons.apps, size: 18,
-              color: Theme.of(context).colorScheme.primary),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text("Apps currently playing",
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 10, 8, 6),
+          child: Row(
+            children: [
+              Icon(Icons.apps, size: 16,
+                  color: Theme.of(context).colorScheme.primary),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text("Apps currently playing",
                     style: Theme.of(context).textTheme.bodyMedium),
-                const SizedBox(height: 4),
-                if (apps.isEmpty)
-                  Text("None detected",
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: Theme.of(context)
-                                .colorScheme
-                                .onSurface
-                                .withValues(alpha: 0.5),
-                          ))
-                else
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 4,
-                    children: apps
-                        .map((pkg) => Chip(
-                              label: Text(
-                                pkg.split('.').last,
-                                style: Theme.of(context).textTheme.labelSmall,
-                              ),
-                              padding: EdgeInsets.zero,
-                              materialTapTargetSize:
-                                  MaterialTapTargetSize.shrinkWrap,
-                              visualDensity: VisualDensity.compact,
-                            ))
-                        .toList(),
-                  ),
-              ],
-            ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.refresh, size: 18),
+                tooltip: "Refresh",
+                visualDensity: VisualDensity.compact,
+                onPressed: () => controller.refreshPlayingApps(),
+              ),
+            ],
           ),
-          IconButton(
-            icon: const Icon(Icons.refresh, size: 18),
-            tooltip: "Refresh",
-            onPressed: () => controller.refreshPlayingApps(),
-          ),
-        ],
-      ),
+        ),
+        if (apps.isEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: Text("None detected",
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context)
+                          .colorScheme
+                          .onSurface
+                          .withValues(alpha: 0.5),
+                    )),
+          )
+        else
+          ...apps.map((app) => _AppIconTile(
+                packageName: app['package'] ?? '',
+                appName: app['name'] ?? app['package'] ?? '',
+              )),
+        const SizedBox(height: 4),
+      ],
     );
   }
 
@@ -1309,6 +1303,75 @@ class _SettingsState extends State<Settings> {
           ],
         );
       },
+    );
+  }
+}
+
+class _AppIconTile extends StatefulWidget {
+  final String packageName;
+  final String appName;
+
+  const _AppIconTile({required this.packageName, required this.appName});
+
+  @override
+  State<_AppIconTile> createState() => _AppIconTileState();
+}
+
+class _AppIconTileState extends State<_AppIconTile> {
+  Uint8List? _iconBytes;
+  bool _loaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadIcon();
+  }
+
+  Future<void> _loadIcon() async {
+    final bytes = await Channel.getAppIcon(widget.packageName);
+    if (mounted) setState(() { _iconBytes = bytes; _loaded = true; });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 36,
+            height: 36,
+            child: _loaded
+                ? (_iconBytes != null
+                    ? Image.memory(_iconBytes!, fit: BoxFit.contain)
+                    : Icon(Icons.music_note, size: 24,
+                        color: Theme.of(context).colorScheme.primary))
+                : const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(widget.appName,
+                    style: Theme.of(context).textTheme.bodyMedium),
+                Text(widget.packageName,
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: Theme.of(context)
+                              .colorScheme
+                              .onSurface
+                              .withValues(alpha: 0.4),
+                        ),
+                    overflow: TextOverflow.ellipsis),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
