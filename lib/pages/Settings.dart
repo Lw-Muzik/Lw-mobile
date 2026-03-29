@@ -55,10 +55,16 @@ class _SettingsState extends State<Settings> {
                     vertical: 8,
                   ),
                   children: [
-                    _buildPlaybackSection(controller),
-                    const SizedBox(height: 12),
-                    _buildAudioEnhancementSection(controller),
-                    const SizedBox(height: 12),
+                    if (Platform.isAndroid) ...[
+                      _buildAppModeSection(controller),
+                      const SizedBox(height: 12),
+                    ],
+                    if (!controller.isEqMode) ...[
+                      _buildPlaybackSection(controller),
+                      const SizedBox(height: 12),
+                      _buildAudioEnhancementSection(controller),
+                      const SizedBox(height: 12),
+                    ],
                     if (controller.globalEqAvailable) ...[
                       _buildGlobalEqSection(controller),
                       const SizedBox(height: 12),
@@ -67,21 +73,23 @@ class _SettingsState extends State<Settings> {
                     const SizedBox(height: 12),
                     _buildToneSection(controller),
                     const SizedBox(height: 12),
-                    _buildAppearanceSection(controller),
-                    const SizedBox(height: 12),
-                    _buildVisualizerSection(controller),
-                    const SizedBox(height: 12),
-                    _buildLibrarySection(),
-                    const SizedBox(height: 12),
-                    _buildCloudStorageSection(controller),
-                    const SizedBox(height: 12),
-                    _buildStreamingSection(),
-                    const SizedBox(height: 12),
+                    if (!controller.isEqMode) ...[
+                      _buildAppearanceSection(controller),
+                      const SizedBox(height: 12),
+                      _buildVisualizerSection(controller),
+                      const SizedBox(height: 12),
+                      _buildLibrarySection(),
+                      const SizedBox(height: 12),
+                      _buildCloudStorageSection(controller),
+                      const SizedBox(height: 12),
+                      _buildStreamingSection(),
+                      const SizedBox(height: 12),
+                    ],
                     _buildAboutSection(context),
                     const SizedBox(height: 24),
                   ],
                 ),
-                bottomNavigationBar: service.data ?? false
+                bottomNavigationBar: !controller.isEqMode && (service.data ?? false)
                     ? BottomPlayer(controller: controller)
                     : null,
               ),
@@ -120,6 +128,60 @@ class _SettingsState extends State<Settings> {
       color: Theme.of(context).colorScheme.surfaceContainerLow,
       clipBehavior: Clip.antiAlias,
       child: Column(children: children),
+    );
+  }
+
+  // -- App Mode Section --
+
+  Widget _buildAppModeSection(AppController controller) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionHeader(Icons.swap_horiz, "App Mode"),
+        _buildSectionCard([
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            child: SegmentedButton<AppMode>(
+              segments: const [
+                ButtonSegment<AppMode>(
+                  value: AppMode.musicPlayer,
+                  label: Text('Music Player'),
+                  icon: Icon(Icons.headphones_rounded),
+                ),
+                ButtonSegment<AppMode>(
+                  value: AppMode.equalizer,
+                  label: Text('Equalizer'),
+                  icon: Icon(Icons.equalizer_rounded),
+                ),
+              ],
+              selected: {controller.appMode},
+              onSelectionChanged: (values) {
+                controller.appMode = values.first;
+              },
+              style: SegmentedButton.styleFrom(
+                selectedBackgroundColor: Theme.of(context)
+                    .colorScheme
+                    .primary
+                    .withValues(alpha: 0.15),
+                selectedForegroundColor:
+                    Theme.of(context).colorScheme.primary,
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+            child: Text(
+              'Switch between full music player and EQ-only mode',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context)
+                        .colorScheme
+                        .onSurface
+                        .withValues(alpha: 0.5),
+                  ),
+            ),
+          ),
+        ]),
+      ],
     );
   }
 
