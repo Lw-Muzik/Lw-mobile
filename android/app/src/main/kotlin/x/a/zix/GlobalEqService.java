@@ -148,16 +148,19 @@ public class GlobalEqService extends Service {
         Set<String> active = new LinkedHashSet<>();
         String ownPkg = getPackageName();
 
-        // Tier 1: API 34+ — public getClientUid() on AudioPlaybackConfiguration
+        // Tier 1: API 34+ — getClientUid() is public but compileSdk may be lower,
+        // so use reflection (guaranteed to succeed on API 34+)
         if (Build.VERSION.SDK_INT >= 34) {
             try {
                 List<AudioPlaybackConfiguration> configs =
                         audioManager.getActivePlaybackConfigurations();
                 if (configs != null) {
                     PackageManager pm = getPackageManager();
+                    java.lang.reflect.Method getUid =
+                            AudioPlaybackConfiguration.class.getMethod("getClientUid");
                     for (AudioPlaybackConfiguration config : configs) {
                         try {
-                            int uid = config.getClientUid();
+                            int uid = (int) getUid.invoke(config);
                             String[] packages = pm.getPackagesForUid(uid);
                             if (packages != null) {
                                 for (String pkg : packages) {
