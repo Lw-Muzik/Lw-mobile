@@ -12,6 +12,8 @@ import 'songs.dart';
 import 'artists.dart';
 import 'cloud/cloud_view.dart';
 import 'cloud/discover_view.dart';
+import 'equalizer.dart';
+import 'Settings.dart';
 import '/widgets/Body.dart';
 import '/widgets/BottomPlayer.dart';
 import '../Helpers/Channel.dart';
@@ -237,21 +239,84 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
       onComplete: _tryShowCoachMarks,
       child: Body(
         child: Consumer<AppController>(
-          builder: (context, controller, _) => Scaffold(
-          backgroundColor: controller.isFancy
-              ? Colors.transparent
-              : Theme.of(context).scaffoldBackgroundColor,
-          body: NestedScrollView(
-            headerSliverBuilder: (context, innerBoxIsScrolled) => [
-              _buildSliverAppBar(controller, innerBoxIsScrolled),
-            ],
-            body: TabBarView(controller: _tabController, children: _tabViews),
-          ),
-            bottomNavigationBar: controller.handler.player.playing
-                ? BottomPlayer(controller: controller)
-                : null,
-          ),
+          builder: (context, controller, _) {
+            if (controller.isEqMode) {
+              return Scaffold(
+                backgroundColor: controller.isFancy
+                    ? Colors.transparent
+                    : Theme.of(context).scaffoldBackgroundColor,
+                body: NestedScrollView(
+                  headerSliverBuilder: (context, innerBoxIsScrolled) => [
+                    _buildEqModeSliverAppBar(controller),
+                  ],
+                  body: const Equalizer(),
+                ),
+              );
+            }
+
+            return Scaffold(
+              backgroundColor: controller.isFancy
+                  ? Colors.transparent
+                  : Theme.of(context).scaffoldBackgroundColor,
+              body: NestedScrollView(
+                headerSliverBuilder: (context, innerBoxIsScrolled) => [
+                  _buildSliverAppBar(controller, innerBoxIsScrolled),
+                ],
+                body: TabBarView(controller: _tabController, children: _tabViews),
+              ),
+              bottomNavigationBar: controller.handler.player.playing
+                  ? BottomPlayer(controller: controller)
+                  : null,
+            );
+          },
         ),
+      ),
+    );
+  }
+
+  Widget _buildEqModeSliverAppBar(AppController controller) {
+    return SliverAppBar(
+      floating: true,
+      snap: true,
+      pinned: false,
+      forceMaterialTransparency: controller.isFancy,
+      surfaceTintColor: Colors.transparent,
+      expandedHeight: 80,
+      toolbarHeight: 64,
+      flexibleSpace: FlexibleSpaceBar(
+        titlePadding: const EdgeInsets.only(left: 20, bottom: 10),
+        title: Row(
+          children: [
+            IconButton(
+              key: _menuKey,
+              icon: const Icon(Icons.menu_rounded),
+              onPressed: () {
+                context.read<DrawerProvider>().toggleDrawer();
+              },
+            ),
+            const SizedBox(width: 4),
+            const Expanded(
+              child: Text(
+                'Hype EQ',
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -0.5,
+                ),
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.settings_rounded, size: 22),
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const Settings()),
+                );
+              },
+            ),
+            const SizedBox(width: 8),
+          ],
+        ),
+        background: Container(color: Colors.transparent),
       ),
     );
   }
