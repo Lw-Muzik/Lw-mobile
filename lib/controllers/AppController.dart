@@ -27,6 +27,8 @@ import '../models/recognition_result.dart';
 import '../models/speaker_profile.dart';
 import 'stem_controller.dart';
 
+enum AppMode { musicPlayer, equalizer }
+
 class AppController with ChangeNotifier {
   static AppController? _instance;
   static AppController get instance => _instance!;
@@ -67,6 +69,15 @@ class AppController with ChangeNotifier {
     notifyListeners();
   }
 
+  AppMode get appMode => _appMode;
+  set appMode(AppMode value) {
+    _appMode = value;
+    _prefs.setInt("appMode", value.index);
+    notifyListeners();
+  }
+
+  bool get isEqMode => _appMode == AppMode.equalizer;
+
   final HypeAudioHandler _handler;
   HypeAudioHandler get handler => _handler;
   int _selectedRoomPreset = -1;
@@ -84,6 +95,9 @@ class AppController with ChangeNotifier {
   bool _dvcEnabled = false;
   double _dvcGain = -30.0; // dB, range -30 to 0 (0% to 100%)
   bool _dvcFineSteps = false; // false=1.5dB (5%), true=0.3dB (1%)
+
+  // App mode
+  AppMode _appMode = AppMode.musicPlayer;
 
   // Global EQ (system-wide)
   bool _globalEqEnabled = false;
@@ -1013,6 +1027,7 @@ class AppController with ChangeNotifier {
   }
 
   void _loadSettings() {
+    _appMode = AppMode.values[_prefs.getInt("appMode") ?? 0];
     _enableEffects = _prefs.getBool("enableEffects") ?? false;
     _selectedPreset = _prefs.getInt("selectedPreset") ?? 0;
     _isFancy = _prefs.getBool("fancyMode") ?? false;

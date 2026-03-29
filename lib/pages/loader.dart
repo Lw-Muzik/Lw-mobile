@@ -7,6 +7,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../Helpers/fileloader.dart';
 import '../Routes/routes.dart';
 import '../controllers/PlayerController.dart';
+import '../controllers/AppController.dart';
+import '../onboarding/mode_chooser.dart';
 import '../onboarding/onboarding_screen.dart';
 
 class AssetLoader extends StatefulWidget {
@@ -153,10 +155,24 @@ class _AssetLoaderState extends State<AssetLoader>
         _isNavigating = true;
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
-            builder: (ctx) => OnboardingScreen(
-              onComplete: () {
-                Navigator.of(ctx).pushNamedAndRemoveUntil(
-                    Routes.loader, (route) => false);
+            builder: (ctx) => ModeChooser(
+              onComplete: (AppMode mode) {
+                // Save the chosen mode
+                final controller =
+                    Provider.of<AppController>(ctx, listen: false);
+                controller.appMode = mode;
+
+                Navigator.of(ctx).pushReplacement(
+                  MaterialPageRoute(
+                    builder: (ctx2) => OnboardingScreen(
+                      mode: mode,
+                      onComplete: () {
+                        Navigator.of(ctx2).pushNamedAndRemoveUntil(
+                            Routes.loader, (route) => false);
+                      },
+                    ),
+                  ),
+                );
               },
             ),
           ),

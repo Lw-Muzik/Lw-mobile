@@ -2,11 +2,32 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../controllers/AppController.dart';
 import 'onboarding_data.dart';
+
+/// EQ-mode onboarding: focused pages for equalizer-only usage.
+const _eqOnboardingPages = [
+  OnboardingPage(
+    title: 'Your Sound,\nYour Rules',
+    subtitle: 'Professional audio for every app',
+    icon: Icons.tune_rounded,
+    features: [
+      'EQ applies to Spotify, YouTube & more',
+      'Runs silently in the background',
+      'One-tap enable from notification',
+    ],
+    accentColor: Color(0xFF5EC4D4),
+  ),
+];
 
 class OnboardingScreen extends StatefulWidget {
   final VoidCallback onComplete;
-  const OnboardingScreen({super.key, required this.onComplete});
+  final AppMode mode;
+  const OnboardingScreen({
+    super.key,
+    required this.onComplete,
+    this.mode = AppMode.musicPlayer,
+  });
 
   @override
   State<OnboardingScreen> createState() => _OnboardingScreenState();
@@ -17,11 +38,24 @@ class _OnboardingScreenState extends State<OnboardingScreen>
   late final PageController _pageController;
   late final AnimationController _bgController;
   late final AnimationController _pulseController;
+  late final List<OnboardingPage> _pages;
   int _currentPage = 0;
 
   @override
   void initState() {
     super.initState();
+
+    // Build page list based on mode
+    if (widget.mode == AppMode.equalizer) {
+      _pages = [
+        ..._eqOnboardingPages,
+        onboardingPages[2], // Studio-Grade Equalizer
+        onboardingPages[3], // Room Effects & Spatial Audio
+      ];
+    } else {
+      _pages = onboardingPages;
+    }
+
     _pageController = PageController();
     _bgController = AnimationController(
       vsync: this,
@@ -46,7 +80,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
   }
 
   void _next() {
-    if (_currentPage < onboardingPages.length - 1) {
+    if (_currentPage < _pages.length - 1) {
       _pageController.nextPage(
         duration: const Duration(milliseconds: 500),
         curve: Curves.easeInOutCubic,
@@ -81,7 +115,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                 size: size,
                 painter: _GradientBgPainter(
                   progress: _bgController.value,
-                  accent: onboardingPages[_currentPage].accentColor,
+                  accent: _pages[_currentPage].accentColor,
                 ),
               );
             },
@@ -90,12 +124,12 @@ class _OnboardingScreenState extends State<OnboardingScreen>
           // Page content
           PageView.builder(
             controller: _pageController,
-            itemCount: onboardingPages.length,
+            itemCount: _pages.length,
             onPageChanged: (i) => setState(() => _currentPage = i),
             physics: const BouncingScrollPhysics(),
             itemBuilder: (context, index) {
               return _OnboardingPageView(
-                page: onboardingPages[index],
+                page: _pages[index],
                 isActive: index == _currentPage,
                 pulseAnimation: _pulseController,
               );
@@ -129,7 +163,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                 // Page indicators
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
-                  children: List.generate(onboardingPages.length, (i) {
+                  children: List.generate(_pages.length, (i) {
                     final isActive = i == _currentPage;
                     return AnimatedContainer(
                       duration: const Duration(milliseconds: 300),
@@ -138,7 +172,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                       height: 8,
                       decoration: BoxDecoration(
                         color: isActive
-                            ? onboardingPages[_currentPage].accentColor
+                            ? _pages[_currentPage].accentColor
                             : Colors.white.withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(4),
                       ),
@@ -155,11 +189,11 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                     child: AnimatedSwitcher(
                       duration: const Duration(milliseconds: 300),
                       child: FilledButton(
-                        key: ValueKey(_currentPage == onboardingPages.length - 1),
+                        key: ValueKey(_currentPage == _pages.length - 1),
                         onPressed: _next,
                         style: FilledButton.styleFrom(
                           backgroundColor:
-                              onboardingPages[_currentPage].accentColor,
+                              _pages[_currentPage].accentColor,
                           foregroundColor: Colors.black,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(16),
@@ -171,7 +205,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                           ),
                         ),
                         child: Text(
-                          _currentPage == onboardingPages.length - 1
+                          _currentPage == _pages.length - 1
                               ? "Let's Go"
                               : 'Next',
                         ),

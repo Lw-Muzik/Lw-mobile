@@ -1,15 +1,12 @@
 import 'dart:io';
-import 'dart:ui';
 
 import '/exports/exports.dart';
-import 'package:wiredash/wiredash.dart';
 
 import '../Routes/routes.dart';
 import '../controllers/AppController.dart';
 import '../controllers/drawer_controller.dart';
 import 'equalizer.dart';
 import 'Settings.dart';
-import 'cloud/cloud_view.dart';
 import '../player/lyrics_view.dart';
 import 'visual_ui.dart';
 
@@ -37,127 +34,150 @@ class _MenuScreenState extends State<MenuScreen> {
     final bottomPad = MediaQuery.of(context).padding.bottom;
     final cs = Theme.of(context).colorScheme;
 
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: Padding(
-        padding: EdgeInsets.only(top: topPad, bottom: bottomPad),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 24),
-            // ── Brand header ──
-            _BrandHeader(colorScheme: cs),
-            const SizedBox(height: 28),
-            // ── Navigation items ──
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Primary section
-                    _SectionLabel('PLAYER'),
-                    const SizedBox(height: 4),
-                    _MenuItem(
-                      icon: Icons.equalizer_rounded,
-                      label: 'Equalizer',
-                      subtitle: 'Graphic & Parametric EQ',
-                      onTap: () => _navigate(const Equalizer()),
-                    ),
-                    _MenuItem(
-                      icon: Icons.lyrics_rounded,
-                      label: 'Lyrics',
-                      subtitle: 'View & edit song lyrics',
-                      onTap: () {
-                        context.read<DrawerProvider>().closeDrawer();
-                        Navigator.of(context).push(
-                          PageRouteBuilder(
-                            opaque: false,
-                            pageBuilder: (_, __, ___) => const LyricsView(),
-                            transitionsBuilder: (_, anim, __, child) {
-                              return SlideTransition(
-                                position:
-                                    Tween<Offset>(
-                                      begin: const Offset(0, 1),
-                                      end: Offset.zero,
-                                    ).animate(
-                                      CurvedAnimation(
-                                        parent: anim,
-                                        curve: Curves.easeOutCubic,
+    return Consumer<AppController>(
+      builder: (context, controller, _) {
+        final isEq = controller.isEqMode;
+
+        return Scaffold(
+          backgroundColor: Colors.black,
+          body: Padding(
+            padding: EdgeInsets.only(top: topPad, bottom: bottomPad),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 24),
+                // ── Brand header ──
+                _BrandHeader(colorScheme: cs),
+                const SizedBox(height: 12),
+                // ── Mode Switcher ──
+                if (Platform.isAndroid)
+                  _ModeSwitcher(
+                    mode: controller.appMode,
+                    onChanged: (mode) => controller.appMode = mode,
+                  ),
+                const SizedBox(height: 16),
+                // ── Navigation items ──
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Primary section
+                        _SectionLabel(isEq ? 'EQUALIZER' : 'PLAYER'),
+                        const SizedBox(height: 4),
+                        _MenuItem(
+                          icon: Icons.equalizer_rounded,
+                          label: 'Equalizer',
+                          subtitle: 'Graphic & Parametric EQ',
+                          onTap: () => _navigate(const Equalizer()),
+                        ),
+                        if (!isEq) ...[
+                          _MenuItem(
+                            icon: Icons.lyrics_rounded,
+                            label: 'Lyrics',
+                            subtitle: 'View & edit song lyrics',
+                            onTap: () {
+                              context.read<DrawerProvider>().closeDrawer();
+                              Navigator.of(context).push(
+                                PageRouteBuilder(
+                                  opaque: false,
+                                  pageBuilder: (_, __, ___) =>
+                                      const LyricsView(),
+                                  transitionsBuilder:
+                                      (_, anim, __, child) {
+                                    return SlideTransition(
+                                      position: Tween<Offset>(
+                                        begin: const Offset(0, 1),
+                                        end: Offset.zero,
+                                      ).animate(
+                                        CurvedAnimation(
+                                          parent: anim,
+                                          curve: Curves.easeOutCubic,
+                                        ),
                                       ),
-                                    ),
-                                child: child,
+                                      child: child,
+                                    );
+                                  },
+                                  transitionDuration: const Duration(
+                                    milliseconds: 350,
+                                  ),
+                                ),
                               );
                             },
-                            transitionDuration: const Duration(
-                              milliseconds: 350,
+                          ),
+                          _MenuItem(
+                            icon: Icons.graphic_eq_rounded,
+                            label: 'Visualizer',
+                            subtitle: 'Audio visual effects',
+                            onTap: () => _navigate(const VisualUI()),
+                          ),
+                        ],
+
+                        if (!isEq) ...[
+                          const SizedBox(height: 20),
+                          _SectionLabel('LIBRARY'),
+                          const SizedBox(height: 4),
+                          _MenuItem(
+                            icon: Icons.cloud_rounded,
+                            label: 'Cloud Music',
+                            subtitle: 'Google Drive & Dropbox',
+                            onTap: () {
+                              context.read<DrawerProvider>().closeDrawer();
+                            },
+                          ),
+                          _MenuItem(
+                            icon: Icons.refresh_rounded,
+                            label: 'Rescan Library',
+                            subtitle: 'Reload local music files',
+                            onTap: () => _closeAndRun(
+                              () =>
+                                  Navigator.pushNamed(context, Routes.loader),
                             ),
                           ),
-                        );
-                      },
-                    ),
-                    _MenuItem(
-                      icon: Icons.graphic_eq_rounded,
-                      label: 'Visualizer',
-                      subtitle: 'Audio visual effects',
-                      onTap: () => _navigate(const VisualUI()),
-                    ),
+                        ],
 
-                    const SizedBox(height: 20),
-                    _SectionLabel('LIBRARY'),
-                    const SizedBox(height: 4),
-                    _MenuItem(
-                      icon: Icons.cloud_rounded,
-                      label: 'Cloud Music',
-                      subtitle: 'Google Drive & Dropbox',
-                      onTap: () {
-                        context.read<DrawerProvider>().closeDrawer();
-                      },
+                        const SizedBox(height: 20),
+                        _SectionLabel('APP'),
+                        const SizedBox(height: 4),
+                        _MenuItem(
+                          icon: Icons.settings_rounded,
+                          label: 'Settings',
+                          subtitle: isEq
+                              ? 'Audio, appearance & more'
+                              : 'Playback, theme & more',
+                          onTap: () => _navigate(const Settings()),
+                        ),
+                        _MenuItem(
+                          icon: Icons.bug_report_rounded,
+                          label: 'Report a Bug',
+                          subtitle: 'Send feedback',
+                          onTap: () => _closeAndRun(
+                            () => Wiredash.of(
+                              context,
+                            ).show(inheritMaterialTheme: true),
+                          ),
+                        ),
+                        _MenuItem(
+                          icon: Icons.info_outline_rounded,
+                          label: 'About',
+                          subtitle: isEq
+                              ? 'Hype EQ v1.1.2'
+                              : 'Hype Muzik v1.1.2',
+                          onTap: () => _showAbout(context),
+                        ),
+                        const SizedBox(height: 16),
+                      ],
                     ),
-                    _MenuItem(
-                      icon: Icons.refresh_rounded,
-                      label: 'Rescan Library',
-                      subtitle: 'Reload local music files',
-                      onTap: () => _closeAndRun(
-                        () => Navigator.pushNamed(context, Routes.loader),
-                      ),
-                    ),
-
-                    const SizedBox(height: 20),
-                    _SectionLabel('APP'),
-                    const SizedBox(height: 4),
-                    _MenuItem(
-                      icon: Icons.settings_rounded,
-                      label: 'Settings',
-                      subtitle: 'Playback, theme & more',
-                      onTap: () => _navigate(const Settings()),
-                    ),
-                    _MenuItem(
-                      icon: Icons.bug_report_rounded,
-                      label: 'Report a Bug',
-                      subtitle: 'Send feedback',
-                      onTap: () => _closeAndRun(
-                        () => Wiredash.of(
-                          context,
-                        ).show(inheritMaterialTheme: true),
-                      ),
-                    ),
-                    _MenuItem(
-                      icon: Icons.info_outline_rounded,
-                      label: 'About',
-                      subtitle: 'Hype Muzik v1.1.2',
-                      onTap: () => _showAbout(context),
-                    ),
-                    const SizedBox(height: 16),
-                  ],
+                  ),
                 ),
-              ),
+                // ── Footer ──
+                _Footer(onExit: () => _showExitDialog(context)),
+              ],
             ),
-            // ── Footer ──
-            _Footer(onExit: () => _showExitDialog(context)),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 
@@ -400,6 +420,93 @@ class _MenuItem extends StatelessWidget {
                 Icons.chevron_right_rounded,
                 color: Colors.white.withValues(alpha: 0.15),
                 size: 20,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Mode Switcher
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _ModeSwitcher extends StatelessWidget {
+  final AppMode mode;
+  final ValueChanged<AppMode> onChanged;
+  const _ModeSwitcher({required this.mode, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Container(
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.06),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          children: [
+            _buildSegment(
+              label: 'Music Player',
+              icon: Icons.headphones_rounded,
+              selected: mode == AppMode.musicPlayer,
+              onTap: () => onChanged(AppMode.musicPlayer),
+            ),
+            _buildSegment(
+              label: 'Equalizer',
+              icon: Icons.equalizer_rounded,
+              selected: mode == AppMode.equalizer,
+              onTap: () => onChanged(AppMode.equalizer),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSegment({
+    required String label,
+    required IconData icon,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOutCubic,
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            color: selected
+                ? Colors.white.withValues(alpha: 0.12)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(9),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                size: 16,
+                color: selected
+                    ? Colors.white
+                    : Colors.white.withValues(alpha: 0.35),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                  color: selected
+                      ? Colors.white
+                      : Colors.white.withValues(alpha: 0.35),
+                ),
               ),
             ],
           ),
