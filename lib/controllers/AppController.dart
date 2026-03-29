@@ -82,7 +82,7 @@ class AppController with ChangeNotifier {
   int _crossfadeDuration = 0; // seconds, 0 = off
   bool _replayGain = false;
   bool _dvcEnabled = false;
-  double _dvcGain = -20; // dB, range -30 to +30
+  double _dvcGain = -30.0; // dB, range -30 to 0 (0% to 100%)
   bool _dvcFineSteps = false; // false=1.5dB (5%), true=0.3dB (1%)
 
   // Global EQ (system-wide)
@@ -90,8 +90,8 @@ class AppController with ChangeNotifier {
   bool _globalEqAvailable = false;
   List<Map<String, String>> _playingApps = [];
 
-  // Song list/grid zoom scale: 0=list, 1=2-col grid, 2=3-col grid
-  int _songGridScale = 0;
+  // Song list/grid zoom: continuous extent (80=tiny grid, 300=list mode)
+  double _songGridExtent = 300.0; // default list mode
 
   // Configurable EQ band count (UI-layer only, native always 32)
   int _eqBandCount = 32;
@@ -150,13 +150,13 @@ class AppController with ChangeNotifier {
   // Stem separation
   final StemController stemController = StemController();
 
-  // Song grid scale getters/setters
-  int get songGridScale => _songGridScale;
-  set songGridScale(int value) {
-    final clamped = value.clamp(0, 2);
-    if (clamped != _songGridScale) {
-      _songGridScale = clamped;
-      _prefs.setInt("songGridScale", clamped);
+  // Song grid extent getters/setters
+  double get songGridExtent => _songGridExtent;
+  set songGridExtent(double value) {
+    final clamped = value.clamp(80.0, 300.0);
+    if ((clamped - _songGridExtent).abs() > 0.5) {
+      _songGridExtent = clamped;
+      _prefs.setDouble("songGridExtent", clamped);
       notifyListeners();
     }
   }
@@ -541,6 +541,11 @@ class AppController with ChangeNotifier {
     _prefs.setBool("dvcEnabled", value);
     _dvcEnabled = value;
     if (value) {
+      // Start at 0% (silence) so enabling DVC never blasts at full volume
+      if (!_prefs.containsKey("dvcGain")) {
+        _dvcGain = -30.0;
+        _prefs.setDouble("dvcGain", _dvcGain);
+      }
       Channel.enableDvc();
       Channel.setDvcGain(_dvcGain);
     } else {
@@ -566,7 +571,10 @@ class AppController with ChangeNotifier {
     _prefs.setBool("globalEqEnabled", value);
     _globalEqEnabled = value;
     Channel.enableGlobalEq(value);
-    if (!value) {
+    if (value) {
+      // Give the service a moment to start and detect sessions
+      Future.delayed(const Duration(milliseconds: 800), refreshPlayingApps);
+    } else {
       _playingApps = [];
     }
     notifyListeners();
@@ -1024,11 +1032,17 @@ class AppController with ChangeNotifier {
     _crossfadeDuration = _prefs.getInt("crossfadeDuration") ?? 0;
     _replayGain = _prefs.getBool("replayGain") ?? false;
     _dvcEnabled = _prefs.getBool("dvcEnabled") ?? false;
-    _dvcGain = _prefs.getDouble("dvcGain") ?? 0.0;
+    _dvcGain = _prefs.getDouble("dvcGain") ?? -30.0;
     _dvcFineSteps = _prefs.getBool("dvcFineSteps") ?? false;
     _globalEqEnabled = _prefs.getBool("globalEqEnabled") ?? false;
-    // Song grid scale
-    _songGridScale = (_prefs.getInt("songGridScale") ?? 0).clamp(0, 2);
+    // Song grid extent (migrate from old int scale if needed)
+    if (_prefs.containsKey("songGridExtent")) {
+      _songGridExtent = (_prefs.getDouble("songGridExtent") ?? 300.0).clamp(80.0, 300.0);
+    } else {
+      // Migrate from old songGridScale: 0=list→300, 1=2-col→180, 2=3-col→120
+      final oldScale = _prefs.getInt("songGridScale") ?? 0;
+      _songGridExtent = oldScale == 0 ? 300.0 : oldScale == 1 ? 180.0 : 120.0;
+    }
     // EQ band count
     _eqBandCount = _prefs.getInt("eqBandCount") ?? 32;
     // Preamp & MBC

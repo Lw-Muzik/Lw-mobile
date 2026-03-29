@@ -63,11 +63,13 @@ Future<void> main() async {
 
   final handler = await AudioService.init<HypeAudioHandler>(
     builder: () => HypeAudioHandler(),
-    config: const AudioServiceConfig(
+    config: AudioServiceConfig(
       androidNotificationChannelId: 'com.ryanheise.bg_demo.channel.audio',
       androidNotificationChannelName: 'Audio playback',
       androidNotificationOngoing: true,
       androidNotificationIcon: 'mipmap/launcher_icon',
+      androidStopForegroundOnPause: false,
+      androidResumeOnClick: true,
     ),
   );
 

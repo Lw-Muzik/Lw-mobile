@@ -303,9 +303,14 @@ class _SettingsState extends State<Settings> {
                         child: const Text("Cancel"),
                       ),
                       FilledButton(
-                        onPressed: () {
+                        onPressed: () async {
                           Navigator.pop(ctx);
                           controller.globalEqEnabled = true;
+                          // Prompt for battery optimization if not already disabled
+                          final isDisabled = await Channel.isBatteryOptimizationDisabled();
+                          if (!isDisabled && mounted) {
+                            _showBatteryOptimizationPrompt();
+                          }
                         },
                         child: const Text("Enable"),
                       ),
@@ -353,6 +358,33 @@ class _SettingsState extends State<Settings> {
           ],
         ]),
       ],
+    );
+  }
+
+  void _showBatteryOptimizationPrompt() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Disable Battery Optimization"),
+        content: const Text(
+          "To prevent Android from stopping Hype in the background, "
+          "please allow unrestricted battery usage.\n\n"
+          "This keeps your EQ and music playing without interruption.",
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("Later"),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              Channel.requestDisableBatteryOptimization();
+            },
+            child: const Text("Allow"),
+          ),
+        ],
+      ),
     );
   }
 

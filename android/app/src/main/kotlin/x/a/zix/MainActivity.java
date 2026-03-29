@@ -39,6 +39,7 @@ import java.io.FileOutputStream;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -762,6 +763,27 @@ public class MainActivity extends AudioServiceFragmentActivity {
                                     new Handler(Looper.getMainLooper()).post(() -> result.success(null));
                                 }
                             }).start();
+                            break;
+                        }
+
+                        // ==================== Battery Optimization ====================
+                        case "isBatteryOptimizationDisabled": {
+                            android.os.PowerManager pm =
+                                    (android.os.PowerManager) getSystemService(POWER_SERVICE);
+                            result.success(pm != null &&
+                                    pm.isIgnoringBatteryOptimizations(getPackageName()));
+                            break;
+                        }
+                        case "requestDisableBatteryOptimization": {
+                            try {
+                                Intent batteryIntent = new Intent(
+                                        android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
+                                batteryIntent.setData(android.net.Uri.parse("package:" + getPackageName()));
+                                startActivity(batteryIntent);
+                                result.success(true);
+                            } catch (Exception e) {
+                                result.success(false);
+                            }
                             break;
                         }
 

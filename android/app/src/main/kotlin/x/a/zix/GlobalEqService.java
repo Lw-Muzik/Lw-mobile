@@ -5,14 +5,20 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.media.AudioManager;
 import android.media.AudioPlaybackConfiguration;
+import android.media.session.MediaController;
+import android.media.session.MediaSessionManager;
+import android.media.session.PlaybackState;
 import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
+import android.os.PowerManager;
 import android.util.Log;
 
 import androidx.annotation.Nullable;
@@ -20,21 +26,19 @@ import androidx.annotation.RequiresApi;
 import androidx.core.app.NotificationCompat;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * Foreground service that attaches a global DynamicsProcessing EQ to the audio
  * output mix (sessionId = 0), applying the current EQ profile to ALL audio apps.
  *
- * Per-session attachment to external apps requires system-level permissions on
- * Android 10+. Using sessionId = 0 is the standard third-party EQ approach.
- *
- * Also tracks which apps are currently playing (for UI display) via the public
- * AudioPlaybackCallback API (no reflection required).
- *
- * Note: To prevent double-EQ on own app's audio, the C++ DSP EQ is bypassed
- * while this service is active (handled by RoomEffectsProcessor.broadcastGlobalEqActive).
+ * Tracks which apps are currently playing audio using a tiered approach:
+ *   - API 34+: AudioPlaybackConfiguration.getClientUid() (public API)
+ *   - API 28-33: MediaSessionManager.getActiveSessions() (public API)
+ *   - Both: AudioPlaybackCallback for real-time change notifications
  */
 @RequiresApi(api = Build.VERSION_CODES.P)
 public class GlobalEqService extends Service {
@@ -45,6 +49,9 @@ public class GlobalEqService extends Service {
 
     private AudioManager audioManager;
     private AudioManager.AudioPlaybackCallback playbackCallback;
+    private MediaSessionManager mediaSessionManager;
+    private MediaSessionManager.OnActiveSessionsChangedListener sessionListener;
+    private PowerManager.WakeLock wakeLock;
     private final Handler handler = new Handler(Looper.getMainLooper());
 
     // Currently playing app package names (for UI display only)
@@ -62,6 +69,14 @@ public class GlobalEqService extends Service {
         startForeground(NOTIFICATION_ID, buildNotification());
 
         audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
+        mediaSessionManager = (MediaSessionManager) getSystemService(Context.MEDIA_SESSION_SERVICE);
+
+        // Acquire partial wake lock to prevent CPU sleep while EQ is active
+        PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+        if (pm != null) {
+            wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "HypeEQ::GlobalEq");
+            wakeLock.acquire();
+        }
 
         // Attach global DynamicsProcessing to output mix
         GlobalEqSessionManager.setEnabled(true);
@@ -70,9 +85,14 @@ public class GlobalEqService extends Service {
         // Bypass C++ EQ in own app to prevent double-processing
         RoomEffectsProcessor.broadcastGlobalEqActive(true);
 
-        // Track playing apps for UI display (public API, no reflection)
+        // Register for playback change notifications
         registerPlaybackCallback();
-        scanPlayingApps();
+
+        // Register MediaSession listener for API 28-33 package detection
+        registerMediaSessionListener();
+
+        // Initial scan
+        refreshPlayingApps();
 
         Log.i(TAG, "GlobalEqService started — global output mix EQ active");
     }
@@ -89,13 +109,25 @@ public class GlobalEqService extends Service {
     @Override
     public void onDestroy() {
         unregisterPlaybackCallback();
+        unregisterMediaSessionListener();
         playingApps.clear();
         GlobalEqSessionManager.setEnabled(false);
         GlobalEqSessionManager.releaseAll();
         // Restore C++ EQ for own app
         RoomEffectsProcessor.broadcastGlobalEqActive(false);
+        // Release wake lock
+        if (wakeLock != null && wakeLock.isHeld()) {
+            wakeLock.release();
+            wakeLock = null;
+        }
         Log.i(TAG, "GlobalEqService stopped");
         super.onDestroy();
+    }
+
+    @Override
+    public void onTaskRemoved(Intent rootIntent) {
+        // Service survives app swipe from recents — do NOT stop
+        Log.i(TAG, "Task removed but GlobalEqService continues");
     }
 
     @Nullable
@@ -104,7 +136,131 @@ public class GlobalEqService extends Service {
         return null;
     }
 
-    // ---- AudioPlaybackCallback (display-only: tracks which apps are playing) ----
+    // ---- Playing apps detection (tiered approach) ----
+
+    /**
+     * Refresh the playing apps list using the best available method:
+     *  - API 34+: AudioPlaybackConfiguration.getClientUid() (public, catches all audio)
+     *  - API 28-33: MediaSessionManager (public, catches media players)
+     *  - Fallback: reflection on getClientUid() (may fail on Android 12+)
+     */
+    private void refreshPlayingApps() {
+        Set<String> active = new LinkedHashSet<>();
+        String ownPkg = getPackageName();
+
+        // Tier 1: API 34+ — public getClientUid() on AudioPlaybackConfiguration
+        if (Build.VERSION.SDK_INT >= 34) {
+            try {
+                List<AudioPlaybackConfiguration> configs =
+                        audioManager.getActivePlaybackConfigurations();
+                if (configs != null) {
+                    PackageManager pm = getPackageManager();
+                    for (AudioPlaybackConfiguration config : configs) {
+                        try {
+                            int uid = config.getClientUid();
+                            String[] packages = pm.getPackagesForUid(uid);
+                            if (packages != null) {
+                                for (String pkg : packages) {
+                                    if (pkg != null && !pkg.equals(ownPkg)) {
+                                        active.add(pkg);
+                                    }
+                                }
+                            }
+                        } catch (Exception ignored) {}
+                    }
+                }
+            } catch (Exception e) {
+                Log.w(TAG, "API 34 playback config scan failed: " + e.getMessage());
+            }
+        }
+
+        // Tier 2: MediaSessionManager — works on API 28-33, also supplements API 34+
+        if (mediaSessionManager != null) {
+            try {
+                ComponentName listener = getNotificationListenerComponent();
+                List<MediaController> controllers = listener != null
+                        ? mediaSessionManager.getActiveSessions(listener)
+                        : mediaSessionManager.getActiveSessions(null);
+
+                for (MediaController controller : controllers) {
+                    String pkg = controller.getPackageName();
+                    if (pkg != null && !pkg.equals(ownPkg)) {
+                        PlaybackState state = controller.getPlaybackState();
+                        if (state != null && state.getState() == PlaybackState.STATE_PLAYING) {
+                            active.add(pkg);
+                        }
+                    }
+                }
+            } catch (SecurityException e) {
+                // NotificationListener not granted — try without component
+                try {
+                    List<MediaController> controllers =
+                            mediaSessionManager.getActiveSessions(null);
+                    for (MediaController controller : controllers) {
+                        String pkg = controller.getPackageName();
+                        if (pkg != null && !pkg.equals(ownPkg)) {
+                            PlaybackState state = controller.getPlaybackState();
+                            if (state != null && state.getState() == PlaybackState.STATE_PLAYING) {
+                                active.add(pkg);
+                            }
+                        }
+                    }
+                } catch (Exception ignored) {}
+            } catch (Exception e) {
+                Log.w(TAG, "MediaSessionManager scan failed: " + e.getMessage());
+            }
+        }
+
+        // Tier 3: Reflection fallback for API 28-33 (may not work on Android 12+)
+        if (active.isEmpty() && Build.VERSION.SDK_INT < 34) {
+            try {
+                List<AudioPlaybackConfiguration> configs =
+                        audioManager.getActivePlaybackConfigurations();
+                if (configs != null) {
+                    PackageManager pm = getPackageManager();
+                    for (AudioPlaybackConfiguration config : configs) {
+                        try {
+                            java.lang.reflect.Method m =
+                                    config.getClass().getMethod("getClientUid");
+                            int uid = (int) m.invoke(config);
+                            String[] packages = pm.getPackagesForUid(uid);
+                            if (packages != null) {
+                                for (String pkg : packages) {
+                                    if (pkg != null && !pkg.equals(ownPkg)) {
+                                        active.add(pkg);
+                                    }
+                                }
+                            }
+                        } catch (Exception ignored) {}
+                    }
+                }
+            } catch (Exception e) {
+                Log.w(TAG, "Reflection fallback scan failed: " + e.getMessage());
+            }
+        }
+
+        playingApps.clear();
+        playingApps.addAll(active);
+    }
+
+    /**
+     * Try to find our NotificationListenerService component for MediaSessionManager.
+     * Returns null if not declared (MediaSessionManager will use null which returns
+     * only sessions this app owns, but some ROMs allow null to return all).
+     */
+    @Nullable
+    private ComponentName getNotificationListenerComponent() {
+        try {
+            // Look for a NotificationListenerService in our package
+            ComponentName component = new ComponentName(this,
+                    Class.forName(getPackageName() + ".MediaNotificationListener"));
+            return component;
+        } catch (ClassNotFoundException e) {
+            return null;
+        }
+    }
+
+    // ---- AudioPlaybackCallback (triggers refresh on any change) ----
 
     private void registerPlaybackCallback() {
         if (audioManager == null) return;
@@ -112,7 +268,7 @@ public class GlobalEqService extends Service {
         playbackCallback = new AudioManager.AudioPlaybackCallback() {
             @Override
             public void onPlaybackConfigChanged(List<AudioPlaybackConfiguration> configs) {
-                updatePlayingApps(configs);
+                refreshPlayingApps();
             }
         };
         audioManager.registerAudioPlaybackCallback(playbackCallback, handler);
@@ -127,40 +283,35 @@ public class GlobalEqService extends Service {
         }
     }
 
-    /** Scan for already-active playback sessions on startup. */
-    private void scanPlayingApps() {
-        if (audioManager == null) return;
+    // ---- MediaSessionManager listener (catches session changes) ----
+
+    private void registerMediaSessionListener() {
+        if (mediaSessionManager == null) return;
+
+        sessionListener = controllers -> refreshPlayingApps();
+
         try {
-            List<AudioPlaybackConfiguration> configs =
-                    audioManager.getActivePlaybackConfigurations();
-            if (configs != null) {
-                updatePlayingApps(configs);
-            }
+            ComponentName listener = getNotificationListenerComponent();
+            mediaSessionManager.addOnActiveSessionsChangedListener(
+                    sessionListener, listener, handler);
+        } catch (SecurityException e) {
+            // Try without notification listener component
+            try {
+                mediaSessionManager.addOnActiveSessionsChangedListener(
+                        sessionListener, null, handler);
+            } catch (Exception ignored) {}
         } catch (Exception e) {
-            Log.w(TAG, "Failed to scan active playback configs: " + e.getMessage());
+            Log.w(TAG, "Failed to register media session listener: " + e.getMessage());
         }
     }
 
-    /**
-     * Rebuild the playing-apps list from the current set of active configs.
-     * Uses the public getClientPackageName() API — no reflection needed.
-     * Skips our own package to avoid showing Hype in the "other apps" list.
-     */
-    private void updatePlayingApps(List<AudioPlaybackConfiguration> configs) {
-        if (configs == null) return;
-
-        List<String> active = new ArrayList<>();
-        String ownPkg = getPackageName();
-
-        for (AudioPlaybackConfiguration config : configs) {
-            String pkg = config.getClientPackageName();
-            if (pkg != null && !pkg.equals(ownPkg) && !active.contains(pkg)) {
-                active.add(pkg);
-            }
+    private void unregisterMediaSessionListener() {
+        if (mediaSessionManager != null && sessionListener != null) {
+            try {
+                mediaSessionManager.removeOnActiveSessionsChangedListener(sessionListener);
+            } catch (Exception ignored) {}
+            sessionListener = null;
         }
-
-        playingApps.clear();
-        playingApps.addAll(active);
     }
 
     // ---- Notification ----

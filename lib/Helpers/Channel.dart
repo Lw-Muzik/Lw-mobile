@@ -183,7 +183,7 @@ class Channel {
 
   /// Returns list of {package, name} maps for apps currently playing audio.
   static Future<List<Map<String, String>>> getPlayingApps() async {
-    final result = await _invoke<List<dynamic>>("getPlayingApps", []);
+    final result = await _invoke<List<dynamic>>("getPlayingApps");
     if (result == null) return [];
     return result
         .map((e) => Map<String, String>.from(e as Map))
@@ -192,7 +192,17 @@ class Channel {
 
   /// Returns the PNG icon bytes for a given package name, or null if unavailable.
   static Future<Uint8List?> getAppIcon(String packageName) async {
-    return await _invoke<Uint8List>("getAppIcon", null, {"package": packageName});
+    return await _invoke<Uint8List>("getAppIcon", {"package": packageName});
+  }
+
+  /// Check if battery optimization is disabled (app is unrestricted).
+  static Future<bool> isBatteryOptimizationDisabled() async {
+    return await _invokeRequired<bool>("isBatteryOptimizationDisabled", false);
+  }
+
+  /// Request the user to disable battery optimization for this app.
+  static Future<bool> requestDisableBatteryOptimization() async {
+    return await _invokeRequired<bool>("requestDisableBatteryOptimization", false);
   }
 
   // ==================== Custom DSP Room Effects ====================

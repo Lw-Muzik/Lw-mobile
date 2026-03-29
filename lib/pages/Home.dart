@@ -186,6 +186,38 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
     Channel.setPreamp(_appController.preampGain);
     Channel.setGraphicAllBands(_appController.graphicBandGains);
     Channel.enableMbc(_appController.mbcEnabled);
+
+    // One-time battery optimization prompt
+    final prefs = await SharedPreferences.getInstance();
+    if (!(prefs.getBool('batteryOptPrompted') ?? false)) {
+      final isDisabled = await Channel.isBatteryOptimizationDisabled();
+      if (!isDisabled && mounted) {
+        prefs.setBool('batteryOptPrompted', true);
+        showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text("Keep Music Playing"),
+            content: const Text(
+              "Android may stop Hype in the background to save battery.\n\n"
+              "To enjoy uninterrupted music, allow unrestricted battery usage.",
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text("Later"),
+              ),
+              FilledButton(
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  Channel.requestDisableBatteryOptimization();
+                },
+                child: const Text("Allow"),
+              ),
+            ],
+          ),
+        );
+      }
+    }
   }
 
   @override
