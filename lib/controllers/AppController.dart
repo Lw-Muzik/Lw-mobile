@@ -73,6 +73,10 @@ class AppController with ChangeNotifier {
   set appMode(AppMode value) {
     _appMode = value;
     _prefs.setInt("appMode", value.index);
+    // Auto-enable global EQ when switching to equalizer mode
+    if (value == AppMode.equalizer && _globalEqAvailable && !_globalEqEnabled) {
+      globalEqEnabled = true;
+    }
     notifyListeners();
   }
 
