@@ -24,10 +24,13 @@ class _EqualizerState extends State<Equalizer> with TickerProviderStateMixin {
   final _tabBarKey = GlobalKey();
   final _contentKey = GlobalKey();
 
+  bool _isEqMode = false;
+
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 5, vsync: this);
+    _isEqMode = context.read<AppController>().isEqMode;
+    _tabController = TabController(length: _isEqMode ? 2 : 5, vsync: this);
     Future.delayed(const Duration(milliseconds: 1500), () {
       if (!mounted) return;
       _coachController.hasBeenShown().then((shown) {
@@ -116,12 +119,14 @@ class _EqualizerState extends State<Equalizer> with TickerProviderStateMixin {
         context,
       ).colorScheme.onSurface.withValues(alpha: 0.6),
       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-      tabs: const [
-        Tab(icon: Icon(Icons.equalizer, size: 35)),
-        Tab(icon: Icon(Icons.tune, size: 35)),
-        Tab(icon: Icon(Icons.show_chart, size: 35)),
-        Tab(icon: Icon(Icons.surround_sound, size: 35)),
-        Tab(icon: Icon(Icons.headphones, size: 35)),
+      tabs: [
+        const Tab(icon: Icon(Icons.equalizer, size: 35)),
+        const Tab(icon: Icon(Icons.tune, size: 35)),
+        if (!_isEqMode) ...[
+          const Tab(icon: Icon(Icons.show_chart, size: 35)),
+          const Tab(icon: Icon(Icons.surround_sound, size: 35)),
+          const Tab(icon: Icon(Icons.headphones, size: 35)),
+        ],
       ],
     );
   }
@@ -130,7 +135,15 @@ class _EqualizerState extends State<Equalizer> with TickerProviderStateMixin {
     return SafeArea(
       child: TabBarView(
         controller: _tabController,
-        children: const [GraphicEqView(), ToneView(), ParametricEqView(), SpaceView(), SpeakerEqView()],
+        children: [
+          const GraphicEqView(),
+          const ToneView(),
+          if (!_isEqMode) ...[
+            const ParametricEqView(),
+            const SpaceView(),
+            const SpeakerEqView(),
+          ],
+        ],
       ),
     );
   }
