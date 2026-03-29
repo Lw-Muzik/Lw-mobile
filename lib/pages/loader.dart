@@ -180,16 +180,25 @@ class _AssetLoaderState extends State<AssetLoader>
         return;
       }
 
-      await fetchMetaData(context);
-      await prefs.setBool("artworkLoaded", true);
+      // Only load music library in music player mode
+      final appMode = AppMode.values[prefs.getInt("appMode") ?? 0];
+      if (appMode == AppMode.musicPlayer) {
+        await fetchMetaData(context);
+        await prefs.setBool("artworkLoaded", true);
+      }
 
-      Future.delayed(_loadingDelay, () {
-        if (mounted && !_isNavigating) {
-          _isNavigating = true;
-          Navigator.pushNamedAndRemoveUntil(
-              context, Routes.home, (route) => false);
-        }
-      });
+      Future.delayed(
+        appMode == AppMode.equalizer
+            ? const Duration(milliseconds: 500)
+            : _loadingDelay,
+        () {
+          if (mounted && !_isNavigating) {
+            _isNavigating = true;
+            Navigator.pushNamedAndRemoveUntil(
+                context, Routes.home, (route) => false);
+          }
+        },
+      );
     } catch (e) {
       debugPrint('Error loading assets: $e');
       _showErrorDialog();

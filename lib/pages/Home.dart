@@ -113,6 +113,8 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
   }
 
   Future<void> _tryShowCoachMarks() async {
+    // Skip coach marks in EQ-only mode — they reference music tabs
+    if (_appController.isEqMode) return;
     final shown = await _coachController.hasBeenShown();
     if (shown || !mounted) return;
 
