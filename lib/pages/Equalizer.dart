@@ -2,7 +2,9 @@ import '../exports/exports.dart';
 import '/controllers/AppController.dart';
 import '/Helpers/Channel.dart';
 import '/widgets/Body.dart';
+import '../controllers/drawer_controller.dart';
 import '../onboarding/coach_marks.dart';
+import 'Settings.dart';
 import 'graphic_eq_view.dart';
 import 'tone_view.dart';
 import 'parametric_eq_view.dart';
@@ -75,7 +77,15 @@ class _EqualizerState extends State<Equalizer> with TickerProviderStateMixin {
             : Theme.of(context).scaffoldBackgroundColor,
         appBar: AppBar(
           forceMaterialTransparency: appController.isFancy,
-          title: const Text("Sound Effects"),
+          leading: _isEqMode
+              ? IconButton(
+                  icon: const Icon(Icons.menu_rounded),
+                  onPressed: () {
+                    context.read<DrawerProvider>().toggleDrawer();
+                  },
+                )
+              : null,
+          title: Text(_isEqMode ? "Hype EQ" : "Sound Effects"),
           actions: [
             _EqPowerAction(
               enabled: appController.graphicEqEnabled,
@@ -85,6 +95,15 @@ class _EqualizerState extends State<Equalizer> with TickerProviderStateMixin {
                 Channel.enableEq(newValue);
               },
             ),
+            if (_isEqMode)
+              IconButton(
+                icon: const Icon(Icons.settings_rounded, size: 22),
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const Settings()),
+                  );
+                },
+              ),
             const SizedBox(width: 12),
           ],
           bottom: PreferredSize(
