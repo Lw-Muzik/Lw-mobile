@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -153,30 +154,44 @@ class _AssetLoaderState extends State<AssetLoader>
       final onboardingDone = prefs.getBool('onboarding_complete') ?? false;
       if (!onboardingDone && mounted) {
         _isNavigating = true;
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (ctx) => ModeChooser(
-              onComplete: (AppMode mode) {
-                // Save the chosen mode
-                final controller =
-                    Provider.of<AppController>(ctx, listen: false);
-                controller.appMode = mode;
-
-                Navigator.of(ctx).pushReplacement(
-                  MaterialPageRoute(
-                    builder: (ctx2) => OnboardingScreen(
-                      mode: mode,
-                      onComplete: () {
-                        Navigator.of(ctx2).pushNamedAndRemoveUntil(
-                            Routes.loader, (route) => false);
-                      },
-                    ),
-                  ),
-                );
-              },
+        // iOS: always music mode, skip mode chooser
+        if (!Platform.isAndroid) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (ctx) => OnboardingScreen(
+                mode: AppMode.musicPlayer,
+                onComplete: () {
+                  Navigator.of(ctx).pushNamedAndRemoveUntil(
+                      Routes.loader, (route) => false);
+                },
+              ),
             ),
-          ),
-        );
+          );
+        } else {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (ctx) => ModeChooser(
+                onComplete: (AppMode mode) {
+                  final controller =
+                      Provider.of<AppController>(ctx, listen: false);
+                  controller.appMode = mode;
+
+                  Navigator.of(ctx).pushReplacement(
+                    MaterialPageRoute(
+                      builder: (ctx2) => OnboardingScreen(
+                        mode: mode,
+                        onComplete: () {
+                          Navigator.of(ctx2).pushNamedAndRemoveUntil(
+                              Routes.loader, (route) => false);
+                        },
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          );
+        }
         return;
       }
 
