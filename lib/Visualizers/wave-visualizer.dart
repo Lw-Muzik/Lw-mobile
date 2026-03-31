@@ -4,6 +4,9 @@ import 'package:flutter/material.dart';
 import 'CircularBarVisualizer.dart';
 import 'spectrum-visualiser.dart';
 import 'poweramp_visualizers.dart';
+import '3d_visualizers.dart';
+import '3d_visualizers_tier2.dart';
+import '3d_visualizers_tier3.dart';
 
 class WaveVisualizer extends StatefulWidget {
   final List<int> audioData;   // waveform: unsigned bytes 0-255, center 128
@@ -40,6 +43,10 @@ class _WaveVisualizerState extends State<WaveVisualizer>
   // Waveform amplitude (from time-domain) — signed -1..1 centered at 0
   // Used by: waveform line
   final List<double> _waveform = List.filled(512, 0.0);
+
+  // FFT history ring buffer for terrain/waterfall visualizers
+  static const int _maxHistory = 30;
+  final List<List<double>> _fftHistory = [];
 
   double get _attackRate => widget.reactivity;
   double get _decayRate => widget.reactivity * 0.7;
@@ -207,6 +214,12 @@ class _WaveVisualizerState extends State<WaveVisualizer>
     _updateFreqBands();
     _updateWaveform();
 
+    // Push current frame into FFT history for terrain/waterfall
+    if (widget.selector == 'terrain_3d' || widget.selector == 'waterfall') {
+      _fftHistory.insert(0, List<double>.from(_freqBands));
+      if (_fftHistory.length > _maxHistory) _fftHistory.removeLast();
+    }
+
     return AnimatedBuilder(
       animation: _controller,
       builder: (context, child) {
@@ -261,6 +274,86 @@ class _WaveVisualizerState extends State<WaveVisualizer>
             time: _controller.value,
           ),
           'windmill' => WindmillVisualizer(
+            audioData: _freqBands,
+            color: widget.color,
+            time: _controller.value,
+          ),
+          // ── 3D Visualizers (Tier 1) ──
+          'neon_grid' => NeonGridHorizonVisualizer(
+            audioData: _freqBands,
+            color: widget.color,
+            time: _controller.value,
+          ),
+          'spectrum_ring' => SpectrumRing3DVisualizer(
+            audioData: _freqBands,
+            color: widget.color,
+            time: _controller.value,
+          ),
+          'ribbon_trail' => RibbonTrailVisualizer(
+            audioData: _freqBands,
+            color: widget.color,
+            time: _controller.value,
+          ),
+          'lissajous_3d' => Lissajous3DVisualizer(
+            audioData: _freqBands,
+            color: widget.color,
+            time: _controller.value,
+          ),
+          'particle_field' => ParticleFieldVisualizer(
+            audioData: _freqBands,
+            color: widget.color,
+            time: _controller.value,
+          ),
+          'waveform_tunnel' => WaveformTunnelVisualizer(
+            audioData: _waveform,
+            color: widget.color,
+            time: _controller.value,
+          ),
+          'kaleidoscope' => KaleidoscopeTunnelVisualizer(
+            audioData: _freqBands,
+            color: widget.color,
+            time: _controller.value,
+          ),
+          // ── 3D Visualizers (Tier 2) ──
+          'terrain_3d' => AudioTerrainVisualizer(
+            audioData: _freqBands,
+            fftHistory: _fftHistory,
+            color: widget.color,
+            time: _controller.value,
+          ),
+          'mesh_sphere' => MeshSphereVisualizer(
+            audioData: _freqBands,
+            color: widget.color,
+            time: _controller.value,
+          ),
+          'morphing_orb' => MorphingOrbVisualizer(
+            audioData: _freqBands,
+            color: widget.color,
+            time: _controller.value,
+          ),
+          'reactive_geo' => ReactiveGeometryVisualizer(
+            audioData: _freqBands,
+            color: widget.color,
+            time: _controller.value,
+          ),
+          'waterfall' => WaterfallSpectrogramVisualizer(
+            audioData: _freqBands,
+            fftHistory: _fftHistory,
+            color: widget.color,
+            time: _controller.value,
+          ),
+          // ── 3D Visualizers (Tier 3) ──
+          'metaball' => MetaballBlobVisualizer(
+            audioData: _freqBands,
+            color: widget.color,
+            time: _controller.value,
+          ),
+          'milkdrop_warp' => MilkdropWarpVisualizer(
+            audioData: _freqBands,
+            color: widget.color,
+            time: _controller.value,
+          ),
+          'fractal_flame' => FractalFlameVisualizer(
             audioData: _freqBands,
             color: widget.color,
             time: _controller.value,

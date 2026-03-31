@@ -1,7 +1,6 @@
 // ignore_for_file: library_private_types_in_public_api, depend_on_referenced_packages
 import 'dart:async';
 import 'package:just_audio/just_audio.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:rxdart/rxdart.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -41,7 +40,6 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
-    _requestVisualizerPermission();
     _initializeAnimationController();
     // Detect current audio output device for display
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -93,12 +91,6 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
       begin: 0.98,
       end: 1,
     ).animate(_animationController!);
-  }
-
-  void _requestVisualizerPermission() {
-    Permission.microphone.request().then((value) {
-      Visualizers.enableVisual(value.isGranted);
-    });
   }
 
   StreamSubscription<ProcessingState>? _autoAdvanceSub;

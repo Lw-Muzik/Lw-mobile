@@ -72,6 +72,82 @@ class _VisualUIState extends State<VisualUI>
       icon: Icons.rotate_right_rounded,
       description: 'Radial arc fan',
     ),
+    // ── 3D Visualizers ──
+    'neon_grid': const _VisualPreset(
+      name: 'Neon Grid',
+      icon: Icons.grid_3x3_rounded,
+      description: 'Synthwave horizon',
+    ),
+    'spectrum_ring': const _VisualPreset(
+      name: '3D Ring',
+      icon: Icons.trip_origin_rounded,
+      description: 'Rotating spectrum ring',
+    ),
+    'ribbon_trail': const _VisualPreset(
+      name: 'Ribbons',
+      icon: Icons.gesture_rounded,
+      description: '3D flowing ribbons',
+    ),
+    'lissajous_3d': const _VisualPreset(
+      name: '3D Lissajous',
+      icon: Icons.all_inclusive_rounded,
+      description: 'Neon parametric spirals',
+    ),
+    'particle_field': const _VisualPreset(
+      name: 'Particles',
+      icon: Icons.blur_circular_rounded,
+      description: 'Floating depth orbs',
+    ),
+    'waveform_tunnel': const _VisualPreset(
+      name: 'Tunnel',
+      icon: Icons.track_changes_rounded,
+      description: 'Waveform fly-through',
+    ),
+    'kaleidoscope': const _VisualPreset(
+      name: 'Kaleidoscope',
+      icon: Icons.change_history_rounded,
+      description: 'Symmetric tunnel',
+    ),
+    'terrain_3d': const _VisualPreset(
+      name: 'Terrain',
+      icon: Icons.landscape_rounded,
+      description: '3D audio landscape',
+    ),
+    'mesh_sphere': const _VisualPreset(
+      name: 'Mesh Sphere',
+      icon: Icons.public_rounded,
+      description: 'Spiky wireframe ball',
+    ),
+    'morphing_orb': const _VisualPreset(
+      name: 'Orb',
+      icon: Icons.circle_rounded,
+      description: 'Morphing harmonic sphere',
+    ),
+    'reactive_geo': const _VisualPreset(
+      name: 'Geometry',
+      icon: Icons.hexagon_rounded,
+      description: 'Reactive icosahedron',
+    ),
+    'waterfall': const _VisualPreset(
+      name: 'Waterfall',
+      icon: Icons.waterfall_chart_rounded,
+      description: '3D spectrogram',
+    ),
+    'metaball': const _VisualPreset(
+      name: 'Metaballs',
+      icon: Icons.bubble_chart_rounded,
+      description: 'Merging soft blobs',
+    ),
+    'milkdrop_warp': const _VisualPreset(
+      name: 'Warp Mesh',
+      icon: Icons.waves_rounded,
+      description: 'Milkdrop-style warp grid',
+    ),
+    'fractal_flame': const _VisualPreset(
+      name: 'Fractal',
+      icon: Icons.auto_awesome_rounded,
+      description: 'IFS fractal flame',
+    ),
     if (!Platform.isIOS) 'milkdrop': const _VisualPreset(
       name: 'MilkDrop',
       icon: Icons.blur_on_rounded,
@@ -101,6 +177,8 @@ class _VisualUIState extends State<VisualUI>
     );
     final ctrl = context.read<AppController>();
     Visualizers.setFrameRate(ctrl.visualizerFrameRate);
+    Visualizers.setSmoothing(ctrl.visualizerReactivity, ctrl.visualizerReactivity * 0.7);
+    Visualizers.setGain(ctrl.visualizerBeatSensitivity);
     Visualizers.scaleVisualizer(true);
   }
 

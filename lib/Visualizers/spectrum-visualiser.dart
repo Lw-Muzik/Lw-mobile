@@ -37,7 +37,7 @@ class SpectrumVisualizer extends CustomPainter {
       final anim = 0.97 + 0.03 * sin(time * pi * 2 + i * 0.2);
 
       // Bar height uses 90% of screen height
-      final barH = amp * anim * h * 0.9;
+      final barH = amp * anim * h * 0.55;
       final x = i * barW + gap / 2;
       final bw = barW - gap;
       if (bw <= 0) continue;

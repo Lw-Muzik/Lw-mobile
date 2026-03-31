@@ -4,6 +4,7 @@ import '/exports/exports.dart';
 import '/Helpers/Files.dart';
 
 import '../widgets/ArtworkWidget.dart';
+import '../widgets/pinch_zoom_grid.dart';
 import 'artist_songs.dart';
 
 class Artists extends StatefulWidget {
@@ -72,65 +73,70 @@ class _ArtistsState extends State<Artists> {
           }
 
           final artists = item.data!;
-          return GridView.builder(
-            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-              maxCrossAxisExtent: 140,
-              crossAxisSpacing: 8,
-              mainAxisSpacing: 12,
-              childAspectRatio: 0.75,
-            ),
-            itemCount: artists.length,
-            itemBuilder: (context, index) {
-              final artist = artists[index];
-              final artistName = "${artist.getMap['artist'] ?? 'Unknown'}";
-              return InkWell(
-                onTap: () => Routes.scaleTo(
-                  ArtistSongs(
-                    songs: artist.numberOfTracks ?? 0,
-                    albums: artist.numberOfAlbums ?? 0,
-                    artistId: artist.id,
-                    artist: artistName,
+          return PinchZoomGrid(
+            initialExtent: 140.0,
+            minExtent: 80.0,
+            maxExtent: 200.0,
+            gridBuilder: (extent) => GridView.builder(
+              gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+                maxCrossAxisExtent: extent,
+                crossAxisSpacing: 8,
+                mainAxisSpacing: 12,
+                childAspectRatio: 0.75,
+              ),
+              itemCount: artists.length,
+              itemBuilder: (context, index) {
+                final artist = artists[index];
+                final artistName = "${artist.getMap['artist'] ?? 'Unknown'}";
+                return InkWell(
+                  onTap: () => Routes.scaleTo(
+                    ArtistSongs(
+                      songs: artist.numberOfTracks ?? 0,
+                      albums: artist.numberOfAlbums ?? 0,
+                      artistId: artist.id,
+                      artist: artistName,
+                    ),
+                    context,
                   ),
-                  context,
-                ),
-                child: Column(
-                  children: [
-                    Expanded(
-                      child: Hero(
-                        tag: 'artist_${artist.id}',
-                        child: ClipOval(
-                          child: SizedBox.expand(
-                            child: ArtworkWidget(
-                              borderRadius: BorderRadius.zero,
-                              width: double.infinity,
-                              height: double.infinity,
-                              songId: artist.id,
-                              type: ArtworkType.ARTIST,
-                              other: artistName,
+                  child: Column(
+                    children: [
+                      Expanded(
+                        child: Hero(
+                          tag: 'artist_${artist.id}',
+                          child: ClipOval(
+                            child: SizedBox.expand(
+                              child: ArtworkWidget(
+                                borderRadius: BorderRadius.zero,
+                                width: double.infinity,
+                                height: double.infinity,
+                                songId: artist.id,
+                                type: ArtworkType.ARTIST,
+                                other: artistName,
+                              ),
                             ),
                           ),
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      artistName,
-                      maxLines: 2,
-                      textAlign: TextAlign.center,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(
-                        context,
-                      ).textTheme.titleMedium?.copyWith(fontSize: 12),
-                    ),
-                    Text(
-                      (artist.numberOfTracks ?? 0).nSongs,
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ],
-                ),
-              );
-            },
+                      const SizedBox(height: 6),
+                      Text(
+                        artistName,
+                        maxLines: 2,
+                        textAlign: TextAlign.center,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(
+                          context,
+                        ).textTheme.titleMedium?.copyWith(fontSize: 12),
+                      ),
+                      Text(
+                        (artist.numberOfTracks ?? 0).nSongs,
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
           );
         },
       ),

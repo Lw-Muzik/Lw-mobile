@@ -4,6 +4,8 @@ import 'package:eq_app/pages/genre_songs.dart';
 import '/exports/exports.dart';
 import '/Helpers/Files.dart';
 
+import '../widgets/pinch_zoom_grid.dart';
+
 class Genres extends StatefulWidget {
   const Genres({super.key});
 
@@ -76,10 +78,14 @@ class _GenresState extends State<Genres> {
         final genres = snapshot.data!;
         return Padding(
           padding: const EdgeInsets.all(8.0),
-          child: GridView.builder(
+          child: PinchZoomGrid(
+            initialExtent: 200.0,
+            minExtent: 100.0,
+            maxExtent: 300.0,
+            gridBuilder: (extent) => GridView.builder(
             itemCount: genres.length,
-            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-              maxCrossAxisExtent: 200,
+            gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+              maxCrossAxisExtent: extent,
               crossAxisSpacing: 8,
               mainAxisSpacing: 8,
             ),
@@ -154,6 +160,7 @@ class _GenresState extends State<Genres> {
                 ),
               );
             },
+          ),
           ),
         );
       },

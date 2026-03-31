@@ -137,7 +137,7 @@ class MirrorBarsVisualizer extends CustomPainter {
       final boosted = _smoothBand(audioData, i, _barCount);
 
       // Bars use 90% of half-height
-      final barH = boosted * midY * 0.9;
+      final barH = boosted * midY * 0.55;
       final x = i * barW + gap / 2;
       final bw = barW - gap;
       if (bw <= 0) continue;
@@ -288,7 +288,7 @@ class TerrainVisualizer extends CustomPainter {
       final idx = (i * audioData.length / count).floor()
           .clamp(0, audioData.length - 1);
       final amp = audioData[idx].clamp(0.0, 1.0);
-      final y = h - amp * h * 0.85;
+      final y = h - amp * h * 0.55;
       points.add(Offset(i * dx, y));
     }
 

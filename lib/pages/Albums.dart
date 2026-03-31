@@ -5,6 +5,7 @@ import '/extensions/index.dart';
 import '/pages/album_songs.dart';
 
 import '../widgets/ArtworkWidget.dart';
+import '../widgets/pinch_zoom_grid.dart';
 
 class Albums extends StatefulWidget {
   const Albums({super.key});
@@ -72,75 +73,80 @@ class _AlbumsState extends State<Albums> {
         final albums = snapshot.data!;
         return Padding(
           padding: const EdgeInsets.all(8.0),
-          child: GridView.builder(
-            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-              maxCrossAxisExtent: 200,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-              childAspectRatio: 0.75,
-            ),
-            itemCount: albums.length,
-            itemBuilder: (context, index) {
-              final album = albums[index];
-              final albumName = "${album.getMap['album'] ?? 'Unknown'}";
-              return InkWell(
-                onTap: () => Routes.scaleTo(
-                  AlbumSongs(
-                    albumId: album.id,
-                    album: albumName,
-                    songs: album.numOfSongs,
+          child: PinchZoomGrid(
+            initialExtent: 200.0,
+            minExtent: 100.0,
+            maxExtent: 300.0,
+            gridBuilder: (extent) => GridView.builder(
+              gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+                maxCrossAxisExtent: extent,
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 12,
+                childAspectRatio: 0.75,
+              ),
+              itemCount: albums.length,
+              itemBuilder: (context, index) {
+                final album = albums[index];
+                final albumName = "${album.getMap['album'] ?? 'Unknown'}";
+                return InkWell(
+                  onTap: () => Routes.scaleTo(
+                    AlbumSongs(
+                      albumId: album.id,
+                      album: albumName,
+                      songs: album.numOfSongs,
+                    ),
+                    context,
                   ),
-                  context,
-                ),
-                child: Card(
-                  elevation: 1,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  clipBehavior: Clip.antiAlias,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Hero(
-                          tag: 'album_${album.id}',
-                          child: SizedBox(
-                            width: double.infinity,
-                            child: ArtworkWidget(
-                              borderRadius: BorderRadius.zero,
+                  child: Card(
+                    elevation: 1,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Hero(
+                            tag: 'album_${album.id}',
+                            child: SizedBox(
                               width: double.infinity,
-                              height: double.infinity,
-                              songId: album.id,
-                              type: ArtworkType.ALBUM,
-                              path: '',
-                              other: albumName,
+                              child: ArtworkWidget(
+                                borderRadius: BorderRadius.zero,
+                                width: double.infinity,
+                                height: double.infinity,
+                                songId: album.id,
+                                type: ArtworkType.ALBUM,
+                                path: '',
+                                other: albumName,
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
-                        child: Text(
-                          albumName,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(
-                            context,
-                          ).textTheme.titleMedium?.copyWith(fontSize: 13),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
+                          child: Text(
+                            albumName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(
+                              context,
+                            ).textTheme.titleMedium?.copyWith(fontSize: 13),
+                          ),
                         ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
-                        child: Text(
-                          album.numOfSongs.nSongs,
-                          style: Theme.of(context).textTheme.bodySmall,
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+                          child: Text(
+                            album.numOfSongs.nSongs,
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-              );
-            },
+                );
+              },
+            ),
           ),
         );
       },

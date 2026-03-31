@@ -3,6 +3,7 @@ import '../Routes/routes.dart';
 import '/exports/exports.dart';
 
 import '../Global/index.dart';
+import '../widgets/pinch_zoom_grid.dart';
 import 'folder_songs.dart';
 
 class Folders extends StatefulWidget {
@@ -71,35 +72,40 @@ class _FoldersState extends State<Folders> {
         final folders = snapshot.data!;
         return Padding(
           padding: const EdgeInsets.all(8.0),
-          child: GridView.builder(
-            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-              maxCrossAxisExtent: 200,
-              crossAxisSpacing: 8,
-              mainAxisSpacing: 8,
-              childAspectRatio: 1.0,
-            ),
-            itemCount: folders.length,
-            itemBuilder: (context, index) {
-              final path = folders[index];
-              final folderName = path.split("/").last;
-              return InkWell(
-                onTap: () => Routes.scaleTo(FolderSongs(path: path), context),
-                onLongPress: () {
-                  showDeleteWindow("folder", path, context);
-                },
-                child: Hero(
-                  tag: 'folder_$path',
-                  child: Card(
-                    elevation: 2,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+          child: PinchZoomGrid(
+            initialExtent: 200.0,
+            minExtent: 100.0,
+            maxExtent: 300.0,
+            gridBuilder: (extent) => GridView.builder(
+              gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+                maxCrossAxisExtent: extent,
+                crossAxisSpacing: 8,
+                mainAxisSpacing: 8,
+                childAspectRatio: 1.0,
+              ),
+              itemCount: folders.length,
+              itemBuilder: (context, index) {
+                final path = folders[index];
+                final folderName = path.split("/").last;
+                return InkWell(
+                  onTap: () => Routes.scaleTo(FolderSongs(path: path), context),
+                  onLongPress: () {
+                    showDeleteWindow("folder", path, context);
+                  },
+                  child: Hero(
+                    tag: 'folder_$path',
+                    child: Card(
+                      elevation: 2,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      clipBehavior: Clip.antiAlias,
+                      child: folderArtwork(path, folderName),
                     ),
-                    clipBehavior: Clip.antiAlias,
-                    child: folderArtwork(path, folderName),
                   ),
-                ),
-              );
-            },
+                );
+              },
+            ),
           ),
         );
       },

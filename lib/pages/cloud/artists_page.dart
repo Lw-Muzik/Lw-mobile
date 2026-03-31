@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../Routes/routes.dart';
 import '../../services/music/music_models.dart';
 import '../../services/music/music_repository.dart';
+import '../../widgets/pinch_zoom_grid.dart';
 import 'artist_detail_page.dart';
 
 class ArtistsPage extends StatefulWidget {
@@ -237,47 +238,52 @@ class _ArtistsPageState extends State<ArtistsPage>
       );
     }
 
-    return GridView.builder(
-      controller: _scrollController,
-      padding: const EdgeInsets.all(16),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3,
-        mainAxisSpacing: 16,
-        crossAxisSpacing: 12,
-        childAspectRatio: 0.75,
-      ),
-      itemCount: _artists.length + (_loadingMore ? 3 : 0),
-      itemBuilder: (context, index) {
-        if (index >= _artists.length) {
-          final off =
-              (_shimmerCtrl.value + (index - _artists.length) * 0.1) % 1.0;
-          return AnimatedBuilder(
-            animation: _shimmerCtrl,
-            builder: (context, _) => _ArtistSkeletonTile(
-              offset: off,
-              base: theme.colorScheme.surfaceContainerHighest,
-              highlight: theme.colorScheme.surfaceContainerLow,
-            ),
-          );
-        }
-
-        final artist = _artists[index];
-        return _ArtistGridTile(
-          artist: artist,
-          onTap: () {
-            final slug = artist.name.replaceAll(' ', '-');
-            Routes.routeTo(
-              ArtistDetailPage(
-                slug: slug,
-                artistId: artist.id,
-                name: artist.name,
-                imageUrl: artist.image,
+    return PinchZoomGrid(
+      initialExtent: 140.0,
+      minExtent: 80.0,
+      maxExtent: 200.0,
+      gridBuilder: (extent) => GridView.builder(
+        controller: _scrollController,
+        padding: const EdgeInsets.all(16),
+        gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+          maxCrossAxisExtent: extent,
+          mainAxisSpacing: 16,
+          crossAxisSpacing: 12,
+          childAspectRatio: 0.75,
+        ),
+        itemCount: _artists.length + (_loadingMore ? 3 : 0),
+        itemBuilder: (context, index) {
+          if (index >= _artists.length) {
+            final off =
+                (_shimmerCtrl.value + (index - _artists.length) * 0.1) % 1.0;
+            return AnimatedBuilder(
+              animation: _shimmerCtrl,
+              builder: (context, _) => _ArtistSkeletonTile(
+                offset: off,
+                base: theme.colorScheme.surfaceContainerHighest,
+                highlight: theme.colorScheme.surfaceContainerLow,
               ),
-              context,
             );
-          },
-        );
-      },
+          }
+
+          final artist = _artists[index];
+          return _ArtistGridTile(
+            artist: artist,
+            onTap: () {
+              final slug = artist.name.replaceAll(' ', '-');
+              Routes.routeTo(
+                ArtistDetailPage(
+                  slug: slug,
+                  artistId: artist.id,
+                  name: artist.name,
+                  imageUrl: artist.image,
+                ),
+                context,
+              );
+            },
+          );
+        },
+      ),
     );
   }
 }
@@ -302,8 +308,8 @@ class _ArtistGridSkeleton extends StatelessWidget {
         return GridView.builder(
           physics: const NeverScrollableScrollPhysics(),
           padding: const EdgeInsets.all(16),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 3,
+          gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+            maxCrossAxisExtent: 140,
             mainAxisSpacing: 16,
             crossAxisSpacing: 12,
             childAspectRatio: 0.75,
@@ -331,37 +337,42 @@ class _ArtistSkeletonTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 80,
-          height: 80,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            gradient: LinearGradient(
-              colors: [base, highlight, base],
-              stops: const [0.0, 0.5, 1.0],
-              begin: Alignment(-1.0 + 2.0 * offset, 0),
-              end: Alignment(1.0 + 2.0 * offset, 0),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final avatarSize = constraints.maxWidth * 0.7;
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: avatarSize,
+              height: avatarSize,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: LinearGradient(
+                  colors: [base, highlight, base],
+                  stops: const [0.0, 0.5, 1.0],
+                  begin: Alignment(-1.0 + 2.0 * offset, 0),
+                  end: Alignment(1.0 + 2.0 * offset, 0),
+                ),
+              ),
             ),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Container(
-          width: 60,
-          height: 12,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(4),
-            gradient: LinearGradient(
-              colors: [base, highlight, base],
-              stops: const [0.0, 0.5, 1.0],
-              begin: Alignment(-1.0 + 2.0 * offset, 0),
-              end: Alignment(1.0 + 2.0 * offset, 0),
+            const SizedBox(height: 8),
+            Container(
+              width: avatarSize * 0.75,
+              height: 12,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(4),
+                gradient: LinearGradient(
+                  colors: [base, highlight, base],
+                  stops: const [0.0, 0.5, 1.0],
+                  begin: Alignment(-1.0 + 2.0 * offset, 0),
+                  end: Alignment(1.0 + 2.0 * offset, 0),
+                ),
+              ),
             ),
-          ),
-        ),
-      ],
+          ],
+        );
+      },
     );
   }
 }
@@ -382,45 +393,50 @@ class _ArtistGridTile extends StatelessWidget {
 
     return GestureDetector(
       onTap: onTap,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          ClipOval(
-            child: CachedNetworkImage(
-              imageUrl: artist.image,
-              width: 80,
-              height: 80,
-              fit: BoxFit.cover,
-              placeholder: (_, __) => Container(
-                width: 80,
-                height: 80,
-                color: theme.colorScheme.surfaceContainerHighest,
-                child: Icon(Icons.person,
-                    color:
-                        theme.colorScheme.onSurface.withValues(alpha: 0.2)),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final avatarSize = constraints.maxWidth * 0.7;
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ClipOval(
+                child: CachedNetworkImage(
+                  imageUrl: artist.image,
+                  width: avatarSize,
+                  height: avatarSize,
+                  fit: BoxFit.cover,
+                  placeholder: (_, __) => Container(
+                    width: avatarSize,
+                    height: avatarSize,
+                    color: theme.colorScheme.surfaceContainerHighest,
+                    child: Icon(Icons.person,
+                        color:
+                            theme.colorScheme.onSurface.withValues(alpha: 0.2)),
+                  ),
+                  errorWidget: (_, __, ___) => Container(
+                    width: avatarSize,
+                    height: avatarSize,
+                    color: theme.colorScheme.surfaceContainerHighest,
+                    child: Icon(Icons.person,
+                        color:
+                            theme.colorScheme.onSurface.withValues(alpha: 0.2)),
+                  ),
+                ),
               ),
-              errorWidget: (_, __, ___) => Container(
-                width: 80,
-                height: 80,
-                color: theme.colorScheme.surfaceContainerHighest,
-                child: Icon(Icons.person,
-                    color:
-                        theme.colorScheme.onSurface.withValues(alpha: 0.2)),
+              const SizedBox(height: 8),
+              Text(
+                artist.name,
+                maxLines: 2,
+                textAlign: TextAlign.center,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.labelMedium?.copyWith(
+                  fontWeight: FontWeight.w500,
+                  height: 1.2,
+                ),
               ),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            artist.name,
-            maxLines: 2,
-            textAlign: TextAlign.center,
-            overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.labelMedium?.copyWith(
-              fontWeight: FontWeight.w500,
-              height: 1.2,
-            ),
-          ),
-        ],
+            ],
+          );
+        },
       ),
     );
   }

@@ -205,6 +205,23 @@ class Channel {
     return await _invokeRequired<bool>("requestDisableBatteryOptimization", false);
   }
 
+  // ==================== EQ Mode Notification ====================
+
+  /// Start the EQ mode foreground service with persistent notification.
+  static Future<bool> startEqModeService(String preset) async {
+    return await _invokeRequired<bool>("startEqModeService", false, {"preset": preset});
+  }
+
+  /// Stop the EQ mode foreground service.
+  static Future<bool> stopEqModeService() async {
+    return await _invokeRequired<bool>("stopEqModeService", false);
+  }
+
+  /// Update the preset name shown in the EQ mode notification.
+  static Future<bool> updateEqModePreset(String preset) async {
+    return await _invokeRequired<bool>("updateEqModePreset", false, {"preset": preset});
+  }
+
   // ==================== Custom DSP Room Effects ====================
 
   /// Enable/disable FDN reverb

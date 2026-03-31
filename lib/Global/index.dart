@@ -394,6 +394,11 @@ void loadAudioSource(
 }) async {
   final isCloud = song.data.startsWith('http');
 
+  // Cancel any previous background cache download (don't waste data on skipped tracks)
+  if (isCloud) {
+    AppController.instance.cloudCache.cancelActiveDownload();
+  }
+
   // Artwork: cloud tracks store thumbnail URL in album field
   String image;
   if (isCloud && song.album != null && song.album!.startsWith('http')) {
@@ -422,15 +427,21 @@ void loadAudioSource(
 
   if (isCloud) {
     AudioSource source;
+    final guard = StreamingDataGuard.instance;
 
-    // Discover streams (nowviba.com) — direct URI, no proxy/cache overhead
+    // Discover streams (nowviba.com) — direct URI, no caching
     if (song.data.contains('nowviba.com')) {
+      // Data guard applies to all streaming, including discover
+      final blockReason = guard.shouldBlockStream();
+      if (blockReason != null) {
+        debugPrint('Streaming blocked: $blockReason');
+        return;
+      }
       source = AudioSource.uri(Uri.parse(item.id), tag: item);
     } else {
-      // Cloud storage (Google Drive / Dropbox) — cache + auth headers
+      // Cloud storage (Google Drive / Dropbox)
       final cache = AppController.instance.cloudCache;
       final auth = AppController.instance.cloudAuth;
-      final guard = StreamingDataGuard.instance;
       final fileId = song.id.toString();
 
       if (cache.isCached(fileId)) {
@@ -442,23 +453,29 @@ void loadAudioSource(
         final blockReason = guard.shouldBlockStream();
         if (blockReason != null) {
           debugPrint('Streaming blocked: $blockReason');
-          // Still set media item so UI shows track info, but don't play
           return;
         }
 
-        // Not cached — stream and cache simultaneously
+        // Get auth headers for cloud providers
         final headers = song.data.contains('googleapis.com')
             ? await auth.getGoogleAuthHeaders()
             : <String, String>{};
-        source = LockCachingAudioSource(
+
+        // Stream via URI — ExoPlayer uses HTTP range requests internally,
+        // only downloads what the buffer needs (~15-50s ahead).
+        // This is how Spotify/Tidal work: no full-file download.
+        source = AudioSource.uri(
           Uri.parse(item.id),
-          cacheFile: cache.cacheFile(fileId),
           headers: headers,
           tag: item,
         );
 
-        // When download completes, mark in our metadata so future plays are cache hits
-        _monitorCacheCompletion(cache, fileId);
+        // Background cache: download the full file separately for offline use.
+        // This runs independently of playback and can be cancelled on skip.
+        // On cellular with data saver, skip background caching entirely.
+        if (!guard.isDataSaverActive) {
+          cache.preCacheTrack(song.data, fileId, headers);
+        }
       }
 
       // Prefetch next cloud track in background
@@ -468,7 +485,6 @@ void loadAudioSource(
     await handler.player.setAudioSource(source);
   } else {
     // Local file: use AudioSource.file for proper path handling (spaces, special chars)
-    // AudioSource.uri(Uri.parse(...)) fails on paths with spaces/parentheses
     if (song.data.startsWith('/')) {
       await handler.player.setAudioSource(
         AudioSource.file(song.data, tag: item),
@@ -491,28 +507,9 @@ void loadAudioSource(
   handler.player.play();
 }
 
-/// Monitor a LockCachingAudioSource download and mark cache metadata complete.
-void _monitorCacheCompletion(dynamic cache, String fileId) {
-  // Check periodically if the cache file appeared (LockCaching writes it)
-  Future.delayed(const Duration(seconds: 5), () async {
-    for (int i = 0; i < 120; i++) {
-      // Check for up to 10 minutes
-      if (cache.isCached(fileId)) return;
-      final file = cache.cacheFile(fileId) as File;
-      if (file.existsSync() && file.lengthSync() > 0) {
-        // Check if the .part file is gone (LockCaching renames on completion)
-        final partFile = File('${file.path}.part');
-        if (!partFile.existsSync()) {
-          cache.markComplete(fileId);
-          return;
-        }
-      }
-      await Future.delayed(const Duration(seconds: 5));
-    }
-  });
-}
-
 /// Prefetch the next track in the current queue if conditions allow.
+/// On cellular, only prefetches partial data (~512KB ≈ 30s at 128kbps).
+/// On WiFi, prefetches the full file for offline use.
 void _prefetchNextTrack() async {
   try {
     final ctrl = AppController.instance;
@@ -525,6 +522,8 @@ void _prefetchNextTrack() async {
 
     final nextSong = songs[currentIdx + 1];
     if (!nextSong.data.startsWith('http')) return;
+    // Don't prefetch discover streams (transient URLs)
+    if (nextSong.data.contains('nowviba.com')) return;
 
     final fileId = nextSong.id.toString();
     final cache = ctrl.cloudCache;
@@ -535,7 +534,10 @@ void _prefetchNextTrack() async {
         ? await ctrl.cloudAuth.getGoogleAuthHeaders()
         : <String, String>{};
 
-    await cache.preCacheTrack(nextSong.data, fileId, headers);
+    // On cellular: only prefetch first 512KB (enough for ~30s at 128kbps)
+    // On WiFi: prefetch entire file for offline use
+    final maxBytes = guard.isCellular ? 512 * 1024 : 0; // 0 = unlimited
+    await cache.preCacheTrack(nextSong.data, fileId, headers, maxBytes: maxBytes);
   } catch (e) {
     debugPrint('Prefetch failed: $e');
   }

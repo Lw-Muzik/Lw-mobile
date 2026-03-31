@@ -21,8 +21,10 @@ class CloudCacheService {
   static const _dropboxListTsKey = 'cloud_file_list_dropbox_ts';
   static const int defaultMaxCacheBytes = 500 * 1024 * 1024; // 500 MB
 
-  // Track active prefetch to avoid duplicates
+  // Track active downloads for cancellation and dedup
   String? _prefetchingFileId;
+  http.Client? _activeClient;
+  bool _downloadCancelled = false;
 
   int get maxCacheBytes =>
       _prefs.getInt('cloudCacheMaxBytes') ?? defaultMaxCacheBytes;
@@ -67,37 +69,56 @@ class CloudCacheService {
     return 0;
   }
 
-  /// Check if a download is already in progress (prefetch or LockCachingAudioSource).
+  /// Check if a download is already in progress.
   bool isDownloading(String fileId) {
     if (_prefetchingFileId == fileId) return true;
-    // LockCachingAudioSource uses cacheFile.path + '.part'
-    final lockPart = File('${cacheFile(fileId).path}.part');
-    return lockPart.existsSync() || _partialFile(fileId).existsSync();
+    return _partialFile(fileId).existsSync();
+  }
+
+  /// Cancel any active background download.
+  /// Called when the user skips a track to stop wasting data.
+  void cancelActiveDownload() {
+    if (_activeClient != null) {
+      _downloadCancelled = true;
+      _activeClient!.close();
+      _activeClient = null;
+      debugPrint('CloudCache: Cancelled active download');
+    }
   }
 
   /// Pre-cache a track with resume support.
   /// Downloads the file, resuming from partial if available.
-  /// Respects cellular data guard.
+  /// [maxBytes] limits how much to download (0 = unlimited).
+  /// Use maxBytes on cellular to only cache enough for ~30s of playback.
   Future<bool> preCacheTrack(
     String url,
     String fileId,
-    Map<String, String> headers,
-  ) async {
+    Map<String, String> headers, {
+    int maxBytes = 0,
+  }) async {
     if (isCached(fileId)) return true;
     if (_prefetchingFileId == fileId) return false; // already in progress
 
     _prefetchingFileId = fileId;
+    _downloadCancelled = false;
     final file = cacheFile(fileId);
     final partial = _partialFile(fileId);
 
     try {
       final client = http.Client();
+      _activeClient = client;
 
       // Check for existing partial download
       int existingBytes = 0;
       IOSink sink;
       if (partial.existsSync()) {
         existingBytes = partial.lengthSync();
+        // If we already have enough for a partial prefetch, skip
+        if (maxBytes > 0 && existingBytes >= maxBytes) {
+          _activeClient = null;
+          _prefetchingFileId = null;
+          return true;
+        }
         sink = partial.openWrite(mode: FileMode.append);
       } else {
         sink = partial.openWrite();
@@ -122,55 +143,76 @@ class CloudCacheService {
       if (response.statusCode != 200 && response.statusCode != 206) {
         await sink.close();
         client.close();
+        _activeClient = null;
         _prefetchingFileId = null;
         return false;
       }
 
       // Stream to file, tracking data usage
+      int totalDownloaded = existingBytes;
       await for (final chunk in response.stream) {
+        if (_downloadCancelled) {
+          debugPrint('CloudCache: Download cancelled for $fileId at ${_formatBytes(totalDownloaded)}');
+          break;
+        }
+
         sink.add(chunk);
+        totalDownloaded += chunk.length;
 
         // Track cellular data usage
         try {
           StreamingDataGuard.instance.recordCellularUsage(chunk.length);
         } catch (_) {}
+
+        // Stop if we've reached the byte limit (partial prefetch on cellular)
+        if (maxBytes > 0 && totalDownloaded >= maxBytes) {
+          debugPrint('CloudCache: Partial prefetch limit reached for $fileId (${_formatBytes(totalDownloaded)})');
+          break;
+        }
       }
 
       await sink.flush();
       await sink.close();
       client.close();
+      _activeClient = null;
 
-      // Move partial → complete
-      if (partial.existsSync()) {
+      // Only mark complete if we downloaded the entire file (not partial/cancelled)
+      final isComplete = !_downloadCancelled && maxBytes == 0;
+
+      if (isComplete && partial.existsSync()) {
+        // Move partial → complete
         final dest = file.path;
         if (file.existsSync()) file.deleteSync();
         partial.renameSync(dest);
+
+        final stat = file.statSync();
+        _metadata[fileId] = _CacheEntry(
+          size: stat.size,
+          lastAccess: DateTime.now(),
+          complete: true,
+        );
+        _saveMetadata();
+        await _evictIfNeeded();
+
+        debugPrint(
+          'CloudCache: Cached $fileId (${_formatBytes(stat.size)})',
+        );
       }
 
-      final stat = file.statSync();
-      _metadata[fileId] = _CacheEntry(
-        size: stat.size,
-        lastAccess: DateTime.now(),
-        complete: true,
-      );
-      _saveMetadata();
-      await _evictIfNeeded();
-
-      debugPrint(
-        'CloudCache: Cached $fileId (${_formatBytes(stat.size)}, resumed=$existingBytes)',
-      );
       _prefetchingFileId = null;
-      return true;
+      return isComplete;
     } catch (e) {
-      debugPrint('CloudCache: Download failed for $fileId: $e');
+      if (!_downloadCancelled) {
+        debugPrint('CloudCache: Download failed for $fileId: $e');
+      }
       // DON'T delete partial file — keep it for resume on retry
+      _activeClient = null;
       _prefetchingFileId = null;
       return false;
     }
   }
 
-  /// Mark a completed LockCachingAudioSource download.
-  /// Called after just_audio's built-in caching completes.
+  /// Mark a download as complete in metadata.
   void markComplete(String fileId) {
     final file = cacheFile(fileId);
     if (!file.existsSync()) return;

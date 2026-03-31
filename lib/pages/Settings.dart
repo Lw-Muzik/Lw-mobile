@@ -879,7 +879,7 @@ class _SettingsState extends State<Settings> {
             subtitle: Text(_reactivityLabel(controller.visualizerReactivity)),
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Row(
               children: [
                 const Text("Smooth"),
@@ -889,10 +889,42 @@ class _SettingsState extends State<Settings> {
                     min: 0.05,
                     max: 0.35,
                     divisions: 6,
-                    onChanged: (v) => controller.visualizerReactivity = v,
+                    onChanged: (v) {
+                      controller.visualizerReactivity = v;
+                      // Sync to C++ FFT smoothing: attack = reactivity, decay = reactivity * 0.7
+                      Visualizers.setSmoothing(v, v * 0.7);
+                    },
                   ),
                 ),
                 const Text("Snappy"),
+              ],
+            ),
+          ),
+          const Divider(height: 1, indent: 16, endIndent: 16),
+
+          // Beat sensitivity slider
+          ListTile(
+            title: const Text("Beat sensitivity"),
+            subtitle: Text(_beatSensitivityLabel(controller.visualizerBeatSensitivity)),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: Row(
+              children: [
+                const Text("Subtle"),
+                Expanded(
+                  child: Slider.adaptive(
+                    value: controller.visualizerBeatSensitivity,
+                    min: 0.5,
+                    max: 3.0,
+                    divisions: 10,
+                    onChanged: (v) {
+                      controller.visualizerBeatSensitivity = v;
+                      Visualizers.setGain(v);
+                    },
+                  ),
+                ),
+                const Text("Intense"),
               ],
             ),
           ),
@@ -1023,10 +1055,11 @@ class _SettingsState extends State<Settings> {
   }
 
   String _beatSensitivityLabel(double value) {
-    if (value <= 0.5) return "Low";
-    if (value <= 1.0) return "Normal";
-    if (value <= 2.0) return "High";
-    return "Very high";
+    if (value <= 0.7) return "Subtle";
+    if (value <= 1.1) return "Normal";
+    if (value <= 1.7) return "Energetic";
+    if (value <= 2.3) return "Punchy";
+    return "Intense";
   }
 
   String _reactivityLabel(double value) {
@@ -1050,7 +1083,7 @@ class _SettingsState extends State<Settings> {
             secondary: const Icon(Icons.data_saver_on_rounded),
             title: const Text("Data Saver"),
             subtitle: const Text(
-              "Reduce buffering on cellular to save data",
+              "Skip background caching on cellular — only buffer what you listen to",
             ),
             value: guard.dataSaver,
             onChanged: (v) {
@@ -1097,8 +1130,10 @@ class _SettingsState extends State<Settings> {
           SwitchListTile(
             secondary: const Icon(Icons.download_rounded),
             title: const Text("Prefetch Next Track"),
-            subtitle: const Text(
-              "Download next song in queue for gapless playback",
+            subtitle: Text(
+              guard.prefetchOnlyOnWifi
+                  ? "Pre-downloads next song on WiFi only"
+                  : "Full file on WiFi, first 30s on cellular",
             ),
             value: guard.prefetchNextTrack,
             onChanged: (v) {

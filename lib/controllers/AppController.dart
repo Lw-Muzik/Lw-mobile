@@ -77,6 +77,16 @@ class AppController with ChangeNotifier {
     if (value == AppMode.equalizer && _globalEqAvailable && !_globalEqEnabled) {
       globalEqEnabled = true;
     }
+    // Auto-disable global EQ when switching to music mode
+    if (value == AppMode.musicPlayer && _globalEqEnabled) {
+      globalEqEnabled = false;
+    }
+    // Persistent notification for EQ mode
+    if (value == AppMode.equalizer) {
+      Channel.startEqModeService(_activePresetName);
+    } else {
+      Channel.stopEqModeService();
+    }
     notifyListeners();
   }
 
@@ -353,6 +363,10 @@ class AppController with ChangeNotifier {
   set activePresetName(String value) {
     _prefs.setString("activePresetName", value);
     _activePresetName = value;
+    // Update EQ mode notification with new preset name
+    if (_appMode == AppMode.equalizer) {
+      Channel.updateEqModePreset(value);
+    }
     notifyListeners();
   }
 
@@ -656,6 +670,7 @@ class AppController with ChangeNotifier {
   int _visualizerColor = 0xFFFFFFFF; // white
   int _visualizerFrameRate = 30;
   double _visualizerReactivity = 0.15; // smoothing attack factor
+  double _visualizerBeatSensitivity = 1.0; // FFT gain: 0.5 subtle → 3.0 intense
 
   // projectM MilkDrop settings
   int _milkdropFps = 30;
@@ -724,6 +739,11 @@ class AppController with ChangeNotifier {
 
     // Global EQ: check availability and restore state
     _initGlobalEq();
+
+    // Start EQ mode notification if already in equalizer mode
+    if (_appMode == AppMode.equalizer) {
+      Channel.startEqModeService(_activePresetName);
+    }
 
     _bindDvcVolumeButtons();
     _bindProcessingState();
@@ -893,9 +913,8 @@ class AppController with ChangeNotifier {
           final headers = nextSong.data.contains('googleapis.com')
               ? await cloudAuth.getGoogleAuthHeaders()
               : <String, String>{};
-          nextSource = LockCachingAudioSource(
+          nextSource = AudioSource.uri(
             Uri.parse(nextSong.data),
-            cacheFile: cloudCache.cacheFile(fileId),
             headers: headers,
           );
         }
@@ -1001,9 +1020,8 @@ class AppController with ChangeNotifier {
               headers = dropboxHeaders;
             }
             sources.add(
-              LockCachingAudioSource(
+              AudioSource.uri(
                 Uri.parse(s.data),
-                cacheFile: cloudCache.cacheFile(fileId),
                 headers: headers,
               ),
             );
@@ -1056,11 +1074,18 @@ class AppController with ChangeNotifier {
     _globalEqEnabled = _prefs.getBool("globalEqEnabled") ?? false;
     // Song grid extent (migrate from old int scale if needed)
     if (_prefs.containsKey("songGridExtent")) {
-      _songGridExtent = (_prefs.getDouble("songGridExtent") ?? 300.0).clamp(80.0, 300.0);
+      _songGridExtent = (_prefs.getDouble("songGridExtent") ?? 300.0).clamp(
+        80.0,
+        300.0,
+      );
     } else {
       // Migrate from old songGridScale: 0=list→300, 1=2-col→180, 2=3-col→120
       final oldScale = _prefs.getInt("songGridScale") ?? 0;
-      _songGridExtent = oldScale == 0 ? 300.0 : oldScale == 1 ? 180.0 : 120.0;
+      _songGridExtent = oldScale == 0
+          ? 300.0
+          : oldScale == 1
+          ? 180.0
+          : 120.0;
     }
     // EQ band count
     _eqBandCount = _prefs.getInt("eqBandCount") ?? 32;
@@ -1102,6 +1127,7 @@ class AppController with ChangeNotifier {
     _visualizerColor = _prefs.getInt("visualizerColor") ?? 0xFFFFFFFF;
     _visualizerFrameRate = _prefs.getInt("visualizerFrameRate") ?? 30;
     _visualizerReactivity = _prefs.getDouble("visualizerReactivity") ?? 0.15;
+    _visualizerBeatSensitivity = _prefs.getDouble("visualizerBeatSensitivity") ?? 1.0;
 
     // projectM MilkDrop settings
     _milkdropFps = _prefs.getInt("milkdropFps") ?? 30;
@@ -1172,6 +1198,7 @@ class AppController with ChangeNotifier {
   int get visualizerColor => _visualizerColor;
   int get visualizerFrameRate => _visualizerFrameRate;
   double get visualizerReactivity => _visualizerReactivity;
+  double get visualizerBeatSensitivity => _visualizerBeatSensitivity;
 
   // Visualizer fine-tuning setters
   set visualizerStyle(String v) {
@@ -1195,6 +1222,12 @@ class AppController with ChangeNotifier {
   set visualizerReactivity(double r) {
     _prefs.setDouble("visualizerReactivity", r);
     _visualizerReactivity = r;
+    notifyListeners();
+  }
+
+  set visualizerBeatSensitivity(double s) {
+    _prefs.setDouble("visualizerBeatSensitivity", s);
+    _visualizerBeatSensitivity = s;
     notifyListeners();
   }
 

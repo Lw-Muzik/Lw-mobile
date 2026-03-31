@@ -28,7 +28,7 @@ class BarVisualizer extends CustomPainter {
     wavePaint.strokeWidth = barWidth - gap;
     for (int i = 0; i < density; i++) {
       int bytePosition = (i * div).ceil();
-      double top = (height / 2 - (((waveData[bytePosition]) - 128).abs()));
+      double top = (height / 2 - (((waveData[bytePosition]) - 128).abs()) * 0.55);
       double barX = (i * barWidth) + (barWidth / 2);
       if (top > height) {
         top = top - height;
