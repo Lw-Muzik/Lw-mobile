@@ -30,6 +30,8 @@
 		<string>Hype Muzik needs access to your music library to play your songs.</string>
 		<key>NSMicrophoneUsageDescription</key>
 		<string>Hype Muzik needs microphone access for audio visualization features.</string>
+		<key>NSPhotoLibraryUsageDescription</key>
+		<string>Hype Muzik needs photo library access to save and select album artwork.</string>
 		<key>UIApplicationSupportsIndirectInputEvents</key>
 		<true/>
 		<key>CFBundleURLTypes</key>
@@ -37,14 +39,42 @@
 			<dict>
 				<key>CFBundleURLSchemes</key>
 				<array>
-					<string>$(REVERSED_CLIENT_ID)</string>
+					<string>com.googleusercontent.apps.618382337035-e27v6qskmsklrq0m1jgdc6fjuapn64qm</string>
+				</array>
+				<key>CFBundleTypeRole</key>
+				<string>Editor</string>
+			</dict>
+			<dict>
+				<key>CFBundleURLSchemes</key>
+				<array>
+					<string>x.a.zix</string>
 				</array>
 				<key>CFBundleTypeRole</key>
 				<string>Editor</string>
 			</dict>
 		</array>
-		<key>GIDServerClientID</key>
-		<string>618382337035-spnvbjat80jqr8v2r74829to4mh1qdr1.apps.googleusercontent.com</string>
+		<key>GIDClientID</key>
+		<string>618382337035-e27v6qskmsklrq0m1jgdc6fjuapn64qm.apps.googleusercontent.com</string>
+		<key>NSAppTransportSecurity</key>
+		<dict>
+			<key>NSExceptionDomains</key>
+			<dict>
+				<key>37.60.225.220</key>
+				<dict>
+					<key>NSExceptionAllowsInsecureHTTPLoads</key>
+					<true/>
+					<key>NSIncludesSubdomains</key>
+					<true/>
+				</dict>
+				<key>nowviba.com</key>
+				<dict>
+					<key>NSExceptionAllowsInsecureHTTPLoads</key>
+					<true/>
+					<key>NSIncludesSubdomains</key>
+					<true/>
+				</dict>
+			</dict>
+		</dict>
 		<key>UIFileSharingEnabled</key>
 		<true/>
 		<key>LSSupportsOpeningDocumentsInPlace</key>

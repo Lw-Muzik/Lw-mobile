@@ -234,6 +234,7 @@ PODS:
   - SwiftyGif (5.4.5)
 
 DEPENDENCIES:
+  - AppAuth (~> 2.0)
   - audio_service (from `.symlinks/plugins/audio_service/darwin`)
   - audio_session (from `.symlinks/plugins/audio_session/ios`)
   - connectivity_plus (from `.symlinks/plugins/connectivity_plus/ios`)
@@ -378,6 +379,6 @@ SPEC CHECKSUMS:
   SwiftyBeaver: ade157e4f857812e7d7f15f2e3396bb8733f8a1c
   SwiftyGif: 706c60cf65fa2bc5ee0313beece843c8eb8194d4
 
-PODFILE CHECKSUM: 24e0ae4e8cd9049eb5fde873af2d8ebbca1a2c30
+PODFILE CHECKSUM: fa5d197f11136e8952ee7aad70ba72cc0134746f
 
 COCOAPODS: 1.16.2

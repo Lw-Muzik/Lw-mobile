@@ -1,6 +1,5 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import 'package:flutter/physics.dart';
 import 'package:vector_math/vector_math_64.dart' show Vector3;
 export 'swipe_animation.dart';
 
@@ -112,18 +111,21 @@ class CardController extends ChangeNotifier {
 
   void _setupThrowAnimations(SwipeDirection dir, double startDx) {
     final isRight = dir == SwipeDirection.right;
-    final endX = (isRight ? 1 : -1) *
+    final endX =
+        (isRight ? 1 : -1) *
         screenSize.width *
         CardAnimationConfig.throwDistance;
 
     _throwSlideX = Tween<double>(begin: startDx, end: endX).animate(
       CurvedAnimation(parent: _throwController, curve: Curves.easeInCubic),
     );
-    _throwSlideY = Tween<double>(begin: _dragDy * 0.3, end: -40.0).animate(
-      CurvedAnimation(parent: _throwController, curve: Curves.easeOut),
-    );
+    _throwSlideY = Tween<double>(
+      begin: _dragDy * 0.3,
+      end: -40.0,
+    ).animate(CurvedAnimation(parent: _throwController, curve: Curves.easeOut));
 
-    final rotDeg = CardAnimationConfig.throwRotationDeg * (isRight ? 1.0 : -1.0);
+    final rotDeg =
+        CardAnimationConfig.throwRotationDeg * (isRight ? 1.0 : -1.0);
     _throwRotation = Tween<double>(begin: 0, end: rotDeg).animate(
       CurvedAnimation(parent: _throwController, curve: Curves.easeInOut),
     );
@@ -269,6 +271,10 @@ class AnimatedPlayerCardState extends State<AnimatedPlayerCard>
   Size _screenSize = Size.zero;
   int _currentIndex = 0;
   bool _animatingFromControls = false;
+  // True when the card is auto-advancing due to natural song end.
+  // In that case AppController already handled audio, so onPageChanged
+  // must be suppressed to prevent a second controller.next() call.
+  bool _isAutoAdvance = false;
 
   @override
   void initState() {
@@ -300,6 +306,17 @@ class AnimatedPlayerCardState extends State<AnimatedPlayerCard>
     }
   }
 
+  /// Auto-advance: card throws forward visually but onPageChanged is suppressed.
+  /// Use this when AppController has already handled the audio transition
+  /// (natural song end) to avoid a second controller.next() call.
+  void animateAutoAdvance() {
+    if (_currentIndex < widget.itemCount - 1) {
+      _animatingFromControls = true;
+      _isAutoAdvance = true;
+      _cardControllers[0].animateToNext();
+    }
+  }
+
   @override
   void didUpdateWidget(AnimatedPlayerCard oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -313,17 +330,21 @@ class AnimatedPlayerCardState extends State<AnimatedPlayerCard>
         !_animatingFromControls &&
         !anyAnimating) {
       setState(() {
-        _currentIndex =
-            widget.currentSongId.clamp(0, math.max(0, widget.itemCount - 1));
+        _currentIndex = widget.currentSongId.clamp(
+          0,
+          math.max(0, widget.itemCount - 1),
+        );
       });
     }
   }
 
   bool _canSwipe(SwipeDirection direction) {
+    // Only allow forward (right) swipe — the card stack shows next songs only.
+    // Previous is handled by the prev button directly (no card animation).
     if (direction == SwipeDirection.right) {
       return _currentIndex < widget.itemCount - 1;
     }
-    return _currentIndex > 0;
+    return false;
   }
 
   void _initializeCards() {
@@ -350,15 +371,20 @@ class AnimatedPlayerCardState extends State<AnimatedPlayerCard>
 
     if (nextIndex >= 0 && nextIndex < widget.itemCount) {
       setState(() => _currentIndex = nextIndex);
-      // Always notify — this triggers controller.next()/prev() to change the track
-      widget.onPageChanged(nextIndex);
+      // Suppress onPageChanged for auto-advance: AppController already
+      // handled the audio transition, so calling next() again would skip a song.
+      if (!_isAutoAdvance) {
+        widget.onPageChanged(nextIndex);
+      }
       _animatingFromControls = false;
+      _isAutoAdvance = false;
 
       final swipedController = _cardControllers.removeAt(0);
       swipedController.resetImmediate();
       _cardControllers.add(swipedController);
     } else {
       _animatingFromControls = false;
+      _isAutoAdvance = false;
       _cardControllers[0].resetImmediate();
     }
   }
@@ -379,16 +405,18 @@ class AnimatedPlayerCardState extends State<AnimatedPlayerCard>
       animation: Listenable.merge(_cardControllers),
       builder: (context, _) {
         final isThrowing = frontCtrl.isAnimating && !frontCtrl.isDragging;
-        final popProgress = Curves.easeOutCubic
-            .transform(frontCtrl.popUpProgress.clamp(0.0, 1.0));
+        final popProgress = Curves.easeOutCubic.transform(
+          frontCtrl.popUpProgress.clamp(0.0, 1.0),
+        );
 
         // Back cards respond to drag AND throw
         final dragInfluence = frontCtrl.isDragging
-            ? (frontCtrl.dragDx.abs() / (_screenSize.width * 0.5))
-                .clamp(0.0, 1.0)
+            ? (frontCtrl.dragDx.abs() / (_screenSize.width * 0.5)).clamp(
+                0.0,
+                1.0,
+              )
             : 0.0;
-        final backProgress =
-            isThrowing ? popProgress : dragInfluence * 0.4;
+        final backProgress = isThrowing ? popProgress : dragInfluence * 0.4;
 
         final cards = <Widget>[];
 
@@ -408,10 +436,7 @@ class AnimatedPlayerCardState extends State<AnimatedPlayerCard>
           onPanStart: frontCtrl.onPanStart,
           onPanUpdate: frontCtrl.onPanUpdate,
           onPanEnd: frontCtrl.onPanEnd,
-          child: Stack(
-            fit: StackFit.expand,
-            children: cards,
-          ),
+          child: Stack(fit: StackFit.expand, children: cards),
         );
       },
     );
@@ -438,8 +463,8 @@ class AnimatedPlayerCardState extends State<AnimatedPlayerCard>
 
     // Drag or snap-back — card follows finger 1:1
     if (ctrl.dragDx.abs() > 0.5 || ctrl.dragDy.abs() > 0.5) {
-      final tilt = (ctrl.dragDx / _screenSize.width) *
-          CardAnimationConfig.maxDragTilt;
+      final tilt =
+          (ctrl.dragDx / _screenSize.width) * CardAnimationConfig.maxDragTilt;
       return Transform(
         transform: Matrix4.identity()
           ..translateByVector3(Vector3(ctrl.dragDx, ctrl.dragDy * 0.4, 0.0))
@@ -453,8 +478,7 @@ class AnimatedPlayerCardState extends State<AnimatedPlayerCard>
   }
 
   Widget _buildBackCard(int depth, int depthIndex, double animProgress) {
-    final currentScale =
-        1.0 - (depthIndex * CardAnimationConfig.scaleFraction);
+    final currentScale = 1.0 - (depthIndex * CardAnimationConfig.scaleFraction);
     final targetScale =
         1.0 - ((depthIndex - 1) * CardAnimationConfig.scaleFraction);
     final scale = currentScale + (targetScale - currentScale) * animProgress;
@@ -463,8 +487,10 @@ class AnimatedPlayerCardState extends State<AnimatedPlayerCard>
     final targetY = -(depthIndex - 1) * CardAnimationConfig.yOffset;
     final yOff = currentY + (targetY - currentY) * animProgress;
 
-    final opacity =
-        (1.0 - depthIndex * 0.12 + animProgress * 0.12).clamp(0.0, 1.0);
+    final opacity = (1.0 - depthIndex * 0.12 + animProgress * 0.12).clamp(
+      0.0,
+      1.0,
+    );
 
     return Transform(
       transform: Matrix4.identity()

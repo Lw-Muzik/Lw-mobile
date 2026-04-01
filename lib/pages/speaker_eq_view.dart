@@ -18,8 +18,7 @@ class _SpeakerEqViewState extends State<SpeakerEqView> {
     ('all', 'All'),
     ('over-ear', 'Over-ear'),
     ('in-ear', 'In-ear'),
-    ('tws', 'TWS'),
-    ('on-ear', 'On-ear'),
+    ('earbud', 'Earbud'),
   ];
 
   List<SpeakerProfile> _filteredProfiles(AppController controller) {
@@ -210,10 +209,8 @@ class _SpeakerEqViewState extends State<SpeakerEqView> {
         return Icons.headphones;
       case 'in-ear':
         return Icons.earbuds;
-      case 'tws':
-        return Icons.earbuds;
-      case 'on-ear':
-        return Icons.headset;
+      case 'earbud':
+        return Icons.earbuds_outlined;
       default:
         return Icons.headphones;
     }

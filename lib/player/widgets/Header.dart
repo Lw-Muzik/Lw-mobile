@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '/pages/settings.dart';
 
 class Header extends StatelessWidget {
   const Header({super.key});
@@ -29,8 +30,16 @@ class Header extends StatelessWidget {
               ),
             ),
           ),
-          // Placeholder to balance the row
-          const SizedBox(width: 48),
+          IconButton(
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const Settings()),
+            ),
+            icon: Icon(
+              Icons.settings_rounded,
+              color: Colors.white.withValues(alpha: 0.4),
+              size: 20,
+            ),
+          ),
         ],
       ),
     );

@@ -1,14 +1,20 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import '/Helpers/AudioVisualizer.dart';
+import '/Helpers/Channel.dart';
 import '/Routes/routes.dart';
 import '/controllers/AppController.dart';
 import '/widgets/Body.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wiredash/wiredash.dart';
 
 import '../models/eq_models.dart';
+import '../onboarding/coach_marks.dart';
+import '../onboarding/interactions_guide.dart';
+import '../services/streaming_data_guard.dart';
 
 import '/Helpers/AudioHandler.dart';
 import '/widgets/BottomPlayer.dart';
@@ -49,10 +55,16 @@ class _SettingsState extends State<Settings> {
                     vertical: 8,
                   ),
                   children: [
-                    _buildPlaybackSection(controller),
-                    const SizedBox(height: 12),
-                    _buildAudioEnhancementSection(controller),
-                    const SizedBox(height: 12),
+                    if (Platform.isAndroid) ...[
+                      _buildAppModeSection(controller),
+                      const SizedBox(height: 12),
+                    ],
+                    if (!controller.isEqMode) ...[
+                      _buildPlaybackSection(controller),
+                      const SizedBox(height: 12),
+                      _buildAudioEnhancementSection(controller),
+                      const SizedBox(height: 12),
+                    ],
                     if (controller.globalEqAvailable) ...[
                       _buildGlobalEqSection(controller),
                       const SizedBox(height: 12),
@@ -61,19 +73,24 @@ class _SettingsState extends State<Settings> {
                     const SizedBox(height: 12),
                     _buildToneSection(controller),
                     const SizedBox(height: 12),
-                    _buildAppearanceSection(controller),
-                    const SizedBox(height: 12),
-                    _buildVisualizerSection(controller),
-                    const SizedBox(height: 12),
-                    _buildLibrarySection(),
-                    const SizedBox(height: 12),
-                    _buildCloudStorageSection(controller),
-                    const SizedBox(height: 12),
+                    if (!controller.isEqMode) ...[
+                      _buildAppearanceSection(controller),
+                      const SizedBox(height: 12),
+                      _buildVisualizerSection(controller),
+                      const SizedBox(height: 12),
+                      _buildLibrarySection(),
+                      const SizedBox(height: 12),
+                      _buildCloudStorageSection(controller),
+                      const SizedBox(height: 12),
+                      _buildStreamingSection(),
+                      const SizedBox(height: 12),
+                    ],
                     _buildAboutSection(context),
                     const SizedBox(height: 24),
                   ],
                 ),
-                bottomNavigationBar: service.data ?? false
+                bottomNavigationBar:
+                    !controller.isEqMode && (service.data ?? false)
                     ? BottomPlayer(controller: controller)
                     : null,
               ),
@@ -112,6 +129,57 @@ class _SettingsState extends State<Settings> {
       color: Theme.of(context).colorScheme.surfaceContainerLow,
       clipBehavior: Clip.antiAlias,
       child: Column(children: children),
+    );
+  }
+
+  // -- App Mode Section --
+
+  Widget _buildAppModeSection(AppController controller) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionHeader(Icons.swap_horiz, "App Mode"),
+        _buildSectionCard([
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            child: SegmentedButton<AppMode>(
+              segments: const [
+                ButtonSegment<AppMode>(
+                  value: AppMode.musicPlayer,
+                  label: Text('Music Player'),
+                  icon: Icon(Icons.headphones_rounded),
+                ),
+                ButtonSegment<AppMode>(
+                  value: AppMode.equalizer,
+                  label: Text('Equalizer'),
+                  icon: Icon(Icons.equalizer_rounded),
+                ),
+              ],
+              selected: {controller.appMode},
+              onSelectionChanged: (values) {
+                controller.appMode = values.first;
+              },
+              style: SegmentedButton.styleFrom(
+                selectedBackgroundColor: Theme.of(
+                  context,
+                ).colorScheme.primary.withValues(alpha: 0.15),
+                selectedForegroundColor: Theme.of(context).colorScheme.primary,
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+            child: Text(
+              'Switch between full music player and EQ-only mode',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurface.withValues(alpha: 0.5),
+              ),
+            ),
+          ),
+        ]),
+      ],
     );
   }
 
@@ -200,7 +268,9 @@ class _SettingsState extends State<Settings> {
             const Divider(height: 1, indent: 16, endIndent: 16),
             ListTile(
               title: const Text("DVC Volume"),
-              subtitle: Text("${((controller.dvcGain + 30) / 30 * 100).round()}%"),
+              subtitle: Text(
+                "${((controller.dvcGain + 30) / 30 * 100).round()}%",
+              ),
             ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -213,7 +283,8 @@ class _SettingsState extends State<Settings> {
                       min: -30,
                       max: 0,
                       divisions: 20,
-                      label: "${((controller.dvcGain + 30) / 30 * 100).round()}%",
+                      label:
+                          "${((controller.dvcGain + 30) / 30 * 100).round()}%",
                       onChanged: (value) => controller.dvcGain = value,
                     ),
                   ),
@@ -252,9 +323,7 @@ class _SettingsState extends State<Settings> {
             SwitchListTile.adaptive(
               value: controller.dvcFineSteps,
               title: const Text("Fine volume steps"),
-              subtitle: const Text(
-                "1% steps instead of 5% (hardware buttons)",
-              ),
+              subtitle: const Text("1% steps instead of 5% (hardware buttons)"),
               onChanged: (value) => controller.dvcFineSteps = value,
             ),
           ],
@@ -295,9 +364,15 @@ class _SettingsState extends State<Settings> {
                         child: const Text("Cancel"),
                       ),
                       FilledButton(
-                        onPressed: () {
+                        onPressed: () async {
                           Navigator.pop(ctx);
                           controller.globalEqEnabled = true;
+                          // Prompt for battery optimization if not already disabled
+                          final isDisabled =
+                              await Channel.isBatteryOptimizationDisabled();
+                          if (!isDisabled && mounted) {
+                            _showBatteryOptimizationPrompt();
+                          }
                         },
                         child: const Text("Enable"),
                       ),
@@ -319,10 +394,9 @@ class _SettingsState extends State<Settings> {
                   Icon(
                     Icons.info_outline,
                     size: 16,
-                    color: Theme.of(context)
-                        .colorScheme
-                        .onSurface
-                        .withValues(alpha: 0.5),
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withValues(alpha: 0.5),
                   ),
                   const SizedBox(width: 8),
                   Expanded(
@@ -330,18 +404,100 @@ class _SettingsState extends State<Settings> {
                       "EQ, tone, and limiter changes sync to other apps in real-time. "
                       "Parametric EQ, MBC, reverb, and stereo effects are not applied globally.",
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Theme.of(context)
-                            .colorScheme
-                            .onSurface
-                            .withValues(alpha: 0.5),
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.onSurface.withValues(alpha: 0.5),
                       ),
                     ),
                   ),
                 ],
               ),
             ),
+            const Divider(height: 1, indent: 16, endIndent: 16),
+            _buildPlayingAppsRow(controller),
           ],
         ]),
+      ],
+    );
+  }
+
+  void _showBatteryOptimizationPrompt() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Disable Battery Optimization"),
+        content: const Text(
+          "To prevent Android from stopping Hype in the background, "
+          "please allow unrestricted battery usage.\n\n"
+          "This keeps your EQ and music playing without interruption.",
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("Later"),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              Channel.requestDisableBatteryOptimization();
+            },
+            child: const Text("Allow"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPlayingAppsRow(AppController controller) {
+    final apps = controller.playingApps;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 10, 8, 6),
+          child: Row(
+            children: [
+              Icon(
+                Icons.apps,
+                size: 16,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  "Apps currently playing",
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.refresh, size: 18),
+                tooltip: "Refresh",
+                visualDensity: VisualDensity.compact,
+                onPressed: () => controller.refreshPlayingApps(),
+              ),
+            ],
+          ),
+        ),
+        if (apps.isEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: Text(
+              "None detected",
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurface.withValues(alpha: 0.5),
+              ),
+            ),
+          )
+        else
+          ...apps.map(
+            (app) => _AppIconTile(
+              packageName: app['package'] ?? '',
+              appName: app['name'] ?? app['package'] ?? '',
+            ),
+          ),
+        const SizedBox(height: 4),
       ],
     );
   }
@@ -394,9 +550,7 @@ class _SettingsState extends State<Settings> {
             value: controller.toneEnabled,
             title: const Text("Tone controls"),
             subtitle: Text(
-              controller.toneEnabled
-                  ? "Bass & treble active"
-                  : "Disabled",
+              controller.toneEnabled ? "Bass & treble active" : "Disabled",
             ),
             onChanged: (enabled) => controller.toneEnabled = enabled,
           ),
@@ -407,9 +561,9 @@ class _SettingsState extends State<Settings> {
               padding: const EdgeInsets.only(left: 16, top: 12),
               child: Text(
                 "Bass",
-                style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
               ),
             ),
             ListTile(
@@ -422,8 +576,8 @@ class _SettingsState extends State<Settings> {
               child: Slider.adaptive(
                 value: controller.bassFreq,
                 min: 20,
-                max: 500,
-                divisions: 48,
+                max: 250,
+                divisions: 23,
                 onChanged: (v) => controller.bassFreq = v,
               ),
             ),
@@ -437,8 +591,8 @@ class _SettingsState extends State<Settings> {
               child: Slider.adaptive(
                 value: controller.bassQ,
                 min: 0.1,
-                max: 4.0,
-                divisions: 39,
+                max: 2.0,
+                divisions: 19,
                 onChanged: (v) => controller.bassQ = v,
               ),
             ),
@@ -448,9 +602,9 @@ class _SettingsState extends State<Settings> {
               padding: const EdgeInsets.only(left: 16, top: 12),
               child: Text(
                 "Treble",
-                style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
               ),
             ),
             ListTile(
@@ -462,9 +616,9 @@ class _SettingsState extends State<Settings> {
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Slider.adaptive(
                 value: controller.trebleFreq,
-                min: 1000,
-                max: 20000,
-                divisions: 38,
+                min: 5000,
+                max: 15000,
+                divisions: 10,
                 onChanged: (v) => controller.trebleFreq = v,
               ),
             ),
@@ -478,8 +632,8 @@ class _SettingsState extends State<Settings> {
               child: Slider.adaptive(
                 value: controller.trebleQ,
                 min: 0.1,
-                max: 4.0,
-                divisions: 39,
+                max: 2.0,
+                divisions: 19,
                 onChanged: (v) => controller.trebleQ = v,
               ),
             ),
@@ -729,7 +883,7 @@ class _SettingsState extends State<Settings> {
             subtitle: Text(_reactivityLabel(controller.visualizerReactivity)),
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Row(
               children: [
                 const Text("Smooth"),
@@ -739,10 +893,44 @@ class _SettingsState extends State<Settings> {
                     min: 0.05,
                     max: 0.35,
                     divisions: 6,
-                    onChanged: (v) => controller.visualizerReactivity = v,
+                    onChanged: (v) {
+                      controller.visualizerReactivity = v;
+                      // Sync to C++ FFT smoothing: attack = reactivity, decay = reactivity * 0.7
+                      Visualizers.setSmoothing(v, v * 0.7);
+                    },
                   ),
                 ),
                 const Text("Snappy"),
+              ],
+            ),
+          ),
+          const Divider(height: 1, indent: 16, endIndent: 16),
+
+          // Beat sensitivity slider
+          ListTile(
+            title: const Text("Beat sensitivity"),
+            subtitle: Text(
+              _beatSensitivityLabel(controller.visualizerBeatSensitivity),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: Row(
+              children: [
+                const Text("Subtle"),
+                Expanded(
+                  child: Slider.adaptive(
+                    value: controller.visualizerBeatSensitivity,
+                    min: 0.5,
+                    max: 3.0,
+                    divisions: 10,
+                    onChanged: (v) {
+                      controller.visualizerBeatSensitivity = v;
+                      Visualizers.setGain(v);
+                    },
+                  ),
+                ),
+                const Text("Intense"),
               ],
             ),
           ),
@@ -812,7 +1000,9 @@ class _SettingsState extends State<Settings> {
             const Divider(height: 1, indent: 16, endIndent: 16),
             ListTile(
               title: const Text("Beat sensitivity"),
-              subtitle: Text(_beatSensitivityLabel(controller.milkdropBeatSensitivity)),
+              subtitle: Text(
+                _beatSensitivityLabel(controller.milkdropBeatSensitivity),
+              ),
             ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -837,9 +1027,11 @@ class _SettingsState extends State<Settings> {
             const Divider(height: 1, indent: 16, endIndent: 16),
             ListTile(
               title: const Text("Preset auto-cycle"),
-              subtitle: Text(controller.milkdropPresetDuration > 0
-                  ? "${controller.milkdropPresetDuration.toInt()}s"
-                  : "Manual only"),
+              subtitle: Text(
+                controller.milkdropPresetDuration > 0
+                    ? "${controller.milkdropPresetDuration.toInt()}s"
+                    : "Manual only",
+              ),
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
@@ -868,15 +1060,21 @@ class _SettingsState extends State<Settings> {
   }
 
   String _milkdropQualityLabel(int quality) {
-    const labels = ["Low (480p)", "Medium (720p)", "High (1080p)", "Ultra (native)"];
+    const labels = [
+      "Low (480p)",
+      "Medium (720p)",
+      "High (1080p)",
+      "Ultra (native)",
+    ];
     return labels[quality.clamp(0, 3)];
   }
 
   String _beatSensitivityLabel(double value) {
-    if (value <= 0.5) return "Low";
-    if (value <= 1.0) return "Normal";
-    if (value <= 2.0) return "High";
-    return "Very high";
+    if (value <= 0.7) return "Subtle";
+    if (value <= 1.1) return "Normal";
+    if (value <= 1.7) return "Energetic";
+    if (value <= 2.3) return "Punchy";
+    return "Intense";
   }
 
   String _reactivityLabel(double value) {
@@ -885,6 +1083,99 @@ class _SettingsState extends State<Settings> {
     if (value <= 0.18) return "Balanced";
     if (value <= 0.25) return "Responsive";
     return "Snappy";
+  }
+
+  // -- Streaming Section --
+
+  Widget _buildStreamingSection() {
+    final guard = StreamingDataGuard.instance;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionHeader(Icons.wifi_rounded, "Streaming"),
+        _buildSectionCard([
+          SwitchListTile(
+            secondary: const Icon(Icons.data_saver_on_rounded),
+            title: const Text("Data Saver"),
+            subtitle: const Text(
+              "Skip background caching on cellular — only buffer what you listen to",
+            ),
+            value: guard.dataSaver,
+            onChanged: (v) {
+              setState(() => guard.dataSaver = v);
+            },
+          ),
+          const Divider(height: 1, indent: 16, endIndent: 16),
+          SwitchListTile(
+            secondary: const Icon(Icons.cell_tower_rounded),
+            title: const Text("Stream on Cellular"),
+            subtitle: const Text("Allow streaming when not on WiFi"),
+            value: guard.streamOnCellular,
+            onChanged: (v) {
+              setState(() => guard.streamOnCellular = v);
+            },
+          ),
+          const Divider(height: 1, indent: 16, endIndent: 16),
+          ListTile(
+            leading: const Icon(Icons.speed_rounded),
+            title: const Text("Cellular Data Limit"),
+            subtitle: Text(
+              guard.cellularLimitMB > 0
+                  ? "${guard.cellularLimitMB} MB per session"
+                  : "Unlimited",
+            ),
+            trailing: DropdownButton<int>(
+              value: guard.cellularLimitMB,
+              underline: const SizedBox.shrink(),
+              items: const [
+                DropdownMenuItem(value: 0, child: Text("Unlimited")),
+                DropdownMenuItem(value: 50, child: Text("50 MB")),
+                DropdownMenuItem(value: 100, child: Text("100 MB")),
+                DropdownMenuItem(value: 200, child: Text("200 MB")),
+                DropdownMenuItem(value: 500, child: Text("500 MB")),
+              ],
+              onChanged: (v) {
+                if (v != null) setState(() => guard.cellularLimitMB = v);
+              },
+            ),
+          ),
+          const Divider(height: 1, indent: 16, endIndent: 16),
+          SwitchListTile(
+            secondary: const Icon(Icons.download_rounded),
+            title: const Text("Prefetch Next Track"),
+            subtitle: Text(
+              guard.prefetchOnlyOnWifi
+                  ? "Pre-downloads next song on WiFi only"
+                  : "Full file on WiFi, first 30s on cellular",
+            ),
+            value: guard.prefetchNextTrack,
+            onChanged: (v) {
+              setState(() => guard.prefetchNextTrack = v);
+            },
+          ),
+          const Divider(height: 1, indent: 16, endIndent: 16),
+          SwitchListTile(
+            secondary: const Icon(Icons.wifi_lock_rounded),
+            title: const Text("Prefetch on WiFi Only"),
+            subtitle: const Text("Only prefetch when connected to WiFi"),
+            value: guard.prefetchOnlyOnWifi,
+            onChanged: (v) {
+              setState(() => guard.prefetchOnlyOnWifi = v);
+            },
+          ),
+          if (guard.cellularBytesUsed > 0 || guard.totalCellularBytes > 0) ...[
+            const Divider(height: 1, indent: 16, endIndent: 16),
+            ListTile(
+              leading: const Icon(Icons.bar_chart_rounded),
+              title: const Text("Cellular Data Used"),
+              subtitle: Text(
+                "Session: ${guard.cellularUsageFormatted} · Total: ${guard.totalCellularFormatted}",
+              ),
+            ),
+          ],
+        ]),
+      ],
+    );
   }
 
   // -- Cloud Storage Section --
@@ -1067,6 +1358,36 @@ class _SettingsState extends State<Settings> {
           ),
           const Divider(height: 1, indent: 16, endIndent: 16),
           ListTile(
+            title: const Text("Interactions Guide"),
+            subtitle: const Text("Gestures, shortcuts & tips"),
+            trailing: const Icon(Icons.touch_app_rounded),
+            onTap: () => Routes.routeTo(const InteractionsGuide(), context),
+          ),
+          const Divider(height: 1, indent: 16, endIndent: 16),
+          ListTile(
+            title: const Text("Reset Guides"),
+            subtitle: const Text("Show onboarding & tips again"),
+            trailing: const Icon(Icons.restart_alt_rounded),
+            onTap: () async {
+              final prefs = await SharedPreferences.getInstance();
+              await prefs.remove('onboarding_complete');
+              await prefs.remove('home_guide_shown');
+              await prefs.remove('interactions_guide_shown');
+              await CoachMarkController.resetAll();
+              if (context.mounted) {
+                ScaffoldMessenger.of(context)
+                  ..clearSnackBars()
+                  ..showSnackBar(
+                    const SnackBar(
+                      content: Text('Guides will show on next launch'),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+              }
+            },
+          ),
+          const Divider(height: 1, indent: 16, endIndent: 16),
+          ListTile(
             title: const Text("Report a bug"),
             trailing: const Icon(Icons.bug_report_rounded),
             onTap: () => Wiredash.of(context).show(inheritMaterialTheme: true),
@@ -1122,6 +1443,85 @@ class _SettingsState extends State<Settings> {
           ],
         );
       },
+    );
+  }
+}
+
+class _AppIconTile extends StatefulWidget {
+  final String packageName;
+  final String appName;
+
+  const _AppIconTile({required this.packageName, required this.appName});
+
+  @override
+  State<_AppIconTile> createState() => _AppIconTileState();
+}
+
+class _AppIconTileState extends State<_AppIconTile> {
+  Uint8List? _iconBytes;
+  bool _loaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadIcon();
+  }
+
+  Future<void> _loadIcon() async {
+    final bytes = await Channel.getAppIcon(widget.packageName);
+    if (mounted)
+      setState(() {
+        _iconBytes = bytes;
+        _loaded = true;
+      });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 36,
+            height: 36,
+            child: _loaded
+                ? (_iconBytes != null
+                      ? Image.memory(_iconBytes!, fit: BoxFit.contain)
+                      : Icon(
+                          Icons.music_note,
+                          size: 24,
+                          color: Theme.of(context).colorScheme.primary,
+                        ))
+                : const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  widget.appName,
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+                Text(
+                  widget.packageName,
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withValues(alpha: 0.4),
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

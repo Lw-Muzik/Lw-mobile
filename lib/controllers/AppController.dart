@@ -27,6 +27,8 @@ import '../models/recognition_result.dart';
 import '../models/speaker_profile.dart';
 import 'stem_controller.dart';
 
+enum AppMode { musicPlayer, equalizer }
+
 class AppController with ChangeNotifier {
   static AppController? _instance;
   static AppController get instance => _instance!;
@@ -67,6 +69,29 @@ class AppController with ChangeNotifier {
     notifyListeners();
   }
 
+  AppMode get appMode => _appMode;
+  set appMode(AppMode value) {
+    _appMode = value;
+    _prefs.setInt("appMode", value.index);
+    // Auto-enable global EQ when switching to equalizer mode
+    if (value == AppMode.equalizer && _globalEqAvailable && !_globalEqEnabled) {
+      globalEqEnabled = true;
+    }
+    // Auto-disable global EQ when switching to music mode
+    if (value == AppMode.musicPlayer && _globalEqEnabled) {
+      globalEqEnabled = false;
+    }
+    // Persistent notification for EQ mode
+    if (value == AppMode.equalizer) {
+      Channel.startEqModeService(_activePresetName);
+    } else {
+      Channel.stopEqModeService();
+    }
+    notifyListeners();
+  }
+
+  bool get isEqMode => _appMode == AppMode.equalizer;
+
   final HypeAudioHandler _handler;
   HypeAudioHandler get handler => _handler;
   int _selectedRoomPreset = -1;
@@ -82,15 +107,19 @@ class AppController with ChangeNotifier {
   int _crossfadeDuration = 0; // seconds, 0 = off
   bool _replayGain = false;
   bool _dvcEnabled = false;
-  double _dvcGain = -20; // dB, range -30 to +30
+  double _dvcGain = -30.0; // dB, range -30 to 0 (0% to 100%)
   bool _dvcFineSteps = false; // false=1.5dB (5%), true=0.3dB (1%)
+
+  // App mode
+  AppMode _appMode = AppMode.musicPlayer;
 
   // Global EQ (system-wide)
   bool _globalEqEnabled = false;
   bool _globalEqAvailable = false;
+  List<Map<String, String>> _playingApps = [];
 
-  // Song list/grid zoom scale: 0=list, 1=2-col grid, 2=3-col grid
-  int _songGridScale = 0;
+  // Song list/grid zoom: continuous extent (80=tiny grid, 300=list mode)
+  double _songGridExtent = 300.0; // default list mode
 
   // Configurable EQ band count (UI-layer only, native always 32)
   int _eqBandCount = 32;
@@ -149,13 +178,13 @@ class AppController with ChangeNotifier {
   // Stem separation
   final StemController stemController = StemController();
 
-  // Song grid scale getters/setters
-  int get songGridScale => _songGridScale;
-  set songGridScale(int value) {
-    final clamped = value.clamp(0, 2);
-    if (clamped != _songGridScale) {
-      _songGridScale = clamped;
-      _prefs.setInt("songGridScale", clamped);
+  // Song grid extent getters/setters
+  double get songGridExtent => _songGridExtent;
+  set songGridExtent(double value) {
+    final clamped = value.clamp(80.0, 300.0);
+    if ((clamped - _songGridExtent).abs() > 0.5) {
+      _songGridExtent = clamped;
+      _prefs.setDouble("songGridExtent", clamped);
       notifyListeners();
     }
   }
@@ -223,42 +252,42 @@ class AppController with ChangeNotifier {
   }
 
   set bassGain(double value) {
-    _bassGain = value.clamp(0.0, 30.0);
+    _bassGain = value.clamp(0.0, 15.0);
     _prefs.setDouble("bassGain", _bassGain);
     Channel.dspSetBassGain(_bassGain);
     notifyListeners();
   }
 
   set bassFreq(double value) {
-    _bassFreq = value.clamp(20.0, 500.0);
+    _bassFreq = value.clamp(20.0, 250.0);
     _prefs.setDouble("bassFreq", _bassFreq);
     Channel.dspSetBassFreq(_bassFreq);
     notifyListeners();
   }
 
   set bassQ(double value) {
-    _bassQ = value.clamp(0.1, 4.0);
+    _bassQ = value.clamp(0.1, 2.0);
     _prefs.setDouble("bassQ", _bassQ);
     Channel.dspSetBassQ(_bassQ);
     notifyListeners();
   }
 
   set trebleGain(double value) {
-    _trebleGain = value.clamp(0.0, 30.0);
+    _trebleGain = value.clamp(0.0, 15.0);
     _prefs.setDouble("trebleGain", _trebleGain);
     Channel.dspSetTrebleGain(_trebleGain);
     notifyListeners();
   }
 
   set trebleFreq(double value) {
-    _trebleFreq = value.clamp(1000.0, 20000.0);
+    _trebleFreq = value.clamp(5000.0, 15000.0);
     _prefs.setDouble("trebleFreq", _trebleFreq);
     Channel.dspSetTrebleFreq(_trebleFreq);
     notifyListeners();
   }
 
   set trebleQ(double value) {
-    _trebleQ = value.clamp(0.1, 4.0);
+    _trebleQ = value.clamp(0.1, 2.0);
     _prefs.setDouble("trebleQ", _trebleQ);
     Channel.dspSetTrebleQ(_trebleQ);
     notifyListeners();
@@ -334,6 +363,10 @@ class AppController with ChangeNotifier {
   set activePresetName(String value) {
     _prefs.setString("activePresetName", value);
     _activePresetName = value;
+    // Update EQ mode notification with new preset name
+    if (_appMode == AppMode.equalizer) {
+      Channel.updateEqModePreset(value);
+    }
     notifyListeners();
   }
 
@@ -502,6 +535,7 @@ class AppController with ChangeNotifier {
   bool get dvcFineSteps => _dvcFineSteps;
   bool get globalEqEnabled => _globalEqEnabled;
   bool get globalEqAvailable => _globalEqAvailable;
+  List<Map<String, String>> get playingApps => List.unmodifiable(_playingApps);
 
   // Audio feature setters
   set gaplessPlayback(bool value) {
@@ -539,6 +573,11 @@ class AppController with ChangeNotifier {
     _prefs.setBool("dvcEnabled", value);
     _dvcEnabled = value;
     if (value) {
+      // Start at 0% (silence) so enabling DVC never blasts at full volume
+      if (!_prefs.containsKey("dvcGain")) {
+        _dvcGain = -30.0;
+        _prefs.setDouble("dvcGain", _dvcGain);
+      }
       Channel.enableDvc();
       Channel.setDvcGain(_dvcGain);
     } else {
@@ -564,6 +603,17 @@ class AppController with ChangeNotifier {
     _prefs.setBool("globalEqEnabled", value);
     _globalEqEnabled = value;
     Channel.enableGlobalEq(value);
+    if (value) {
+      // Give the service a moment to start and detect sessions
+      Future.delayed(const Duration(milliseconds: 800), refreshPlayingApps);
+    } else {
+      _playingApps = [];
+    }
+    notifyListeners();
+  }
+
+  Future<void> refreshPlayingApps() async {
+    _playingApps = await Channel.getPlayingApps();
     notifyListeners();
   }
 
@@ -620,6 +670,7 @@ class AppController with ChangeNotifier {
   int _visualizerColor = 0xFFFFFFFF; // white
   int _visualizerFrameRate = 30;
   double _visualizerReactivity = 0.15; // smoothing attack factor
+  double _visualizerBeatSensitivity = 1.0; // FFT gain: 0.5 subtle → 3.0 intense
 
   // projectM MilkDrop settings
   int _milkdropFps = 30;
@@ -638,6 +689,10 @@ class AppController with ChangeNotifier {
   final SharedPreferences _prefs;
   List<SongModel> _songs = [];
   List<SongModel> _shuffledSongs = [];
+
+  // Play count tracking (song ID → count)
+  Map<int, int> _playCounts = {};
+  Map<int, int> get playCounts => _playCounts;
 
   StreamSubscription<Duration>? _positionSub;
   bool _isCrossfading = false;
@@ -669,6 +724,7 @@ class AppController with ChangeNotifier {
 
   AppController(this._prefs, this._handler) {
     _loadSettings();
+    _loadPlayCounts();
 
     // Wire up notification skip controls
     _handler.onSkipToNext = next;
@@ -688,6 +744,11 @@ class AppController with ChangeNotifier {
 
     // Global EQ: check availability and restore state
     _initGlobalEq();
+
+    // Start EQ mode notification if already in equalizer mode
+    if (_appMode == AppMode.equalizer) {
+      Channel.startEqModeService(_activePresetName);
+    }
 
     _bindDvcVolumeButtons();
     _bindProcessingState();
@@ -846,21 +907,27 @@ class AppController with ChangeNotifier {
 
     final AudioSource nextSource;
     if (nextSong.data.startsWith('http')) {
-      final fileId = nextSong.id.toString();
-      if (cloudCache.isCached(fileId)) {
-        nextSource = AudioSource.file(cloudCache.cacheFile(fileId).path);
+      if (nextSong.data.contains('nowviba.com')) {
+        // Discover stream — direct URI, no proxy overhead
+        nextSource = AudioSource.uri(Uri.parse(nextSong.data));
       } else {
-        final headers = nextSong.data.contains('googleapis.com')
-            ? await cloudAuth.getGoogleAuthHeaders()
-            : <String, String>{};
-        nextSource = LockCachingAudioSource(
-          Uri.parse(nextSong.data),
-          cacheFile: cloudCache.cacheFile(fileId),
-          headers: headers,
-        );
+        final fileId = nextSong.id.toString();
+        if (cloudCache.isCached(fileId)) {
+          nextSource = AudioSource.file(cloudCache.cacheFile(fileId).path);
+        } else {
+          final headers = nextSong.data.contains('googleapis.com')
+              ? await cloudAuth.getGoogleAuthHeaders()
+              : <String, String>{};
+          nextSource = AudioSource.uri(
+            Uri.parse(nextSong.data),
+            headers: headers,
+          );
+        }
       }
     } else {
-      nextSource = AudioSource.uri(Uri.parse(nextSong.data));
+      nextSource = nextSong.data.startsWith('/')
+          ? AudioSource.file(nextSong.data)
+          : AudioSource.uri(Uri.parse(nextSong.data));
     }
 
     await handler.beginCrossfade(
@@ -926,8 +993,12 @@ class AppController with ChangeNotifier {
 
   /// Build and load a queue for gapless playback.
   /// Cached cloud tracks play from disk; uncached ones stream with auth headers.
+  bool _loadingQueue = false;
   Future<void> loadGaplessQueue(int startIndex) async {
     if (songs.isEmpty) return;
+    // If already loading, the new call will interrupt the old one in just_audio.
+    // That's fine — just_audio handles cancellation gracefully.
+    _loadingQueue = true;
     final sources = <AudioSource>[];
 
     // Get auth headers once (reused for all cloud tracks of same provider)
@@ -937,26 +1008,24 @@ class AppController with ChangeNotifier {
     for (int i = 0; i < songs.length; i++) {
       final s = songs[i];
       if (s.data.startsWith('http')) {
-        final fileId = s.id.toString();
-        if (cloudCache.isCached(fileId)) {
-          sources.add(AudioSource.file(cloudCache.cacheFile(fileId).path));
+        // Discover streams (nowviba.com) — direct URI, no proxy/cache overhead
+        if (s.data.contains('nowviba.com')) {
+          sources.add(AudioSource.uri(Uri.parse(s.data)));
         } else {
-          // All cloud tracks need auth headers
-          Map<String, String> headers;
-          if (s.data.contains('googleapis.com')) {
-            gdriveHeaders ??= await cloudAuth.getGoogleAuthHeaders();
-            headers = gdriveHeaders;
+          final fileId = s.id.toString();
+          if (cloudCache.isCached(fileId)) {
+            sources.add(AudioSource.file(cloudCache.cacheFile(fileId).path));
           } else {
-            dropboxHeaders ??= <String, String>{};
-            headers = dropboxHeaders;
+            Map<String, String> headers;
+            if (s.data.contains('googleapis.com')) {
+              gdriveHeaders ??= await cloudAuth.getGoogleAuthHeaders();
+              headers = gdriveHeaders;
+            } else {
+              dropboxHeaders ??= <String, String>{};
+              headers = dropboxHeaders;
+            }
+            sources.add(AudioSource.uri(Uri.parse(s.data), headers: headers));
           }
-          sources.add(
-            LockCachingAudioSource(
-              Uri.parse(s.data),
-              cacheFile: cloudCache.cacheFile(fileId),
-              headers: headers,
-            ),
-          );
         }
       } else {
         // Local file paths start with "/", use AudioSource.file to handle spaces/special chars
@@ -967,12 +1036,20 @@ class AppController with ChangeNotifier {
         }
       }
     }
-    await handler.player.setAudioSources(sources, initialIndex: startIndex);
-    await _updateMediaItemForIndex(startIndex);
-    handler.player.play();
+    try {
+      await handler.player.setAudioSources(sources, initialIndex: startIndex);
+      await _updateMediaItemForIndex(startIndex);
+      handler.player.play();
+    } catch (e) {
+      // "Loading interrupted" — a newer load replaced this one; safe to ignore
+      debugPrint('Gapless queue load: $e');
+    } finally {
+      _loadingQueue = false;
+    }
   }
 
   void _loadSettings() {
+    _appMode = AppMode.values[_prefs.getInt("appMode") ?? 0];
     _enableEffects = _prefs.getBool("enableEffects") ?? false;
     _selectedPreset = _prefs.getInt("selectedPreset") ?? 0;
     _isFancy = _prefs.getBool("fancyMode") ?? false;
@@ -992,11 +1069,24 @@ class AppController with ChangeNotifier {
     _crossfadeDuration = _prefs.getInt("crossfadeDuration") ?? 0;
     _replayGain = _prefs.getBool("replayGain") ?? false;
     _dvcEnabled = _prefs.getBool("dvcEnabled") ?? false;
-    _dvcGain = _prefs.getDouble("dvcGain") ?? 0.0;
+    _dvcGain = _prefs.getDouble("dvcGain") ?? -30.0;
     _dvcFineSteps = _prefs.getBool("dvcFineSteps") ?? false;
     _globalEqEnabled = _prefs.getBool("globalEqEnabled") ?? false;
-    // Song grid scale
-    _songGridScale = (_prefs.getInt("songGridScale") ?? 0).clamp(0, 2);
+    // Song grid extent (migrate from old int scale if needed)
+    if (_prefs.containsKey("songGridExtent")) {
+      _songGridExtent = (_prefs.getDouble("songGridExtent") ?? 300.0).clamp(
+        80.0,
+        300.0,
+      );
+    } else {
+      // Migrate from old songGridScale: 0=list→300, 1=2-col→180, 2=3-col→120
+      final oldScale = _prefs.getInt("songGridScale") ?? 0;
+      _songGridExtent = oldScale == 0
+          ? 300.0
+          : oldScale == 1
+          ? 180.0
+          : 120.0;
+    }
     // EQ band count
     _eqBandCount = _prefs.getInt("eqBandCount") ?? 32;
     // Preamp & MBC
@@ -1037,6 +1127,8 @@ class AppController with ChangeNotifier {
     _visualizerColor = _prefs.getInt("visualizerColor") ?? 0xFFFFFFFF;
     _visualizerFrameRate = _prefs.getInt("visualizerFrameRate") ?? 30;
     _visualizerReactivity = _prefs.getDouble("visualizerReactivity") ?? 0.15;
+    _visualizerBeatSensitivity =
+        _prefs.getDouble("visualizerBeatSensitivity") ?? 1.0;
 
     // projectM MilkDrop settings
     _milkdropFps = _prefs.getInt("milkdropFps") ?? 30;
@@ -1075,6 +1167,57 @@ class AppController with ChangeNotifier {
     loadSpeakerProfiles().then((_) => _applyAllDspParams());
   }
 
+  // ---------------------------------------------------------------------------
+  // Play count tracking
+  // ---------------------------------------------------------------------------
+
+  void _loadPlayCounts() {
+    final raw = _prefs.getString('playCounts');
+    if (raw != null) {
+      try {
+        final decoded = json.decode(raw) as Map<String, dynamic>;
+        _playCounts = decoded.map((k, v) => MapEntry(int.parse(k), v as int));
+      } catch (_) {
+        _playCounts = {};
+      }
+    }
+  }
+
+  void _incrementPlayCount(int songId) {
+    _playCounts[songId] = (_playCounts[songId] ?? 0) + 1;
+    _prefs.setString(
+      'playCounts',
+      json.encode(_playCounts.map((k, v) => MapEntry(k.toString(), v))),
+    );
+    notifyListeners();
+  }
+
+  int getPlayCount(int songId) => _playCounts[songId] ?? 0;
+
+  List<SongModel> getMostPlayed({int limit = 50}) {
+    if (_playCounts.isEmpty) return [];
+    // Build a set of song IDs that exist in the current library
+    final songMap = <int, SongModel>{};
+    for (final s in _songs) {
+      songMap[s.id] = s;
+    }
+    // Sort by play count descending
+    final sorted = _playCounts.entries
+        .where((e) => e.value > 0 && songMap.containsKey(e.key))
+        .toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    return sorted
+        .take(limit)
+        .map((e) => songMap[e.key]!)
+        .toList();
+  }
+
+  List<SongModel> getRecentlyAdded({int limit = 50}) {
+    final sorted = List<SongModel>.from(_songs)
+      ..sort((a, b) => (b.dateAdded ?? 0).compareTo(a.dateAdded ?? 0));
+    return sorted.take(limit).toList();
+  }
+
   bool get isDark {
     return _isDark;
   }
@@ -1107,6 +1250,7 @@ class AppController with ChangeNotifier {
   int get visualizerColor => _visualizerColor;
   int get visualizerFrameRate => _visualizerFrameRate;
   double get visualizerReactivity => _visualizerReactivity;
+  double get visualizerBeatSensitivity => _visualizerBeatSensitivity;
 
   // Visualizer fine-tuning setters
   set visualizerStyle(String v) {
@@ -1130,6 +1274,12 @@ class AppController with ChangeNotifier {
   set visualizerReactivity(double r) {
     _prefs.setDouble("visualizerReactivity", r);
     _visualizerReactivity = r;
+    notifyListeners();
+  }
+
+  set visualizerBeatSensitivity(double s) {
+    _prefs.setDouble("visualizerBeatSensitivity", s);
+    _visualizerBeatSensitivity = s;
     notifyListeners();
   }
 
@@ -1518,8 +1668,9 @@ class AppController with ChangeNotifier {
     _songId = id;
     notifyListeners();
     _loadLyricsForCurrentSong();
-    // Check stem availability for new song
+    // Track play count and check stem availability for new song
     if (songs.isNotEmpty && id >= 0 && id < songs.length) {
+      _incrementPlayCount(songs[id].id);
       stemController.onSongChanged(songs[id].data);
     }
   }

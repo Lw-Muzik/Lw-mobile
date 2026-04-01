@@ -12,8 +12,6 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <!-- Android 13 or greater  -->
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO"/>
-
-    <!--    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"/>-->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
     <!--    bluetooth permissions-->
     <uses-permission android:name="android.permission.BLUETOOTH"/>
@@ -24,6 +22,8 @@
     <uses-permission android:name="android.permission.INTERNET"/>
     <!-- ALSO ADD THIS PERMISSION IF TARGETING SDK 34 -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"/>
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
+    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
 
     <application android:name="${applicationName}" android:enableOnBackInvokedCallback="true" android:icon="@mipmap/launcher_icon" android:label="Hype Muzik" tools:ignore="ExtraText" android:requestLegacyExternalStorage="true" android:usesCleartextTraffic="true">
         <meta-data android:name="google_analytics_automatic_screen_reporting_enabled" android:value="true" />
@@ -56,6 +56,16 @@
         <service android:name=".GlobalEqService"
             android:enabled="true" android:exported="false"
             android:foregroundServiceType="mediaPlayback" />
+        <service android:name=".EqModeService"
+            android:enabled="true" android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
+        <service android:name=".MediaNotificationListener"
+            android:enabled="true" android:exported="true"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
         <service android:name=".StemSeparationService"
             android:enabled="true" android:exported="false"
             android:foregroundServiceType="mediaPlayback" />
@@ -76,5 +86,5 @@
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data android:name="flutterEmbedding" android:value="2" />
     </application>
-    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+    <!-- <uses-permission android:name="android.permission.RECORD_AUDIO"/> -->
 </manifest>

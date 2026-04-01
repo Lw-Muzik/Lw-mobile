@@ -26,11 +26,20 @@ import androidx.activity.EdgeToEdge;
 
 import com.ryanheise.audioservice.AudioServiceFragmentActivity;
 
+import android.content.pm.ApplicationInfo;
+import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
+import android.graphics.Canvas;
+import android.graphics.drawable.BitmapDrawable;
+import android.graphics.drawable.Drawable;
+
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -114,6 +123,28 @@ public class MainActivity extends AudioServiceFragmentActivity {
                 flutterEngine.getDartExecutor().getBinaryMessenger(), "eq_app/stem_progress");
         StemSeparationService.setupEventChannel(stemEventChannel);
 
+        // FFT Visualizer EventChannels (replaces android.media.audiofx.Visualizer)
+        EventChannel fftChannel = new EventChannel(
+                flutterEngine.getDartExecutor().getBinaryMessenger(), "eq_app/fft_bands");
+        fftChannel.setStreamHandler(new EventChannel.StreamHandler() {
+            @Override public void onListen(Object arguments, EventChannel.EventSink events) {
+                VisualizerTapProcessor.setFftSink(events);
+            }
+            @Override public void onCancel(Object arguments) {
+                VisualizerTapProcessor.setFftSink(null);
+            }
+        });
+        EventChannel waveformChannel = new EventChannel(
+                flutterEngine.getDartExecutor().getBinaryMessenger(), "eq_app/waveform");
+        waveformChannel.setStreamHandler(new EventChannel.StreamHandler() {
+            @Override public void onListen(Object arguments, EventChannel.EventSink events) {
+                VisualizerTapProcessor.setWaveformSink(events);
+            }
+            @Override public void onCancel(Object arguments) {
+                VisualizerTapProcessor.setWaveformSink(null);
+            }
+        });
+
         // projectM renderer init
         projectMRenderer = new ProjectMRenderer(this, flutterEngine.getRenderer());
 
@@ -166,8 +197,21 @@ public class MainActivity extends AudioServiceFragmentActivity {
 
                         case "setFrameRate":
                             int frameRate = call.argument("frameRate");
-                            // visualizer.(frameRate);
+                            VisualizerTapProcessor.setFrameRate(frameRate);
                             break;
+
+                        case "setVizSmoothing": {
+                            double attack = call.argument("attack");
+                            double decay = call.argument("decay");
+                            VisualizerTapProcessor.setSmoothing((float) attack, (float) decay);
+                            break;
+                        }
+
+                        case "setVizGain": {
+                            double gain = call.argument("gain");
+                            VisualizerTapProcessor.setGain((float) gain);
+                            break;
+                        }
 
                         case "init":
                             // Legacy — EQ + MBC now handled by C++ DSP pipeline
@@ -716,6 +760,95 @@ public class MainActivity extends AudioServiceFragmentActivity {
                             result.success(Build.VERSION.SDK_INT >= Build.VERSION_CODES.P);
                             break;
 
+                        // ==================== EQ Mode Notification ====================
+                        case "startEqModeService": {
+                            String preset = call.argument("preset");
+                            Intent svc = new Intent(getApplicationContext(), EqModeService.class);
+                            if (preset != null) svc.putExtra(EqModeService.EXTRA_PRESET, preset);
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                startForegroundService(svc);
+                            } else {
+                                startService(svc);
+                            }
+                            result.success(true);
+                            break;
+                        }
+                        case "stopEqModeService":
+                            stopService(new Intent(getApplicationContext(), EqModeService.class));
+                            result.success(true);
+                            break;
+                        case "updateEqModePreset": {
+                            String preset = call.argument("preset");
+                            Intent svc = new Intent(getApplicationContext(), EqModeService.class);
+                            if (preset != null) svc.putExtra(EqModeService.EXTRA_PRESET, preset);
+                            startService(svc);
+                            result.success(true);
+                            break;
+                        }
+
+                        case "getPlayingApps": {
+                            PackageManager pm = getPackageManager();
+                            List<String> pkgList = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P
+                                    ? GlobalEqService.getPlayingApps()
+                                    : new ArrayList<>();
+                            List<Map<String, String>> appInfoList = new ArrayList<>();
+                            for (String pkg : pkgList) {
+                                Map<String, String> info = new HashMap<>();
+                                info.put("package", pkg);
+                                try {
+                                    ApplicationInfo ai = pm.getApplicationInfo(pkg, 0);
+                                    info.put("name", pm.getApplicationLabel(ai).toString());
+                                } catch (PackageManager.NameNotFoundException e) {
+                                    info.put("name", pkg.contains(".")
+                                            ? pkg.substring(pkg.lastIndexOf('.') + 1)
+                                            : pkg);
+                                }
+                                appInfoList.add(info);
+                            }
+                            result.success(appInfoList);
+                            break;
+                        }
+                        case "getAppIcon": {
+                            String iconPkg = call.argument("package");
+                            if (iconPkg == null) { result.success(null); break; }
+                            final String finalPkg = iconPkg;
+                            new Thread(() -> {
+                                try {
+                                    PackageManager ipm = getPackageManager();
+                                    Drawable drawable = ipm.getApplicationIcon(finalPkg);
+                                    Bitmap bitmap = drawableToBitmap(drawable);
+                                    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                                    bitmap.compress(Bitmap.CompressFormat.PNG, 90, baos);
+                                    byte[] bytes = baos.toByteArray();
+                                    new Handler(Looper.getMainLooper()).post(() -> result.success(bytes));
+                                } catch (Exception e) {
+                                    new Handler(Looper.getMainLooper()).post(() -> result.success(null));
+                                }
+                            }).start();
+                            break;
+                        }
+
+                        // ==================== Battery Optimization ====================
+                        case "isBatteryOptimizationDisabled": {
+                            android.os.PowerManager pm =
+                                    (android.os.PowerManager) getSystemService(POWER_SERVICE);
+                            result.success(pm != null &&
+                                    pm.isIgnoringBatteryOptimizations(getPackageName()));
+                            break;
+                        }
+                        case "requestDisableBatteryOptimization": {
+                            try {
+                                Intent batteryIntent = new Intent(
+                                        android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
+                                batteryIntent.setData(android.net.Uri.parse("package:" + getPackageName()));
+                                startActivity(batteryIntent);
+                                result.success(true);
+                            } catch (Exception e) {
+                                result.success(false);
+                            }
+                            break;
+                        }
+
                         // ==================== Device Detection ====================
                         case "isDynamicsProcessingAvailable":
                             // Always true — C++ DSP pipeline has no API level requirement
@@ -1065,6 +1198,20 @@ public class MainActivity extends AudioServiceFragmentActivity {
             // Implement the code to start playing the next track, e.g., with a media player
             // or your audio playback logic.
         }
+    }
+
+    private static Bitmap drawableToBitmap(Drawable drawable) {
+        if (drawable instanceof BitmapDrawable) {
+            Bitmap bmp = ((BitmapDrawable) drawable).getBitmap();
+            if (bmp != null) return bmp;
+        }
+        int w = Math.max(drawable.getIntrinsicWidth(), 1);
+        int h = Math.max(drawable.getIntrinsicHeight(), 1);
+        Bitmap bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
+        Canvas canvas = new Canvas(bitmap);
+        drawable.setBounds(0, 0, canvas.getWidth(), canvas.getHeight());
+        drawable.draw(canvas);
+        return bitmap;
     }
 
 }

@@ -13,8 +13,8 @@ import '../models/ArtworkModel.dart';
 
 class Apis {
   static String get _baseUrl => AppConfig.apiBaseUrl;
-  static String get artwork => "$_baseUrl/get/songImage/";
-  static String get fetchLyrics => "$_baseUrl/get/songLyrics/";
+  static String get artwork => "$_baseUrl/api/v1/songImage/";
+  static String get fetchLyrics => "$_baseUrl/api/v1/songLyrics/";
 
   static final Client _client = Client();
   static const Duration _timeout = Duration(seconds: 15);

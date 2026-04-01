@@ -2,6 +2,7 @@
 #include <android/log.h>
 #include "room_dsp_engine.h"
 #include "stem_separator.h"
+#include "fft_visualizer.h"
 
 #define LOG_TAG "HypeDSP"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
@@ -490,6 +491,75 @@ Java_x_a_zix_StemSeparationService_nativeSeparateStems(JNIEnv* env, jobject,
 
     LOGI("Stem separation %s", ok ? "complete" : "FAILED");
     return ok ? JNI_TRUE : JNI_FALSE;
+}
+
+// ===================== FFT Visualizer =====================
+
+static FFTVisualizer* g_fftViz = nullptr;
+
+JNIEXPORT void JNICALL
+Java_x_a_zix_VisualizerTapProcessor_nativeInitFFT(JNIEnv*, jobject) {
+    if (!g_fftViz) {
+        g_fftViz = new FFTVisualizer();
+        LOGI("FFT visualizer initialized (FFT_SIZE=%d, NUM_BANDS=%d)",
+             FFTVisualizer::FFT_SIZE, FFTVisualizer::NUM_BANDS);
+    }
+}
+
+JNIEXPORT void JNICALL
+Java_x_a_zix_VisualizerTapProcessor_nativeDestroyFFT(JNIEnv*, jobject) {
+    delete g_fftViz;
+    g_fftViz = nullptr;
+    LOGI("FFT visualizer destroyed");
+}
+
+JNIEXPORT void JNICALL
+Java_x_a_zix_VisualizerTapProcessor_nativePushSamples(
+        JNIEnv* env, jobject, jfloatArray samples, jint numFrames) {
+    if (!g_fftViz) return;
+    float* data = env->GetFloatArrayElements(samples, nullptr);
+    g_fftViz->pushSamples(data, numFrames);
+    env->ReleaseFloatArrayElements(samples, data, JNI_ABORT);
+}
+
+JNIEXPORT jfloatArray JNICALL
+Java_x_a_zix_VisualizerTapProcessor_nativeComputeBands(JNIEnv* env, jobject) {
+    if (!g_fftViz) return nullptr;
+    float bands[FFTVisualizer::NUM_BANDS];
+    if (!g_fftViz->computeBands(bands)) return nullptr;
+
+    jfloatArray result = env->NewFloatArray(FFTVisualizer::NUM_BANDS);
+    env->SetFloatArrayRegion(result, 0, FFTVisualizer::NUM_BANDS, bands);
+    return result;
+}
+
+JNIEXPORT void JNICALL
+Java_x_a_zix_VisualizerTapProcessor_nativeSetSmoothing(
+        JNIEnv*, jobject, jfloat attack, jfloat decay) {
+    if (g_fftViz) {
+        g_fftViz->attackRate = attack;
+        g_fftViz->decayRate = decay;
+    }
+}
+
+JNIEXPORT void JNICALL
+Java_x_a_zix_VisualizerTapProcessor_nativeSetGain(JNIEnv*, jobject, jfloat gain) {
+    if (g_fftViz) {
+        g_fftViz->gain = gain;
+    }
+}
+
+JNIEXPORT jbyteArray JNICALL
+Java_x_a_zix_VisualizerTapProcessor_nativeGetWaveform(JNIEnv* env, jobject) {
+    if (!g_fftViz) return nullptr;
+    static constexpr int WAVE_SIZE = 1024;
+    uint8_t wave[WAVE_SIZE];
+    int count = g_fftViz->getWaveform(wave, WAVE_SIZE);
+    if (count <= 0) return nullptr;
+
+    jbyteArray result = env->NewByteArray(count);
+    env->SetByteArrayRegion(result, 0, count, reinterpret_cast<jbyte*>(wave));
+    return result;
 }
 
 } // extern "C"

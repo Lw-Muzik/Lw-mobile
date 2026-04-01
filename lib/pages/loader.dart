@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -7,6 +8,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../Helpers/fileloader.dart';
 import '../Routes/routes.dart';
 import '../controllers/PlayerController.dart';
+import '../controllers/AppController.dart';
+import '../onboarding/mode_chooser.dart';
+import '../onboarding/onboarding_screen.dart';
 
 class AssetLoader extends StatefulWidget {
   const AssetLoader({super.key});
@@ -145,16 +149,71 @@ class _AssetLoaderState extends State<AssetLoader>
   Future<void> _loadAssets() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      await fetchMetaData(context);
-      await prefs.setBool("artworkLoaded", true);
 
-      Future.delayed(_loadingDelay, () {
-        if (mounted && !_isNavigating) {
-          _isNavigating = true;
-          Navigator.pushNamedAndRemoveUntil(
-              context, Routes.home, (route) => false);
+      // Check if onboarding is needed (first launch)
+      final onboardingDone = prefs.getBool('onboarding_complete') ?? false;
+      if (!onboardingDone && mounted) {
+        _isNavigating = true;
+        // iOS: always music mode, skip mode chooser
+        if (!Platform.isAndroid) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (ctx) => OnboardingScreen(
+                mode: AppMode.musicPlayer,
+                onComplete: () {
+                  Navigator.of(ctx).pushNamedAndRemoveUntil(
+                      Routes.loader, (route) => false);
+                },
+              ),
+            ),
+          );
+        } else {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (ctx) => ModeChooser(
+                onComplete: (AppMode mode) {
+                  final controller =
+                      Provider.of<AppController>(ctx, listen: false);
+                  controller.appMode = mode;
+
+                  Navigator.of(ctx).pushReplacement(
+                    MaterialPageRoute(
+                      builder: (ctx2) => OnboardingScreen(
+                        mode: mode,
+                        onComplete: () {
+                          Navigator.of(ctx2).pushNamedAndRemoveUntil(
+                              Routes.loader, (route) => false);
+                        },
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          );
         }
-      });
+        return;
+      }
+
+      // Only load music library in music player mode
+      final appMode = AppMode.values[prefs.getInt("appMode") ?? 0];
+      if (appMode == AppMode.musicPlayer) {
+        await fetchMetaData(context);
+        await prefs.setBool("artworkLoaded", true);
+      }
+
+      Future.delayed(
+        appMode == AppMode.equalizer
+            ? const Duration(milliseconds: 500)
+            : _loadingDelay,
+        () {
+          if (mounted && !_isNavigating) {
+            _isNavigating = true;
+            Navigator.pushNamedAndRemoveUntil(
+                context, Routes.home, (route) => false);
+          }
+        },
+      );
     } catch (e) {
       debugPrint('Error loading assets: $e');
       _showErrorDialog();

@@ -50,6 +50,8 @@ public class RoomEffectsProcessor extends BaseAudioProcessor {
 
     // Cached EQ params
     private static volatile boolean cachedEqEnabled = false;
+    // True while GlobalEqService is running — bypasses C++ EQ for own app to prevent double-EQ.
+    private static volatile boolean cachedGlobalEqActive = false;
     private static volatile float cachedPreampGain = 0f;
     private static final float[] cachedGraphicGains = new float[32]; // all 0.0f
     private static final float[] cachedParametricFreqs = new float[32];
@@ -220,8 +222,8 @@ public class RoomEffectsProcessor extends BaseAudioProcessor {
         nativeSetStereoWidth(nativeHandle, cachedStereoWidth);
         nativeSetCrossfeedEnabled(nativeHandle, cachedCrossfeedEnabled);
         nativeSetCrossfeedParams(nativeHandle, cachedCrossfeedCutoff, cachedCrossfeedFeed);
-        // EQ state
-        nativeSetEqEnabled(nativeHandle, cachedEqEnabled);
+        // EQ state (bypass own-app EQ when global EQ service is active)
+        nativeSetEqEnabled(nativeHandle, cachedEqEnabled && !cachedGlobalEqActive);
         nativeSetPreampGain(nativeHandle, cachedPreampGain);
         nativeSetGraphicAllBands(nativeHandle, cachedGraphicGains);
         nativeSetParametricAllBands(nativeHandle, cachedParametricFreqs,
@@ -520,9 +522,22 @@ public class RoomEffectsProcessor extends BaseAudioProcessor {
 
     // ---- EQ broadcast methods ----
 
+    /**
+     * Called by GlobalEqService when it starts/stops.
+     * While active, own-app C++ EQ is bypassed so the global DynamicsProcessing
+     * handles all audio (including ours) — prevents double-EQ.
+     */
+    public static void broadcastGlobalEqActive(boolean active) {
+        cachedGlobalEqActive = active;
+        // Apply/restore EQ bypass on all active player instances
+        for (RoomEffectsProcessor p : playerInstances) {
+            p.setEqEnabled(cachedEqEnabled && !active);
+        }
+    }
+
     public static void broadcastEqEnabled(boolean enabled) {
         cachedEqEnabled = enabled;
-        for (RoomEffectsProcessor p : playerInstances) p.setEqEnabled(enabled);
+        for (RoomEffectsProcessor p : playerInstances) p.setEqEnabled(enabled && !cachedGlobalEqActive);
         syncGlobalEq();
     }
 

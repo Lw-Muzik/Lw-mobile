@@ -41,15 +41,15 @@ public:
 
     // Bass controls
     void setBassGain(float dB) {
-        bassGainDb_ = std::max(0.0f, std::min(25.0f, dB));
+        bassGainDb_ = std::max(0.0f, std::min(15.0f, dB));
         updateBass();
     }
     void setBassFreq(float hz) {
-        bassFreq_ = std::max(20.0f, std::min(500.0f, hz));
+        bassFreq_ = std::max(20.0f, std::min(250.0f, hz));
         updateBass();
     }
     void setBassQ(float q) {
-        bassQ_ = std::max(0.1f, std::min(4.0f, q));
+        bassQ_ = std::max(0.1f, std::min(2.0f, q));
         updateBass();
     }
     float getBassGain() const { return bassGainDb_; }
@@ -58,15 +58,15 @@ public:
 
     // Treble controls
     void setTrebleGain(float dB) {
-        trebleGainDb_ = std::max(0.0f, std::min(20.0f, dB));
+        trebleGainDb_ = std::max(0.0f, std::min(15.0f, dB));
         updateTreble();
     }
     void setTrebleFreq(float hz) {
-        trebleFreq_ = std::max(1000.0f, std::min(20000.0f, hz));
+        trebleFreq_ = std::max(5000.0f, std::min(15000.0f, hz));
         updateTreble();
     }
     void setTrebleQ(float q) {
-        trebleQ_ = std::max(0.1f, std::min(4.0f, q));
+        trebleQ_ = std::max(0.1f, std::min(2.0f, q));
         updateTreble();
     }
     float getTrebleGain() const { return trebleGainDb_; }

@@ -1,4 +1,5 @@
 // ignore_for_file: constant_identifier_names
+import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
@@ -178,6 +179,47 @@ class Channel {
   /// Check if global EQ is available on this device (API 28+).
   static Future<bool> isGlobalEqAvailable() async {
     return await _invokeRequired<bool>("isGlobalEqAvailable", false);
+  }
+
+  /// Returns list of {package, name} maps for apps currently playing audio.
+  static Future<List<Map<String, String>>> getPlayingApps() async {
+    final result = await _invoke<List<dynamic>>("getPlayingApps");
+    if (result == null) return [];
+    return result
+        .map((e) => Map<String, String>.from(e as Map))
+        .toList();
+  }
+
+  /// Returns the PNG icon bytes for a given package name, or null if unavailable.
+  static Future<Uint8List?> getAppIcon(String packageName) async {
+    return await _invoke<Uint8List>("getAppIcon", {"package": packageName});
+  }
+
+  /// Check if battery optimization is disabled (app is unrestricted).
+  static Future<bool> isBatteryOptimizationDisabled() async {
+    return await _invokeRequired<bool>("isBatteryOptimizationDisabled", false);
+  }
+
+  /// Request the user to disable battery optimization for this app.
+  static Future<bool> requestDisableBatteryOptimization() async {
+    return await _invokeRequired<bool>("requestDisableBatteryOptimization", false);
+  }
+
+  // ==================== EQ Mode Notification ====================
+
+  /// Start the EQ mode foreground service with persistent notification.
+  static Future<bool> startEqModeService(String preset) async {
+    return await _invokeRequired<bool>("startEqModeService", false, {"preset": preset});
+  }
+
+  /// Stop the EQ mode foreground service.
+  static Future<bool> stopEqModeService() async {
+    return await _invokeRequired<bool>("stopEqModeService", false);
+  }
+
+  /// Update the preset name shown in the EQ mode notification.
+  static Future<bool> updateEqModePreset(String preset) async {
+    return await _invokeRequired<bool>("updateEqModePreset", false, {"preset": preset});
   }
 
   // ==================== Custom DSP Room Effects ====================

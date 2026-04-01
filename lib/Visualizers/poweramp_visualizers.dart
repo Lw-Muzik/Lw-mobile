@@ -2,6 +2,28 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 
+/// Read a band value from pre-processed frequency data (already log-mapped).
+/// Just linear index — no extra log mapping needed.
+double _band(List<double> data, int i, int total) {
+  if (data.isEmpty) return 0.0;
+  final idx = (i * data.length / total).floor().clamp(0, data.length - 1);
+  return data[idx].clamp(0.0, 1.0);
+}
+
+/// Read a band with neighbor averaging for smoother look.
+double _smoothBand(List<double> data, int i, int total) {
+  if (data.isEmpty) return 0.0;
+  final idx = (i * data.length / total).floor().clamp(0, data.length - 1);
+  final spread = math.max(1, data.length ~/ total);
+  double sum = 0;
+  int count = 0;
+  for (int j = -spread; j <= spread; j++) {
+    sum += data[(idx + j).clamp(0, data.length - 1)];
+    count++;
+  }
+  return (sum / count).clamp(0.0, 1.0);
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // 1. RADIAL BURST — Lines radiating from a center ring, length = amplitude
 //    (Image 1 & 2 — the circular spiky visualizer)
@@ -47,25 +69,8 @@ class RadialBurstVisualizer extends CustomPainter {
     for (int i = 0; i < _barCount; i++) {
       final angle = (i / _barCount) * math.pi * 2 - math.pi / 2;
 
-      // Logarithmic frequency mapping — bass bars on left, treble on right
-      final t = i / _barCount;
-      final logIdx = math.pow(t, 1.6) * audioData.length;
-      final dataIdx = logIdx.floor().clamp(0, audioData.length - 1);
-
-      // Average neighbors for smoothness
-      double amp = 0;
-      int count = 0;
-      final spread = math.max(1, (audioData.length / _barCount * 0.5).round());
-      for (int j = -spread; j <= spread; j++) {
-        final idx = (dataIdx + j).clamp(0, audioData.length - 1);
-        amp += audioData[idx];
-        count++;
-      }
-      amp = (amp / count).clamp(0.0, 1.0);
-
-      // Bass boost for low-frequency bars
-      final bassBoost = (1.0 - t) * 0.35;
-      final boosted = (amp * (1.0 + bassBoost)).clamp(0.0, 1.0);
+      // Read from pre-processed frequency bands (already log-mapped + bass-boosted)
+      final boosted = _smoothBand(audioData, i, _barCount);
 
       final barLen = boosted * maxBarLen + maxR * 0.02;
       final thickness = 1.0 + boosted * 2.0;
@@ -129,28 +134,10 @@ class MirrorBarsVisualizer extends CustomPainter {
     final paint = Paint()..style = PaintingStyle.fill;
 
     for (int i = 0; i < _barCount; i++) {
-      // Logarithmic frequency mapping
-      final t = i / _barCount;
-      final logIdx = math.pow(t, 1.8) * audioData.length;
-      final dataIdx = logIdx.floor().clamp(0, audioData.length - 1);
-
-      // Average neighbors
-      double amp = 0;
-      int count = 0;
-      final spread = math.max(1, (audioData.length / _barCount * 0.5).round());
-      for (int j = -spread; j <= spread; j++) {
-        final idx = (dataIdx + j).clamp(0, audioData.length - 1);
-        amp += audioData[idx];
-        count++;
-      }
-      amp = (amp / count).clamp(0.0, 1.0);
-
-      // Bass boost
-      final bassBoost = (1.0 - t) * 0.35;
-      final boosted = (amp * (1.0 + bassBoost)).clamp(0.0, 1.0);
+      final boosted = _smoothBand(audioData, i, _barCount);
 
       // Bars use 90% of half-height
-      final barH = boosted * midY * 0.9;
+      final barH = boosted * midY * 0.55;
       final x = i * barW + gap / 2;
       final bw = barW - gap;
       if (bw <= 0) continue;
@@ -301,7 +288,7 @@ class TerrainVisualizer extends CustomPainter {
       final idx = (i * audioData.length / count).floor()
           .clamp(0, audioData.length - 1);
       final amp = audioData[idx].clamp(0.0, 1.0);
-      final y = h - amp * h * 0.85;
+      final y = h - amp * h * 0.55;
       points.add(Offset(i * dx, y));
     }
 
@@ -397,25 +384,7 @@ class DotMatrixVisualizer extends CustomPainter {
     final paint = Paint()..isAntiAlias = true;
 
     for (int col = 0; col < _cols; col++) {
-      // Logarithmic frequency mapping — same as spectrum
-      final t = col / _cols;
-      final logIdx = math.pow(t, 1.8) * audioData.length;
-      final dataIdx = logIdx.floor().clamp(0, audioData.length - 1);
-
-      // Average neighbors
-      double amp = 0;
-      int count = 0;
-      final spread = math.max(1, (audioData.length / _cols * 0.5).round());
-      for (int j = -spread; j <= spread; j++) {
-        final idx = (dataIdx + j).clamp(0, audioData.length - 1);
-        amp += audioData[idx];
-        count++;
-      }
-      amp = (amp / count).clamp(0.0, 1.0);
-
-      // Bass boost
-      final bassBoost = (1.0 - t) * 0.35;
-      final boosted = (amp * (1.0 + bassBoost)).clamp(0.0, 1.0);
+      final boosted = _smoothBand(audioData, col, _cols);
 
       // How many rows to light from the bottom
       final litRows = (boosted * _rows).ceil();
@@ -700,11 +669,8 @@ class WindmillVisualizer extends CustomPainter {
     for (int blade = 0; blade < _blades; blade++) {
       final bladeAngle = (blade / _blades) * math.pi * 2 + rotation;
 
-      // Each blade's amplitude from a different freq band (log-mapped)
-      final t = blade / _blades;
-      final logIdx = math.pow(t, 1.5) * audioData.length;
-      final bandIdx = logIdx.floor().clamp(0, audioData.length - 1);
-      final bladeAmp = audioData[bandIdx].clamp(0.0, 1.0);
+      // Each blade reads from a different frequency band
+      final bladeAmp = _band(audioData, blade, _blades);
 
       // Sweep angle driven by amplitude — bigger sweep for louder bands
       final sweepAngle = (0.15 + bladeAmp * 0.6) * (math.pi * 2 / _blades);

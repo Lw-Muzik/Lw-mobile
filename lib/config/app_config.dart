@@ -56,7 +56,7 @@ class AppConfig {
   // API
   static const String apiBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://94.72.116.178:5054',
+    defaultValue: 'http://37.60.225.220:3035',
   );
 
   // AcoustID (audio fingerprint recognition)
@@ -77,6 +77,12 @@ class AppConfig {
   static const String acrCloudAccessSecret = String.fromEnvironment(
     'ACRCLOUD_ACCESS_SECRET',
     defaultValue: '7NGOIDIwcEw8jb19jpGuNeyoz1ldKRN11SCl7ZBw',
+  );
+
+  // Google Sign-In (Web Client ID — required by google_sign_in_android v7+)
+  static const String googleWebClientId = String.fromEnvironment(
+    'GOOGLE_WEB_CLIENT_ID',
+    defaultValue: '618382337035-9nt8g6k40j6cvbfuekvt2iqliocrb52a.apps.googleusercontent.com',
   );
 
   // Dropbox OAuth

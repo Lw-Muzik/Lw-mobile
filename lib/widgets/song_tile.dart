@@ -4,9 +4,10 @@ import '/exports/exports.dart';
 import '/Helpers/index.dart';
 import '../controllers/AppController.dart';
 import '../widgets/ArtworkWidget.dart';
+import '../widgets/pinch_zoom_grid.dart';
 
 // ---------------------------------------------------------------------------
-// SongTile — list-mode row (scale 0)
+// SongTile — list-mode row
 // ---------------------------------------------------------------------------
 
 class SongTile extends StatelessWidget {
@@ -174,7 +175,7 @@ class SongTile extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// _SongGridTile — grid-mode card (scale 1 & 2)
+// _SongGridTile — grid-mode card
 // ---------------------------------------------------------------------------
 
 class _SongGridTile extends StatelessWidget {
@@ -296,7 +297,7 @@ class _SongGridTile extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// SongListView — pinch-to-zoom between list / 2-col / 3-col
+// SongListView — pinch-to-zoom between list and responsive grid
 // ---------------------------------------------------------------------------
 
 class SongListView extends StatelessWidget {
@@ -330,59 +331,64 @@ class SongListView extends StatelessWidget {
       );
     }
 
-    // Listen to scale changes via Consumer so we don't need StatefulWidget.
     return Consumer<AppController>(
       builder: (context, ctrl, _) {
-        return _PinchZoomWrapper(
-          scale: ctrl.songGridScale,
-          onScaleChange: (s) {
+        return PinchZoomGrid(
+          initialExtent: ctrl.songGridExtent,
+          minExtent: 80.0,
+          maxExtent: 300.0,
+          listModeExtent: 260.0,
+          onExtentChanged: (e) {
             WidgetsBinding.instance.addPostFrameCallback((_) {
-              ctrl.songGridScale = s;
+              ctrl.songGridExtent = e;
             });
           },
-          child: _buildForScale(context, ctrl.songGridScale),
+          listBuilder: _buildList(context),
+          gridBuilder: (extent) => _buildGrid(context, extent),
         );
       },
     );
   }
 
-  Widget _buildForScale(BuildContext context, int scale) {
+  Widget _buildList(BuildContext context) {
     final currentSongId = controller.songId >= 0 &&
             controller.songId < controller.songs.length
         ? controller.songs[controller.songId].id
         : -1;
 
-    // Scale 0 → list view
-    if (scale == 0) {
-      return ListView.builder(
-        itemCount: songs.length,
-        addAutomaticKeepAlives: false,
-        addRepaintBoundaries: true,
-        itemBuilder: (context, index) {
-          final song = songs[index];
-          final isCurrent = song.id == currentSongId;
-          return SongTile(
-            song: song,
-            index: index,
-            isCurrentTrack: isCurrent,
-            showTrackNumber: showTrackNumbers,
-            showDuration: showDuration,
-            showOptionsIcon: showOptionsIcon,
-            onTap: () => onTap?.call(song, index),
-            onLongPress: onLongPress != null
-                ? () => onLongPress!.call(song, index)
-                : null,
-          );
-        },
-      );
-    }
+    return ListView.builder(
+      itemCount: songs.length,
+      addAutomaticKeepAlives: false,
+      addRepaintBoundaries: true,
+      itemBuilder: (context, index) {
+        final song = songs[index];
+        final isCurrent = song.id == currentSongId;
+        return SongTile(
+          song: song,
+          index: index,
+          isCurrentTrack: isCurrent,
+          showTrackNumber: showTrackNumbers,
+          showDuration: showDuration,
+          showOptionsIcon: showOptionsIcon,
+          onTap: () => onTap?.call(song, index),
+          onLongPress: onLongPress != null
+              ? () => onLongPress!.call(song, index)
+              : null,
+        );
+      },
+    );
+  }
 
-    // Scale 1 → 2-col grid, scale 2 → 3-col grid
-    final columns = scale == 1 ? 2 : 3;
+  Widget _buildGrid(BuildContext context, double extent) {
+    final currentSongId = controller.songId >= 0 &&
+            controller.songId < controller.songs.length
+        ? controller.songs[controller.songId].id
+        : -1;
+
     return GridView.builder(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: columns,
+      gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+        maxCrossAxisExtent: extent,
         crossAxisSpacing: 10,
         mainAxisSpacing: 10,
         childAspectRatio: 0.78,
@@ -400,83 +406,6 @@ class SongListView extends StatelessWidget {
               : null,
         );
       },
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// _PinchZoomWrapper — uses raw Listener to detect two-finger pinch without
-// competing with ListView/GridView scroll gestures.
-// ---------------------------------------------------------------------------
-
-class _PinchZoomWrapper extends StatefulWidget {
-  final int scale;
-  final ValueChanged<int> onScaleChange;
-  final Widget child;
-
-  const _PinchZoomWrapper({
-    required this.scale,
-    required this.onScaleChange,
-    required this.child,
-  });
-
-  @override
-  State<_PinchZoomWrapper> createState() => _PinchZoomWrapperState();
-}
-
-class _PinchZoomWrapperState extends State<_PinchZoomWrapper> {
-  final Map<int, Offset> _pointers = {};
-  double? _initialDistance;
-  bool _handled = false;
-
-  static const _pinchInRatio = 0.70;
-  static const _pinchOutRatio = 1.45;
-
-  void _onPointerDown(PointerDownEvent event) {
-    _pointers[event.pointer] = event.position;
-    if (_pointers.length == 2) {
-      _initialDistance = _distance();
-      _handled = false;
-    }
-  }
-
-  void _onPointerMove(PointerMoveEvent event) {
-    _pointers[event.pointer] = event.position;
-    if (_pointers.length != 2 || _initialDistance == null || _handled) return;
-
-    final ratio = _distance() / _initialDistance!;
-    if (ratio < _pinchInRatio && widget.scale < 2) {
-      _handled = true;
-      HapticFeedback.selectionClick();
-      widget.onScaleChange(widget.scale + 1);
-    } else if (ratio > _pinchOutRatio && widget.scale > 0) {
-      _handled = true;
-      HapticFeedback.selectionClick();
-      widget.onScaleChange(widget.scale - 1);
-    }
-  }
-
-  void _onPointerUpOrCancel(PointerEvent event) {
-    _pointers.remove(event.pointer);
-    if (_pointers.length < 2) {
-      _initialDistance = null;
-      _handled = false;
-    }
-  }
-
-  double _distance() {
-    final pts = _pointers.values.toList();
-    return (pts[0] - pts[1]).distance;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Listener(
-      onPointerDown: _onPointerDown,
-      onPointerMove: _onPointerMove,
-      onPointerUp: _onPointerUpOrCancel,
-      onPointerCancel: _onPointerUpOrCancel,
-      child: widget.child,
     );
   }
 }

@@ -33,10 +33,7 @@ public class DvcController {
     private static Handler handler;
     private static boolean suppressObserver = false;
 
-    // Below this gain (dB) we start scaling system volume down toward 0.
-    // Above it, system stays at max and LoudnessEnhancer handles the gain.
-    private static final float SYSTEM_VOL_THRESHOLD = -20.0f; // dB
-    private static final float MUTE_THRESHOLD = -30.0f;       // dB — silence
+    private static final float MUTE_THRESHOLD = -30.0f; // dB — silence
 
     // Track current gain so the observer knows whether to re-force max
     private static float currentGainDb = 0.0f;
@@ -109,9 +106,10 @@ public class DvcController {
     }
 
     /**
-     * Apply DVC gain in dB.  Above SYSTEM_VOL_THRESHOLD the system volume
-     * stays at max and LoudnessEnhancer handles everything.  Below it we
-     * fade the system volume toward 0 for true silence.
+     * Apply DVC gain in dB.  System volume stays at max for full DAC range.
+     * LoudnessEnhancer handles the entire gain range uniformly (negative =
+     * attenuation, zero = unity, positive = boost).  Only at true silence
+     * we mute the system stream.
      *
      * @param gainDb gain in dB (e.g. -30 to +30)
      */
@@ -122,30 +120,20 @@ public class DvcController {
         int maxVol = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
 
         if (gainDb <= MUTE_THRESHOLD) {
-            // True silence
+            // True silence — mute system stream
             suppressObserver = true;
             audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, 0, 0);
             suppressObserver = false;
-            LoudnessControl.setTargetGain(0);
-        } else if (gainDb < SYSTEM_VOL_THRESHOLD) {
-            // Crossover zone: map [MUTE, THRESHOLD) -> system vol [0, max]
-            float ratio = (gainDb - MUTE_THRESHOLD) / (SYSTEM_VOL_THRESHOLD - MUTE_THRESHOLD);
-            int sysVol = Math.round(ratio * maxVol);
-            sysVol = Math.max(0, Math.min(maxVol, sysVol));
-            suppressObserver = true;
-            audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, sysVol, 0);
-            suppressObserver = false;
-            // LoudnessEnhancer at 0 in this zone — system vol does the work
-            LoudnessControl.setTargetGain(0);
+            LoudnessControl.setTargetGain(Math.round(MUTE_THRESHOLD * 100));
         } else {
-            // Normal zone: system at max, LoudnessEnhancer controls gain
+            // Ensure system volume is at max
             int current = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC);
             if (current != maxVol) {
                 suppressObserver = true;
                 audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, maxVol, 0);
                 suppressObserver = false;
             }
-            // Convert dB to millibels for LoudnessEnhancer
+            // Convert dB to millibels — LoudnessEnhancer handles full range
             LoudnessControl.setTargetGain(Math.round(gainDb * 100));
         }
     }

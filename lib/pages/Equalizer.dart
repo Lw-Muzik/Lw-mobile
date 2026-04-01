@@ -2,6 +2,9 @@ import '../exports/exports.dart';
 import '/controllers/AppController.dart';
 import '/Helpers/Channel.dart';
 import '/widgets/Body.dart';
+import '../controllers/drawer_controller.dart';
+import '../onboarding/coach_marks.dart';
+import 'Settings.dart';
 import 'graphic_eq_view.dart';
 import 'tone_view.dart';
 import 'parametric_eq_view.dart';
@@ -19,15 +22,47 @@ class Equalizer extends StatefulWidget {
 
 class _EqualizerState extends State<Equalizer> with TickerProviderStateMixin {
   late final TabController _tabController;
+  final _coachController = CoachMarkController('equalizer');
+  final _tabBarKey = GlobalKey();
+  final _contentKey = GlobalKey();
+
+  bool _isEqMode = false;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 5, vsync: this);
+    _isEqMode = context.read<AppController>().isEqMode;
+    _tabController = TabController(length: _isEqMode ? 2 : 5, vsync: this);
+    Future.delayed(const Duration(milliseconds: 1500), () {
+      if (!mounted) return;
+      _coachController.hasBeenShown().then((shown) {
+        if (!shown && mounted) {
+          _coachController.start(context, [
+            CoachStep(
+              targetKey: _tabBarKey,
+              title: 'Effect Tabs',
+              description:
+                  'Switch between Graphic EQ, Tone controls, Parametric EQ, and Spatial effects.',
+              icon: Icons.tab,
+              tooltipPosition: TooltipPosition.below,
+            ),
+            CoachStep(
+              targetKey: _contentKey,
+              title: 'Shape Your Sound',
+              description:
+                  'Drag sliders to shape your sound. Tap presets for quick EQ curves.',
+              icon: Icons.equalizer,
+              tooltipPosition: TooltipPosition.above,
+            ),
+          ]);
+        }
+      });
+    });
   }
 
   @override
   void dispose() {
+    _coachController.dispose();
     _tabController.dispose();
     super.dispose();
   }
@@ -42,7 +77,15 @@ class _EqualizerState extends State<Equalizer> with TickerProviderStateMixin {
             : Theme.of(context).scaffoldBackgroundColor,
         appBar: AppBar(
           forceMaterialTransparency: appController.isFancy,
-          title: const Text("Sound Effects"),
+          leading: _isEqMode
+              ? IconButton(
+                  icon: const Icon(Icons.menu_rounded),
+                  onPressed: () {
+                    context.read<DrawerProvider>().toggleDrawer();
+                  },
+                )
+              : null,
+          title: Text(_isEqMode ? "Hype EQ" : "Sound Effects"),
           actions: [
             _EqPowerAction(
               enabled: appController.graphicEqEnabled,
@@ -52,11 +95,29 @@ class _EqualizerState extends State<Equalizer> with TickerProviderStateMixin {
                 Channel.enableEq(newValue);
               },
             ),
+            if (_isEqMode)
+              IconButton(
+                icon: const Icon(Icons.settings_rounded, size: 22),
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const Settings()),
+                  );
+                },
+              ),
             const SizedBox(width: 12),
           ],
-          bottom: _buildTabBar(context),
+          bottom: PreferredSize(
+            preferredSize: const Size.fromHeight(kTextTabBarHeight),
+            child: KeyedSubtree(
+              key: _tabBarKey,
+              child: _buildTabBar(context),
+            ),
+          ),
         ),
-        body: _buildTabBarView(),
+        body: KeyedSubtree(
+          key: _contentKey,
+          child: _buildTabBarView(),
+        ),
       ),
     );
   }
@@ -77,12 +138,14 @@ class _EqualizerState extends State<Equalizer> with TickerProviderStateMixin {
         context,
       ).colorScheme.onSurface.withValues(alpha: 0.6),
       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-      tabs: const [
-        Tab(icon: Icon(Icons.equalizer, size: 35)),
-        Tab(icon: Icon(Icons.tune, size: 35)),
-        Tab(icon: Icon(Icons.show_chart, size: 35)),
-        Tab(icon: Icon(Icons.surround_sound, size: 35)),
-        Tab(icon: Icon(Icons.headphones, size: 35)),
+      tabs: [
+        const Tab(icon: Icon(Icons.equalizer, size: 35)),
+        const Tab(icon: Icon(Icons.tune, size: 35)),
+        if (!_isEqMode) ...[
+          const Tab(icon: Icon(Icons.show_chart, size: 35)),
+          const Tab(icon: Icon(Icons.surround_sound, size: 35)),
+          const Tab(icon: Icon(Icons.headphones, size: 35)),
+        ],
       ],
     );
   }
@@ -91,7 +154,15 @@ class _EqualizerState extends State<Equalizer> with TickerProviderStateMixin {
     return SafeArea(
       child: TabBarView(
         controller: _tabController,
-        children: const [GraphicEqView(), ToneView(), ParametricEqView(), SpaceView(), SpeakerEqView()],
+        children: [
+          const GraphicEqView(),
+          const ToneView(),
+          if (!_isEqMode) ...[
+            const ParametricEqView(),
+            const SpaceView(),
+            const SpeakerEqView(),
+          ],
+        ],
       ),
     );
   }
