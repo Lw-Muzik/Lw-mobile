@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:eq_app/controllers/drawer_controller.dart';
+import 'package:eq_app/Routes/routes.dart';
 
 import '/exports/exports.dart';
 
@@ -231,7 +232,7 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
   }
 
   void _handleSearch() {
-    showSearch<SongModel>(context: context, delegate: SearchPage());
+    Routes.scaleTo(const SearchPage(), context);
   }
 
   @override

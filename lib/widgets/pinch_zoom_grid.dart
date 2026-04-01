@@ -1,5 +1,7 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:vector_math/vector_math_64.dart' show Vector3;
 
 /// A wrapper that adds continuous pinch-to-zoom to any grid/list layout.
 ///
@@ -156,24 +158,79 @@ class _PinchZoomGridState extends State<PinchZoomGrid>
 
   @override
   Widget build(BuildContext context) {
-    final isListMode =
-        widget.listBuilder != null && _currentExtent >= widget.listModeExtent;
+    final hasListMode = widget.listBuilder != null;
 
     return Listener(
       onPointerDown: _onPointerDown,
       onPointerMove: _onPointerMove,
       onPointerUp: _onPointerUpOrCancel,
       onPointerCancel: _onPointerUpOrCancel,
-      child: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 300),
-        switchInCurve: Curves.easeOut,
-        switchOutCurve: Curves.easeIn,
-        child: isListMode
-            ? KeyedSubtree(
-                key: const ValueKey('list'), child: widget.listBuilder!)
-            : KeyedSubtree(
-                key: const ValueKey('grid'),
-                child: widget.gridBuilder(_currentExtent)),
+      child: hasListMode
+          ? _buildWithTransition()
+          : widget.gridBuilder(_currentExtent),
+    );
+  }
+
+  Widget _buildWithTransition() {
+    // Blend zone: 50px range leading up to the list mode threshold
+    const blendRange = 50.0;
+    final blendStart = widget.listModeExtent - blendRange;
+    final t = ((_currentExtent - blendStart) / blendRange).clamp(0.0, 1.0);
+
+    // Pure grid — no overhead
+    if (t <= 0.0) {
+      return widget.gridBuilder(_currentExtent);
+    }
+    // Pure list
+    if (t >= 1.0) {
+      return widget.listBuilder!;
+    }
+
+    // Smooth curve for more natural feel
+    final curve = Curves.easeInOutCubic.transform(t);
+
+    // 3D perspective transforms — grid tilts back, list comes forward
+    final gridScale = 1.0 - curve * 0.08;
+    final gridMatrix = Matrix4.identity()
+      ..setEntry(3, 2, 0.0015) // perspective depth
+      ..translateByVector3(Vector3(0.0, curve * 24, 0.0))
+      ..rotateX(curve * 0.35)
+      ..scaleByVector3(Vector3.all(gridScale));
+
+    final listScale = 0.92 + curve * 0.08;
+    final listMatrix = Matrix4.identity()
+      ..setEntry(3, 2, 0.0015)
+      ..translateByVector3(Vector3(0.0, (1.0 - curve) * -24, 0.0))
+      ..rotateX((1.0 - curve) * -0.35)
+      ..scaleByVector3(Vector3.all(listScale));
+
+    return ClipRect(
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          // Grid — tilts away
+          if (curve < 0.95)
+            Transform(
+              transform: gridMatrix,
+              alignment: Alignment.topCenter,
+              child: Opacity(
+                opacity: math.min(1.0, (1.0 - curve) * 1.5),
+                child: widget.gridBuilder(
+                  _currentExtent.clamp(widget.minExtent, widget.listModeExtent),
+                ),
+              ),
+            ),
+          // List — tilts in
+          if (curve > 0.05)
+            Transform(
+              transform: listMatrix,
+              alignment: Alignment.topCenter,
+              child: Opacity(
+                opacity: math.min(1.0, curve * 1.5),
+                child: widget.listBuilder!,
+              ),
+            ),
+        ],
       ),
     );
   }

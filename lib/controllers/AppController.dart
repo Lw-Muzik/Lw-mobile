@@ -252,42 +252,42 @@ class AppController with ChangeNotifier {
   }
 
   set bassGain(double value) {
-    _bassGain = value.clamp(0.0, 30.0);
+    _bassGain = value.clamp(0.0, 15.0);
     _prefs.setDouble("bassGain", _bassGain);
     Channel.dspSetBassGain(_bassGain);
     notifyListeners();
   }
 
   set bassFreq(double value) {
-    _bassFreq = value.clamp(20.0, 500.0);
+    _bassFreq = value.clamp(20.0, 250.0);
     _prefs.setDouble("bassFreq", _bassFreq);
     Channel.dspSetBassFreq(_bassFreq);
     notifyListeners();
   }
 
   set bassQ(double value) {
-    _bassQ = value.clamp(0.1, 4.0);
+    _bassQ = value.clamp(0.1, 2.0);
     _prefs.setDouble("bassQ", _bassQ);
     Channel.dspSetBassQ(_bassQ);
     notifyListeners();
   }
 
   set trebleGain(double value) {
-    _trebleGain = value.clamp(0.0, 30.0);
+    _trebleGain = value.clamp(0.0, 15.0);
     _prefs.setDouble("trebleGain", _trebleGain);
     Channel.dspSetTrebleGain(_trebleGain);
     notifyListeners();
   }
 
   set trebleFreq(double value) {
-    _trebleFreq = value.clamp(1000.0, 20000.0);
+    _trebleFreq = value.clamp(5000.0, 15000.0);
     _prefs.setDouble("trebleFreq", _trebleFreq);
     Channel.dspSetTrebleFreq(_trebleFreq);
     notifyListeners();
   }
 
   set trebleQ(double value) {
-    _trebleQ = value.clamp(0.1, 4.0);
+    _trebleQ = value.clamp(0.1, 2.0);
     _prefs.setDouble("trebleQ", _trebleQ);
     Channel.dspSetTrebleQ(_trebleQ);
     notifyListeners();
@@ -690,6 +690,10 @@ class AppController with ChangeNotifier {
   List<SongModel> _songs = [];
   List<SongModel> _shuffledSongs = [];
 
+  // Play count tracking (song ID → count)
+  Map<int, int> _playCounts = {};
+  Map<int, int> get playCounts => _playCounts;
+
   StreamSubscription<Duration>? _positionSub;
   bool _isCrossfading = false;
 
@@ -720,6 +724,7 @@ class AppController with ChangeNotifier {
 
   AppController(this._prefs, this._handler) {
     _loadSettings();
+    _loadPlayCounts();
 
     // Wire up notification skip controls
     _handler.onSkipToNext = next;
@@ -1019,12 +1024,7 @@ class AppController with ChangeNotifier {
               dropboxHeaders ??= <String, String>{};
               headers = dropboxHeaders;
             }
-            sources.add(
-              AudioSource.uri(
-                Uri.parse(s.data),
-                headers: headers,
-              ),
-            );
+            sources.add(AudioSource.uri(Uri.parse(s.data), headers: headers));
           }
         }
       } else {
@@ -1127,7 +1127,8 @@ class AppController with ChangeNotifier {
     _visualizerColor = _prefs.getInt("visualizerColor") ?? 0xFFFFFFFF;
     _visualizerFrameRate = _prefs.getInt("visualizerFrameRate") ?? 30;
     _visualizerReactivity = _prefs.getDouble("visualizerReactivity") ?? 0.15;
-    _visualizerBeatSensitivity = _prefs.getDouble("visualizerBeatSensitivity") ?? 1.0;
+    _visualizerBeatSensitivity =
+        _prefs.getDouble("visualizerBeatSensitivity") ?? 1.0;
 
     // projectM MilkDrop settings
     _milkdropFps = _prefs.getInt("milkdropFps") ?? 30;
@@ -1164,6 +1165,57 @@ class AppController with ChangeNotifier {
     _limiterEnabled = _prefs.getBool("limiterEnabled") ?? true;
     // Load speaker profiles from asset, then apply DSP params
     loadSpeakerProfiles().then((_) => _applyAllDspParams());
+  }
+
+  // ---------------------------------------------------------------------------
+  // Play count tracking
+  // ---------------------------------------------------------------------------
+
+  void _loadPlayCounts() {
+    final raw = _prefs.getString('playCounts');
+    if (raw != null) {
+      try {
+        final decoded = json.decode(raw) as Map<String, dynamic>;
+        _playCounts = decoded.map((k, v) => MapEntry(int.parse(k), v as int));
+      } catch (_) {
+        _playCounts = {};
+      }
+    }
+  }
+
+  void _incrementPlayCount(int songId) {
+    _playCounts[songId] = (_playCounts[songId] ?? 0) + 1;
+    _prefs.setString(
+      'playCounts',
+      json.encode(_playCounts.map((k, v) => MapEntry(k.toString(), v))),
+    );
+    notifyListeners();
+  }
+
+  int getPlayCount(int songId) => _playCounts[songId] ?? 0;
+
+  List<SongModel> getMostPlayed({int limit = 50}) {
+    if (_playCounts.isEmpty) return [];
+    // Build a set of song IDs that exist in the current library
+    final songMap = <int, SongModel>{};
+    for (final s in _songs) {
+      songMap[s.id] = s;
+    }
+    // Sort by play count descending
+    final sorted = _playCounts.entries
+        .where((e) => e.value > 0 && songMap.containsKey(e.key))
+        .toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    return sorted
+        .take(limit)
+        .map((e) => songMap[e.key]!)
+        .toList();
+  }
+
+  List<SongModel> getRecentlyAdded({int limit = 50}) {
+    final sorted = List<SongModel>.from(_songs)
+      ..sort((a, b) => (b.dateAdded ?? 0).compareTo(a.dateAdded ?? 0));
+    return sorted.take(limit).toList();
   }
 
   bool get isDark {
@@ -1616,8 +1668,9 @@ class AppController with ChangeNotifier {
     _songId = id;
     notifyListeners();
     _loadLyricsForCurrentSong();
-    // Check stem availability for new song
+    // Track play count and check stem availability for new song
     if (songs.isNotEmpty && id >= 0 && id < songs.length) {
+      _incrementPlayCount(songs[id].id);
       stemController.onSongChanged(songs[id].data);
     }
   }

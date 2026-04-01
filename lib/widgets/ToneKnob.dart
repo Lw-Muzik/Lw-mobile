@@ -25,7 +25,7 @@ class ToneKnob extends StatefulWidget {
     required this.label,
     required this.value,
     this.min = 0.0,
-    this.max = 30.0,
+    this.max = 15.0,
     this.activeColor = _kAccent,
     required this.onChanged,
     this.size = 250,

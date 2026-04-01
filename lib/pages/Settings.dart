@@ -89,7 +89,8 @@ class _SettingsState extends State<Settings> {
                     const SizedBox(height: 24),
                   ],
                 ),
-                bottomNavigationBar: !controller.isEqMode && (service.data ?? false)
+                bottomNavigationBar:
+                    !controller.isEqMode && (service.data ?? false)
                     ? BottomPlayer(controller: controller)
                     : null,
               ),
@@ -159,12 +160,10 @@ class _SettingsState extends State<Settings> {
                 controller.appMode = values.first;
               },
               style: SegmentedButton.styleFrom(
-                selectedBackgroundColor: Theme.of(context)
-                    .colorScheme
-                    .primary
-                    .withValues(alpha: 0.15),
-                selectedForegroundColor:
-                    Theme.of(context).colorScheme.primary,
+                selectedBackgroundColor: Theme.of(
+                  context,
+                ).colorScheme.primary.withValues(alpha: 0.15),
+                selectedForegroundColor: Theme.of(context).colorScheme.primary,
               ),
             ),
           ),
@@ -173,11 +172,10 @@ class _SettingsState extends State<Settings> {
             child: Text(
               'Switch between full music player and EQ-only mode',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context)
-                        .colorScheme
-                        .onSurface
-                        .withValues(alpha: 0.5),
-                  ),
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurface.withValues(alpha: 0.5),
+              ),
             ),
           ),
         ]),
@@ -270,7 +268,9 @@ class _SettingsState extends State<Settings> {
             const Divider(height: 1, indent: 16, endIndent: 16),
             ListTile(
               title: const Text("DVC Volume"),
-              subtitle: Text("${((controller.dvcGain + 30) / 30 * 100).round()}%"),
+              subtitle: Text(
+                "${((controller.dvcGain + 30) / 30 * 100).round()}%",
+              ),
             ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -283,7 +283,8 @@ class _SettingsState extends State<Settings> {
                       min: -30,
                       max: 0,
                       divisions: 20,
-                      label: "${((controller.dvcGain + 30) / 30 * 100).round()}%",
+                      label:
+                          "${((controller.dvcGain + 30) / 30 * 100).round()}%",
                       onChanged: (value) => controller.dvcGain = value,
                     ),
                   ),
@@ -322,9 +323,7 @@ class _SettingsState extends State<Settings> {
             SwitchListTile.adaptive(
               value: controller.dvcFineSteps,
               title: const Text("Fine volume steps"),
-              subtitle: const Text(
-                "1% steps instead of 5% (hardware buttons)",
-              ),
+              subtitle: const Text("1% steps instead of 5% (hardware buttons)"),
               onChanged: (value) => controller.dvcFineSteps = value,
             ),
           ],
@@ -369,7 +368,8 @@ class _SettingsState extends State<Settings> {
                           Navigator.pop(ctx);
                           controller.globalEqEnabled = true;
                           // Prompt for battery optimization if not already disabled
-                          final isDisabled = await Channel.isBatteryOptimizationDisabled();
+                          final isDisabled =
+                              await Channel.isBatteryOptimizationDisabled();
                           if (!isDisabled && mounted) {
                             _showBatteryOptimizationPrompt();
                           }
@@ -394,10 +394,9 @@ class _SettingsState extends State<Settings> {
                   Icon(
                     Icons.info_outline,
                     size: 16,
-                    color: Theme.of(context)
-                        .colorScheme
-                        .onSurface
-                        .withValues(alpha: 0.5),
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withValues(alpha: 0.5),
                   ),
                   const SizedBox(width: 8),
                   Expanded(
@@ -405,10 +404,9 @@ class _SettingsState extends State<Settings> {
                       "EQ, tone, and limiter changes sync to other apps in real-time. "
                       "Parametric EQ, MBC, reverb, and stereo effects are not applied globally.",
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Theme.of(context)
-                            .colorScheme
-                            .onSurface
-                            .withValues(alpha: 0.5),
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.onSurface.withValues(alpha: 0.5),
                       ),
                     ),
                   ),
@@ -459,12 +457,17 @@ class _SettingsState extends State<Settings> {
           padding: const EdgeInsets.fromLTRB(16, 10, 8, 6),
           child: Row(
             children: [
-              Icon(Icons.apps, size: 16,
-                  color: Theme.of(context).colorScheme.primary),
+              Icon(
+                Icons.apps,
+                size: 16,
+                color: Theme.of(context).colorScheme.primary,
+              ),
               const SizedBox(width: 8),
               Expanded(
-                child: Text("Apps currently playing",
-                    style: Theme.of(context).textTheme.bodyMedium),
+                child: Text(
+                  "Apps currently playing",
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
               ),
               IconButton(
                 icon: const Icon(Icons.refresh, size: 18),
@@ -478,19 +481,22 @@ class _SettingsState extends State<Settings> {
         if (apps.isEmpty)
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-            child: Text("None detected",
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context)
-                          .colorScheme
-                          .onSurface
-                          .withValues(alpha: 0.5),
-                    )),
+            child: Text(
+              "None detected",
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurface.withValues(alpha: 0.5),
+              ),
+            ),
           )
         else
-          ...apps.map((app) => _AppIconTile(
-                packageName: app['package'] ?? '',
-                appName: app['name'] ?? app['package'] ?? '',
-              )),
+          ...apps.map(
+            (app) => _AppIconTile(
+              packageName: app['package'] ?? '',
+              appName: app['name'] ?? app['package'] ?? '',
+            ),
+          ),
         const SizedBox(height: 4),
       ],
     );
@@ -544,9 +550,7 @@ class _SettingsState extends State<Settings> {
             value: controller.toneEnabled,
             title: const Text("Tone controls"),
             subtitle: Text(
-              controller.toneEnabled
-                  ? "Bass & treble active"
-                  : "Disabled",
+              controller.toneEnabled ? "Bass & treble active" : "Disabled",
             ),
             onChanged: (enabled) => controller.toneEnabled = enabled,
           ),
@@ -557,9 +561,9 @@ class _SettingsState extends State<Settings> {
               padding: const EdgeInsets.only(left: 16, top: 12),
               child: Text(
                 "Bass",
-                style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
               ),
             ),
             ListTile(
@@ -572,8 +576,8 @@ class _SettingsState extends State<Settings> {
               child: Slider.adaptive(
                 value: controller.bassFreq,
                 min: 20,
-                max: 500,
-                divisions: 48,
+                max: 250,
+                divisions: 23,
                 onChanged: (v) => controller.bassFreq = v,
               ),
             ),
@@ -587,8 +591,8 @@ class _SettingsState extends State<Settings> {
               child: Slider.adaptive(
                 value: controller.bassQ,
                 min: 0.1,
-                max: 4.0,
-                divisions: 39,
+                max: 2.0,
+                divisions: 19,
                 onChanged: (v) => controller.bassQ = v,
               ),
             ),
@@ -598,9 +602,9 @@ class _SettingsState extends State<Settings> {
               padding: const EdgeInsets.only(left: 16, top: 12),
               child: Text(
                 "Treble",
-                style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
               ),
             ),
             ListTile(
@@ -612,9 +616,9 @@ class _SettingsState extends State<Settings> {
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Slider.adaptive(
                 value: controller.trebleFreq,
-                min: 1000,
-                max: 20000,
-                divisions: 38,
+                min: 5000,
+                max: 15000,
+                divisions: 10,
                 onChanged: (v) => controller.trebleFreq = v,
               ),
             ),
@@ -628,8 +632,8 @@ class _SettingsState extends State<Settings> {
               child: Slider.adaptive(
                 value: controller.trebleQ,
                 min: 0.1,
-                max: 4.0,
-                divisions: 39,
+                max: 2.0,
+                divisions: 19,
                 onChanged: (v) => controller.trebleQ = v,
               ),
             ),
@@ -905,7 +909,9 @@ class _SettingsState extends State<Settings> {
           // Beat sensitivity slider
           ListTile(
             title: const Text("Beat sensitivity"),
-            subtitle: Text(_beatSensitivityLabel(controller.visualizerBeatSensitivity)),
+            subtitle: Text(
+              _beatSensitivityLabel(controller.visualizerBeatSensitivity),
+            ),
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
@@ -994,7 +1000,9 @@ class _SettingsState extends State<Settings> {
             const Divider(height: 1, indent: 16, endIndent: 16),
             ListTile(
               title: const Text("Beat sensitivity"),
-              subtitle: Text(_beatSensitivityLabel(controller.milkdropBeatSensitivity)),
+              subtitle: Text(
+                _beatSensitivityLabel(controller.milkdropBeatSensitivity),
+              ),
             ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -1019,9 +1027,11 @@ class _SettingsState extends State<Settings> {
             const Divider(height: 1, indent: 16, endIndent: 16),
             ListTile(
               title: const Text("Preset auto-cycle"),
-              subtitle: Text(controller.milkdropPresetDuration > 0
-                  ? "${controller.milkdropPresetDuration.toInt()}s"
-                  : "Manual only"),
+              subtitle: Text(
+                controller.milkdropPresetDuration > 0
+                    ? "${controller.milkdropPresetDuration.toInt()}s"
+                    : "Manual only",
+              ),
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
@@ -1050,7 +1060,12 @@ class _SettingsState extends State<Settings> {
   }
 
   String _milkdropQualityLabel(int quality) {
-    const labels = ["Low (480p)", "Medium (720p)", "High (1080p)", "Ultra (native)"];
+    const labels = [
+      "Low (480p)",
+      "Medium (720p)",
+      "High (1080p)",
+      "Ultra (native)",
+    ];
     return labels[quality.clamp(0, 3)];
   }
 
@@ -1094,9 +1109,7 @@ class _SettingsState extends State<Settings> {
           SwitchListTile(
             secondary: const Icon(Icons.cell_tower_rounded),
             title: const Text("Stream on Cellular"),
-            subtitle: const Text(
-              "Allow streaming when not on WiFi",
-            ),
+            subtitle: const Text("Allow streaming when not on WiFi"),
             value: guard.streamOnCellular,
             onChanged: (v) {
               setState(() => guard.streamOnCellular = v);
@@ -1144,9 +1157,7 @@ class _SettingsState extends State<Settings> {
           SwitchListTile(
             secondary: const Icon(Icons.wifi_lock_rounded),
             title: const Text("Prefetch on WiFi Only"),
-            subtitle: const Text(
-              "Only prefetch when connected to WiFi",
-            ),
+            subtitle: const Text("Only prefetch when connected to WiFi"),
             value: guard.prefetchOnlyOnWifi,
             onChanged: (v) {
               setState(() => guard.prefetchOnlyOnWifi = v);
@@ -1458,7 +1469,11 @@ class _AppIconTileState extends State<_AppIconTile> {
 
   Future<void> _loadIcon() async {
     final bytes = await Channel.getAppIcon(widget.packageName);
-    if (mounted) setState(() { _iconBytes = bytes; _loaded = true; });
+    if (mounted)
+      setState(() {
+        _iconBytes = bytes;
+        _loaded = true;
+      });
   }
 
   @override
@@ -1472,9 +1487,12 @@ class _AppIconTileState extends State<_AppIconTile> {
             height: 36,
             child: _loaded
                 ? (_iconBytes != null
-                    ? Image.memory(_iconBytes!, fit: BoxFit.contain)
-                    : Icon(Icons.music_note, size: 24,
-                        color: Theme.of(context).colorScheme.primary))
+                      ? Image.memory(_iconBytes!, fit: BoxFit.contain)
+                      : Icon(
+                          Icons.music_note,
+                          size: 24,
+                          color: Theme.of(context).colorScheme.primary,
+                        ))
                 : const SizedBox(
                     width: 20,
                     height: 20,
@@ -1486,16 +1504,19 @@ class _AppIconTileState extends State<_AppIconTile> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(widget.appName,
-                    style: Theme.of(context).textTheme.bodyMedium),
-                Text(widget.packageName,
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          color: Theme.of(context)
-                              .colorScheme
-                              .onSurface
-                              .withValues(alpha: 0.4),
-                        ),
-                    overflow: TextOverflow.ellipsis),
+                Text(
+                  widget.appName,
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+                Text(
+                  widget.packageName,
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withValues(alpha: 0.4),
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
               ],
             ),
           ),

@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import '/exports/exports.dart';
 import 'package:provider/provider.dart';
 import '../Visualizers/wave-visualizer.dart';
 import '/controllers/AppController.dart';
@@ -8,6 +9,8 @@ import '/Helpers/ProjectMController.dart';
 import '/Helpers/VisualizerWidget.dart';
 import '/Routes/routes.dart';
 import '/widgets/Body.dart';
+import '/widgets/ArtworkWidget.dart';
+import '/pages/settings.dart';
 
 class VisualUI extends StatefulWidget {
   const VisualUI({super.key});
@@ -386,6 +389,22 @@ class _VisualUIState extends State<VisualUI>
                     ),
                   ),
 
+                // Settings shortcut
+                Positioned(
+                  top: MediaQuery.of(context).padding.top + 12,
+                  right: 12,
+                  child: GestureDetector(
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const Settings()),
+                    ),
+                    child: Icon(
+                      Icons.settings_rounded,
+                      color: Colors.white.withValues(alpha: 0.35),
+                      size: 20,
+                    ),
+                  ),
+                ),
+
                 // Bottom controls overlay
                 Positioned(
                   left: 0,
@@ -551,6 +570,19 @@ class _BottomOverlay extends StatelessWidget {
                   onTap: onClose,
                 ),
                 const SizedBox(width: 12),
+                // Cover art
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: ArtworkWidget(
+                    height: 40,
+                    width: 40,
+                    songId: song.id,
+                    size: 200,
+                    type: ArtworkType.AUDIO,
+                    path: song.data,
+                  ),
+                ),
+                const SizedBox(width: 10),
                 // Track info
                 Expanded(
                   child: Column(

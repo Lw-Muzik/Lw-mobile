@@ -10,6 +10,7 @@ import '../models/lyrics_model.dart';
 import '../widgets/ArtworkWidget.dart';
 import '../widgets/common.dart';
 import 'widgets/LyricsEditor.dart';
+import '/pages/settings.dart';
 
 class LyricsView extends StatefulWidget {
   const LyricsView({super.key});
@@ -25,6 +26,7 @@ class _LyricsViewState extends State<LyricsView> with SingleTickerProviderStateM
   final ScrollController _scrollController = ScrollController();
   StreamSubscription<Duration>? _positionSub;
   int _currentLineIndex = -1;
+  double _lineProgress = 0.0;
   bool _userScrolling = false;
   Timer? _userScrollTimer;
 
@@ -81,8 +83,28 @@ class _LyricsViewState extends State<LyricsView> with SingleTickerProviderStateM
       }
     }
 
-    if (idx != _currentLineIndex) {
-      setState(() => _currentLineIndex = idx);
+    // Calculate progress within current line (0.0–1.0)
+    double progress = 0.0;
+    if (idx >= 0) {
+      final lineStart = lyrics.lines[idx].timestamp!;
+      final nextIdx = idx + 1;
+      final lineEnd = (nextIdx < lyrics.lines.length &&
+              lyrics.lines[nextIdx].timestamp != null)
+          ? lyrics.lines[nextIdx].timestamp!
+          : lineStart + const Duration(seconds: 5);
+      final totalMs = lineEnd.inMilliseconds - lineStart.inMilliseconds;
+      if (totalMs > 0) {
+        progress = ((adjusted.inMilliseconds - lineStart.inMilliseconds) /
+                totalMs)
+            .clamp(0.0, 1.0);
+      }
+    }
+
+    if (idx != _currentLineIndex || (progress - _lineProgress).abs() > 0.01) {
+      setState(() {
+        _currentLineIndex = idx;
+        _lineProgress = progress;
+      });
     }
   }
 
@@ -284,6 +306,7 @@ class _LyricsViewState extends State<LyricsView> with SingleTickerProviderStateM
       return _SyncedLyrics(
         lyrics: lyrics,
         currentLineIndex: _currentLineIndex,
+        lineProgress: _lineProgress,
         userScrolling: _userScrolling,
         scrollController: _scrollController,
         onUserScroll: _onUserScroll,
@@ -379,6 +402,14 @@ class _Header extends StatelessWidget {
               },
               child: const Icon(Icons.edit_rounded, color: Colors.white54, size: 22),
             ),
+          const SizedBox(width: 12),
+          GestureDetector(
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const Settings()),
+            ),
+            child: Icon(Icons.settings_rounded,
+                color: Colors.white.withValues(alpha: 0.4), size: 20),
+          ),
         ],
       ),
     );
@@ -392,6 +423,7 @@ class _Header extends StatelessWidget {
 class _SyncedLyrics extends StatefulWidget {
   final LyricsData lyrics;
   final int currentLineIndex;
+  final double lineProgress;
   final bool userScrolling;
   final ScrollController scrollController;
   final VoidCallback onUserScroll;
@@ -400,6 +432,7 @@ class _SyncedLyrics extends StatefulWidget {
   const _SyncedLyrics({
     required this.lyrics,
     required this.currentLineIndex,
+    required this.lineProgress,
     required this.userScrolling,
     required this.scrollController,
     required this.onUserScroll,
@@ -528,6 +561,7 @@ class _SyncedLyricsState extends State<_SyncedLyrics> {
                 text: widget.lyrics.lines[index].text,
                 isCurrent: isCurrent,
                 alpha: alpha,
+                lineProgress: isCurrent ? widget.lineProgress : 0.0,
                 onTap: () => widget.onLineTap(index),
               );
             }),
@@ -539,13 +573,14 @@ class _SyncedLyricsState extends State<_SyncedLyrics> {
 }
 
 // ---------------------------------------------------------------------------
-// Individual lyric line — layered animations for Apple Music feel
+// Individual lyric line — shimmer reveal + stretch (Apple Music style)
 // ---------------------------------------------------------------------------
 
 class _LyricLine extends StatelessWidget {
   final String text;
   final bool isCurrent;
   final double alpha;
+  final double lineProgress;
   final VoidCallback onTap;
 
   const _LyricLine({
@@ -553,6 +588,7 @@ class _LyricLine extends StatelessWidget {
     required this.text,
     required this.isCurrent,
     required this.alpha,
+    required this.lineProgress,
     required this.onTap,
   });
 
@@ -562,12 +598,16 @@ class _LyricLine extends StatelessWidget {
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
       child: TweenAnimationBuilder<double>(
-        tween: Tween<double>(end: isCurrent ? 1.0 : 0.97),
+        tween: Tween<double>(end: isCurrent ? 1.0 : 0.0),
         duration: const Duration(milliseconds: 600),
         curve: Curves.easeOutCubic,
-        builder: (context, scale, child) {
+        builder: (context, t, child) {
+          // Stretch effect: current line expands vertically, past lines compress
+          final scaleX = 0.97 + 0.03 * t;
+          final scaleY = 0.94 + 0.06 * t;
           return Transform(
-            transform: Matrix4.identity()..scaleByVector3(Vector3(scale, scale, 1.0)),
+            transform: Matrix4.identity()
+              ..scaleByVector3(Vector3(scaleX, scaleY, 1.0)),
             alignment: Alignment.centerLeft,
             child: child,
           );
@@ -586,16 +626,67 @@ class _LyricLine extends StatelessWidget {
               height: 1.3,
               letterSpacing: isCurrent ? -0.5 : 0,
               shadows: isCurrent
-                  ? [Shadow(
-                      color: Colors.white.withValues(alpha: 0.25),
-                      blurRadius: 24,
-                    )]
+                  ? [
+                      Shadow(
+                        color: Colors.white.withValues(alpha: 0.25),
+                        blurRadius: 24,
+                      )
+                    ]
                   : [const Shadow(color: Colors.transparent, blurRadius: 0)],
             ),
-            child: Text(text),
+            child: isCurrent
+                ? _ShimmerRevealText(text: text, progress: lineProgress)
+                : Text(text),
           ),
         ),
       ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Shimmer reveal — left-to-right gradient sweep on current lyric line
+// ---------------------------------------------------------------------------
+
+class _ShimmerRevealText extends StatelessWidget {
+  final String text;
+  final double progress;
+
+  const _ShimmerRevealText({required this.text, required this.progress});
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(end: progress),
+      duration: const Duration(milliseconds: 160),
+      curve: Curves.linear,
+      builder: (context, p, child) {
+        // Map 0..1 progress to gradient sweep with overshoot so
+        // the shimmer edge starts offscreen-left and exits offscreen-right
+        final edge = -0.15 + p * 1.30;
+
+        return ShaderMask(
+          blendMode: BlendMode.modulate,
+          shaderCallback: (bounds) => LinearGradient(
+            colors: const [
+              Color(0xFFFFFFFF), // revealed — full white
+              Color(0xFFFFFFFF), // revealed
+              Color(0xFFFFF4D6), // warm shimmer glow at edge
+              Color(0x59FFFFFF), // unrevealed — dim (alpha ~0.35)
+              Color(0x59FFFFFF), // unrevealed
+            ],
+            stops: [
+              0.0,
+              (edge - 0.07).clamp(0.0, 1.0),
+              edge.clamp(0.0, 1.0),
+              (edge + 0.04).clamp(0.0, 1.0),
+              1.0,
+            ],
+          ).createShader(bounds),
+          child: child!,
+        );
+      },
+      child: Text(text),
     );
   }
 }
