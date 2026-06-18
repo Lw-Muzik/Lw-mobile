@@ -110,6 +110,13 @@ class StreamServerController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Desktops this phone has paired with (loads the store if needed). Used by
+  /// the cast controller to authenticate when casting to a discovered desktop.
+  Future<List<PairedDesktop>> loadKnownDesktops() async {
+    await _ensureLoaded();
+    return _paired.values.toList();
+  }
+
   /// Forget a paired desktop (its token stops working).
   Future<void> unpair(String id) async {
     _paired.remove(id);

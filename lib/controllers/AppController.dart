@@ -22,6 +22,7 @@ import '../services/google_drive_service.dart';
 import '../services/dropbox_service.dart';
 import '../services/lyrics_service.dart';
 import '../services/fingerprint_service.dart';
+import '../services/cast_controller.dart';
 import '../models/lyrics_model.dart';
 import '../models/recognition_result.dart';
 import '../models/speaker_profile.dart';
@@ -984,6 +985,12 @@ class AppController with ChangeNotifier {
     songs = songList;
     songId = index;
     artWorkId = songList[index].id;
+    // When casting to a desktop, send the track there instead of playing it
+    // locally (the desktop pulls + plays it through its DSP chain).
+    if (CastController.instance.isCasting) {
+      CastController.instance.cast(songList[index]);
+      return;
+    }
     if (_gaplessPlayback && _crossfadeDuration == 0) {
       loadGaplessQueue(index);
     } else {

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../services/cast_controller.dart';
 import '../services/stream_server.dart';
 
 /// "Stream / Cast" — turn this phone into a media source the desktop app can
@@ -14,7 +15,21 @@ class StreamServerPage extends StatefulWidget {
 
 class _StreamServerPageState extends State<StreamServerPage> {
   final StreamServerController _server = StreamServerController.instance;
+  final CastController _cast = CastController.instance;
   bool _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _cast.startDiscovery();
+  }
+
+  @override
+  void dispose() {
+    // Keep the cast target (so taps still cast), but stop browsing.
+    _cast.stopDiscovery();
+    super.dispose();
+  }
 
   Future<void> _toggle(bool on) async {
     setState(() => _busy = true);
@@ -35,7 +50,7 @@ class _StreamServerPageState extends State<StreamServerPage> {
     return Scaffold(
       appBar: AppBar(title: const Text('Stream to desktop')),
       body: ListenableBuilder(
-        listenable: _server,
+        listenable: Listenable.merge([_server, _cast]),
         builder: (context, _) {
           return ListView(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -59,6 +74,8 @@ class _StreamServerPageState extends State<StreamServerPage> {
                 const SizedBox(height: 12),
                 _buildPairedCard(theme),
               ],
+              const SizedBox(height: 12),
+              _buildCastCard(theme),
               const SizedBox(height: 16),
               _buildHelp(theme),
             ],
@@ -142,6 +159,95 @@ class _StreamServerPageState extends State<StreamServerPage> {
                 onPressed: () => _server.unpair(d.id),
               ),
             ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCastCard(ThemeData theme) {
+    final desktops = _cast.desktops;
+    final muted = theme.textTheme.bodyMedium?.copyWith(
+      color: theme.colorScheme.onSurfaceVariant,
+    );
+    return Card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
+            child: Row(
+              children: [
+                const Icon(Icons.computer_rounded, size: 20),
+                const SizedBox(width: 8),
+                Text('Cast to a computer', style: theme.textTheme.titleSmall),
+              ],
+            ),
+          ),
+          if (desktops.isEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+              child: Text(
+                _cast.isCasting
+                    ? 'Casting to ${_cast.target!.name}.'
+                    : 'Looking for computers… open the HypeMuzik desktop app '
+                          'on the same Wi‑Fi (and pair it once from its Phone tab).',
+                style: muted,
+              ),
+            ),
+          for (final d in desktops)
+            ListTile(
+              leading: Icon(
+                _cast.target?.id == d.id
+                    ? Icons.cast_connected_rounded
+                    : Icons.computer_rounded,
+                color: _cast.target?.id == d.id
+                    ? theme.colorScheme.primary
+                    : null,
+              ),
+              title: Text(d.name),
+              subtitle: Text(
+                !_cast.isPaired(d.id)
+                    ? 'Pair from the computer first'
+                    : _cast.target?.id == d.id
+                    ? 'Casting — tap a song to play it here'
+                    : 'Tap to cast',
+              ),
+              enabled: _cast.isPaired(d.id),
+              selected: _cast.target?.id == d.id,
+              onTap: _cast.isPaired(d.id)
+                  ? () => _cast.setTarget(_cast.target?.id == d.id ? null : d)
+                  : null,
+            ),
+          if (_cast.isCasting) ...[
+            const Divider(height: 1, indent: 16, endIndent: 16),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.pause_rounded),
+                    tooltip: 'Pause',
+                    onPressed: () => _cast.transport('pause'),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.play_arrow_rounded),
+                    tooltip: 'Resume',
+                    onPressed: () => _cast.transport('resume'),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.stop_rounded),
+                    tooltip: 'Stop',
+                    onPressed: () => _cast.transport('stop'),
+                  ),
+                  TextButton(
+                    onPressed: () => _cast.setTarget(null),
+                    child: const Text('Stop casting'),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );
