@@ -55,6 +55,9 @@ class StreamServerController extends ChangeNotifier {
   String? _pin;
   String? _ip;
   final Map<String, PairedDesktop> _paired = {};
+  // The device's full audio library, queried on demand (NOT the player's
+  // in-memory queue, which is empty until the user opens the library).
+  List<SongModel> _library = [];
 
   bool get running => _server != null;
   String? get pin => _pin;
@@ -170,9 +173,10 @@ class StreamServerController extends ChangeNotifier {
     });
   }
 
-  Response _handleLibrary(Request request) {
+  Future<Response> _handleLibrary(Request request) async {
     if (!_authorized(request)) return Response(401, body: 'unauthorized');
-    final tracks = AppController.instance.songs.map((s) {
+    final songs = await _loadLibrary();
+    final tracks = songs.map((s) {
       return {
         'id': s.id.toString(),
         'title': s.title,
@@ -186,6 +190,32 @@ class StreamServerController extends ChangeNotifier {
       };
     }).toList();
     return _json({'tracks': tracks});
+  }
+
+  /// Query the device's full audio library (cached). Falls back to the cache or
+  /// the player's loaded songs if the query yields nothing (e.g. transient
+  /// permission hiccup), so `/library` and `/stream` always agree.
+  Future<List<SongModel>> _loadLibrary() async {
+    try {
+      final songs = await OnAudioQuery().querySongs();
+      if (songs.isNotEmpty) {
+        _library = songs;
+        return songs;
+      }
+    } catch (_) {/* fall through to fallbacks */}
+    if (_library.isNotEmpty) return _library;
+    final fromPlayer = AppController.instance.songs;
+    if (fromPlayer.isNotEmpty) _library = fromPlayer;
+    return _library;
+  }
+
+  /// Find a song by id in the cached library, loading it first if empty.
+  Future<SongModel?> _songById(String id) async {
+    if (_library.isEmpty) await _loadLibrary();
+    for (final s in _library) {
+      if (s.id.toString() == id) return s;
+    }
+    return null;
   }
 
   Future<Response> _handleArt(Request request, String file) async {
@@ -215,14 +245,7 @@ class StreamServerController extends ChangeNotifier {
 
   Future<Response> _handleStream(Request request, String file) async {
     if (!_authorized(request)) return Response(401, body: 'unauthorized');
-    final id = _trackId(file);
-    SongModel? song;
-    for (final s in AppController.instance.songs) {
-      if (s.id.toString() == id) {
-        song = s;
-        break;
-      }
-    }
+    final song = await _songById(_trackId(file));
     if (song == null) return Response.notFound('no such track');
 
     final f = File(song.data);
