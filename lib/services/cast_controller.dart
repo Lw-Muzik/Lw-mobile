@@ -41,6 +41,13 @@ class CastController extends ChangeNotifier {
   final Map<String, String> _tokens = {}; // desktopId -> bearer token
   DiscoveredDesktop? _target;
 
+  Timer? _pollTimer;
+
+  /// Live now-playing state on the cast target (polled from `GET /now`).
+  bool castPlaying = false;
+  int castPositionMs = 0;
+  int? castDurationMs;
+
   List<DiscoveredDesktop> get desktops => _found.values.toList();
   DiscoveredDesktop? get target => _target;
 
@@ -73,7 +80,42 @@ class CastController extends ChangeNotifier {
 
   void setTarget(DiscoveredDesktop? desktop) {
     _target = desktop;
+    _stopPolling();
+    if (desktop != null) _startPolling();
     notifyListeners();
+  }
+
+  void _startPolling() {
+    _pollNow();
+    _pollTimer = Timer.periodic(const Duration(milliseconds: 1500), (_) {
+      _pollNow();
+    });
+  }
+
+  void _stopPolling() {
+    _pollTimer?.cancel();
+    _pollTimer = null;
+    castPlaying = false;
+    castPositionMs = 0;
+    castDurationMs = null;
+  }
+
+  Future<void> _pollNow() async {
+    final target = _target;
+    final token = target == null ? null : _tokens[target.id];
+    if (target == null || token == null) return;
+    try {
+      final res = await http.get(
+        Uri.parse('http://${target.host}:${target.port}/now'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+      if (res.statusCode != 200) return;
+      final j = jsonDecode(res.body) as Map<String, dynamic>;
+      castPlaying = j['playing'] == true;
+      castPositionMs = (j['positionMs'] as num?)?.toInt() ?? 0;
+      castDurationMs = (j['durationMs'] as num?)?.toInt();
+      notifyListeners();
+    } catch (_) {/* best effort */}
   }
 
   Future<void> _loadTokens() async {

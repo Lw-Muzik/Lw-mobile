@@ -164,6 +164,13 @@ class _StreamServerPageState extends State<StreamServerPage> {
     );
   }
 
+  String _fmt(int ms) {
+    final total = ms ~/ 1000;
+    final m = total ~/ 60;
+    final s = (total % 60).toString().padLeft(2, '0');
+    return '$m:$s';
+  }
+
   Widget _buildCastCard(ThemeData theme) {
     final desktops = _cast.desktops;
     final muted = theme.textTheme.bodyMedium?.copyWith(
@@ -220,6 +227,33 @@ class _StreamServerPageState extends State<StreamServerPage> {
             ),
           if (_cast.isCasting) ...[
             const Divider(height: 1, indent: 16, endIndent: 16),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              child: Row(
+                children: [
+                  Icon(
+                    _cast.castPlaying
+                        ? Icons.graphic_eq_rounded
+                        : Icons.pause_circle_outline_rounded,
+                    size: 18,
+                    color: theme.colorScheme.primary,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    _cast.castPlaying ? 'Playing on desktop' : 'Paused',
+                    style: theme.textTheme.bodyMedium,
+                  ),
+                  const Spacer(),
+                  Text(
+                    _fmt(_cast.castPositionMs),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               child: Row(

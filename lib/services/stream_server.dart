@@ -138,6 +138,7 @@ class StreamServerController extends ChangeNotifier {
     router.post('/pair', _handlePair);
     router.get('/library', _handleLibrary);
     router.get('/stream/<file>', _handleStream);
+    router.get('/art/<file>', _handleArt);
     return router;
   }
 
@@ -179,17 +180,42 @@ class StreamServerController extends ChangeNotifier {
         'album': _clean(s.album),
         'durationMs': s.duration,
         'ext': _extOf(s.data),
-        'hasArt': false,
+        // Optimistic: the desktop tries /art and falls back to a gradient if
+        // the track turns out to have no embedded cover.
+        'hasArt': true,
       };
     }).toList();
     return _json({'tracks': tracks});
   }
 
+  Future<Response> _handleArt(Request request, String file) async {
+    if (!_authorized(request)) return Response(401, body: 'unauthorized');
+    final songId = int.tryParse(_trackId(file));
+    if (songId == null) return Response.notFound('bad id');
+    try {
+      final bytes = await OnAudioQuery().queryArtwork(
+        songId,
+        ArtworkType.AUDIO,
+        format: ArtworkFormat.JPEG,
+        size: 512,
+      );
+      if (bytes == null || bytes.isEmpty) return Response.notFound('no art');
+      return Response.ok(
+        bytes,
+        headers: {
+          'Content-Type': 'image/jpeg',
+          'Cache-Control': 'max-age=86400',
+          'Content-Length': '${bytes.length}',
+        },
+      );
+    } catch (_) {
+      return Response.notFound('no art');
+    }
+  }
+
   Future<Response> _handleStream(Request request, String file) async {
     if (!_authorized(request)) return Response(401, body: 'unauthorized');
-    final id = file.contains('.')
-        ? file.substring(0, file.lastIndexOf('.'))
-        : file;
+    final id = _trackId(file);
     SongModel? song;
     for (final s in AppController.instance.songs) {
       if (s.id.toString() == id) {
@@ -286,6 +312,10 @@ class StreamServerController extends ChangeNotifier {
     if (v.isEmpty || v == '<unknown>') return null;
     return v;
   }
+
+  /// Strip a trailing `.ext` from a `/stream/<id>.<ext>` path segment.
+  String _trackId(String file) =>
+      file.contains('.') ? file.substring(0, file.lastIndexOf('.')) : file;
 
   String _extOf(String path) {
     final i = path.lastIndexOf('.');
