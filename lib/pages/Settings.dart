@@ -15,6 +15,8 @@ import '../models/eq_models.dart';
 import '../onboarding/coach_marks.dart';
 import '../onboarding/interactions_guide.dart';
 import '../services/streaming_data_guard.dart';
+import '../services/stream_server.dart';
+import 'stream_server.dart';
 
 import '/Helpers/AudioHandler.dart';
 import '/widgets/BottomPlayer.dart';
@@ -81,6 +83,8 @@ class _SettingsState extends State<Settings> {
                       _buildLibrarySection(),
                       const SizedBox(height: 12),
                       _buildCloudStorageSection(controller),
+                      const SizedBox(height: 12),
+                      _buildPhoneLinkSection(),
                       const SizedBox(height: 12),
                       _buildStreamingSection(),
                       const SizedBox(height: 12),
@@ -1237,6 +1241,31 @@ class _SettingsState extends State<Settings> {
               },
               child: const Text("Clear"),
             ),
+          ),
+        ]),
+      ],
+    );
+  }
+
+  // -- Phone Link Section --
+
+  Widget _buildPhoneLinkSection() {
+    final server = StreamServerController.instance;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionHeader(Icons.cast_rounded, "Stream to Desktop"),
+        _buildSectionCard([
+          ListTile(
+            leading: const Icon(Icons.cast_rounded),
+            title: const Text("Stream to desktop"),
+            subtitle: Text(
+              server.running
+                  ? "Sharing — open the Phone tab on your computer"
+                  : "Play this phone's music on the HypeMuzik desktop app",
+            ),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Routes.routeTo(const StreamServerPage(), context),
           ),
         ]),
       ],

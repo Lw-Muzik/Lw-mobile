@@ -13,6 +13,8 @@
     <!-- Android 13 or greater  -->
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO"/>
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+    <!-- Phone Link: read the Wi‑Fi address to show during pairing + mDNS. -->
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE"/>
     <!--    bluetooth permissions-->
     <uses-permission android:name="android.permission.BLUETOOTH"/>
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN"/>

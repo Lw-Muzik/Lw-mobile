@@ -71,6 +71,11 @@ dependencies:
   dartz: ^0.10.1
   cached_network_image: ^3.4.1
 
+  # Phone Link — stream this phone's library to the desktop app over the LAN.
+  shelf: ^1.4.1
+  shelf_router: ^1.1.4
+  bonsoir: ^5.1.11
+
 
 dev_dependencies:
   flutter_test:
