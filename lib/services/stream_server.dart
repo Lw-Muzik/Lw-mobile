@@ -142,6 +142,7 @@ class StreamServerController extends ChangeNotifier {
     router.get('/library', _handleLibrary);
     router.get('/stream/<file>', _handleStream);
     router.get('/art/<file>', _handleArt);
+    router.get('/lyrics/<file>', _handleLyrics);
     return router;
   }
 
@@ -241,6 +242,41 @@ class StreamServerController extends ChangeNotifier {
     } catch (_) {
       return Response.notFound('no art');
     }
+  }
+
+  /// Serve a track's lyrics: the `.lrc` file the user keeps next to the audio
+  /// (same name), as plain text. The desktop tries this first and falls back to
+  /// its online sources when there's no sidecar.
+  Future<Response> _handleLyrics(Request request, String file) async {
+    if (!_authorized(request)) return Response(401, body: 'unauthorized');
+    final song = await _songById(_trackId(file));
+    if (song == null) return Response.notFound('no such track');
+    final lrc = await _readLrcSidecar(song.data);
+    if (lrc == null) return Response.notFound('no lyrics');
+    return Response.ok(
+      lrc,
+      headers: {
+        'Content-Type': 'text/plain; charset=utf-8',
+        'Cache-Control': 'max-age=3600',
+      },
+    );
+  }
+
+  /// Read a `.lrc` sidecar sitting next to the audio file (same base name).
+  /// Tries a few extension casings since Android storage is case-sensitive.
+  Future<String?> _readLrcSidecar(String audioPath) async {
+    final dot = audioPath.lastIndexOf('.');
+    final base = dot >= 0 ? audioPath.substring(0, dot) : audioPath;
+    for (final ext in const ['.lrc', '.LRC', '.Lrc']) {
+      try {
+        final f = File('$base$ext');
+        if (await f.exists()) {
+          final text = await f.readAsString();
+          if (text.trim().isNotEmpty) return text;
+        }
+      } catch (_) {/* unreadable — try the next casing */}
+    }
+    return null;
   }
 
   Future<Response> _handleStream(Request request, String file) async {
