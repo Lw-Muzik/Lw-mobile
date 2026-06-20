@@ -26,9 +26,14 @@ import 'controllers/PlaylistController.dart';
 import 'firebase_options.dart';
 import 'widgets/DvcVolumeOverlay.dart';
 import 'services/streaming_data_guard.dart';
+import 'services/share_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Set up the music-sharing foreground-service channel (restores the running
+  // state if the service is still up from a previous session).
+  await ShareService.instance.init();
 
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 

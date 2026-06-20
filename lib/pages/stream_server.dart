@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../services/cast_controller.dart';
-import '../services/stream_server.dart';
+import '../services/share_service.dart';
 
 /// "Stream / Cast" — turn this phone into a media source the desktop app can
 /// pair with and stream from over the local network.
@@ -14,7 +14,7 @@ class StreamServerPage extends StatefulWidget {
 }
 
 class _StreamServerPageState extends State<StreamServerPage> {
-  final StreamServerController _server = StreamServerController.instance;
+  final ShareService _server = ShareService.instance;
   final CastController _cast = CastController.instance;
   bool _busy = false;
 
@@ -34,11 +34,7 @@ class _StreamServerPageState extends State<StreamServerPage> {
   Future<void> _toggle(bool on) async {
     setState(() => _busy = true);
     try {
-      if (on) {
-        await _server.start();
-      } else {
-        await _server.stop();
-      }
+      await _server.toggle(on);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -305,7 +301,8 @@ class _StreamServerPageState extends State<StreamServerPage> {
           ),
           const SizedBox(height: 4),
           Text(
-            '• Sharing stays on while Hype Muzik is open.',
+            '• Sharing keeps running in the background — even if you close the '
+            'app — with a notification. Turn it off here or from the notification.',
             style: style,
           ),
         ],

@@ -66,6 +66,17 @@ class StreamServerController extends ChangeNotifier {
   String get deviceName => Platform.isIOS ? 'iPhone' : 'Android phone';
   List<PairedDesktop> get pairedDesktops => _paired.values.toList();
 
+  /// A JSON-serialisable snapshot of the runtime state, for relaying from the
+  /// foreground-service isolate to the UI isolate (tokens are NOT included).
+  Map<String, dynamic> stateSnapshot() => {
+        'running': running,
+        'pin': _pin,
+        'ip': _ip,
+        'port': _server?.port,
+        'paired':
+            _paired.values.map((d) => {'id': d.id, 'name': d.name}).toList(),
+      };
+
   Future<void> _ensureLoaded() async {
     if (_prefs != null) return;
     _prefs = await SharedPreferences.getInstance();
@@ -115,8 +126,21 @@ class StreamServerController extends ChangeNotifier {
 
   /// Desktops this phone has paired with (loads the store if needed). Used by
   /// the cast controller to authenticate when casting to a discovered desktop.
+  /// Reloads from disk first, since pairings may be written by the sharing
+  /// server running in a separate (foreground-service) isolate.
   Future<List<PairedDesktop>> loadKnownDesktops() async {
     await _ensureLoaded();
+    try {
+      await _prefs?.reload();
+      final raw = _prefs?.getString(_kPaired);
+      _paired.clear();
+      if (raw != null) {
+        for (final j in (jsonDecode(raw) as List)) {
+          final d = PairedDesktop.fromJson(Map<String, dynamic>.from(j as Map));
+          _paired[d.id] = d;
+        }
+      }
+    } catch (_) {/* keep the in-memory set on a read error */}
     return _paired.values.toList();
   }
 
@@ -185,6 +209,8 @@ class StreamServerController extends ChangeNotifier {
         'album': _clean(s.album),
         'durationMs': s.duration,
         'ext': _extOf(s.data),
+        // The folder the file lives in, so the desktop can browse by folder.
+        'folder': _folderName(s.data),
         // Optimistic: the desktop tries /art and falls back to a gradient if
         // the track turns out to have no embedded cover.
         'hasArt': true,
@@ -380,6 +406,16 @@ class StreamServerController extends ChangeNotifier {
     final i = path.lastIndexOf('.');
     if (i < 0 || i == path.length - 1) return 'mp3';
     return path.substring(i + 1).toLowerCase();
+  }
+
+  /// The immediate parent folder name of a file path (so the desktop can group
+  /// the phone's music by the folders it came from). Null when undeterminable.
+  String? _folderName(String path) {
+    final parts =
+        path.replaceAll('\\', '/').split('/').where((p) => p.isNotEmpty).toList();
+    if (parts.length < 2) return null;
+    final folder = parts[parts.length - 2];
+    return folder.isEmpty ? null : folder;
   }
 
   String _contentType(String ext) {

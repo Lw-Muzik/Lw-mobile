@@ -25,6 +25,10 @@
     <!-- ALSO ADD THIS PERMISSION IF TARGETING SDK 34 -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"/>
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
+    <!-- Phone Link sharing foreground service (keeps the LAN server alive when
+         the app is swiped from recents) + its persistent notification. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC"/>
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
 
     <application android:name="${applicationName}" android:enableOnBackInvokedCallback="true" android:icon="@mipmap/launcher_icon" android:label="Hype Muzik" tools:ignore="ExtraText" android:requestLegacyExternalStorage="true" android:usesCleartextTraffic="true">
@@ -55,6 +59,14 @@
             </intent-filter>
         </activity>
         <service android:name=".EngineService" android:enabled="true" android:exported="true" android:permission="android.permission.FOREGROUND_SERVICE" />
+        <!-- flutter_foreground_task: hosts the music-sharing server in its own
+             background isolate. stopWithTask="false" keeps it (and the
+             notification) alive after the app is removed from recents. -->
+        <service
+            android:name="com.pravera.flutter_foreground_task.service.ForegroundService"
+            android:foregroundServiceType="dataSync"
+            android:stopWithTask="false"
+            android:exported="false" />
         <service android:name=".GlobalEqService"
             android:enabled="true" android:exported="false"
             android:foregroundServiceType="mediaPlayback" />

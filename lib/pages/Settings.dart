@@ -15,7 +15,7 @@ import '../models/eq_models.dart';
 import '../onboarding/coach_marks.dart';
 import '../onboarding/interactions_guide.dart';
 import '../services/streaming_data_guard.dart';
-import '../services/stream_server.dart';
+import '../services/share_service.dart';
 import 'stream_server.dart';
 
 import '/Helpers/AudioHandler.dart';
@@ -1250,7 +1250,7 @@ class _SettingsState extends State<Settings> {
   // -- Phone Link Section --
 
   Widget _buildPhoneLinkSection() {
-    final server = StreamServerController.instance;
+    final server = ShareService.instance;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

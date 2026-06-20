@@ -75,6 +75,9 @@ dependencies:
   shelf: ^1.4.1
   shelf_router: ^1.1.4
   bonsoir: ^5.1.11
+  # Keeps the sharing server alive in a foreground service (persistent
+  # notification) even after the app is swiped from recents (Android).
+  flutter_foreground_task: ^8.17.0
 
 
 dev_dependencies:
