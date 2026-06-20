@@ -37,3 +37,10 @@ target_link_libraries(${CMAKE_PROJECT_NAME}
     chromaprint
     ${GLES3_LIB}
     ${EGL_LIB})
+
+# 16 KB page-size alignment for libeq_app.so — required for Android 15+ / devices
+# with 16 KB memory pages (Play Store requirement for new uploads). NDK r28
+# links with max-page-size=16384 by default; we set it explicitly so the build
+# is correct regardless of the NDK in use.
+target_link_options(${CMAKE_PROJECT_NAME} PRIVATE
+    "-Wl,-z,max-page-size=16384")

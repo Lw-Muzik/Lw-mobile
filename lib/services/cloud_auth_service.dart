@@ -12,6 +12,11 @@ import '../config/app_config.dart';
 class CloudAuthService {
   static const _driveScope = 'https://www.googleapis.com/auth/drive.readonly';
 
+  // Persisted flag marking that the user has explicitly connected Google Drive.
+  // Gates the silent session restore so the Google account-picker popup only
+  // shows when the user taps "Connect" — never spontaneously on every launch.
+  static const _googleConnectedKey = 'google_connected';
+
   // Google — v7 platform interface API
   GoogleSignInUserData? _googleUser;
   bool _googleInitialized = false;
@@ -49,6 +54,9 @@ class CloudAuthService {
       );
 
       _googleUser = result.user;
+      // Remember the explicit connection so future launches can restore
+      // silently without re-prompting.
+      await _secureStorage.write(key: _googleConnectedKey, value: 'true');
       return true;
     } catch (e) {
       final msg = e.toString();
@@ -80,9 +88,19 @@ class CloudAuthService {
           .signOut(const SignOutParams());
     } catch (_) {}
     _googleUser = null;
+    await _secureStorage.delete(key: _googleConnectedKey);
   }
 
   Future<bool> restoreGoogleSession() async {
+    // Skip the restore entirely unless the user previously connected. Calling
+    // lightweight authentication otherwise surfaces the Google account-picker /
+    // One Tap popup on every app launch, which is what we want to avoid.
+    final hasConnected =
+        await _secureStorage.read(key: _googleConnectedKey) == 'true';
+    if (!hasConnected) {
+      _googleUser = null;
+      return false;
+    }
     try {
       await _ensureGoogleInit();
       final result = await GoogleSignInPlatform.instance

@@ -62,7 +62,7 @@ class CastController extends ChangeNotifier {
     if (_discovery != null) return;
     final discovery =
         BonsoirDiscovery(type: StreamServerController.serviceType);
-    await discovery.ready;
+    await discovery.initialize();
     _sub = discovery.eventStream?.listen(_onEvent);
     await discovery.start();
     _discovery = discovery;
@@ -126,18 +126,22 @@ class CastController extends ChangeNotifier {
   }
 
   void _onEvent(BonsoirDiscoveryEvent event) {
-    switch (event.type) {
-      case BonsoirDiscoveryEventType.discoveryServiceFound:
+    // bonsoir 7.x models discovery events as a sealed class hierarchy (the old
+    // enum `BonsoirDiscoveryEventType` and `ResolvedBonsoirService` are gone).
+    switch (event) {
+      case BonsoirDiscoveryServiceFoundEvent():
         // Found, but not resolved yet — ask for its address.
-        event.service?.resolve(_discovery!.serviceResolver);
+        _discovery?.serviceResolver.resolveService(event.service);
         break;
-      case BonsoirDiscoveryEventType.discoveryServiceResolved:
+      case BonsoirDiscoveryServiceResolvedEvent():
         final service = event.service;
-        if (service is! ResolvedBonsoirService) return;
         final attrs = service.attributes;
         if (attrs['role'] != 'player') return;
-        final host = service.host;
-        if (host == null) return;
+        // bonsoir 7.x exposes resolved IPs via `hostAddresses` (was `host`).
+        final host = service.hostAddresses.isNotEmpty
+            ? service.hostAddresses.first
+            : service.hostname;
+        if (host == null || host.isEmpty) return;
         final id = attrs['id'] ?? service.name;
         _found[id] = DiscoveredDesktop(
           id: id,
@@ -147,8 +151,8 @@ class CastController extends ChangeNotifier {
         );
         notifyListeners();
         break;
-      case BonsoirDiscoveryEventType.discoveryServiceLost:
-        final id = event.service?.attributes['id'];
+      case BonsoirDiscoveryServiceLostEvent():
+        final id = event.service.attributes['id'];
         if (id != null && _found.remove(id) != null) {
           if (_target?.id == id) _target = null;
           notifyListeners();

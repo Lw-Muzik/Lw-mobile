@@ -378,7 +378,7 @@ class StreamServerController extends ChangeNotifier {
       },
     );
     final broadcast = BonsoirBroadcast(service: service);
-    await broadcast.ready;
+    await broadcast.initialize();
     await broadcast.start();
     _broadcast = broadcast;
   }

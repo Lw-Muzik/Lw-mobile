@@ -36,7 +36,7 @@ class _ShareTaskHandler extends TaskHandler {
   void onNotificationPressed() => FlutterForegroundTask.launchApp();
 
   @override
-  Future<void> onDestroy(DateTime timestamp) async {}
+  Future<void> onDestroy(DateTime timestamp, bool isTimeout) async {}
 }
 
 /// Controls music-sharing. The server runs in-process (`StreamServerController`);

@@ -71,7 +71,13 @@ Future<void> main() async {
     config: AudioServiceConfig(
       androidNotificationChannelId: 'com.ryanheise.bg_demo.channel.audio',
       androidNotificationChannelName: 'Audio playback',
-      androidNotificationOngoing: true,
+      // Keep the media notification visible while paused so the user can resume
+      // from it (androidStopForegroundOnPause: false keeps the service
+      // foregrounded, which already makes the notification non-dismissible).
+      // androidNotificationOngoing must stay false here: audio_service asserts
+      // it has no effect — and would crash — unless androidStopForegroundOnPause
+      // is true.
+      androidNotificationOngoing: false,
       androidNotificationIcon: 'mipmap/launcher_icon',
       androidStopForegroundOnPause: false,
       androidResumeOnClick: true,

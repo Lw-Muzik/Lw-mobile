@@ -51,14 +51,14 @@ dependencies:
   crypto: ^3.0.3
   google_sign_in: ^7.2.0
   google_sign_in_platform_interface: ^3.1.0
-  flutter_secure_storage: ^9.2.2
+  flutter_secure_storage: ^10.3.1
   flutter_appauth: ^12.0.0
   firebase_analytics: ^12.0.3
   firebase_crashlytics: ^5.0.3
   firebase_core: ^4.2.0
   path_provider: ^2.1.1
   ffi: ^2.1.0
-  mobile_scanner: ^5.2.3
+  mobile_scanner: ^7.2.0
   wiredash: ^2.1.2
   flutter_shaders: ^0.1.3
   swipable_stack: ^2.0.0
@@ -67,7 +67,7 @@ dependencies:
   flutter_zoom_drawer: ^3.2.0
   id3tag: ^0.2.0
   vector_math: ^2.2.0
-  file_picker: ^10.3.10
+  file_picker: ^11.0.2
   connectivity_plus: ^7.0.0
   dio: ^5.9.2
   dartz: ^0.10.1
@@ -76,10 +76,10 @@ dependencies:
   # Phone Link — stream this phone's library to the desktop app over the LAN.
   shelf: ^1.4.1
   shelf_router: ^1.1.4
-  bonsoir: ^5.1.11
+  bonsoir: ^7.1.4
   # Keeps the sharing server alive in a foreground service (persistent
   # notification) even after the app is swiped from recents (Android).
-  flutter_foreground_task: ^8.17.0
+  flutter_foreground_task: ^9.2.2
 
 
 dev_dependencies:

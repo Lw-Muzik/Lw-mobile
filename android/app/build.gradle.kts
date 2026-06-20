@@ -17,7 +17,11 @@ if (keystorePropertiesFile.exists()) {
 android {
     namespace = "x.a.zix"
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
+    // Pin to NDK r28+, which links native libs with 16 KB page alignment by
+    // default (required for Android 15+ / 16 KB-page devices). Leaving this as
+    // flutter.ndkVersion can resolve to an older NDK that produces 4 KB-aligned
+    // libs.
+    ndkVersion = "28.2.13676358"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
@@ -73,6 +77,29 @@ android {
              isShrinkResources = false
              proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
+    }
+}
+
+// Force transitive native dependencies to versions whose bundled .so files are
+// 16 KB page-aligned (Android 15+/16 KB-page devices, Play upload requirement).
+// Evidence: the graph was resolving CameraX 1.3.3 and ML Kit barcode 17.2.0,
+// both 4 KB-aligned. These pins move them to the aligned releases. DataStore is
+// pinned to 1.1.7 because its newer 1.2.x line regressed 16 KB alignment.
+configurations.all {
+    resolutionStrategy {
+        force(
+            "androidx.camera:camera-core:1.5.3",
+            "androidx.camera:camera-camera2:1.5.3",
+            "androidx.camera:camera-lifecycle:1.5.3",
+            "androidx.camera:camera-view:1.5.3",
+            "com.google.mlkit:barcode-scanning:17.3.0",
+            "com.google.android.gms:play-services-mlkit-barcode-scanning:18.3.1",
+            "androidx.datastore:datastore:1.1.7",
+            "androidx.datastore:datastore-core:1.1.7",
+            "androidx.datastore:datastore-core-android:1.1.7",
+            "androidx.datastore:datastore-preferences:1.1.7",
+            "androidx.datastore:datastore-preferences-core:1.1.7",
+        )
     }
 }
 

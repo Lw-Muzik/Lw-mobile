@@ -178,7 +178,7 @@ class LocalMusicScanner {
   static Future<int> importFiles() async {
     try {
       // Use custom extension filter — FileType.audio can fail on some iOS versions
-      final result = await FilePicker.platform.pickFiles(
+      final result = await FilePicker.pickFiles(
         type: FileType.custom,
         allowedExtensions: [
           'mp3',

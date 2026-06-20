@@ -28,12 +28,25 @@ fi
 
 echo "Building libhm_remote.so for arm64-v8a, armeabi-v7a, x86_64 …"
 cd "$REMOTE_REPO"
+# Force 16 KB page-size alignment on the produced .so files (required for
+# Android 15+ / 16 KB-page devices). Rust drives the NDK linker itself, so we
+# pass the flag through RUSTFLAGS rather than relying on the NDK default.
+export RUSTFLAGS="${RUSTFLAGS:-} -C link-arg=-Wl,-z,max-page-size=16384"
 cargo ndk \
   -t arm64-v8a \
   -t armeabi-v7a \
   -t x86_64 \
   -o "$JNILIBS" \
   build --release -p hm-remote
+
+# cargo-ndk copies every .so it finds into the output dir, which includes
+# stray Rust dependency dylib artifacts (libiroh-<hash>.so, libiroh_relay-…).
+# `libhm_remote.so` statically links iroh (its only NEEDED libs are libc/libm/
+# libdl), so these orphans are never loaded — they just bloat the APK and trip
+# the 16 KB page-size checker. Drop everything except our cdylib.
+echo "Pruning stray dependency artifacts from jniLibs …"
+find "$JNILIBS" -name '*.so' ! -name 'libhm_remote.so' \
+  \( -name 'libiroh*.so' -o -name 'libiroh_relay*.so' \) -delete
 
 echo
 echo "Done → $JNILIBS/<abi>/libhm_remote.so"
