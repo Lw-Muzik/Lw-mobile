@@ -301,8 +301,9 @@ class _StreamServerPageState extends State<StreamServerPage> {
           ),
           const SizedBox(height: 4),
           Text(
-            '• Sharing keeps running in the background — even if you close the '
-            'app — with a notification. Turn it off here or from the notification.',
+            '• Sharing keeps running in the background (with a notification) '
+            'while Hype Muzik is running. Turn it off here or from the '
+            'notification.',
             style: style,
           ),
         ],

@@ -59,13 +59,14 @@
             </intent-filter>
         </activity>
         <service android:name=".EngineService" android:enabled="true" android:exported="true" android:permission="android.permission.FOREGROUND_SERVICE" />
-        <!-- flutter_foreground_task: hosts the music-sharing server in its own
-             background isolate. stopWithTask="false" keeps it (and the
-             notification) alive after the app is removed from recents. -->
+        <!-- flutter_foreground_task: keeps the app (and the in-process
+             music-sharing server) alive in the background with a persistent
+             notification. stopWithTask="true" clears it when the app is swiped
+             from recents (the in-process server stops then too). -->
         <service
             android:name="com.pravera.flutter_foreground_task.service.ForegroundService"
             android:foregroundServiceType="dataSync"
-            android:stopWithTask="false"
+            android:stopWithTask="true"
             android:exported="false" />
         <service android:name=".GlobalEqService"
             android:enabled="true" android:exported="false"
