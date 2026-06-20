@@ -3,6 +3,9 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 
+import 'package:path_provider/path_provider.dart';
+
+import 'remote_link.dart';
 import 'stream_server.dart';
 
 /// Foreground-service entry point (its own isolate). The sharing server itself
@@ -104,6 +107,7 @@ class ShareService extends ChangeNotifier {
     notifyListeners();
     try {
       await _server.start();
+      await _startRemoteLink();
       if (_withService) {
         await _requestPermissions();
         await FlutterForegroundTask.startService(
@@ -130,10 +134,25 @@ class ShareService extends ChangeNotifier {
       if (_withService && await FlutterForegroundTask.isRunningService) {
         await FlutterForegroundTask.stopService();
       }
+      await RemoteLink.instance.stop();
       await _server.stop();
     } finally {
       _busy = false;
       notifyListeners();
+    }
+  }
+
+  /// Start this phone's iroh endpoint so desktops can reach it across networks
+  /// (best-effort — sharing still works on the LAN if the native lib is absent).
+  Future<void> _startRemoteLink() async {
+    if (!remoteLinkSupported) return;
+    final port = _server.port;
+    if (port == null) return;
+    try {
+      final dir = await getApplicationSupportDirectory();
+      await RemoteLink.instance.start('${dir.path}/remote-identity.bin', port);
+    } catch (e) {
+      debugPrint('ShareService: remote link unavailable: $e');
     }
   }
 

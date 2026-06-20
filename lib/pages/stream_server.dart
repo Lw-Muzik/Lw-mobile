@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../services/cast_controller.dart';
 import '../services/share_service.dart';
+import 'scan_desktop.dart';
 
 /// "Stream / Cast" — turn this phone into a media source the desktop app can
 /// pair with and stream from over the local network.
@@ -66,6 +67,10 @@ class _StreamServerPageState extends State<StreamServerPage> {
               ),
               const SizedBox(height: 12),
               if (_server.running) _buildPairingCard(theme),
+              if (_server.running) ...[
+                const SizedBox(height: 12),
+                _buildRemoteCard(theme),
+              ],
               if (_server.running && _server.pairedDesktops.isNotEmpty) ...[
                 const SizedBox(height: 12),
                 _buildPairedCard(theme),
@@ -79,6 +84,57 @@ class _StreamServerPageState extends State<StreamServerPage> {
         },
       ),
     );
+  }
+
+  /// Entry point for linking a desktop on a *different* network (over iroh).
+  Widget _buildRemoteCard(ThemeData theme) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.public_rounded, color: theme.colorScheme.primary),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Link a desktop on another network',
+                    style: theme.textTheme.titleSmall
+                        ?.copyWith(fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Scan the QR in the desktop app (Settings → Connect across networks) '
+              'to stream over the internet — securely, peer-to-peer.',
+              style: theme.textTheme.bodySmall
+                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+            ),
+            const SizedBox(height: 12),
+            FilledButton.icon(
+              onPressed: _scanDesktop,
+              icon: const Icon(Icons.qr_code_scanner_rounded),
+              label: const Text('Scan desktop code'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _scanDesktop() async {
+    final name = await Navigator.of(context).push<String>(
+      MaterialPageRoute(builder: (_) => const ScanDesktopPage()),
+    );
+    if (name != null && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Linked to $name')),
+      );
+    }
   }
 
   Widget _buildPairingCard(ThemeData theme) {

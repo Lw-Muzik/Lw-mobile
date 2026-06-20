@@ -198,6 +198,18 @@ class StreamServerController extends ChangeNotifier {
     });
   }
 
+  /// Register a desktop paired over the **remote** (iroh) link: mint a bearer
+  /// token, store it so the desktop's tunneled requests pass `_authorized`, and
+  /// return it so the phone can hand it to the desktop during the QR handshake.
+  /// Mirrors [_handlePair] but driven by the QR/iroh flow instead of HTTP.
+  Future<String> registerDesktop(String id, String name) async {
+    final token = _randomHex(32);
+    _paired[id] = PairedDesktop(id: id, name: name, token: token);
+    await _savePaired();
+    notifyListeners();
+    return token;
+  }
+
   Future<Response> _handleLibrary(Request request) async {
     if (!_authorized(request)) return Response(401, body: 'unauthorized');
     final songs = await _loadLibrary();
@@ -360,6 +372,9 @@ class StreamServerController extends ChangeNotifier {
         'id': _selfId,
         'name': deviceName,
         'v': '$protocolVersion',
+        // Advertise our own LAN IP so the desktop connects straight to it
+        // instead of re-resolving our `.local` hostname (unreliable on Android).
+        if (_ip != null && _ip!.isNotEmpty) 'ip': _ip!,
       },
     );
     final broadcast = BonsoirBroadcast(service: service);
