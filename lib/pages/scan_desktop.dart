@@ -20,6 +20,10 @@ class _ScanDesktopPageState extends State<ScanDesktopPage> {
     detectionSpeed: DetectionSpeed.noDuplicates,
   );
   bool _handling = false;
+  // After a failed attempt we leave the camera stopped and wait for an explicit
+  // "Try again" tap. Auto-restarting here re-detects the same on-screen QR and
+  // loops stop→fail→start forever — the camera "blinking" the user saw.
+  bool _failed = false;
   String? _status;
 
   @override
@@ -29,7 +33,7 @@ class _ScanDesktopPageState extends State<ScanDesktopPage> {
   }
 
   Future<void> _onDetect(BarcodeCapture capture) async {
-    if (_handling || capture.barcodes.isEmpty) return;
+    if (_handling || _failed || capture.barcodes.isEmpty) return;
     final raw = capture.barcodes.first.rawValue;
     if (raw == null) return;
     final uri = Uri.tryParse(raw);
@@ -38,11 +42,13 @@ class _ScanDesktopPageState extends State<ScanDesktopPage> {
     final pin = uri.queryParameters['pin'];
     if (ep == null || ep.isEmpty || pin == null || pin.isEmpty) return;
 
+    // Keep the camera preview running during the attempt — stopping it blacks
+    // out the screen, and the `_handling`/`_failed` guards already prevent
+    // re-entry, so there's no need to tear the camera down.
     setState(() {
       _handling = true;
       _status = 'Linking…';
     });
-    await _controller.stop();
 
     final name = await _pair(ep, pin);
     if (!mounted) return;
@@ -50,12 +56,26 @@ class _ScanDesktopPageState extends State<ScanDesktopPage> {
       Navigator.of(context).pop(name);
       return;
     }
+    // Leave the preview up and wait for an explicit retry (auto-retrying would
+    // re-detect the same QR and loop — the earlier "blinking").
     setState(() {
       _handling = false;
+      _failed = true;
       _status =
-          'Couldn’t link. Make sure “Share my music” is on and the code is still showing, then try again.';
+          'Couldn’t link. Make sure “Share my music” is on and the code is still showing, then tap Try again.';
     });
+  }
+
+  Future<void> _retry() async {
+    // Restart the scanner so its no-duplicate history clears and the same
+    // on-screen QR can be read again.
+    await _controller.stop();
     await _controller.start();
+    if (!mounted) return;
+    setState(() {
+      _failed = false;
+      _status = null;
+    });
   }
 
   /// Mint a token, authorise it in the shelf, then run the iroh pairing dial.
@@ -129,6 +149,15 @@ class _ScanDesktopPageState extends State<ScanDesktopPage> {
                     style: theme.textTheme.bodyMedium?.copyWith(color: Colors.white),
                   ),
                 ),
+                if (_failed)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: FilledButton.icon(
+                      onPressed: _retry,
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Try again'),
+                    ),
+                  ),
               ],
             ),
           ),
