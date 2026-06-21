@@ -80,10 +80,10 @@ class _ScanDesktopPageState extends State<ScanDesktopPage> {
 
   /// Mint a token, authorise it in the shelf, then run the iroh pairing dial.
   Future<String?> _pair(String desktopEp, String pin) async {
-    // The iroh endpoint comes up with sharing — make sure it's running.
-    if (!RemoteLink.instance.running) {
-      await ShareService.instance.enable();
-    }
+    // Make sure the shelf server AND this phone's iroh endpoint are up.
+    // `enable()` alone won't (re)start the endpoint if sharing was already on,
+    // so use `ensureRemoteLink()`.
+    await ShareService.instance.ensureRemoteLink();
     if (!RemoteLink.instance.running) {
       return null;
     }

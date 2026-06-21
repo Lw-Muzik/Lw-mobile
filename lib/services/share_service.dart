@@ -142,6 +142,18 @@ class ShareService extends ChangeNotifier {
     }
   }
 
+  /// Ensure both the shelf server and this phone's iroh endpoint are running.
+  /// Used by the QR-pairing flow: [enable] only starts the iroh endpoint the
+  /// first time sharing is turned on, so if sharing is already active (but the
+  /// endpoint failed/never started) we must retry it here.
+  Future<void> ensureRemoteLink() async {
+    if (!_server.running) {
+      await enable(); // also starts the remote link
+      return;
+    }
+    await _startRemoteLink();
+  }
+
   /// Start this phone's iroh endpoint so desktops can reach it across networks
   /// (best-effort — sharing still works on the LAN if the native lib is absent).
   Future<void> _startRemoteLink() async {
