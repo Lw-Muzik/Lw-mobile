@@ -6,6 +6,7 @@
       "request": "launch",
       "type": "dart",
       "args": [
+        "./scripts/build_remote_android.sh",
         "-v"
       ]
     },
