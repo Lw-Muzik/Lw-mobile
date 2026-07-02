@@ -43,6 +43,11 @@ class HypeAudioHandler extends BaseAudioHandler {
   StreamSubscription<PlaybackEvent>? _playbackSub;
   bool _isCrossfading = false;
 
+  /// Set while a crossfade is in flight; completed when it settles (normal
+  /// completion, abort, or failure). Lets control paths await a fast settle.
+  Completer<void>? _fadeDone;
+  bool _cancelCrossfade = false;
+
   /// The primary player used for playback controls (play/pause/stop/seek).
   AudioPlayer get player => _activePlayer;
 
@@ -75,20 +80,34 @@ class HypeAudioHandler extends BaseAudioHandler {
     });
   }
 
+  // Controls route to [currentTrackPlayer]: during a crossfade the audible
+  // track lives on the incoming player — acting on _activePlayer (outgoing)
+  // would target a player the fade loop is about to stop.
   @override
-  Future<void> play() => _activePlayer.play();
+  Future<void> play() => currentTrackPlayer.play();
 
   @override
-  Future<void> pause() => _activePlayer.pause();
+  Future<void> pause() => currentTrackPlayer.pause();
 
   @override
   Future<void> stop() async {
+    await abortCrossfade();
     await _activePlayer.stop();
     await _inactivePlayer.stop();
   }
 
   @override
-  Future<void> seek(Duration position) => _activePlayer.seek(position);
+  Future<void> seek(Duration position) => currentTrackPlayer.seek(position);
+
+  /// Fast-settle any in-flight crossfade: the fade loop breaks at its next
+  /// step (≤ fadeDuration/20), the swap completes immediately, and callers can
+  /// then safely act on [player]. No-op when no crossfade is running.
+  Future<void> abortCrossfade() async {
+    final done = _fadeDone;
+    if (done == null) return;
+    _cancelCrossfade = true;
+    await done.future;
+  }
 
   @override
   Future<void> skipToNext() async {
@@ -112,56 +131,90 @@ class HypeAudioHandler extends BaseAudioHandler {
     Duration fadeDuration, {
     bool replayGain = false,
   }) async {
-    final targetVolume = replayGain
-        ? await computeReplayGainVolume(nextSong.data)
-        : 1.0;
+    if (_fadeDone != null) return; // one crossfade at a time
 
-    await _inactivePlayer.setAudioSource(nextSource);
-    _inactivePlayer.setVolume(0.0);
-    _inactivePlayer.play();
+    final fadeDone = Completer<void>();
+    _fadeDone = fadeDone;
+    _cancelCrossfade = false;
+    final origVolume = _activePlayer.volume;
+    var incomingStarted = false;
 
-    // Update media item for the next track
-    final image = await fetchArtworkUrl(nextSong.data, nextSong.id);
-    final item = MediaItem(
-      id: nextSong.data,
-      album: nextSong.album,
-      title: nextSong.title,
-      artist: nextSong.artist,
-      duration: Duration(milliseconds: nextSong.duration ?? 0),
-      artUri: Uri.file(image),
-    );
+    try {
+      final targetVolume = replayGain
+          ? await computeReplayGainVolume(nextSong.data)
+          : 1.0;
 
-    setCurrentMediaItem(item);
+      await _inactivePlayer.setAudioSource(nextSource);
+      _inactivePlayer.setVolume(0.0);
+      _inactivePlayer.play();
+      incomingStarted = true;
 
-    // Signal that the new track is now playing on _inactivePlayer.
-    // currentTrackPlayer will return _inactivePlayer while _isCrossfading.
-    _isCrossfading = true;
-    onCrossfadeStarted?.call();
+      // Update media item for the next track
+      final image = await fetchArtworkUrl(nextSong.data, nextSong.id);
+      final item = MediaItem(
+        id: nextSong.data,
+        album: nextSong.album,
+        title: nextSong.title,
+        artist: nextSong.artist,
+        duration: Duration(milliseconds: nextSong.duration ?? 0),
+        artUri: Uri.file(image),
+      );
 
-    const steps = 20;
-    final stepDuration = Duration(
-      milliseconds: fadeDuration.inMilliseconds ~/ steps,
-    );
-    final currentVolume = _activePlayer.volume;
+      setCurrentMediaItem(item);
 
-    for (var i = 1; i <= steps; i++) {
-      await Future.delayed(stepDuration);
-      final progress = i / steps;
-      _activePlayer.setVolume(currentVolume * (1.0 - progress));
-      _inactivePlayer.setVolume(targetVolume * progress);
+      // Signal that the new track is now playing on _inactivePlayer.
+      // currentTrackPlayer will return _inactivePlayer while _isCrossfading.
+      _isCrossfading = true;
+      onCrossfadeStarted?.call();
+
+      const steps = 20;
+      final stepDuration = Duration(
+        milliseconds: fadeDuration.inMilliseconds ~/ steps,
+      );
+      final currentVolume = _activePlayer.volume;
+
+      for (var i = 1; i <= steps; i++) {
+        await Future.delayed(stepDuration);
+        // Abort requested (user skipped/paused/loaded a track): jump straight
+        // to the end state instead of finishing the audible fade.
+        if (_cancelCrossfade) break;
+        final progress = i / steps;
+        _activePlayer.setVolume(currentVolume * (1.0 - progress));
+        _inactivePlayer.setVolume(targetVolume * progress);
+      }
+
+      // Stop old active player, snap incoming to target, swap
+      _inactivePlayer.setVolume(targetVolume);
+      await _activePlayer.stop();
+      _activePlayer.setVolume(1.0);
+
+      final temp = _activePlayer;
+      _activePlayer = _inactivePlayer;
+      _inactivePlayer = temp;
+
+      _isCrossfading = false;
+      _bindPlaybackState();
+      onPlayerSwapped?.call();
+    } catch (e) {
+      // Failed before the swap (e.g. dead cloud URL in setAudioSource, or
+      // artwork I/O). Restore the outgoing player and silence the incoming
+      // one so it can't keep playing invisibly; rethrow so the caller can
+      // roll back its track state.
+      _isCrossfading = false;
+      _activePlayer.setVolume(origVolume);
+      if (incomingStarted) {
+        try {
+          await _inactivePlayer.stop();
+        } catch (_) {}
+      }
+      rethrow;
+    } finally {
+      // Whatever happened, the crossfade is settled: unblock abortCrossfade()
+      // waiters and clear the guard so future crossfades can run.
+      _isCrossfading = false;
+      _fadeDone = null;
+      fadeDone.complete();
     }
-
-    // Stop old active player, swap
-    await _activePlayer.stop();
-    _activePlayer.setVolume(1.0);
-
-    final temp = _activePlayer;
-    _activePlayer = _inactivePlayer;
-    _inactivePlayer = temp;
-
-    _isCrossfading = false;
-    _bindPlaybackState();
-    onPlayerSwapped?.call();
   }
 
   /// Compute replay gain volume from ID3 tags

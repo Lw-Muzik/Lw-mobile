@@ -40,6 +40,9 @@ class ProjectMRenderer: NSObject, FlutterTexture {
     private var rendering = false
     private var targetFps: Int = 30
 
+    // Guards release() against double-free (explicit release + deinit).
+    private var released = false
+
     // Presets
     private var pendingPresetPath: String?
     private let presetLock = NSLock()
@@ -179,6 +182,10 @@ class ProjectMRenderer: NSObject, FlutterTexture {
     }
 
     func release() {
+        // Idempotent: safe to call from projectm_release, from projectm_init
+        // (releasing a previous renderer), and from deinit.
+        if released { return }
+        released = true
         stop()
         guard let ctx = eaglContext else { return }
         EAGLContext.setCurrent(ctx)
@@ -196,6 +203,14 @@ class ProjectMRenderer: NSObject, FlutterTexture {
         textureCache = nil
         EAGLContext.setCurrent(nil); eaglContext = nil
         if textureId >= 0 { registrar?.unregisterTexture(textureId); textureId = -1 }
+    }
+
+    deinit {
+        // Safety net: if this renderer is dropped without an explicit
+        // release() (e.g. AppDelegate reassigns projectMRenderer without
+        // calling release first), tear down GL/CV/texture resources here.
+        // release() is idempotent, so a prior explicit release is a no-op.
+        release()
     }
 
     // MARK: - FlutterTexture

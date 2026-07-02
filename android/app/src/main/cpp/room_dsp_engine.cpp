@@ -2,6 +2,42 @@
 #include <cstring>
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
+
+namespace {
+// RAII guard that enables ARM flush-to-zero (FTZ) for the lifetime of the
+// scope and restores the previous FPCR/FPSCR on exit. FTZ collapses denormal
+// floats to zero, preventing the ~100x FPU slowdown that IIR feedback tails
+// (EQ biquads, tone shelves, MBC, crossfeed, limiter, reverb) trigger on quiet
+// passages and fade-outs. Setting it once here covers the ENTIRE DSP chain.
+// No-op on non-ARM targets (e.g. the x86_64 emulator).
+struct DenormalGuard {
+#if defined(__aarch64__)
+    uint64_t oldFpcr_;
+    DenormalGuard() {
+        __asm__ __volatile__("mrs %0, fpcr" : "=r"(oldFpcr_));
+        __asm__ __volatile__("msr fpcr, %0" : : "r"(oldFpcr_ | (1ULL << 24)));
+    }
+    ~DenormalGuard() {
+        __asm__ __volatile__("msr fpcr, %0" : : "r"(oldFpcr_));
+    }
+#elif defined(__arm__)
+    unsigned int oldFpscr_;
+    DenormalGuard() {
+        __asm__ __volatile__("vmrs %0, fpscr" : "=r"(oldFpscr_));
+        __asm__ __volatile__("vmsr fpscr, %0" : : "r"(oldFpscr_ | (1 << 24)));
+    }
+    ~DenormalGuard() {
+        __asm__ __volatile__("vmsr fpscr, %0" : : "r"(oldFpscr_));
+    }
+#else
+    DenormalGuard() {}
+    ~DenormalGuard() {}
+#endif
+    DenormalGuard(const DenormalGuard&) = delete;
+    DenormalGuard& operator=(const DenormalGuard&) = delete;
+};
+} // namespace
 
 RoomDSPEngine::RoomDSPEngine()
     : sampleRate_(48000), channels_(2) {
@@ -121,8 +157,52 @@ void RoomDSPEngine::recomputeAutoGain() {
     preampLinear_ = std::pow(10.0f, effectiveDb / 20.0f);
 }
 
+bool RoomDSPEngine::anyUpstreamBoost() const {
+    // True if any active stage before the limiter can increase the signal
+    // level enough to clip. Conservative by design: it errs toward "true"
+    // (keep the limiter) whenever a stage's contribution is not provably
+    // level-reducing, so gating the limiter can never remove real protection.
+    bool eqOn = eqEnabled_.load(std::memory_order_relaxed);
+    bool spkOn = speakerEqEnabled_.load(std::memory_order_relaxed);
+
+    // Preamp is only applied when EQ or speaker-correction is active
+    // (see process()), so a leftover positive preamp with EQ off is harmless.
+    if ((eqOn || spkOn) && preampGainDb_ > 0.0f) return true;
+
+    // User EQ: only a positive band boost can lift peaks; pure cuts cannot.
+    if (eqOn && (graphicEq_.getPeakGain() > 0.0f ||
+                 parametricEq_.getPeakGain() > 0.0f)) return true;
+
+    // Speaker-correction EQ boost.
+    if (spkOn && speakerEq_.getPeakGain() > 0.0f) return true;
+
+    // Tone shelves only ever boost (gains clamped >= 0).
+    if (tone_.isEnabled() && tone_.getPeakGain() > 0.0f) return true;
+
+    // MBC pre/post makeup gain can lift peaks; keep the limiter whenever the
+    // MBC is engaged (its cost dwarfs the limiter's, so this is essentially
+    // free and avoids reasoning about per-band makeup at runtime).
+    if (mbc_.isEnabled()) return true;
+
+    // Spatial stages add energy / re-sum channels and can raise peaks.
+    if (reverbEnabled_.load(std::memory_order_relaxed)) return true;
+    if (crossfeedEnabled_.load(std::memory_order_relaxed)) return true;
+    if (stereoExpandEnabled_.load(std::memory_order_relaxed)) return true;
+
+    // Stem mode replaces the buffer with a summed stem mix that can exceed
+    // unity — keep the limiter so those peaks stay protected.
+    if (stemModeActive_.load(std::memory_order_relaxed) && stemMixer_.isLoaded())
+        return true;
+
+    return false;
+}
+
 void RoomDSPEngine::process(float* buffer, int numFrames) {
     if (channels_ != 2 || numFrames <= 0) return;
+
+    // Enable flush-to-zero for the whole chain (denormal protection). The
+    // previous FPCR is restored automatically when this scope exits.
+    DenormalGuard denormalGuard;
 
     // Stem mode: replace ExoPlayer's decoded audio with stem mixer output.
     // ExoPlayer still provides timeline/seek/play-pause, but we override its
@@ -140,7 +220,13 @@ void RoomDSPEngine::process(float* buffer, int numFrames) {
     bool doExpand = stereoExpandEnabled_.load(std::memory_order_relaxed);
     bool doCrossfeed = crossfeedEnabled_.load(std::memory_order_relaxed);
     bool doReverb = reverbEnabled_.load(std::memory_order_relaxed);
-    bool doLimiter = limiter_.isEnabled();
+
+    // The limiter is a safety net for peaks created BY this chain. Only run it
+    // when some upstream stage can actually raise the level enough to clip;
+    // otherwise the output cannot exceed the (already-bounded) source and the
+    // final hard clamp is a sufficient backstop. This lets a fully-idle chain
+    // truly bypass instead of paying the limiter's per-sample log10/pow.
+    bool doLimiter = limiter_.isEnabled() && anyUpstreamBoost();
 
     // Early out if nothing is enabled (but always continue if stems are active
     // since the buffer was just replaced and may need DSP processing)

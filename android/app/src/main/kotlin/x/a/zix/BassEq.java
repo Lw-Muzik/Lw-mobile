@@ -7,6 +7,11 @@ public class BassEq {
     private static BassBoost bassBoost;
 
     public static void init(int sessionId) {
+        // Release any previous BassBoost before replacing it, otherwise the old
+        // native AudioEffect leaks (and stays attached to its session).
+        if (bassBoost != null) {
+            try { bassBoost.release(); } catch (Exception ignored) {}
+        }
         bassBoost = new BassBoost(m, sessionId);
     }
 

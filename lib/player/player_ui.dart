@@ -146,10 +146,11 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
           }
 
           final player = controller.handler.player;
-          final playerKey = Object.hash(
-            controller.songId,
-            identityHashCode(player),
-          );
+          // Re-key ONLY when the underlying player instance changes (crossfade
+          // A/B swap), NOT on every songId change — otherwise the whole
+          // subtree (incl. the visualizer) is torn down and rebuilt per track,
+          // which used to leak a native FFT tap on each advance.
+          final playerKey = identityHashCode(player);
 
           return StreamBuilder(
             key: ValueKey(playerKey),

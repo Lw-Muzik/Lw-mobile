@@ -94,6 +94,11 @@ class StemController extends ChangeNotifier {
   }
 
   void unloadStems() {
+    // Deactivate native stem mixing BEFORE unmapping the stem buffers so the
+    // audio thread can't touch freed mappings.
+    if (_stemModeActive) {
+      Channel.deactivateStemMode();
+    }
     Channel.unloadStems();
     _currentStemSong = null;
     _stemModeActive = false;
@@ -190,6 +195,13 @@ class StemController extends ChangeNotifier {
   // ---- Song change handling ----
 
   Future<void> onSongChanged(String? songPath) async {
+    // Free the previous song's stems: 4 whole-file float32 WAV mmaps
+    // (~340MB for a 4-minute track) that used to stay mapped in BOTH players'
+    // engines for the life of the process — nothing ever called unloadStems.
+    // Re-opening the mixer for that song just re-mmaps from the disk cache.
+    if (_currentStemSong != null && _currentStemSong != songPath) {
+      unloadStems();
+    }
     if (songPath == null) {
       _hasStemsForCurrentSong = false;
       notifyListeners();

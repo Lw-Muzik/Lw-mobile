@@ -154,6 +154,16 @@ public class MainActivity extends AudioServiceFragmentActivity {
                     switch (call.method) {
                         case "activate_visualizer":
                             if (visualizer.isActive()) {
+                                // Answer the channel so the Dart future completes
+                                // instead of dangling forever on early return.
+                                result.success(null);
+                                return;
+                            }
+                            // Single active capture path: if the custom in-pipeline
+                            // tap (FFT/projectM) is running, don't also start the
+                            // legacy Android Visualizer (avoids dual PCM capture).
+                            if (VisualizerTapProcessor.isCustomTapActive()) {
+                                result.success(null);
                                 return;
                             }
                             visualizer.activate(new Visualizer.OnDataCaptureListener() {
@@ -178,6 +188,9 @@ public class MainActivity extends AudioServiceFragmentActivity {
                                     visualizerChannel.invokeMethod("onFftVisualization", args);
                                 }
                             });
+                            // Legacy Android Visualizer now active — answer the
+                            // channel so the Dart future completes.
+                            result.success(null);
                             break;
 
                         case "enableVisual":
@@ -872,10 +885,26 @@ public class MainActivity extends AudioServiceFragmentActivity {
                             final AtomicBoolean completed = new AtomicBoolean(false);
                             final Handler mainHandler = new Handler(Looper.getMainLooper());
 
+                            // MMR is created up front and shared with the timeout
+                            // handler. MMR.setDataSource(url) is a blocking native
+                            // call with no read timeout and is NOT interruptible via
+                            // Thread.interrupt(); releasing the retriever from
+                            // another thread is what aborts the stuck native call.
+                            // releaseOnce guards against the worker's finally and the
+                            // timeout both releasing the same native retriever.
+                            final MediaMetadataRetriever mmr = new MediaMetadataRetriever();
+                            final AtomicBoolean released = new AtomicBoolean(false);
+                            final Runnable releaseOnce = () -> {
+                                if (released.compareAndSet(false, true)) {
+                                    try { mmr.release(); } catch (Exception ignored) {}
+                                }
+                            };
+                            // Holder so the worker can cancel the pending timeout.
+                            final Runnable[] timeoutRef = new Runnable[1];
+
                             // Run on background thread — MMR does network I/O
                             Thread worker = new Thread(() -> {
                                 Map<String, Object> metadata = new HashMap<>();
-                                MediaMetadataRetriever mmr = new MediaMetadataRetriever();
                                 boolean success = false;
                                 try {
                                     mmr.setDataSource(metaUrl, finalHeaders);
@@ -912,7 +941,7 @@ public class MainActivity extends AudioServiceFragmentActivity {
                                 } catch (Exception e) {
                                     e.printStackTrace();
                                 } finally {
-                                    try { mmr.release(); } catch (Exception ignored) {}
+                                    releaseOnce.run();
                                 }
 
                                 // Return result on main thread (required by Flutter).
@@ -922,6 +951,10 @@ public class MainActivity extends AudioServiceFragmentActivity {
                                 final boolean ok = success;
                                 final Map<String, Object> md = metadata;
                                 if (completed.compareAndSet(false, true)) {
+                                    // Cancel the pending timeout so it doesn't linger
+                                    // for 15s (and can't fire after we've answered).
+                                    Runnable pending = timeoutRef[0];
+                                    if (pending != null) mainHandler.removeCallbacks(pending);
                                     mainHandler.post(() -> result.success(ok ? md : null));
                                 }
                             });
@@ -929,12 +962,18 @@ public class MainActivity extends AudioServiceFragmentActivity {
 
                             // 15-second timeout — MMR has no internal read timeout
                             // and can hang indefinitely on slow/stalled connections.
-                            mainHandler.postDelayed(() -> {
+                            final Runnable timeout = () -> {
                                 if (completed.compareAndSet(false, true)) {
+                                    // Releasing the retriever aborts the blocked
+                                    // native setDataSource so the worker thread +
+                                    // native retriever + socket don't linger.
+                                    releaseOnce.run();
                                     worker.interrupt();
                                     result.success(null); // null = failed, retry later
                                 }
-                            }, 15000);
+                            };
+                            timeoutRef[0] = timeout;
+                            mainHandler.postDelayed(timeout, 15000);
                             break;
                         }
 

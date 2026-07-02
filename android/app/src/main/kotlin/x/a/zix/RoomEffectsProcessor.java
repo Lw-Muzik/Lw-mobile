@@ -187,6 +187,15 @@ public class RoomEffectsProcessor extends BaseAudioProcessor {
 
     @Override
     protected void onFlush() {
+        // Re-register if a prior onReset() removed this instance mid-life.
+        // media3 can flush/reset a still-live processor during setAudioSource
+        // reconfiguration (not only on player release), so onReset() may drop
+        // us from the broadcast list before the player is actually disposed.
+        // CopyOnWriteArrayList makes contains()/add() safe here; the native
+        // handle is (re)created below so a re-added instance is fully live.
+        if (!playerInstances.contains(this)) {
+            playerInstances.add(this);
+        }
         if (inputAudioFormat != AudioFormat.NOT_SET) {
             if (nativeHandle != 0) {
                 nativeReinit(nativeHandle, inputAudioFormat.sampleRate,
@@ -206,6 +215,13 @@ public class RoomEffectsProcessor extends BaseAudioProcessor {
             nativeDestroy(nativeHandle);
             nativeHandle = 0;
         }
+        // Prune this instance so the static list doesn't grow unbounded across
+        // crossfade/stop-start cycles (just_audio disposes and recreates the
+        // platform player, which reset()s each processor). Without this every
+        // cycle leaked a stale processor and every broadcast* fanned out over
+        // an ever-growing list. If media3 later flushes this same instance
+        // (mid-life reset), onFlush() re-adds it.
+        playerInstances.remove(this);
     }
 
     /** Apply all cached params to this instance's native handle. */
@@ -260,8 +276,13 @@ public class RoomEffectsProcessor extends BaseAudioProcessor {
                     cachedSpeakerEqGains[i], cachedSpeakerEqQs[i],
                     cachedSpeakerEqTypes[i], true);
         }
-        // Stem mixer state
-        if (cachedStemPaths != null) {
+        // Stem mixer state. Only (re)mmap the ~340MB of stem WAVs when stem
+        // mode is actually active — not on every onFlush (which fires on
+        // seeks, teardown flushes, and each newly created player). Cached
+        // paths linger after a stem session until broadcastUnloadStems()
+        // clears them, so gating on cachedStemModeActive prevents re-loading
+        // stems into players that will never use them.
+        if (cachedStemModeActive && cachedStemPaths != null) {
             nativeLoadStems(nativeHandle, cachedStemPaths);
         }
         nativeSetStemModeActive(nativeHandle, cachedStemModeActive);

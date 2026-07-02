@@ -60,6 +60,7 @@ class _CloudFolderSongsState extends State<CloudFolderSongs>
   }
 
   Future<void> _resolveStreamUrls() async {
+    _shimmerController.repeat();
     final controller = Provider.of<AppController>(context, listen: false);
 
     // Reload files from cache to pick up any preloaded metadata.
@@ -94,6 +95,7 @@ class _CloudFolderSongsState extends State<CloudFolderSongs>
           _songModels = models;
           _streamUrls = urls;
           _loading = false;
+          _shimmerController.stop();
         });
         _extractMetadataInBackground();
       }
@@ -102,6 +104,7 @@ class _CloudFolderSongsState extends State<CloudFolderSongs>
         setState(() {
           _error = e.toString();
           _loading = false;
+          _shimmerController.stop();
         });
       }
     }

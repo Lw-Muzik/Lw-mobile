@@ -39,6 +39,7 @@ class _ArtistsSectionState extends State<ArtistsSection>
   }
 
   Future<void> _load() async {
+    _shimmerCtrl.repeat();
     setState(() {
       _loading = true;
       _error = null;
@@ -49,10 +50,12 @@ class _ArtistsSectionState extends State<ArtistsSection>
       (f) => setState(() {
         _loading = false;
         _error = f.message;
+        _shimmerCtrl.stop();
       }),
       (artists) => setState(() {
         _loading = false;
         _artists = artists;
+        _shimmerCtrl.stop();
       }),
     );
   }

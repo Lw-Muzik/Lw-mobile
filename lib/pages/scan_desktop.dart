@@ -50,10 +50,10 @@ class _ScanDesktopPageState extends State<ScanDesktopPage> {
       _status = 'Linking…';
     });
 
-    final name = await _pair(ep, pin);
+    final result = await _pair(ep, pin);
     if (!mounted) return;
-    if (name != null) {
-      Navigator.of(context).pop(name);
+    if (result.name != null) {
+      Navigator.of(context).pop(result.name);
       return;
     }
     // Leave the preview up and wait for an explicit retry (auto-retrying would
@@ -61,8 +61,7 @@ class _ScanDesktopPageState extends State<ScanDesktopPage> {
     setState(() {
       _handling = false;
       _failed = true;
-      _status =
-          'Couldn’t link. Make sure “Share my music” is on and the code is still showing, then tap Try again.';
+      _status = result.message;
     });
   }
 
@@ -79,13 +78,24 @@ class _ScanDesktopPageState extends State<ScanDesktopPage> {
   }
 
   /// Mint a token, authorise it in the shelf, then run the iroh pairing dial.
-  Future<String?> _pair(String desktopEp, String pin) async {
+  /// Returns the desktop's name on success, plus a stage-specific failure
+  /// message otherwise — "the phone's link engine won't start" and "the dial
+  /// to the desktop failed" need very different remedies.
+  Future<({String? name, String message})> _pair(
+    String desktopEp,
+    String pin,
+  ) async {
     // Make sure the shelf server AND this phone's iroh endpoint are up.
     // `enable()` alone won't (re)start the endpoint if sharing was already on,
     // so use `ensureRemoteLink()`.
     await ShareService.instance.ensureRemoteLink();
     if (!RemoteLink.instance.running) {
-      return null;
+      return (
+        name: null,
+        message:
+            'This phone couldn’t start its secure link engine, so it can’t pair across networks yet. '
+            'LAN linking (same Wi-Fi) still works. Details: adb logcat -s hm-remote',
+      );
     }
     final server = StreamServerController.instance;
     final token = await server.registerDesktop(desktopEp, 'Desktop');
@@ -98,8 +108,14 @@ class _ScanDesktopPageState extends State<ScanDesktopPage> {
     if (name == null) {
       // Roll back the optimistic registration.
       server.unpair(desktopEp);
+      return (
+        name: null,
+        message:
+            'Couldn’t reach the desktop. Make sure both devices are online, keep the QR open '
+            '(it expires after 5 minutes — reopen the card for a fresh one), then tap Try again.',
+      );
     }
-    return name;
+    return (name: name, message: '');
   }
 
   @override

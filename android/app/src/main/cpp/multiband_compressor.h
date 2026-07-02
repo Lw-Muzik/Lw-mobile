@@ -4,6 +4,7 @@
 #include <atomic>
 #include <algorithm>
 #include <cstring>
+#include <vector>
 
 // 10-band multi-band compressor using Linkwitz-Riley 4th order crossovers.
 //
@@ -29,6 +30,12 @@
 
 static constexpr int MBC_BAND_COUNT = 10;
 static constexpr int MBC_CROSSOVER_COUNT = MBC_BAND_COUNT - 1; // 9
+
+// Largest block (frames) the reusable scratch buffer is sized for. Chosen far
+// above any realistic host buffer (ExoPlayer/Media3 typically delivers
+// 1024–4096 frames), so process() never allocates on the audio thread. Blocks
+// larger than this are split into chunks (see process()), still allocation-free.
+static constexpr int MBC_MAX_BLOCK_FRAMES = 8192;
 
 // Default MBC crossover frequencies (Hz) — matching the old DynamicsProcessing bands
 static constexpr float MBC_DEFAULT_FREQUENCIES[MBC_BAND_COUNT] = {
@@ -100,6 +107,11 @@ public:
     void init(float sampleRate) {
         sampleRate_ = sampleRate;
 
+        // Preallocate the reusable band-split scratch buffer (off the audio
+        // thread). Layout: MBC_BAND_COUNT band L/R pairs + one highTemp L/R
+        // pair, each of MBC_MAX_BLOCK_FRAMES frames.
+        ensureScratch();
+
         // Initialize crossovers at default frequencies
         // Crossover i sits between band i and band i+1
         // Crossover frequency = geometric mean of band centers
@@ -130,6 +142,7 @@ public:
 
     void reinit(float sampleRate) {
         sampleRate_ = sampleRate;
+        ensureScratch();
         for (int i = 0; i < MBC_CROSSOVER_COUNT; i++) {
             crossovers_[i].configure(sampleRate, crossoverFreqs_[i]);
         }
@@ -151,20 +164,28 @@ public:
     void process(float* left, float* right, int numFrames) {
         if (!enabled_.load(std::memory_order_relaxed)) return;
         if (numFrames <= 0) return;
+        // Safety: scratch_ is sized in init()/reinit(). If MBC were somehow
+        // enabled before init ran, skip rather than dereference a null buffer.
+        if (scratch_.empty()) return;
 
-        // Allocate band buffers (L + R per band) + highTemp (L + R)
-        constexpr int STACK_LIMIT = 512;
-        int bufSize = numFrames * 2 * (MBC_BAND_COUNT + 1); // +1 for highTemp
-        float stackBuf[STACK_LIMIT * 2 * (MBC_BAND_COUNT + 1)];
-        float* heapBuf = nullptr;
-        float* bufBase;
-
-        if (numFrames <= STACK_LIMIT) {
-            bufBase = stackBuf;
-        } else {
-            heapBuf = new float[bufSize];
-            bufBase = heapBuf;
+        // Split into blocks bounded by the preallocated scratch buffer so we
+        // never allocate on the audio thread. In practice numFrames is far
+        // below MBC_MAX_BLOCK_FRAMES, so this loop runs exactly once. Because
+        // every crossover biquad and per-band compressor carries its state
+        // across calls, chunking is bit-identical to a single-shot call.
+        for (int offset = 0; offset < numFrames; ) {
+            int block = std::min(numFrames - offset, MBC_MAX_BLOCK_FRAMES);
+            processBlock(left + offset, right + offset, block);
+            offset += block;
         }
+    }
+
+private:
+    // Process one block guaranteed to fit the preallocated scratch buffer.
+    void processBlock(float* left, float* right, int numFrames) {
+        // Reusable scratch (sized in init/reinit): MBC_BAND_COUNT band L/R
+        // pairs followed by one highTemp L/R pair.
+        float* bufBase = scratch_.data();
 
         // Per-band L/R pointers
         float* bandL[MBC_BAND_COUNT];
@@ -219,10 +240,17 @@ public:
             left[i] = sumL;
             right[i] = sumR;
         }
-
-        delete[] heapBuf;
     }
 
+    // Size the reusable scratch buffer for the largest supported block.
+    // Called from init()/reinit() only (never on the audio thread).
+    void ensureScratch() {
+        const size_t needed =
+            (size_t)MBC_MAX_BLOCK_FRAMES * 2 * (MBC_BAND_COUNT + 1);
+        if (scratch_.size() < needed) scratch_.resize(needed);
+    }
+
+public:
     // Global enable/disable
     void setEnabled(bool enabled) { enabled_.store(enabled); }
     bool isEnabled() const { return enabled_.load(); }
@@ -265,4 +293,8 @@ private:
     LRCrossover crossovers_[MBC_CROSSOVER_COUNT];
     Compressor compressors_[MBC_BAND_COUNT];
     std::atomic<bool> enabled_{false};
+
+    // Reusable band-split scratch (allocated off the audio thread in
+    // init()/reinit()); processBlock() indexes into it — never new/delete.
+    std::vector<float> scratch_;
 };

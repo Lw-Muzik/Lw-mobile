@@ -37,7 +37,7 @@ class _AssetLoaderState extends State<AssetLoader>
   late final AnimationController _shimmerController;
   bool _isNavigating = false;
   int _currentTextIndex = 0;
-  double _progress = 0.0;
+  final ValueNotifier<double> _progress = ValueNotifier(0.0);
   Timer? _progressTimer;
   Timer? _textTimer;
 
@@ -66,9 +66,10 @@ class _AssetLoaderState extends State<AssetLoader>
         controller: AnimationController(
           vsync: this,
           duration: _animationDuration,
-        )..addListener(() {
-            if (mounted && i == 0) setState(() {});
-          }),
+        ),
+        // No addListener→setState here: that rebuilt the ENTIRE loader subtree
+        // at 60fps. The ripple CustomPaint is now driven by a scoped
+        // AnimatedBuilder instead (see _buildAnimatedLogo).
       ),
     );
 
@@ -108,9 +109,9 @@ class _AssetLoaderState extends State<AssetLoader>
   void _startProgressAnimation() {
     _progressTimer = Timer.periodic(const Duration(milliseconds: 50), (timer) {
       if (mounted && !_isNavigating) {
-        setState(() {
-          _progress = math.min(1.0, _progress + 0.01);
-        });
+        // Update only the progress bar via ValueNotifier instead of setState-ing
+        // the whole loader subtree at 20Hz.
+        _progress.value = math.min(1.0, _progress.value + 0.01);
       } else {
         timer.cancel();
       }
@@ -248,6 +249,7 @@ class _AssetLoaderState extends State<AssetLoader>
   void dispose() {
     _progressTimer?.cancel();
     _textTimer?.cancel();
+    _progress.dispose();
     for (var ripple in _ripples) {
       ripple.controller.dispose();
     }
@@ -330,10 +332,16 @@ class _AssetLoaderState extends State<AssetLoader>
             },
           );
         }),
-        // Ripple effect
-        CustomPaint(
-          size: Size(size, size),
-          painter: RipplePainter(_ripples),
+        // Ripple effect — repaint only this layer as the ripples animate,
+        // instead of rebuilding the whole loader tree every frame.
+        AnimatedBuilder(
+          animation: Listenable.merge(
+            _ripples.map((r) => r.controller).toList(),
+          ),
+          builder: (context, _) => CustomPaint(
+            size: Size(size, size),
+            painter: RipplePainter(_ripples),
+          ),
         ),
         // Animated scale container with image
         AnimatedBuilder(
@@ -413,7 +421,9 @@ class _AssetLoaderState extends State<AssetLoader>
   }
 
   Widget _buildProgressBar(double width) {
-    return Column(
+    return ValueListenableBuilder<double>(
+      valueListenable: _progress,
+      builder: (context, progress, _) => Column(
       children: [
         Container(
           width: width,
@@ -426,7 +436,7 @@ class _AssetLoaderState extends State<AssetLoader>
             children: [
               AnimatedContainer(
                 duration: const Duration(milliseconds: 500),
-                width: width * _progress,
+                width: width * progress,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(1),
                   color: _accent.withValues(alpha:0.6),
@@ -459,7 +469,7 @@ class _AssetLoaderState extends State<AssetLoader>
         ),
         const SizedBox(height: 12),
         Text(
-          '${(_progress * 100).toInt()}%',
+          '${(progress * 100).toInt()}%',
           style: TextStyle(
             color: _accent.withValues(alpha:0.3),
             fontSize: 11,
@@ -468,6 +478,7 @@ class _AssetLoaderState extends State<AssetLoader>
           ),
         ),
       ],
+      ),
     );
   }
 

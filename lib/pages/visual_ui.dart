@@ -20,13 +20,19 @@ class VisualUI extends StatefulWidget {
 }
 
 class _VisualUIState extends State<VisualUI>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late AnimationController _controller;
   bool _isPanelOpen = false;
 
   // projectM state
   final ProjectMController _projectM = ProjectMController();
   bool _projectMInitialized = false;
+  // Guards the async init window: without these, backing out of the page
+  // mid-init left the native GL render loop running with no owner (dispose
+  // saw _projectMInitialized == false and skipped release), and a re-open
+  // then double-inited the renderer.
+  bool _projectMInitInFlight = false;
+  bool _projectMDisposed = false;
   String _presetName = '';
 
   static Map<String, _VisualPreset> get _visualizers => {
@@ -174,6 +180,7 @@ class _VisualUIState extends State<VisualUI>
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _controller = AnimationController(
       duration: const Duration(milliseconds: 300),
       vsync: this,
@@ -183,6 +190,25 @@ class _VisualUIState extends State<VisualUI>
     Visualizers.setSmoothing(ctrl.visualizerReactivity, ctrl.visualizerReactivity * 0.7);
     Visualizers.setGain(ctrl.visualizerBeatSensitivity);
     Visualizers.scaleVisualizer(true);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Pause projectM's native GL render loop while backgrounded — it renders
+    // into an off-screen surface otherwise and pins the GPU with the screen off.
+    if (!_projectMInitialized) return;
+    switch (state) {
+      case AppLifecycleState.paused:
+      case AppLifecycleState.hidden:
+      case AppLifecycleState.detached:
+        if (_projectM.isRunning) _projectM.stop();
+        break;
+      case AppLifecycleState.resumed:
+        if (!_projectM.isRunning) _projectM.start();
+        break;
+      case AppLifecycleState.inactive:
+        break;
+    }
   }
 
   @override
@@ -199,6 +225,10 @@ class _VisualUIState extends State<VisualUI>
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    // Mark disposed FIRST so an in-flight _initProjectM releases the renderer
+    // itself when its awaits complete (see the `abandoned` check there).
+    _projectMDisposed = true;
     _stopProjectM();
     _controller.dispose();
     super.dispose();
@@ -213,7 +243,8 @@ class _VisualUIState extends State<VisualUI>
   ];
 
   Future<void> _initProjectM() async {
-    if (_projectMInitialized) return;
+    if (_projectMInitialized || _projectMInitInFlight) return;
+    _projectMInitInFlight = true;
 
     final ctrl = context.read<AppController>();
     final size = MediaQuery.of(context).size;
@@ -245,35 +276,48 @@ class _VisualUIState extends State<VisualUI>
     h = h.clamp(64, fullH);
 
     final textureId = await _projectM.init(w, h);
-    if (textureId != null) {
-      await _projectM.setMeshSize(meshW, meshH);
-      await _projectM.setFps(ctrl.milkdropFps);
-      await _projectM.setBeatSensitivity(ctrl.milkdropBeatSensitivity);
-      await _projectM.setPresetDuration(ctrl.milkdropPresetDuration);
-      await _projectM.setPresetLocked(ctrl.milkdropPresetLocked);
-      await _projectM.start();
+    try {
+      if (textureId != null) {
+        await _projectM.setMeshSize(meshW, meshH);
+        await _projectM.setFps(ctrl.milkdropFps);
+        await _projectM.setBeatSensitivity(ctrl.milkdropBeatSensitivity);
+        await _projectM.setPresetDuration(ctrl.milkdropPresetDuration);
+        await _projectM.setPresetLocked(ctrl.milkdropPresetLocked);
+        await _projectM.start();
 
-      // Restore the last selected preset instead of using the default first one
-      String name;
-      final savedPreset = ctrl.milkdropPresetName;
-      if (savedPreset.isNotEmpty) {
-        final presets = await _projectM.listPresets();
-        final idx = presets.indexOf(savedPreset);
-        if (idx >= 0) {
-          name = await _projectM.loadPresetByIndex(idx);
+        // Restore the last selected preset instead of using the default first one
+        String name;
+        final savedPreset = ctrl.milkdropPresetName;
+        if (savedPreset.isNotEmpty) {
+          final presets = await _projectM.listPresets();
+          final idx = presets.indexOf(savedPreset);
+          if (idx >= 0) {
+            name = await _projectM.loadPresetByIndex(idx);
+          } else {
+            name = await _projectM.getCurrentPreset();
+          }
         } else {
           name = await _projectM.getCurrentPreset();
         }
-      } else {
-        name = await _projectM.getCurrentPreset();
-      }
 
-      if (mounted) {
+        // The page may have been disposed (or the style switched away) while
+        // we were awaiting — if so, tear the renderer down NOW; nobody else
+        // will, and the GL loop would otherwise run orphaned forever.
+        final abandoned = !mounted ||
+            _projectMDisposed ||
+            ctrl.visualizerStyle != 'milkdrop';
+        if (abandoned) {
+          await _projectM.release();
+          return;
+        }
+
         setState(() {
           _projectMInitialized = true;
           _presetName = name;
         });
       }
+    } finally {
+      _projectMInitInFlight = false;
     }
   }
 

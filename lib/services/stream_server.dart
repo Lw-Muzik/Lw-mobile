@@ -121,6 +121,10 @@ class StreamServerController extends ChangeNotifier {
     await _server?.close(force: true);
     _server = null;
     _pin = null;
+    // Drop the library snapshot (~0.5-1KB per song — several MB for large
+    // libraries) — it used to stay retained for the app's lifetime after
+    // sharing stopped. Re-queried on demand when the server starts again.
+    _library = [];
     notifyListeners();
   }
 

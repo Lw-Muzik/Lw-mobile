@@ -285,11 +285,27 @@ class CloudCacheService {
   }
 
   void updateFileMetadata(CloudProvider provider, CloudFile updated) {
+    updateFilesMetadata(provider, [updated]);
+  }
+
+  /// Batch metadata update: ONE decode + ONE encode of the whole stored list
+  /// for any number of updated files. The per-file variant made the metadata
+  /// preloader O(N²) — it re-decoded and re-wrote the entire library JSON for
+  /// every single extracted file.
+  void updateFilesMetadata(CloudProvider provider, List<CloudFile> updates) {
+    if (updates.isEmpty) return;
     final files = loadFileList(provider);
     if (files == null) return;
-    final idx = files.indexWhere((f) => f.fileId == updated.fileId);
-    if (idx == -1) return;
-    files[idx] = updated;
+    final byId = {for (final u in updates) u.fileId: u};
+    var changed = false;
+    for (var i = 0; i < files.length; i++) {
+      final u = byId[files[i].fileId];
+      if (u != null) {
+        files[i] = u;
+        changed = true;
+      }
+    }
+    if (!changed) return;
     final jsonList = files.map((f) => f.toJson()).toList();
     _prefs.setString(_listKey(provider), json.encode(jsonList));
   }

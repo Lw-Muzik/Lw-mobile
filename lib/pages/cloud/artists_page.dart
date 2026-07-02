@@ -90,6 +90,8 @@ class _ArtistsPageState extends State<ArtistsPage>
   Future<void> _loadPage() async {
     if (_loadingMore && !_loading) return;
 
+    // Shimmer drives both the full-grid skeleton and the load-more tiles.
+    _shimmerCtrl.repeat();
     setState(() {
       if (_page == 1) {
         _loading = true;
@@ -107,11 +109,13 @@ class _ArtistsPageState extends State<ArtistsPage>
 
     result.fold(
       (f) => setState(() {
+        _shimmerCtrl.stop();
         _loading = false;
         _loadingMore = false;
         if (_page == 1) _error = f.message;
       }),
       (artists) => setState(() {
+        _shimmerCtrl.stop();
         _loading = false;
         _loadingMore = false;
         if (artists.isEmpty) {

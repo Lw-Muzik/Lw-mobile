@@ -3,7 +3,7 @@ import 'dart:ui';
 import '/exports/exports.dart';
 import '../Helpers/index.dart';
 
-class ArtworkWidget extends StatelessWidget {
+class ArtworkWidget extends StatefulWidget {
   final String path;
   final String other;
   final int songId;
@@ -39,31 +39,73 @@ class ArtworkWidget extends StatelessWidget {
   });
 
   @override
+  State<ArtworkWidget> createState() => _ArtworkWidgetState();
+}
+
+class _ArtworkWidgetState extends State<ArtworkWidget> {
+  // Memoized: the old StatelessWidget recreated the savedImage() future on
+  // EVERY build (temp-dir lookup + file stat per rebuild, per tile). Now the
+  // future is built once and only refreshed when the artwork identity or
+  // required decode size actually changes.
+  Future<ImageProvider>? _imageFuture;
+  int? _decodeWidth;
+
+  int _computeDecodeWidth(BuildContext context) {
+    final dpr = MediaQuery.of(context).devicePixelRatio;
+    final w = widget.width.isFinite && widget.width > 0
+        ? widget.width
+        : MediaQuery.of(context).size.width;
+    // Physical pixels needed for crisp display, bounded so decoded bitmaps
+    // stay small (a full-res 3000px embedded cover is ~36MB RGBA).
+    return (w * dpr).round().clamp(64, 1600);
+  }
+
+  void _ensureFuture(BuildContext context) {
+    final decodeWidth = _computeDecodeWidth(context);
+    if (_imageFuture != null && decodeWidth == _decodeWidth) return;
+    _decodeWidth = decodeWidth;
+    _imageFuture = savedImage(
+      widget.path,
+      widget.songId,
+      type: widget.type,
+      other: widget.other,
+      quality: widget.quality,
+      decodeWidth: decodeWidth,
+    );
+  }
+
+  @override
+  void didUpdateWidget(covariant ArtworkWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.path != widget.path ||
+        oldWidget.songId != widget.songId ||
+        oldWidget.other != widget.other ||
+        oldWidget.type != widget.type) {
+      _imageFuture = null; // identity changed — rebuild the future lazily
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    _ensureFuture(context);
     return FutureBuilder<ImageProvider>(
-      future: savedImage(
-        path,
-        songId,
-        type: type,
-        other: other,
-        quality: quality,
-      ),
+      future: _imageFuture,
       builder: (context, imageSnap) {
         return Container(
-          margin: margin,
-          width: width,
-          height: height,
+          margin: widget.margin,
+          width: widget.width,
+          height: widget.height,
           decoration: BoxDecoration(
-            borderRadius: borderRadius ?? BorderRadius.circular(10),
+            borderRadius: widget.borderRadius ?? BorderRadius.circular(10),
             image: DecorationImage(
-              fit: fit,
-              colorFilter: colorFilter,
+              fit: widget.fit,
+              colorFilter: widget.colorFilter,
               image: imageSnap.hasData
                   ? imageSnap.data!
                   : const AssetImage("assets/audio.jpeg"),
             ),
           ),
-          child: child,
+          child: widget.child,
         );
       },
     );

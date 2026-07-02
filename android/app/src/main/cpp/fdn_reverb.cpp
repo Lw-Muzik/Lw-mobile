@@ -131,18 +131,9 @@ void FDNReverb::updateParams() {
 }
 
 void FDNReverb::process(float* left, float* right, int numFrames) {
-    // Enable flush-to-zero to prevent denormals in feedback paths.
-    // Without this, IIR filter tails decay into denormal range causing
-    // up to 100x CPU slowdown on ARM scalar FPU, leading to audio dropout.
-#if defined(__aarch64__)
-    uint64_t oldFpcr;
-    __asm__ __volatile__("mrs %0, fpcr" : "=r"(oldFpcr));
-    __asm__ __volatile__("msr fpcr, %0" : : "r"(oldFpcr | (1ULL << 24)));
-#elif defined(__arm__)
-    unsigned int oldFpscr;
-    __asm__ __volatile__("vmrs %0, fpscr" : "=r"(oldFpscr));
-    __asm__ __volatile__("vmsr fpscr, %0" : : "r"(oldFpscr | (1 << 24)));
-#endif
+    // Denormal (flush-to-zero) protection for these feedback paths is set once
+    // by RoomDSPEngine::process() (the sole caller) via its RAII DenormalGuard,
+    // covering the entire DSP chain — so no local FPCR toggling is needed here.
 
     // Per-sample parameter smoothing rate
     constexpr float smoothRate = 0.001f;
@@ -195,11 +186,4 @@ void FDNReverb::process(float* left, float* right, int numFrames) {
         left[i]  = std::clamp(outSampleL, -4.0f, 4.0f);
         right[i] = std::clamp(outSampleR, -4.0f, 4.0f);
     }
-
-    // Restore flush-to-zero state
-#if defined(__aarch64__)
-    __asm__ __volatile__("msr fpcr, %0" : : "r"(oldFpcr));
-#elif defined(__arm__)
-    __asm__ __volatile__("vmsr fpscr, %0" : : "r"(oldFpscr));
-#endif
 }

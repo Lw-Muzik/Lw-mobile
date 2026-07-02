@@ -69,6 +69,8 @@ class _PopularPageState extends State<PopularPage>
 
   Future<void> _loadPage() async {
     if (_loadingMore) return;
+    // Shimmer drives both the full-page skeleton and the load-more skeleton.
+    _shimmerCtrl.repeat();
     setState(() {
       if (_songs.isEmpty) _loading = true;
       _loadingMore = true;
@@ -83,6 +85,7 @@ class _PopularPageState extends State<PopularPage>
         _loading = false;
         _loadingMore = false;
         _error = f.message;
+        _shimmerCtrl.stop();
       }),
       (songs) => setState(() {
         _loading = false;
@@ -90,6 +93,7 @@ class _PopularPageState extends State<PopularPage>
         _songs.addAll(songs);
         _hasMore = songs.length >= 50;
         _offset += 55;
+        _shimmerCtrl.stop();
       }),
     );
   }

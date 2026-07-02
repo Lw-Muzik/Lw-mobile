@@ -116,11 +116,31 @@ class StreamingDataGuard {
     return null;
   }
 
+  int _pendingUsageBytes = 0;
+  Timer? _usagePersistTimer;
+
   /// Record bytes downloaded on cellular.
+  /// Called per HTTP chunk (~4-64KB) during cellular caching — persisting on
+  /// every call meant hundreds of prefs commits per track. The in-memory
+  /// session counter updates immediately (limit checks stay accurate); only
+  /// the lifetime-total disk write is coalesced to one commit per 5s.
   void recordCellularUsage(int bytes) {
     if (!isCellular || bytes <= 0) return;
     _cellularBytesUsed += bytes;
-    _prefs.setInt('totalCellularBytes', totalCellularBytes + bytes);
+    _pendingUsageBytes += bytes;
+    _usagePersistTimer ??= Timer(const Duration(seconds: 5), flushPendingUsage);
+  }
+
+  /// Flush the debounced usage total to disk (also called on app background).
+  void flushPendingUsage() {
+    _usagePersistTimer?.cancel();
+    _usagePersistTimer = null;
+    if (_pendingUsageBytes == 0) return;
+    _prefs.setInt(
+      'totalCellularBytes',
+      totalCellularBytes + _pendingUsageBytes,
+    );
+    _pendingUsageBytes = 0;
   }
 
   /// Whether we should prefetch the next track.

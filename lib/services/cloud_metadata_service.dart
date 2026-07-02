@@ -50,25 +50,42 @@ class CloudMetadataService {
 
     final tempDir = await getTemporaryDirectory();
 
+    // Snapshot every existing `.done` marker with ONE async directory scan
+    // instead of thousands of synchronous existsSync() calls on the UI isolate
+    // (which stalled startup / cloud-view open proportional to library size).
+    final Set<String> doneMarkers = {};
+    try {
+      await for (final entity in tempDir.list(followLinks: false)) {
+        final name = entity.path.split('/').last;
+        if (name.startsWith('cloud_meta_') && name.endsWith('.done')) {
+          doneMarkers.add(name);
+        }
+      }
+    } catch (_) {
+      // Temp dir missing/unreadable — treat as no markers.
+    }
+
+    String markerName(CloudFile f) =>
+        'cloud_meta_${f.fileId.hashCode.abs()}.done';
+
     // Invalidate stale markers: if a file has a .done marker but still
     // has no metadata, it was marked by the old id3tag extractor which
     // couldn't read M4A/FLAC/OGG. Delete the marker to allow retry.
     for (final file in files) {
       if (file.trackTitle != null) continue; // already has metadata
-      final songId = file.fileId.hashCode.abs();
-      final markerPath = '${tempDir.path}/cloud_meta_$songId.done';
-      final marker = File(markerPath);
-      if (marker.existsSync()) {
-        marker.deleteSync();
+      final name = markerName(file);
+      if (doneMarkers.contains(name)) {
+        try {
+          await File('${tempDir.path}/$name').delete();
+        } catch (_) {}
+        doneMarkers.remove(name);
       }
     }
 
-    // Filter to files that haven't been extracted yet.
+    // Filter to files that haven't been extracted yet (in-memory set lookup).
     final pending = <CloudFile>[];
     for (final file in files) {
-      final songId = file.fileId.hashCode.abs();
-      final markerPath = '${tempDir.path}/cloud_meta_$songId.done';
-      if (!File(markerPath).existsSync()) {
+      if (!doneMarkers.contains(markerName(file))) {
         pending.add(file);
       }
     }
@@ -87,18 +104,34 @@ class CloudMetadataService {
       name: 'CloudMeta',
     );
 
+    // Accumulate extracted metadata and flush in batches: writing per file
+    // meant decoding + re-encoding the ENTIRE stored file list once per file
+    // (O(N²) churn on the UI isolate for large libraries).
+    final pendingUpdates = <CloudFile>[];
+    void flushUpdates() {
+      if (pendingUpdates.isEmpty) return;
+      _cache.updateFilesMetadata(provider, List.of(pendingUpdates));
+      pendingUpdates.clear();
+    }
+
     // Process in batches of _maxConcurrent.
     for (int i = 0; i < pending.length; i += _maxConcurrent) {
-      // Check if this run was superseded or cancelled.
-      if (!_isRunActive(provider, runId)) return;
+      // Check if this run was superseded or cancelled — keep what we have.
+      if (!_isRunActive(provider, runId)) {
+        flushUpdates();
+        return;
+      }
 
       final end = (i + _maxConcurrent).clamp(0, pending.length);
       final batch = pending.sublist(i, end);
 
-      await Future.wait(
+      final results = await Future.wait(
         batch.map((file) => _extractSingle(file, tempDir, provider, runId)),
       );
+      pendingUpdates.addAll(results.whereType<CloudFile>());
+      if (pendingUpdates.length >= 30) flushUpdates();
     }
+    flushUpdates();
 
     dev.log('Metadata preload complete (${provider.name})', name: 'CloudMeta');
   }
@@ -109,7 +142,10 @@ class CloudMetadataService {
         : runId == _dropboxRunId;
   }
 
-  Future<void> _extractSingle(
+  /// Extracts metadata for one file. Returns the updated [CloudFile] when new
+  /// tags were found (the caller batches these into a single cache write), or
+  /// null when nothing needs persisting.
+  Future<CloudFile?> _extractSingle(
     CloudFile file,
     Directory tempDir,
     CloudProvider provider,
@@ -120,7 +156,7 @@ class CloudMetadataService {
     final metaCachePath = '${tempDir.path}/cloud_meta_$songId.done';
 
     // Double-check marker (could have been created by concurrent run).
-    if (File(metaCachePath).existsSync()) return;
+    if (await File(metaCachePath).exists()) return null;
 
     try {
       // Resolve stream URL.
@@ -130,10 +166,10 @@ class CloudMetadataService {
       } else {
         streamUrl = await _dropbox.getTemporaryLink(file.fileId);
       }
-      if (streamUrl == null) return;
+      if (streamUrl == null) return null;
 
       // Check cancellation before network call.
-      if (!_isRunActive(provider, runId)) return;
+      if (!_isRunActive(provider, runId)) return null;
 
       // Build headers (Google Drive needs auth; Dropbox temp links don't).
       final headers = <String, String>{};
@@ -150,7 +186,7 @@ class CloudMetadataService {
         artworkPath: artPath,
       );
 
-      if (!_isRunActive(provider, runId)) return;
+      if (!_isRunActive(provider, runId)) return null;
 
       // null = extraction failed (timeout/error) — skip marker, retry later.
       if (metadata == null) {
@@ -158,17 +194,17 @@ class CloudMetadataService {
           'Metadata extraction failed for ${file.name} — will retry',
           name: 'CloudMeta',
         );
-        return;
+        return null;
       }
 
       // Write completion marker (extraction succeeded, even if no tags found).
       await File(metaCachePath).writeAsString('done');
 
-      // Persist extracted metadata to the cached file list.
+      // Return extracted metadata for batched persistence by the caller.
       if (metadata['title'] != null ||
           metadata['artist'] != null ||
           metadata['album'] != null) {
-        final updated = CloudFile(
+        return CloudFile(
           provider: file.provider,
           fileId: file.fileId,
           name: file.name,
@@ -182,13 +218,14 @@ class CloudMetadataService {
           albumName: metadata['album'] as String? ?? file.albumName,
           durationMs: metadata['durationMs'] as int? ?? file.durationMs,
         );
-        _cache.updateFileMetadata(provider, updated);
       }
+      return null;
     } catch (e) {
       dev.log(
         'Metadata extract failed for ${file.name}: $e',
         name: 'CloudMeta',
       );
+      return null;
     }
   }
 }

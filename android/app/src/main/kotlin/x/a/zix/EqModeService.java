@@ -6,6 +6,7 @@ import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Intent;
+import android.os.Build;
 import android.os.IBinder;
 import android.util.Log;
 
@@ -70,6 +71,11 @@ public class EqModeService extends Service {
     }
 
     private void createNotificationChannel() {
+        // NotificationChannel only exists on API 26+ (minSdk is 24). Referencing
+        // it on API 24/25 crashes with NoClassDefFoundError; pre-O foreground
+        // services don't need a channel.
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return;
+
         NotificationChannel channel = new NotificationChannel(
                 CHANNEL_ID,
                 "Equalizer Mode",

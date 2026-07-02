@@ -137,6 +137,10 @@ public:
     size_t getStemTotalFrames() const       { return stemMixer_.getTotalFrames(); }
 
 private:
+    // True if any stage upstream of the output limiter can raise the level
+    // enough to clip. Used to gate the limiter so an idle chain fully bypasses.
+    bool anyUpstreamBoost() const;
+
     // EQ
     ParametricEQ graphicEq_;
     ParametricEQ parametricEq_;

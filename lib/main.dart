@@ -1,6 +1,7 @@
 import '/controllers/drawer_controller.dart';
 
 import '/Helpers/AudioHandler.dart';
+import '/Helpers/AudioVisualizer.dart';
 import '/Routes/routes.dart';
 import '/Global/index.dart';
 import '/Themes/AppThemes.dart';
@@ -112,16 +113,71 @@ Future<void> main() async {
         projectId: AppConfig.wiredashProjectId,
         secret: AppConfig.wiredashSecret,
         options: const WiredashOptionsData(locale: Locale('en')),
-        child: MaterialApp(
-          debugShowCheckedModeBanner: false,
-          theme: AppThemes.fancyTheme,
-          initialRoute: Routes.loader,
-          routes: Routes.routes(),
-          builder: (context, child) {
-            return Stack(children: [child!, const DvcVolumeOverlay()]);
-          },
+        child: _AppLifecycleGate(
+          child: MaterialApp(
+            debugShowCheckedModeBanner: false,
+            theme: AppThemes.fancyTheme,
+            initialRoute: Routes.loader,
+            routes: Routes.routes(),
+            builder: (context, child) {
+              return Stack(children: [child!, const DvcVolumeOverlay()]);
+            },
+          ),
         ),
       ),
     ),
   );
+}
+
+/// Pauses background CPU/GPU/battery drain when the app is not in the
+/// foreground. Flutter already halts vsync-driven painters while backgrounded,
+/// but the native FFT/PCM tap (and any native GL loop) keep running unless we
+/// explicitly stop them — this observer does that centrally for the tap.
+/// projectM's GL loop is paused separately by the visualizer page itself.
+class _AppLifecycleGate extends StatefulWidget {
+  final Widget child;
+  const _AppLifecycleGate({required this.child});
+
+  @override
+  State<_AppLifecycleGate> createState() => _AppLifecycleGateState();
+}
+
+class _AppLifecycleGateState extends State<_AppLifecycleGate>
+    with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    switch (state) {
+      case AppLifecycleState.paused:
+      case AppLifecycleState.hidden:
+      case AppLifecycleState.detached:
+        // Silence the native FFT/PCM tap so it stops computing and pushing
+        // events into an invisible UI (a major screen-off heat/battery source).
+        Visualizers.suspend();
+        // Flush any debounced disk writes (e.g. play counts) before we risk
+        // being killed in the background. Null-safe: the provider creates the
+        // controller lazily, so a background event can fire before it exists.
+        AppController.instanceOrNull?.flushPendingWrites();
+        break;
+      case AppLifecycleState.resumed:
+        Visualizers.resume();
+        break;
+      case AppLifecycleState.inactive:
+        break;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }

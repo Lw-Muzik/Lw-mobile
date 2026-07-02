@@ -28,10 +28,14 @@ class _CloudViewState extends State<CloudView>
   @override
   void initState() {
     super.initState();
+    // Not started here: _loading starts false and this State is kept alive
+    // for the whole session (AutomaticKeepAliveClientMixin). The controller
+    // is started at the sites that set _loading = true and stopped when the
+    // load completes, so it never ticks while no skeleton is on screen.
     _shimmerController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1200),
-    )..repeat();
+    );
     _loadIfConnected();
   }
 
@@ -76,6 +80,7 @@ class _CloudViewState extends State<CloudView>
       setState(() => _refreshing = true);
     }
     if (!hasCached) {
+      _shimmerController.repeat();
       setState(() => _loading = true);
     }
     await _refreshFromApi();
@@ -87,6 +92,7 @@ class _CloudViewState extends State<CloudView>
       _refreshing = !_loading;
       _error = null;
     });
+    if (_loading) _shimmerController.repeat();
     await _refreshFromApi();
   }
 
@@ -125,6 +131,7 @@ class _CloudViewState extends State<CloudView>
     }
 
     if (mounted) {
+      _shimmerController.stop();
       setState(() {
         _loading = false;
         _refreshing = false;

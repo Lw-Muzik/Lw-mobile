@@ -40,14 +40,23 @@ class _PopularSectionState extends State<PopularSection>
   }
 
   Future<void> _load() async {
+    _shimmerCtrl.repeat();
     setState(() { _loading = true; _error = null; });
 
     final result = await _repo.fetchPopular();
     if (!mounted) return;
 
     result.fold(
-      (f) => setState(() { _loading = false; _error = f.message; }),
-      (songs) => setState(() { _loading = false; _songs = songs; }),
+      (f) => setState(() {
+        _loading = false;
+        _error = f.message;
+        _shimmerCtrl.stop();
+      }),
+      (songs) => setState(() {
+        _loading = false;
+        _songs = songs;
+        _shimmerCtrl.stop();
+      }),
     );
   }
 

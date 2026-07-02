@@ -39,6 +39,20 @@ public:
         for (int i = 0; i < FFT_SIZE; i++) {
             window_[i] = 0.5f * (1.0f - cosf(2.0f * (float)M_PI * i / (FFT_SIZE - 1)));
         }
+
+        // Pre-compute the real-FFT unpack twiddles (k = 1 .. HALF_FFT-1).
+        // FFT_SIZE is a compile-time constant, so these never change frame to
+        // frame. Same float expression as the original inline computation, so
+        // the FFT output stays bit-identical — just without ~1000 cosf/sinf
+        // calls per frame. Index 0 is unused (DC/Nyquist handled separately).
+        unpackCos_[0] = 1.0f;
+        unpackSin_[0] = 0.0f;
+        for (int k = 1; k < HALF_FFT; k++) {
+            float ang2 = -2.0f * (float)M_PI * k / FFT_SIZE;
+            unpackCos_[k] = cosf(ang2);
+            unpackSin_[k] = sinf(ang2);
+        }
+
         computeBandEdges();
 
         memset(ringBuf_, 0, sizeof(ringBuf_));
@@ -149,6 +163,11 @@ private:
     float fftOut_[FFT_SIZE];
     float magnitudes_[HALF_FFT + 1];
 
+    // Precomputed real-FFT unpack twiddles (cos/sin of -2*pi*k/FFT_SIZE),
+    // indices 1 .. HALF_FFT-1. Built once in the constructor.
+    float unpackCos_[HALF_FFT];
+    float unpackSin_[HALF_FFT];
+
     // Smoothed output bands (persisted across frames for attack/decay)
     float smoothBands_[NUM_BANDS];
 
@@ -171,8 +190,9 @@ private:
     }
 
     // ── Radix-2 real FFT via "pack two reals into one complex" ──
+    // Non-static so it can read the precomputed unpack twiddle tables.
 
-    static void realFFT(const float* input, float* output, int N) {
+    void realFFT(const float* input, float* output, int N) const {
         const int M = N / 2;
 
         // Pack: z[k] = input[2k] + j * input[2k+1]
@@ -224,8 +244,8 @@ private:
             float eIm =  0.5f * (z[2 * k + 1] - z[2 * mk + 1]);
             float oRe =  0.5f * (z[2 * k + 1] + z[2 * mk + 1]);
             float oIm = -0.5f * (z[2 * k]     - z[2 * mk]);
-            float ang2 = -2.0f * (float)M_PI * k / N;
-            float wR = cosf(ang2), wI = sinf(ang2);
+            // Precomputed twiddle (identical to -2*pi*k/FFT_SIZE; N == FFT_SIZE)
+            float wR = unpackCos_[k], wI = unpackSin_[k];
             float tRe = oRe * wR - oIm * wI;
             float tIm = oRe * wI + oIm * wR;
             output[2 * k]     = eRe + tRe;

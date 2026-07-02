@@ -75,6 +75,16 @@ public class VisualizerTapProcessor extends BaseAudioProcessor {
     }
 
     /**
+     * True when the in-pipeline PCM tap is capturing — either the FFT/Flutter
+     * visualizer path or the projectM tap. Used to keep the legacy Android
+     * {@link android.media.audiofx.Visualizer} from running at the same time
+     * (single active capture path; the custom tap is primary).
+     */
+    public static boolean isCustomTapActive() {
+        return fftEnabled || tapEnabledGlobal;
+    }
+
+    /**
      * Called by just_audio's AudioPlayer.java via reflection.
      * Each ExoPlayer gets its own instance with independent buffer state.
      */
@@ -86,6 +96,17 @@ public class VisualizerTapProcessor extends BaseAudioProcessor {
     }
 
     private int sampleRate = 44100;
+
+    // Double-buffered PCM scratch (F7): eliminates the per-callback heap
+    // allocation and keeps the projectM reader thread-safe. Each callback fills
+    // the buffer the reader is NOT currently holding, so we never mutate an
+    // array that getLatestPcm() may have handed out. Per-instance (each player
+    // has its own audio thread), so no cross-instance contention.
+    private float[] pcmBufA;
+    private float[] pcmBufB;
+    private boolean pcmToggle = false;
+    // Reusable staging buffer for bulk PCM_16 -> float conversion (grow-only).
+    private short[] shortScratch;
 
     private VisualizerTapProcessor() {}
 
@@ -130,20 +151,37 @@ public class VisualizerTapProcessor extends BaseAudioProcessor {
         // If either tap (projectM) or FFT (Flutter visualizer) is enabled, extract PCM
         if (tapEnabledGlobal || fftEnabled) {
             int totalSamples = numFrames * 2; // stereo interleaved
-            float[] pcm = new float[totalSamples];
 
-            // Read from output buffer without disturbing its position
-            int savedPos = outputBuffer.position();
+            // Fill the buffer the projectM reader is NOT holding (double-buffer).
+            // Reallocate only when the frame count actually changes (rare, e.g.
+            // a format switch) — steady-state playback reuses the arrays with
+            // zero allocation on the audio thread. Exact sizing is required:
+            // projectM consumes the whole array by length, and the bulk
+            // FloatBuffer.get(array) reads exactly array.length samples.
+            float[] pcm = pcmToggle ? pcmBufA : pcmBufB;
+            if (pcm == null || pcm.length != totalSamples) {
+                pcm = new float[totalSamples];
+                if (pcmToggle) pcmBufA = pcm; else pcmBufB = pcm;
+            }
+
+            // Read a copy without disturbing the output buffer's position:
+            // asShortBuffer()/asFloatBuffer() views start at the current
+            // position and never advance the parent buffer.
             outputBuffer.order(ByteOrder.nativeOrder());
 
             if (encoding == C.ENCODING_PCM_FLOAT) {
                 outputBuffer.asFloatBuffer().get(pcm);
             } else {
-                // PCM_16BIT → float conversion
-                for (int i = 0; i < totalSamples; i++) {
-                    pcm[i] = outputBuffer.getShort() / 32768.0f;
+                // Bulk PCM_16BIT → float. Identical scaling to the previous
+                // per-sample getShort() / 32768.0f, but with one bulk copy
+                // instead of N bounds-checked ByteBuffer.getShort() calls.
+                if (shortScratch == null || shortScratch.length < totalSamples) {
+                    shortScratch = new short[totalSamples];
                 }
-                outputBuffer.position(savedPos);
+                outputBuffer.asShortBuffer().get(shortScratch, 0, totalSamples);
+                for (int i = 0; i < totalSamples; i++) {
+                    pcm[i] = shortScratch[i] / 32768.0f;
+                }
             }
 
             // ProjectM tap
@@ -151,21 +189,40 @@ public class VisualizerTapProcessor extends BaseAudioProcessor {
                 latestPcm.set(pcm);
             }
 
-            // Push to C++ FFT ring buffer
+            // Push to C++ FFT ring buffer (synchronous copy — length-agnostic)
             if (fftEnabled) {
                 nativePushSamples(pcm, numFrames);
             }
+
+            // Flip so the next callback writes the other buffer, giving any
+            // reader a full callback period before this array is reused.
+            pcmToggle = !pcmToggle;
         }
     }
 
     @Override
     protected void onFlush() {
-        // Nothing to flush — we don't modify audio
+        // Re-register if a prior onReset() removed this instance mid-life
+        // (media3 can reset a still-live processor during setAudioSource
+        // reconfiguration). CopyOnWriteArrayList makes contains()/add() safe.
+        if (!playerInstances.contains(this)) {
+            playerInstances.add(this);
+        }
     }
 
     @Override
     protected void onReset() {
-        // Don't clear latestPcm — it's shared static state
+        // Prune this instance so the static list doesn't grow unbounded across
+        // crossfade/stop-start cycles (just_audio disposes and recreates the
+        // platform player, which reset()s each processor). onFlush() re-adds
+        // it if media3 flushes this same instance again (mid-life reset).
+        playerInstances.remove(this);
+        // Release the per-instance PCM scratch buffers; queueInput reallocates
+        // them on demand (guarded by a null/length check) if this instance is
+        // ever reused. Don't clear latestPcm — it's shared static state.
+        pcmBufA = null;
+        pcmBufB = null;
+        shortScratch = null;
     }
 
     // ---- ProjectM API (existing) ----
@@ -249,6 +306,15 @@ public class VisualizerTapProcessor extends BaseAudioProcessor {
 
     private static void startFftVizThread() {
         if (vizThread != null) return;
+        // The custom in-pipeline tap is primary: stop the legacy Android
+        // Visualizer if it's running so only one PCM capture path is active.
+        try {
+            AudioVisualizer legacy = AudioVisualizer.getInstance();
+            if (legacy.isActive()) {
+                legacy.deactivate();
+                Log.i(TAG, "Deactivated legacy Visualizer — custom FFT tap is primary");
+            }
+        } catch (Exception ignored) {}
         fftEnabled = true;
         nativeInitFFT();
 
@@ -288,9 +354,22 @@ public class VisualizerTapProcessor extends BaseAudioProcessor {
     }
 
     private static void stopFftVizThread() {
+        // Order matters (teardown race, use-after-free):
+        //  1. Clear fftEnabled FIRST so the audio thread stops calling
+        //     nativePushSamples and the viz tick stops after its current pass.
+        //  2. Wait for any in-flight viz tick (which may be inside
+        //     nativeComputeBands / nativeGetWaveform) to finish before
+        //     nativeDestroyFFT() frees the native FFT object. The C++ side
+        //     also guards g_fftViz with a mutex to close the audio-thread
+        //     window, but draining the viz executor here avoids the wait.
         fftEnabled = false;
         if (vizThread != null) {
             vizThread.shutdown();
+            try {
+                vizThread.awaitTermination(500, TimeUnit.MILLISECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
             vizThread = null;
         }
         nativeDestroyFFT();

@@ -49,6 +49,7 @@ class _ArtistDetailPageState extends State<ArtistDetailPage>
   }
 
   Future<void> _load() async {
+    _shimmerCtrl.repeat();
     setState(() {
       _loading = true;
       _error = null;
@@ -60,10 +61,12 @@ class _ArtistDetailPageState extends State<ArtistDetailPage>
       (f) => setState(() {
         _loading = false;
         _error = f.message;
+        _shimmerCtrl.stop();
       }),
       (artist) => setState(() {
         _loading = false;
         _artist = artist;
+        _shimmerCtrl.stop();
       }),
     );
   }

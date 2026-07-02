@@ -571,6 +571,13 @@ import AVFoundation
         case "projectm_init":
             let w = args?["width"] as? Int ?? 720
             let h = args?["height"] as? Int ?? 480
+            // Idempotent: release any existing renderer before creating a new
+            // one. Without this, re-opening the visualizer (or reopening with a
+            // new size) overwrote projectMRenderer, leaking the prior EAGL
+            // context, FBOs/renderbuffers, CVPixelBuffers and the registered
+            // Flutter texture.
+            projectMRenderer?.release()
+            projectMRenderer = nil
             if let controller = window?.rootViewController as? FlutterViewController {
                 let renderer = ProjectMRenderer()
                 let texId = renderer.initialize(

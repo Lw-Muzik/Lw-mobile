@@ -41,14 +41,23 @@ class _Hot100PageState extends State<Hot100Page>
   }
 
   Future<void> _loadChart() async {
+    _shimmerCtrl.repeat();
     setState(() { _loading = true; _error = null; });
 
     final result = await _repo.fetchChart();
     if (!mounted) return;
 
     result.fold(
-      (failure) => setState(() { _loading = false; _error = failure.message; }),
-      (songs) => setState(() { _loading = false; _songs = songs; }),
+      (failure) => setState(() {
+        _loading = false;
+        _error = failure.message;
+        _shimmerCtrl.stop();
+      }),
+      (songs) => setState(() {
+        _loading = false;
+        _songs = songs;
+        _shimmerCtrl.stop();
+      }),
     );
   }
 

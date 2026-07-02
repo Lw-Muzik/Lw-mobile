@@ -9,8 +9,20 @@ import '../apis/index.dart';
 import '../models/lyrics_model.dart';
 
 class LyricsService {
-  /// In-memory cache keyed by song ID.
+  /// In-memory cache keyed by song ID. LRU-bounded: lyrics auto-load on every
+  /// track change, so an unbounded map used to accumulate an entry per unique
+  /// track played (several MB over a long shuffle session). Evicted entries
+  /// reload cheaply from .lrc/ID3/API.
+  static const int _cacheCap = 50;
   final Map<int, LyricsData> _cache = {};
+
+  void _cachePut(int id, LyricsData data) {
+    _cache.remove(id); // refresh position (Dart maps keep insertion order)
+    _cache[id] = data;
+    while (_cache.length > _cacheCap) {
+      _cache.remove(_cache.keys.first);
+    }
+  }
 
   /// Resolves lyrics using the priority chain:
   /// 1. .lrc sidecar file
@@ -18,8 +30,12 @@ class LyricsService {
   /// 3. ID3 USLT tag (native mp3agic fallback)
   /// 4. API fetch
   Future<LyricsData?> loadLyrics(SongModel song) async {
-    // Check cache first
-    if (_cache.containsKey(song.id)) return _cache[song.id];
+    // Check cache first (refresh LRU position on hit)
+    final hit = _cache.remove(song.id);
+    if (hit != null) {
+      _cache[song.id] = hit;
+      return hit;
+    }
 
     LyricsData? result;
 
@@ -41,7 +57,7 @@ class LyricsService {
     result ??= await _loadFromApi(song, isLocalFile);
 
     if (result != null) {
-      _cache[song.id] = result;
+      _cachePut(song.id, result);
     }
     return result;
   }
@@ -149,7 +165,7 @@ class LyricsService {
       final lrcPath = _lrcPathFor(song.data);
       final file = File(lrcPath);
       await file.writeAsString(encodeLrc(lyrics));
-      _cache[song.id] = lyrics;
+      _cachePut(song.id, lyrics);
       return true;
     } catch (e) {
       debugPrint('LyricsService: error saving .lrc file: $e');

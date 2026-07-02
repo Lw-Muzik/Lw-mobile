@@ -11,8 +11,27 @@ class Visualizers {
     );
   }
 
+  /// Tracks the user's last requested tap state so [resume] can restore it
+  /// after the app is backgrounded (and [suspend] silenced the tap).
+  static bool _visualDesired = false;
+
   static void enableVisual(bool enable) {
+    _visualDesired = enable;
     Channel.channel.invokeMethod("enableVisual", {"enableVisual": enable});
+  }
+
+  /// Silence the native FFT/PCM tap without changing the user's desired state.
+  /// Called when the app is backgrounded to stop the tap from computing and
+  /// pushing events (CPU + battery drain) while nothing is visible.
+  static void suspend() {
+    Channel.channel.invokeMethod("enableVisual", {"enableVisual": false});
+  }
+
+  /// Restore the tap to the user's last desired state when the app resumes.
+  static void resume() {
+    if (_visualDesired) {
+      Channel.channel.invokeMethod("enableVisual", {"enableVisual": true});
+    }
   }
 
   static void scaleVisualizer(bool scale) async {
@@ -57,25 +76,52 @@ class AudioVisualizer {
   dynamic _bandsSub;
   dynamic _waveSub;
 
+  // A MethodChannel has exactly ONE inbound handler. The old design set the
+  // handler per-instance in the constructor, so each new AudioVisualizer
+  // (Body background + player visual both create one) stomped the previous
+  // one's — on iOS only the last-constructed instance received data, a
+  // disposed instance stayed retained by the channel, and its dispose killed
+  // the native tap for everyone. Now: one static handler installed once,
+  // dispatching to a registry of live instances; the native iOS tap is
+  // ref-counted so it turns off only when the last instance deactivates.
+  static final Set<AudioVisualizer> _instances = {};
+  static bool _sharedHandlerInstalled = false;
+  static int _iosTapUsers = 0;
+  bool _iosActive = false;
+
   AudioVisualizer({
     required this.channel,
   }) {
-    // iOS: keep the existing MethodChannel callbacks
+    _instances.add(this);
+    _ensureSharedHandler(channel);
+  }
+
+  static void _ensureSharedHandler(MethodChannel channel) {
+    if (_sharedHandlerInstalled) return;
+    _sharedHandlerInstalled = true;
+    // The closure captures only statics — never an instance — so disposed
+    // visualizers are not retained by the channel.
     channel.setMethodCallHandler((MethodCall call) async {
       switch (call.method) {
         case 'onFftVisualization':
           final raw = call.arguments['fft'];
-          final List<int> samples = raw is List<int> ? raw : List<int>.from(raw);
-          for (Function callback in _fftCallbacks) {
-            callback(samples);
+          final List<int> samples =
+              raw is List<int> ? raw : List<int>.from(raw);
+          for (final v in List<AudioVisualizer>.of(_instances)) {
+            for (final callback in v._fftCallbacks) {
+              callback(samples);
+            }
           }
           break;
         case 'onWaveformVisualization':
           final raw = call.arguments['waveform'];
-          final List<int> samples = raw is List<int> ? raw : List<int>.from(raw);
+          final List<int> samples =
+              raw is List<int> ? raw : List<int>.from(raw);
           final int sampleRate = call.arguments['sampleRate'] as int;
-          for (Function callback in _waveformCallbacks) {
-            callback(samples, sampleRate);
+          for (final v in List<AudioVisualizer>.of(_instances)) {
+            for (final callback in v._waveformCallbacks) {
+              callback(samples, sampleRate);
+            }
           }
           break;
         default:
@@ -89,6 +135,9 @@ class AudioVisualizer {
       // Android: start C++ FFT pipeline via EventChannel subscription
       _bandsSub = _fftBandsChannel.receiveBroadcastStream().listen((data) {
         if (data == null) return;
+        // No one is listening (e.g. an orphaned/idle instance) — skip all
+        // deserialization and allocation work this frame.
+        if (_bandsCallbacks.isEmpty && _fftCallbacks.isEmpty) return;
         final Float32List bands;
         if (data is Float32List) {
           bands = data;
@@ -100,18 +149,22 @@ class AudioVisualizer {
         for (final cb in _bandsCallbacks) {
           cb(bands);
         }
-        // Also convert to List<int> for legacy FFT painters
-        // Map float [0.0-1.0] to int [0-255] for compatibility
-        final legacyFft = List<int>.generate(
-          bands.length * 2,
-          (i) => i.isEven ? (bands[i ~/ 2] * 255).round().clamp(0, 255) : 0,
-        );
-        for (final cb in _fftCallbacks) {
-          cb(legacyFft);
+        // Only build the legacy int representation when a legacy painter needs
+        // it — this allocation used to run every frame regardless.
+        if (_fftCallbacks.isNotEmpty) {
+          // Map float [0.0-1.0] to int [0-255] for compatibility
+          final legacyFft = List<int>.generate(
+            bands.length * 2,
+            (i) => i.isEven ? (bands[i ~/ 2] * 255).round().clamp(0, 255) : 0,
+          );
+          for (final cb in _fftCallbacks) {
+            cb(legacyFft);
+          }
         }
       });
       _waveSub = _waveformChannel.receiveBroadcastStream().listen((data) {
         if (data == null) return;
+        if (_waveformCallbacks.isEmpty) return;
         final List<int> waveform;
         if (data is Uint8List) {
           waveform = data.toList();
@@ -129,8 +182,15 @@ class AudioVisualizer {
         }
       });
     } else {
-      // iOS: use existing Visualizer API via MethodChannel
-      channel.invokeMethod('activate_visualizer', {"sessionID": sessionID});
+      // iOS: ref-counted — the native MTAudioProcessingTap is activated by
+      // the first live instance only, so co-mounted visualizers share it.
+      if (!_iosActive) {
+        _iosActive = true;
+        _iosTapUsers++;
+        if (_iosTapUsers == 1) {
+          channel.invokeMethod('activate_visualizer', {"sessionID": sessionID});
+        }
+      }
     }
   }
 
@@ -141,12 +201,22 @@ class AudioVisualizer {
       _waveSub?.cancel();
       _waveSub = null;
     } else {
-      channel.invokeMethod('deactivate_visualizer');
+      // Only the LAST instance out turns the native tap off — one widget's
+      // dispose no longer kills the tap for other live visualizers.
+      if (_iosActive) {
+        _iosActive = false;
+        _iosTapUsers--;
+        if (_iosTapUsers <= 0) {
+          _iosTapUsers = 0;
+          channel.invokeMethod('deactivate_visualizer');
+        }
+      }
     }
   }
 
   void dispose() {
     deactivate();
+    _instances.remove(this);
     _fftCallbacks.clear();
     _waveformCallbacks.clear();
     _bandsCallbacks.clear();

@@ -105,6 +105,10 @@ Future<void> fetchArtwork(
   // }
 }
 
+/// Decode-size-aware artwork provider. [decodeWidth] is the physical pixel
+/// width the image will be shown at; embedded covers can be 1500-3000px
+/// (~36MB RGBA decoded), so decoding at display size is the difference
+/// between a 100KB and a 30MB bitmap for a list tile.
 Future<ImageProvider<Object>> savedImage(
   String path,
   int id, {
@@ -112,9 +116,20 @@ Future<ImageProvider<Object>> savedImage(
   String other = "",
   int quality = 70,
   int size = 200,
+  int? decodeWidth,
 }) async {
   String tempPath = "";
   String imagePath = "";
+
+  ImageProvider fileProvider(String p) {
+    final base = FileImage(File(p));
+    if (decodeWidth == null) return base;
+    return ResizeImage(
+      base,
+      width: decodeWidth,
+      policy: ResizeImagePolicy.fit,
+    );
+  }
 
   var tempDir = await getTemporaryDirectory();
   tempPath = tempDir.path;
@@ -122,8 +137,8 @@ Future<ImageProvider<Object>> savedImage(
   // Cloud files: use stable cloud_art_{id}.png naming
   if (path.startsWith('http')) {
     imagePath = "$tempPath/cloud_art_$id.png";
-    return File(imagePath).existsSync()
-        ? FileImage(File(imagePath))
+    return await File(imagePath).exists()
+        ? fileProvider(imagePath)
         : const AssetImage("assets/audio.jpeg") as ImageProvider;
   }
 
@@ -149,10 +164,8 @@ Future<ImageProvider<Object>> savedImage(
   } else {
     imagePath = getArtworkImagePath();
   }
-  // log(File(imagePath).existsSync().toString());
-  Future.delayed(const Duration(seconds: 1));
-  return File(imagePath).existsSync()
-      ? FileImage(File(imagePath))
+  return await File(imagePath).exists()
+      ? fileProvider(imagePath)
       : const AssetImage("assets/audio.jpeg") as ImageProvider;
 }
 

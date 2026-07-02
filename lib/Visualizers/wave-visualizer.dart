@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
@@ -51,13 +52,53 @@ class _WaveVisualizerState extends State<WaveVisualizer>
   double get _attackRate => widget.reactivity;
   double get _decayRate => widget.reactivity * 0.7;
 
+  // Auto-idle: the 60fps render loop runs only while fresh audio frames are
+  // arriving. When playback pauses/stops the frames stop, this timer fires,
+  // and we halt the controller so the painters no longer repaint. (Previously
+  // the loop ran forever — repainting a paused/silent track every frame, a
+  // major CPU/GPU/heat drain.) Route-visibility is handled separately by
+  // Flutter's TickerMode, which mutes this vsync ticker when off-screen.
+  Timer? _idleTimer;
+  bool _running = false;
+  static const Duration _idleTimeout = Duration(milliseconds: 400);
+
   @override
   void initState() {
     super.initState();
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1200),
-    )..repeat();
+    );
+    _markActive();
+  }
+
+  /// New audio activity — ensure the loop is running and reset the idle timer.
+  void _markActive() {
+    if (!_running) {
+      _running = true;
+      _controller.repeat();
+    }
+    _idleTimer?.cancel();
+    _idleTimer = Timer(_idleTimeout, _goIdle);
+  }
+
+  /// No fresh frames for [_idleTimeout] — freeze the loop until data resumes.
+  void _goIdle() {
+    if (_running && mounted) {
+      _running = false;
+      _controller.stop();
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant WaveVisualizer oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // The parent hands us fresh list instances when new FFT/waveform data
+    // arrives; identical references mean nothing new to draw.
+    if (!identical(oldWidget.audioData, widget.audioData) ||
+        !identical(oldWidget.fftData, widget.fftData)) {
+      _markActive();
+    }
   }
 
   /// Detect iOS FFT format: all odd-index bytes are 0 (imaginary = 0).
@@ -74,6 +115,7 @@ class _WaveVisualizerState extends State<WaveVisualizer>
 
   @override
   void dispose() {
+    _idleTimer?.cancel();
     _controller.dispose();
     super.dispose();
   }

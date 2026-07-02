@@ -190,121 +190,140 @@ public class StemSeparationService extends Service {
      * Returns metadata (sampleRate, numFrames) or null on failure.
      */
     private DecodedInfo decodeToFile(String filePath, File outputFile) throws Exception {
-        MediaExtractor extractor = new MediaExtractor();
-        extractor.setDataSource(filePath);
+        // Hold all three device-scarce resources so the finally block releases
+        // them on EVERY path — a mid-decode exception must not leak a
+        // MediaCodec, MediaExtractor or FileOutputStream. Modelled on
+        // FingerprintEngine.decode()'s finally block.
+        MediaExtractor extractor = null;
+        MediaCodec codec = null;
+        FileOutputStream fos = null;
+        try {
+            extractor = new MediaExtractor();
+            extractor.setDataSource(filePath);
 
-        int audioTrack = -1;
-        MediaFormat format = null;
-        for (int i = 0; i < extractor.getTrackCount(); i++) {
-            MediaFormat f = extractor.getTrackFormat(i);
-            String mime = f.getString(MediaFormat.KEY_MIME);
-            if (mime != null && mime.startsWith("audio/")) {
-                audioTrack = i;
-                format = f;
-                break;
-            }
-        }
-
-        if (audioTrack < 0 || format == null) {
-            extractor.release();
-            return null;
-        }
-
-        extractor.selectTrack(audioTrack);
-        int sampleRate = format.getInteger(MediaFormat.KEY_SAMPLE_RATE);
-        int channels = format.getInteger(MediaFormat.KEY_CHANNEL_COUNT);
-
-        String mime = format.getString(MediaFormat.KEY_MIME);
-        MediaCodec codec = MediaCodec.createDecoderByType(mime);
-        codec.configure(format, null, null, 0);
-        codec.start();
-
-        FileOutputStream fos = new FileOutputStream(outputFile);
-        // Small reusable buffer for float conversion — only a few KB in Java heap
-        ByteBuffer writeBuf = ByteBuffer.allocate(8192).order(ByteOrder.LITTLE_ENDIAN);
-
-        int totalSamples = 0;  // total float samples written (interleaved)
-        MediaCodec.BufferInfo info = new MediaCodec.BufferInfo();
-        boolean inputDone = false;
-        boolean outputDone = false;
-
-        while (!outputDone && !cancelled.get()) {
-            // Feed input
-            if (!inputDone) {
-                int inputIdx = codec.dequeueInputBuffer(10_000);
-                if (inputIdx >= 0) {
-                    ByteBuffer inputBuf = codec.getInputBuffer(inputIdx);
-                    int read = extractor.readSampleData(inputBuf, 0);
-                    if (read < 0) {
-                        codec.queueInputBuffer(inputIdx, 0, 0, 0,
-                                MediaCodec.BUFFER_FLAG_END_OF_STREAM);
-                        inputDone = true;
-                    } else {
-                        codec.queueInputBuffer(inputIdx, 0, read,
-                                extractor.getSampleTime(), 0);
-                        extractor.advance();
-                    }
+            int audioTrack = -1;
+            MediaFormat format = null;
+            for (int i = 0; i < extractor.getTrackCount(); i++) {
+                MediaFormat f = extractor.getTrackFormat(i);
+                String mime = f.getString(MediaFormat.KEY_MIME);
+                if (mime != null && mime.startsWith("audio/")) {
+                    audioTrack = i;
+                    format = f;
+                    break;
                 }
             }
 
-            // Read output and stream to file
-            int outputIdx = codec.dequeueOutputBuffer(info, 10_000);
-            if (outputIdx >= 0) {
-                if ((info.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) {
-                    outputDone = true;
-                }
+            if (audioTrack < 0 || format == null) {
+                return null;
+            }
 
-                ByteBuffer outputBuf = codec.getOutputBuffer(outputIdx);
-                if (outputBuf != null && info.size > 0) {
-                    outputBuf.order(ByteOrder.LITTLE_ENDIAN);
-                    int shortCount = info.size / 2;
+            extractor.selectTrack(audioTrack);
+            int sampleRate = format.getInteger(MediaFormat.KEY_SAMPLE_RATE);
+            int channels = format.getInteger(MediaFormat.KEY_CHANNEL_COUNT);
 
-                    if (channels == 1) {
-                        // Mono → stereo: duplicate each sample
-                        for (int i = 0; i < shortCount; i++) {
-                            float sample = outputBuf.getShort() / 32768.0f;
-                            writeBuf.putFloat(sample);
-                            writeBuf.putFloat(sample);
-                            totalSamples += 2;
-                            if (!writeBuf.hasRemaining()) {
-                                fos.write(writeBuf.array(), 0, writeBuf.position());
-                                writeBuf.clear();
-                            }
-                        }
-                    } else {
-                        // Stereo: convert 16-bit to float and write
-                        for (int i = 0; i < shortCount; i++) {
-                            float sample = outputBuf.getShort() / 32768.0f;
-                            writeBuf.putFloat(sample);
-                            totalSamples++;
-                            if (!writeBuf.hasRemaining()) {
-                                fos.write(writeBuf.array(), 0, writeBuf.position());
-                                writeBuf.clear();
-                            }
+            String mime = format.getString(MediaFormat.KEY_MIME);
+            codec = MediaCodec.createDecoderByType(mime);
+            codec.configure(format, null, null, 0);
+            codec.start();
+
+            fos = new FileOutputStream(outputFile);
+            // Small reusable buffer for float conversion — only a few KB in Java heap
+            ByteBuffer writeBuf = ByteBuffer.allocate(8192).order(ByteOrder.LITTLE_ENDIAN);
+
+            int totalSamples = 0;  // total float samples written (interleaved)
+            MediaCodec.BufferInfo info = new MediaCodec.BufferInfo();
+            boolean inputDone = false;
+            boolean outputDone = false;
+
+            while (!outputDone && !cancelled.get()) {
+                // Feed input
+                if (!inputDone) {
+                    int inputIdx = codec.dequeueInputBuffer(10_000);
+                    if (inputIdx >= 0) {
+                        ByteBuffer inputBuf = codec.getInputBuffer(inputIdx);
+                        int read = extractor.readSampleData(inputBuf, 0);
+                        if (read < 0) {
+                            codec.queueInputBuffer(inputIdx, 0, 0, 0,
+                                    MediaCodec.BUFFER_FLAG_END_OF_STREAM);
+                            inputDone = true;
+                        } else {
+                            codec.queueInputBuffer(inputIdx, 0, read,
+                                    extractor.getSampleTime(), 0);
+                            extractor.advance();
                         }
                     }
                 }
-                codec.releaseOutputBuffer(outputIdx, false);
+
+                // Read output and stream to file
+                int outputIdx = codec.dequeueOutputBuffer(info, 10_000);
+                if (outputIdx >= 0) {
+                    if ((info.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) {
+                        outputDone = true;
+                    }
+
+                    ByteBuffer outputBuf = codec.getOutputBuffer(outputIdx);
+                    if (outputBuf != null && info.size > 0) {
+                        outputBuf.order(ByteOrder.LITTLE_ENDIAN);
+                        int shortCount = info.size / 2;
+
+                        if (channels == 1) {
+                            // Mono → stereo: duplicate each sample
+                            for (int i = 0; i < shortCount; i++) {
+                                float sample = outputBuf.getShort() / 32768.0f;
+                                writeBuf.putFloat(sample);
+                                writeBuf.putFloat(sample);
+                                totalSamples += 2;
+                                if (!writeBuf.hasRemaining()) {
+                                    fos.write(writeBuf.array(), 0, writeBuf.position());
+                                    writeBuf.clear();
+                                }
+                            }
+                        } else {
+                            // Stereo: convert 16-bit to float and write
+                            for (int i = 0; i < shortCount; i++) {
+                                float sample = outputBuf.getShort() / 32768.0f;
+                                writeBuf.putFloat(sample);
+                                totalSamples++;
+                                if (!writeBuf.hasRemaining()) {
+                                    fos.write(writeBuf.array(), 0, writeBuf.position());
+                                    writeBuf.clear();
+                                }
+                            }
+                        }
+                    }
+                    codec.releaseOutputBuffer(outputIdx, false);
+                }
+            }
+
+            // Flush remaining data in writeBuf
+            if (writeBuf.position() > 0) {
+                fos.write(writeBuf.array(), 0, writeBuf.position());
+            }
+
+            // numFrames = total stereo samples / 2 channels
+            int numFrames = totalSamples / 2;
+
+            DecodedInfo result = new DecodedInfo();
+            result.sampleRate = sampleRate;
+            result.numFrames = numFrames;
+            return result;
+        } finally {
+            // Close/flush the output file first (so the temp PCM is complete on
+            // disk before the native separator reads it on the success path),
+            // then release the codec and extractor. Each guarded independently;
+            // secondary exceptions in cleanup are ignored so one failure can't
+            // mask another leak.
+            if (fos != null) {
+                try { fos.close(); } catch (Exception ignored) {}
+            }
+            if (codec != null) {
+                try { codec.stop(); } catch (Exception ignored) {}
+                try { codec.release(); } catch (Exception ignored) {}
+            }
+            if (extractor != null) {
+                try { extractor.release(); } catch (Exception ignored) {}
             }
         }
-
-        // Flush remaining data in writeBuf
-        if (writeBuf.position() > 0) {
-            fos.write(writeBuf.array(), 0, writeBuf.position());
-        }
-
-        fos.close();
-        codec.stop();
-        codec.release();
-        extractor.release();
-
-        // numFrames = total stereo samples / 2 channels
-        int numFrames = totalSamples / 2;
-
-        DecodedInfo result = new DecodedInfo();
-        result.sampleRate = sampleRate;
-        result.numFrames = numFrames;
-        return result;
     }
 
     // WAV writing is now handled in C++ (native heap) — removed writeWavFloat

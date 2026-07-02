@@ -25,8 +25,19 @@ class FingerprintService {
   DateTime _lastAcoustIdCall = DateTime(2000);
   DateTime _lastMusicBrainzCall = DateTime(2000);
 
-  // In-memory cache keyed by file path
+  // In-memory cache keyed by file path. Bounded: after a batchIdentify over a
+  // large library this used to grow without limit for the app's lifetime; the
+  // persistent prefs cache below still serves evicted entries.
+  static const int _ramCacheCap = 100;
   final Map<String, RecognitionResult> _cache = {};
+
+  void _ramCachePut(String path, RecognitionResult result) {
+    _cache.remove(path); // refresh position (Dart maps keep insertion order)
+    _cache[path] = result;
+    while (_cache.length > _ramCacheCap) {
+      _cache.remove(_cache.keys.first);
+    }
+  }
 
   FingerprintService(this._prefs);
 
@@ -44,7 +55,7 @@ class FingerprintService {
     // Check persistent cache
     final cached = _loadCachedResult(path);
     if (cached != null) {
-      _cache[path] = cached;
+      _ramCachePut(path, cached);
       return cached;
     }
 
@@ -86,7 +97,7 @@ class FingerprintService {
     if (result == null) return null;
 
     // Cache result
-    _cache[path] = result;
+    _ramCachePut(path, result);
     _saveCachedResult(path, result);
 
     return result;

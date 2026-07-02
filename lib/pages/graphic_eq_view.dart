@@ -235,7 +235,10 @@ class _GraphicEqViewState extends State<GraphicEqView> {
               );
             }
           },
-          onPanEnd: (_) => _curveDragBand = -1,
+          onPanEnd: (_) {
+            _curveDragBand = -1;
+            controller.commitGraphicGains();
+          },
           child: RepaintBoundary(
             child: CustomPaint(
               painter: _FrequencyCurvePainter(
@@ -291,7 +294,11 @@ class _GraphicEqViewState extends State<GraphicEqView> {
     final normY = ((pos.dy - padTop) / plotH).clamp(0.0, 1.0);
     final gain = _kMaxGain - normY * (_kMaxGain - _kMinGain);
     final rounded = (gain * 10).roundToDouble() / 10;
-    controller.setDisplayBandGain(band, rounded.clamp(_kMinGain, _kMaxGain));
+    // Real-time audio only — persisted once on pan-end (same pattern as the
+    // band sliders); the debounced safety net in the controller covers any
+    // path that never reaches pan-end.
+    controller.setDisplayBandGain(band, rounded.clamp(_kMinGain, _kMaxGain),
+        persist: false);
     controller.activePresetName = 'Custom';
     setState(() {});
   }
@@ -330,11 +337,17 @@ class _GraphicEqViewState extends State<GraphicEqView> {
                 isActive: _activeBand == i,
                 showLabel: showLabel(i),
                 onChanged: (value) {
-                  controller.setDisplayBandGain(i, value);
-                  controller.activePresetName = 'Custom';
+                  // Real-time audio only; persist once on drag-end (below).
+                  controller.setDisplayBandGain(i, value, persist: false);
                 },
-                onDragStart: () => setState(() => _activeBand = i),
-                onDragEnd: () => setState(() => _activeBand = -1),
+                onDragStart: () {
+                  controller.activePresetName = 'Custom';
+                  setState(() => _activeBand = i);
+                },
+                onDragEnd: () {
+                  controller.commitGraphicGains();
+                  setState(() => _activeBand = -1);
+                },
               );
             }),
           );
@@ -354,11 +367,17 @@ class _GraphicEqViewState extends State<GraphicEqView> {
                 isActive: _activeBand == i,
                 showLabel: showLabel(i),
                 onChanged: (value) {
-                  controller.setDisplayBandGain(i, value);
-                  controller.activePresetName = 'Custom';
+                  // Real-time audio only; persist once on drag-end (below).
+                  controller.setDisplayBandGain(i, value, persist: false);
                 },
-                onDragStart: () => setState(() => _activeBand = i),
-                onDragEnd: () => setState(() => _activeBand = -1),
+                onDragStart: () {
+                  controller.activePresetName = 'Custom';
+                  setState(() => _activeBand = i);
+                },
+                onDragEnd: () {
+                  controller.commitGraphicGains();
+                  setState(() => _activeBand = -1);
+                },
               );
             }),
           ),

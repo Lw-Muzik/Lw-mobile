@@ -108,6 +108,15 @@ public class ProjectMRenderer {
      * Must be called on the main thread.
      */
     public long init(int width, int height) {
+        // Idempotent: if a previous session left a texture entry behind, tear
+        // it (and any running GL thread / projectM handle) down before creating
+        // a new one. Without this, a second init() overwrote textureEntry and
+        // surfaceTexture, leaking the prior Flutter TextureRegistry entry and
+        // SurfaceTexture. release() fully stops+releases prior state.
+        if (textureEntry != null) {
+            release();
+        }
+
         this.width = width;
         this.height = height;
 
@@ -125,7 +134,12 @@ public class ProjectMRenderer {
      * Start the render loop on a dedicated GL thread.
      */
     public void start() {
-        if (rendering) return;
+        // `rendering` is only set true on the GL thread (inside the posted
+        // task), so a rapid second start() would slip past a `rendering`-only
+        // guard and spawn a second HandlerThread, leaking the first. glThread
+        // is assigned synchronously here on the caller thread and nulled in
+        // stop(), so guarding on it rejects double-start deterministically.
+        if (rendering || glThread != null) return;
 
         // Extract presets from assets on first use
         extractPresetsIfNeeded();

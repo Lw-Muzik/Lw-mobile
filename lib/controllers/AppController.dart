@@ -23,6 +23,7 @@ import '../services/dropbox_service.dart';
 import '../services/lyrics_service.dart';
 import '../services/fingerprint_service.dart';
 import '../services/cast_controller.dart';
+import '../services/streaming_data_guard.dart';
 import '../models/lyrics_model.dart';
 import '../models/recognition_result.dart';
 import '../models/speaker_profile.dart';
@@ -33,6 +34,10 @@ enum AppMode { musicPlayer, equalizer }
 class AppController with ChangeNotifier {
   static AppController? _instance;
   static AppController get instance => _instance!;
+
+  /// Null-safe accessor for callers that may run before the (lazily created)
+  /// provider instantiates the controller — e.g. app-lifecycle callbacks.
+  static AppController? get instanceOrNull => _instance;
 
   // Cloud services
   late final CloudAuthService cloudAuth;
@@ -205,16 +210,38 @@ class AppController with ChangeNotifier {
   List<double> get displayBandGains =>
       currentBandMapping.nativeToDisplay(_graphicBandGains);
 
-  void setDisplayBandGain(int displayBand, double gain) {
+  Timer? _graphicGainsPersistTimer;
+
+  void setDisplayBandGain(int displayBand, double gain, {bool persist = true}) {
     final mapping = currentBandMapping;
     if (displayBand >= 0 && displayBand < mapping.nativeGroups.length) {
       for (final nativeIdx in mapping.nativeGroups[displayBand]) {
         _graphicBandGains[nativeIdx] = gain;
       }
       Channel.setGraphicAllBands(_graphicBandGains);
-      _persistGraphicGains();
+      // During a slider drag this fires ~60-90x/sec. The native call above must
+      // happen every delta for real-time audio, but the json.encode + disk write
+      // must NOT — pass persist:false while dragging and call commitGraphicGains()
+      // on drag-end instead.
+      if (persist) {
+        _persistGraphicGains();
+      } else {
+        // Safety net: keyboard/TalkBack value changes fire onChanged WITHOUT
+        // onChangeStart/onChangeEnd (flutter/flutter#123315), so a drag-end
+        // commit never comes. Debounce a persist so those edits aren't lost.
+        _graphicGainsPersistTimer?.cancel();
+        _graphicGainsPersistTimer =
+            Timer(const Duration(seconds: 1), _persistGraphicGains);
+      }
       notifyListeners();
     }
+  }
+
+  /// Flush the current graphic EQ gains to disk once (call on drag/pan-end).
+  void commitGraphicGains() {
+    _graphicGainsPersistTimer?.cancel();
+    _graphicGainsPersistTimer = null;
+    _persistGraphicGains();
   }
 
   // Graphic EQ getters/setters
@@ -362,6 +389,9 @@ class AppController with ChangeNotifier {
   }
 
   set activePresetName(String value) {
+    // Guard against redundant work: the EQ view used to assign 'Custom' on every
+    // slider delta, re-writing prefs + firing a platform call + notify each time.
+    if (_activePresetName == value) return;
     _prefs.setString("activePresetName", value);
     _activePresetName = value;
     // Update EQ mode notification with new preset name
@@ -896,48 +926,70 @@ class AppController with ChangeNotifier {
     });
   }
 
+  /// Index that failed to crossfade — don't retry it every position tick;
+  /// the normal end-of-track advance handles it instead. Cleared on track change.
+  int _crossfadeFailedIdx = -1;
+
   Future<void> _beginCrossfade() async {
     if (_isCrossfading) return;
-    _isCrossfading = true;
     final nextIdx = songId + 1;
+    if (nextIdx == _crossfadeFailedIdx) return;
+    _isCrossfading = true;
     final nextSong = songs[nextIdx];
+    final prevId = _songId;
+    final prevArtId = _artWorkId;
 
-    _songId = nextIdx;
-    _artWorkId = nextSong.id;
-    _loadLyricsForCurrentSong();
+    try {
+      _songId = nextIdx;
+      _artWorkId = nextSong.id;
+      _loadLyricsForCurrentSong();
 
-    final AudioSource nextSource;
-    if (nextSong.data.startsWith('http')) {
-      if (nextSong.data.contains('nowviba.com')) {
-        // Discover stream — direct URI, no proxy overhead
-        nextSource = AudioSource.uri(Uri.parse(nextSong.data));
-      } else {
-        final fileId = nextSong.id.toString();
-        if (cloudCache.isCached(fileId)) {
-          nextSource = AudioSource.file(cloudCache.cacheFile(fileId).path);
+      final AudioSource nextSource;
+      if (nextSong.data.startsWith('http')) {
+        if (nextSong.data.contains('nowviba.com')) {
+          // Discover stream — direct URI, no proxy overhead
+          nextSource = AudioSource.uri(Uri.parse(nextSong.data));
         } else {
-          final headers = nextSong.data.contains('googleapis.com')
-              ? await cloudAuth.getGoogleAuthHeaders()
-              : <String, String>{};
-          nextSource = AudioSource.uri(
-            Uri.parse(nextSong.data),
-            headers: headers,
-          );
+          final fileId = nextSong.id.toString();
+          if (cloudCache.isCached(fileId)) {
+            nextSource = AudioSource.file(cloudCache.cacheFile(fileId).path);
+          } else {
+            final headers = nextSong.data.contains('googleapis.com')
+                ? await cloudAuth.getGoogleAuthHeaders()
+                : <String, String>{};
+            nextSource = AudioSource.uri(
+              Uri.parse(nextSong.data),
+              headers: headers,
+            );
+          }
         }
+      } else {
+        nextSource = nextSong.data.startsWith('/')
+            ? AudioSource.file(nextSong.data)
+            : AudioSource.uri(Uri.parse(nextSong.data));
       }
-    } else {
-      nextSource = nextSong.data.startsWith('/')
-          ? AudioSource.file(nextSong.data)
-          : AudioSource.uri(Uri.parse(nextSong.data));
-    }
 
-    await handler.beginCrossfade(
-      nextSource,
-      nextSong,
-      Duration(seconds: _crossfadeDuration),
-      replayGain: _replayGain,
-    );
-    _isCrossfading = false;
+      await handler.beginCrossfade(
+        nextSource,
+        nextSong,
+        Duration(seconds: _crossfadeDuration),
+        replayGain: _replayGain,
+      );
+    } catch (e) {
+      // Crossfade failed (dead cloud URL, auth error, ...). Roll back the
+      // already-advanced track state so UI and audio agree. Latch the failed
+      // index so the position listener doesn't hammer the dead URL every tick
+      // — the normal end-of-track advance takes over instead.
+      _crossfadeFailedIdx = nextIdx;
+      _songId = prevId;
+      _artWorkId = prevArtId;
+      _loadLyricsForCurrentSong();
+      notifyListeners();
+    } finally {
+      // Without this a single failure left _isCrossfading stuck true and
+      // silently disabled crossfade until app restart.
+      _isCrossfading = false;
+    }
   }
 
   Future<void> _updateMediaItemForIndex(int index) async {
@@ -1190,13 +1242,36 @@ class AppController with ChangeNotifier {
     }
   }
 
+  Timer? _playCountPersistTimer;
+
   void _incrementPlayCount(int songId) {
     _playCounts[songId] = (_playCounts[songId] ?? 0) + 1;
+    // Debounce disk persistence. Encoding the whole map + setString used to run
+    // synchronously on the UI isolate on EVERY track change (plus a redundant
+    // notifyListeners) — a hitch at the exact moment of the transition that
+    // worsened as the map grew. The in-memory count is updated immediately;
+    // only the write is coalesced (and flushed on background via
+    // flushPendingWrites()). No notify here — the songId setter already fires one.
+    _playCountPersistTimer?.cancel();
+    _playCountPersistTimer =
+        Timer(const Duration(seconds: 3), _persistPlayCounts);
+  }
+
+  void _persistPlayCounts() {
+    _playCountPersistTimer?.cancel();
+    _playCountPersistTimer = null;
     _prefs.setString(
       'playCounts',
       json.encode(_playCounts.map((k, v) => MapEntry(k.toString(), v))),
     );
-    notifyListeners();
+  }
+
+  /// Flush any debounced disk writes immediately (call when the app is
+  /// backgrounded so nothing is lost if the process is killed).
+  void flushPendingWrites() {
+    if (_playCountPersistTimer?.isActive ?? false) _persistPlayCounts();
+    if (_graphicGainsPersistTimer?.isActive ?? false) commitGraphicGains();
+    StreamingDataGuard.instance.flushPendingUsage();
   }
 
   int getPlayCount(int songId) => _playCounts[songId] ?? 0;
@@ -1673,13 +1748,16 @@ class AppController with ChangeNotifier {
 
   set songId(int id) {
     _songId = id;
-    notifyListeners();
-    _loadLyricsForCurrentSong();
-    // Track play count and check stem availability for new song
+    _crossfadeFailedIdx = -1; // new track — allow crossfade again
+    // Update play count (no notify, debounced write) + stem state BEFORE the
+    // single notifyListeners, so the track change is one synchronous rebuild
+    // pass instead of the previous 2-3 (setter + play-count).
     if (songs.isNotEmpty && id >= 0 && id < songs.length) {
       _incrementPlayCount(songs[id].id);
       stemController.onSongChanged(songs[id].data);
     }
+    notifyListeners();
+    _loadLyricsForCurrentSong();
   }
 
   Future<void> _loadLyricsForCurrentSong() async {

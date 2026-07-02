@@ -154,7 +154,12 @@ class CastController extends ChangeNotifier {
       case BonsoirDiscoveryServiceLostEvent():
         final id = event.service.attributes['id'];
         if (id != null && _found.remove(id) != null) {
-          if (_target?.id == id) _target = null;
+          if (_target?.id == id) {
+            _target = null;
+            // Stop the 1.5s /now poll — losing the target used to leave the
+            // periodic timer firing for the rest of the session.
+            _stopPolling();
+          }
           notifyListeners();
         }
         break;

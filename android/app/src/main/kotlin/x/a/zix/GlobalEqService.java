@@ -71,11 +71,14 @@ public class GlobalEqService extends Service {
         audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
         mediaSessionManager = (MediaSessionManager) getSystemService(Context.MEDIA_SESSION_SERVICE);
 
-        // Acquire partial wake lock to prevent CPU sleep while EQ is active
+        // Wake lock is tied to actual playback (see updateWakeLockForPlayback):
+        // held only while audio is playing, released when idle. Previously it
+        // was acquired for the whole service lifetime, blocking CPU deep-sleep
+        // whenever global EQ was ever enabled — even during silence.
         PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
         if (pm != null) {
             wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "HypeEQ::GlobalEq");
-            wakeLock.acquire();
+            wakeLock.setReferenceCounted(false);
         }
 
         // Attach global DynamicsProcessing to output mix
@@ -93,6 +96,7 @@ public class GlobalEqService extends Service {
 
         // Initial scan
         refreshPlayingApps();
+        updateWakeLockForPlayback();
 
         Log.i(TAG, "GlobalEqService started — global output mix EQ active");
     }
@@ -271,10 +275,42 @@ public class GlobalEqService extends Service {
         playbackCallback = new AudioManager.AudioPlaybackCallback() {
             @Override
             public void onPlaybackConfigChanged(List<AudioPlaybackConfiguration> configs) {
+                // Any active playback config means audio is flowing → hold the
+                // wake lock; none means idle → release it.
+                setWakeLockHeld(configs != null && !configs.isEmpty());
                 refreshPlayingApps();
             }
         };
         audioManager.registerAudioPlaybackCallback(playbackCallback, handler);
+    }
+
+    /**
+     * Hold the PARTIAL_WAKE_LOCK only while audio is actively playing on the
+     * device. Uses the same AudioManager playback configs the service already
+     * tracks, covering our own app and every other audio app. All calls occur
+     * on the main looper (onCreate + callbacks registered with {@code handler}).
+     */
+    private void updateWakeLockForPlayback() {
+        boolean playing = false;
+        if (audioManager != null) {
+            try {
+                List<AudioPlaybackConfiguration> configs =
+                        audioManager.getActivePlaybackConfigurations();
+                playing = configs != null && !configs.isEmpty();
+            } catch (Exception ignored) {}
+        }
+        setWakeLockHeld(playing);
+    }
+
+    private void setWakeLockHeld(boolean held) {
+        if (wakeLock == null) return;
+        try {
+            if (held) {
+                if (!wakeLock.isHeld()) wakeLock.acquire();
+            } else if (wakeLock.isHeld()) {
+                wakeLock.release();
+            }
+        } catch (Exception ignored) {}
     }
 
     private void unregisterPlaybackCallback() {
@@ -291,7 +327,10 @@ public class GlobalEqService extends Service {
     private void registerMediaSessionListener() {
         if (mediaSessionManager == null) return;
 
-        sessionListener = controllers -> refreshPlayingApps();
+        sessionListener = controllers -> {
+            updateWakeLockForPlayback();
+            refreshPlayingApps();
+        };
 
         try {
             ComponentName listener = getNotificationListenerComponent();

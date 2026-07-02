@@ -392,6 +392,11 @@ void loadAudioSource(
   SongModel song, {
   bool replayGain = false,
 }) async {
+  // If a crossfade is mid-flight, settle it first (fast — one fade step) so
+  // this load lands on the settled active player instead of the outgoing one
+  // the fade loop is about to stop.
+  await handler.abortCrossfade();
+
   final isCloud = song.data.startsWith('http');
 
   // Cancel any previous background cache download (don't waste data on skipped tracks)
