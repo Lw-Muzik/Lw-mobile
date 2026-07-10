@@ -3,7 +3,6 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../services/remote_link.dart';
 import '../services/share_service.dart';
-import '../services/stream_server.dart';
 
 /// Scans the QR shown in the desktop app (Settings → Connect across networks)
 /// and pairs with it over iroh, so the desktop can stream this phone's music
@@ -97,17 +96,19 @@ class _ScanDesktopPageState extends State<ScanDesktopPage> {
             'LAN linking (same Wi-Fi) still works. Details: adb logcat -s hm-remote',
       );
     }
-    final server = StreamServerController.instance;
-    final token = await server.registerDesktop(desktopEp, 'Desktop');
+    final share = ShareService.instance;
+    // Route pairing through the facade so, on Android, the running server
+    // (foreground-service isolate) is told to reload and authorize this token.
+    final token = await share.registerDesktop(desktopEp, 'Desktop');
     final name = await RemoteLink.instance.pair(
       desktopEndpointId: desktopEp,
       pin: pin,
-      phoneName: server.deviceName,
+      phoneName: share.deviceName,
       token: token,
     );
     if (name == null) {
       // Roll back the optimistic registration.
-      server.unpair(desktopEp);
+      share.unpair(desktopEp);
       return (
         name: null,
         message:

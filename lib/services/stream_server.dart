@@ -12,6 +12,7 @@ import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'package:shelf_router/shelf_router.dart';
 
 import '../controllers/AppController.dart';
+import 'native_mdns.dart';
 
 /// A desktop we've paired with (it holds a matching bearer token).
 class PairedDesktop {
@@ -46,10 +47,16 @@ class StreamServerController extends ChangeNotifier {
   static const int protocolVersion = 1;
   static const String _kSelfId = 'link_self_id';
   static const String _kPaired = 'link_paired_desktops';
+  // The last port we successfully bound. Re-used on every start so an
+  // already-paired desktop reconnects at the same ip:port with no mDNS.
+  static const String _kPort = 'link_server_port';
 
   HttpServer? _server;
   BonsoirBroadcast? _broadcast;
   SharedPreferences? _prefs;
+  // Throttles the reload-on-auth-miss (a token minted by the *main* isolate may
+  // not yet be in this isolate's in-memory set — see [_authorized]).
+  DateTime _lastAuthReload = DateTime.fromMillisecondsSinceEpoch(0);
 
   String _selfId = '';
   String? _pin;
@@ -103,21 +110,42 @@ class StreamServerController extends ChangeNotifier {
     _pin = _generatePin();
     _ip = await _wifiIpv4();
 
-    final server = await shelf_io.serve(
-      _router().call,
-      InternetAddress.anyIPv4,
-      0, // ephemeral port — avoids clashes; advertised below.
-    );
+    final server = await _bind();
     server.autoCompress = false; // audio is already compressed.
     _server = server;
     await _advertise(server.port);
     notifyListeners();
   }
 
+  /// Bind the shelf server, preferring the port we last bound successfully so an
+  /// already-paired desktop can reconnect at the same ip:port with no discovery.
+  /// Falls back to an ephemeral port if the preferred one is taken, and persists
+  /// whatever we end up on.
+  Future<HttpServer> _bind() async {
+    final prefs = _prefs!;
+    final preferred = prefs.getInt(_kPort);
+    if (preferred != null && preferred > 0) {
+      try {
+        return await shelf_io.serve(
+            _router().call, InternetAddress.anyIPv4, preferred);
+      } catch (_) {/* port taken — fall back to an ephemeral one */}
+    }
+    final server =
+        await shelf_io.serve(_router().call, InternetAddress.anyIPv4, 0);
+    await prefs.setInt(_kPort, server.port);
+    return server;
+  }
+
   /// Stop serving and withdraw the mDNS advertisement.
   Future<void> stop() async {
     await _broadcast?.stop();
     _broadcast = null;
+    if (NativeMdns.supported) {
+      try {
+        await NativeMdns.unregister();
+        await NativeMdns.releaseMulticastLock();
+      } catch (_) {/* best effort — the process may be tearing down */}
+    }
     await _server?.close(force: true);
     _server = null;
     _pin = null;
@@ -133,6 +161,16 @@ class StreamServerController extends ChangeNotifier {
   /// Reloads from disk first, since pairings may be written by the sharing
   /// server running in a separate (foreground-service) isolate.
   Future<List<PairedDesktop>> loadKnownDesktops() async {
+    await _reloadPaired();
+    return _paired.values.toList();
+  }
+
+  /// Re-read the pairing store from disk into [_paired]. shared_preferences
+  /// caches per isolate, so the sharing server (foreground-service isolate) and
+  /// the UI/QR flow (main isolate) only see each other's writes after a reload.
+  /// Disk is authoritative: every writer saves after mutating, so a
+  /// clear-and-rebuild yields the union of all persisted pairings.
+  Future<void> _reloadPaired() async {
     await _ensureLoaded();
     try {
       await _prefs?.reload();
@@ -145,11 +183,20 @@ class StreamServerController extends ChangeNotifier {
         }
       }
     } catch (_) {/* keep the in-memory set on a read error */}
-    return _paired.values.toList();
   }
 
-  /// Forget a paired desktop (its token stops working).
+  /// Reload pairings from disk and notify. Invoked in the service isolate when
+  /// the main isolate signals it has minted a token (QR/iroh pairing), so the
+  /// running shelf server authorizes the freshly-paired desktop.
+  Future<void> reloadPairings() async {
+    await _reloadPaired();
+    notifyListeners();
+  }
+
+  /// Forget a paired desktop (its token stops working). Reloads first so a
+  /// concurrent pairing from the other isolate isn't clobbered.
   Future<void> unpair(String id) async {
+    await _reloadPaired();
     _paired.remove(id);
     await _savePaired();
     notifyListeners();
@@ -191,6 +238,7 @@ class StreamServerController extends ChangeNotifier {
     final deviceId = '${data['deviceId'] ?? _randomHex(8)}';
     final deviceName = '${data['deviceName'] ?? 'Desktop'}';
     final token = _randomHex(32);
+    await _reloadPaired(); // don't clobber pairings written by the other isolate
     _paired[deviceId] =
         PairedDesktop(id: deviceId, name: deviceName, token: token);
     await _savePaired();
@@ -207,6 +255,8 @@ class StreamServerController extends ChangeNotifier {
   /// return it so the phone can hand it to the desktop during the QR handshake.
   /// Mirrors [_handlePair] but driven by the QR/iroh flow instead of HTTP.
   Future<String> registerDesktop(String id, String name) async {
+    await _ensureLoaded();
+    await _reloadPaired(); // don't clobber pairings written by the service isolate
     final token = _randomHex(32);
     _paired[id] = PairedDesktop(id: id, name: name, token: token);
     await _savePaired();
@@ -215,7 +265,7 @@ class StreamServerController extends ChangeNotifier {
   }
 
   Future<Response> _handleLibrary(Request request) async {
-    if (!_authorized(request)) return Response(401, body: 'unauthorized');
+    if (!await _authorized(request)) return Response(401, body: 'unauthorized');
     final songs = await _loadLibrary();
     final tracks = songs.map((s) {
       return {
@@ -262,7 +312,7 @@ class StreamServerController extends ChangeNotifier {
   }
 
   Future<Response> _handleArt(Request request, String file) async {
-    if (!_authorized(request)) return Response(401, body: 'unauthorized');
+    if (!await _authorized(request)) return Response(401, body: 'unauthorized');
     final songId = int.tryParse(_trackId(file));
     if (songId == null) return Response.notFound('bad id');
     try {
@@ -290,7 +340,7 @@ class StreamServerController extends ChangeNotifier {
   /// (same name), as plain text. The desktop tries this first and falls back to
   /// its online sources when there's no sidecar.
   Future<Response> _handleLyrics(Request request, String file) async {
-    if (!_authorized(request)) return Response(401, body: 'unauthorized');
+    if (!await _authorized(request)) return Response(401, body: 'unauthorized');
     final song = await _songById(_trackId(file));
     if (song == null) return Response.notFound('no such track');
     final lrc = await _readLrcSidecar(song.data);
@@ -322,7 +372,7 @@ class StreamServerController extends ChangeNotifier {
   }
 
   Future<Response> _handleStream(Request request, String file) async {
-    if (!_authorized(request)) return Response(401, body: 'unauthorized');
+    if (!await _authorized(request)) return Response(401, body: 'unauthorized');
     final song = await _songById(_trackId(file));
     if (song == null) return Response.notFound('no such track');
 
@@ -367,19 +417,44 @@ class StreamServerController extends ChangeNotifier {
   // ------------------------------------------------------------------ mDNS
 
   Future<void> _advertise(int port) async {
+    final txt = <String, String>{
+      'role': 'source',
+      'id': _selfId,
+      'name': deviceName,
+      'v': '$protocolVersion',
+      // Advertise our own LAN IP so the desktop connects straight to it
+      // instead of re-resolving our `.local` hostname (unreliable on Android).
+      if (_ip != null && _ip!.isNotEmpty) 'ip': _ip!,
+    };
+
+    // Android: advertise via the native NsdManager (a process-level system
+    // call, so it works from the foreground-service isolate where the bonsoir
+    // plugin — bound to a secondary FlutterEngine — went silent) and hold a
+    // MulticastLock so the phone keeps receiving the desktop's mDNS queries in
+    // the background.
+    if (NativeMdns.supported) {
+      try {
+        await NativeMdns.acquireMulticastLock();
+        await NativeMdns.register(
+          name: deviceName,
+          type: serviceType,
+          port: port,
+          txt: txt,
+        );
+        return;
+      } catch (e) {
+        debugPrint('StreamServer: native mDNS failed ($e) — trying bonsoir');
+        // Fall through to bonsoir as a best-effort fallback.
+      }
+    }
+
+    // iOS (and the Android fallback): bonsoir, which advertises correctly on
+    // iOS and — on the main isolate — on Android too.
     final service = BonsoirService(
       name: deviceName,
       type: serviceType,
       port: port,
-      attributes: {
-        'role': 'source',
-        'id': _selfId,
-        'name': deviceName,
-        'v': '$protocolVersion',
-        // Advertise our own LAN IP so the desktop connects straight to it
-        // instead of re-resolving our `.local` hostname (unreliable on Android).
-        if (_ip != null && _ip!.isNotEmpty) 'ip': _ip!,
-      },
+      attributes: txt,
     );
     final broadcast = BonsoirBroadcast(service: service);
     await broadcast.initialize();
@@ -389,11 +464,22 @@ class StreamServerController extends ChangeNotifier {
 
   // --------------------------------------------------------------- helpers
 
-  bool _authorized(Request request) {
+  Future<bool> _authorized(Request request) async {
     final header = request.headers['authorization'] ?? '';
     if (!header.startsWith('Bearer ')) return false;
     final token = header.substring(7);
-    return token.isNotEmpty && _paired.values.any((d) => d.token == token);
+    if (token.isEmpty) return false;
+    if (_paired.values.any((d) => d.token == token)) return true;
+    // Miss: the token may have just been minted by the *main* isolate (QR/iroh
+    // pairing writes to shared_preferences from there). Reload once — throttled,
+    // so a stream of unauthorized probes can't hammer the disk — then re-check.
+    final now = DateTime.now();
+    if (now.difference(_lastAuthReload) < const Duration(seconds: 3)) {
+      return false;
+    }
+    _lastAuthReload = now;
+    await _reloadPaired();
+    return _paired.values.any((d) => d.token == token);
   }
 
   Future<void> _savePaired() async {
