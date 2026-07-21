@@ -66,6 +66,20 @@ class _StreamServerPageState extends State<StreamServerPage> {
                 ),
               ),
               const SizedBox(height: 12),
+              Card(
+                child: SwitchListTile.adaptive(
+                  secondary: const Icon(Icons.download_rounded),
+                  title: const Text('Receive files from desktop'),
+                  subtitle: Text(
+                    _server.allowUploads
+                        ? 'Paired computers can add songs to this phone'
+                        : 'Off — paired computers can only listen',
+                  ),
+                  value: _server.allowUploads,
+                  onChanged: _server.setAllowUploads,
+                ),
+              ),
+              const SizedBox(height: 12),
               if (_server.running) _buildPairingCard(theme),
               if (_server.running) ...[
                 const SizedBox(height: 12),
@@ -360,6 +374,13 @@ class _StreamServerPageState extends State<StreamServerPage> {
             '• Sharing keeps running in the background (with a notification) '
             'while Hype Muzik is running. Turn it off here or from the '
             'notification.',
+            style: style,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '• Songs a computer sends you are saved to Music/HypeMuzik and join '
+            'your library. Pairing alone never allows this — leave "Receive '
+            'files from desktop" off if you only want to stream.',
             style: style,
           ),
         ],

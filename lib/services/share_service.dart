@@ -118,6 +118,7 @@ class ShareService extends ChangeNotifier {
   bool _running = false;
   bool _busy = false;
   bool _inited = false;
+  bool _allowUploads = false;
   String? _pin;
   String? _ip;
   int? _port;
@@ -139,12 +140,16 @@ class ShareService extends ChangeNotifier {
   List<PairedDesktop> get pairedDesktops => _paired;
   String get deviceName => _server.deviceName;
 
+  /// Whether paired desktops may push files to this phone (`POST /upload`).
+  bool get allowUploads => _allowUploads;
+
   /// Call once at startup (registers the task↔UI channel and restores the
   /// running state if the service is still up from a previous session, e.g.
   /// after the app was swiped away and relaunched).
   Future<void> init() async {
     if (_inited) return;
     _inited = true;
+    _allowUploads = await _server.allowUploads();
     if (_withService) {
       FlutterForegroundTask.initCommunicationPort();
       FlutterForegroundTask.addTaskDataCallback(_onTaskData);
@@ -181,6 +186,17 @@ class ShareService extends ChangeNotifier {
   }
 
   Future<void> toggle(bool on) => on ? enable() : disable();
+
+  /// Opt in/out of receiving files pushed by a paired desktop. Persisted here in
+  /// the main isolate; the sharing server — the service isolate on Android —
+  /// re-reads the flag from disk on every upload, so this takes effect at once
+  /// without restarting the service.
+  Future<void> setAllowUploads(bool value) async {
+    if (_allowUploads == value) return;
+    _allowUploads = value;
+    notifyListeners();
+    await _server.setAllowUploads(value);
+  }
 
   /// Start sharing (and, on Android, the foreground service + notification).
   Future<void> enable() async {

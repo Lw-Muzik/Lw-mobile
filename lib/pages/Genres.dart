@@ -2,7 +2,7 @@ import 'package:eq_app/Routes/routes.dart';
 import 'package:eq_app/extensions/index.dart';
 import 'package:eq_app/pages/genre_songs.dart';
 import '/exports/exports.dart';
-import '/Helpers/Files.dart';
+import '/data/library_repository.dart';
 
 import '../widgets/pinch_zoom_grid.dart';
 
@@ -14,12 +14,12 @@ class Genres extends StatefulWidget {
 }
 
 class _GenresState extends State<Genres> {
-  late Future<List<GenreModel>> _genresFuture;
+  late final Stream<List<GenreModel>> _genresStream;
 
   @override
   void initState() {
     super.initState();
-    _genresFuture = Files.fetchAllGenres();
+    _genresStream = context.read<LibraryRepository>().watchGenres();
   }
 
   Color _genreColor(String name) {
@@ -30,8 +30,8 @@ class _GenresState extends State<Genres> {
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<List<GenreModel>>(
-      future: _genresFuture,
+    return StreamBuilder<List<GenreModel>>(
+      stream: _genresStream,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator.adaptive());

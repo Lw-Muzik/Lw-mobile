@@ -1,5 +1,5 @@
 import '/exports/exports.dart';
-import '/Helpers/Files.dart';
+import '/data/library_repository.dart';
 import '/Routes/routes.dart';
 import '/extensions/index.dart';
 import '/pages/album_songs.dart';
@@ -15,18 +15,18 @@ class Albums extends StatefulWidget {
 }
 
 class _AlbumsState extends State<Albums> {
-  late Future<List<AlbumModel>> _albumsFuture;
+  late final Stream<List<AlbumModel>> _albumsStream;
 
   @override
   void initState() {
     super.initState();
-    _albumsFuture = Files.fetchAllAlbums();
+    _albumsStream = context.read<LibraryRepository>().watchAlbums();
   }
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<List<AlbumModel>>(
-      future: _albumsFuture,
+    return StreamBuilder<List<AlbumModel>>(
+      stream: _albumsStream,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator.adaptive());

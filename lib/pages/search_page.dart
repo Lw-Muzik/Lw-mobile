@@ -2,10 +2,10 @@ import 'dart:async';
 import 'dart:io';
 
 import '/exports/exports.dart';
-import '/Helpers/Files.dart';
 import '/Routes/routes.dart';
 
 import '../controllers/AppController.dart';
+import '../data/library_repository.dart';
 import '../models/cloud_file.dart';
 import '../player/player_ui.dart';
 import '../widgets/ArtworkWidget.dart';
@@ -36,12 +36,30 @@ class _SearchPageState extends State<SearchPage> {
   List<CloudFile>? _allCloudFiles;
   bool _dataLoading = false;
 
+  // Song search + discovery now read the library DB, not the playback queue.
+  List<SongModel> _songResults = [];
+  List<SongModel> _mostPlayed = [];
+  List<SongModel> _recentlyAdded = [];
+
+  LibraryRepository get _repo => context.read<LibraryRepository>();
+
   @override
   void initState() {
     super.initState();
     // Auto-focus the search field
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _focusNode.requestFocus();
+    });
+    _loadDiscovery();
+  }
+
+  Future<void> _loadDiscovery() async {
+    final most = await _repo.mostPlayed(limit: 10);
+    final recent = await _repo.recentlyAdded(limit: 10);
+    if (!mounted) return;
+    setState(() {
+      _mostPlayed = most;
+      _recentlyAdded = recent;
     });
   }
 
@@ -55,10 +73,18 @@ class _SearchPageState extends State<SearchPage> {
 
   void _onQueryChanged(String value) {
     _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 300), () {
+    _debounce = Timer(const Duration(milliseconds: 300), () async {
       if (!mounted) return;
-      setState(() => _query = value.trim());
-      // Lazy-load supplemental data on first real query
+      final q = value.trim();
+      // Song results come straight from a DB LIKE query — the whole library,
+      // not just the last-played queue.
+      final results = q.isEmpty ? <SongModel>[] : await _repo.searchSongs(q);
+      if (!mounted) return;
+      setState(() {
+        _query = q;
+        _songResults = results;
+      });
+      // Lazy-load supplemental data (artists/albums/folders) on first real query
       if (_query.isNotEmpty && !_dataLoading && _allArtists == null) {
         _loadSupplementalData();
       }
@@ -67,21 +93,20 @@ class _SearchPageState extends State<SearchPage> {
 
   Future<void> _loadSupplementalData() async {
     _dataLoading = true;
-    final futures = await Future.wait([
-      Files.fetchAllArtists(),
-      Files.fetchAllAlbums(),
-      if (Platform.isAndroid) OnAudioQuery.platform.queryAllPath(),
-      if (Platform.isAndroid) OnAudioQuery().queryPlaylists(),
-    ]);
+    final artists = await _repo.artistsOnce();
+    final albums = await _repo.albumsOnce();
+    final folders = Platform.isAndroid ? await _repo.foldersOnce() : null;
+    final playlists = Platform.isAndroid
+        ? await OnAudioQuery().queryPlaylists()
+        : null;
 
     if (!mounted) return;
 
-    int idx = 0;
-    _allArtists = futures[idx++] as List<ArtistModel>;
-    _allAlbums = futures[idx++] as List<AlbumModel>;
+    _allArtists = artists;
+    _allAlbums = albums;
     if (Platform.isAndroid) {
-      _allFolders = futures[idx++] as List<String>;
-      _allPlaylists = futures[idx++] as List<PlaylistModel>;
+      _allFolders = folders!.map((f) => f.path).toList();
+      _allPlaylists = playlists;
     }
 
     // Load cloud files from cache
@@ -106,15 +131,6 @@ class _SearchPageState extends State<SearchPage> {
   // ---------------------------------------------------------------------------
   // Filtering
   // ---------------------------------------------------------------------------
-
-  List<SongModel> _filterSongs(AppController controller) {
-    final lq = _query.toLowerCase();
-    return controller.songs.where((s) {
-      return s.title.toLowerCase().contains(lq) ||
-          (s.artist?.toLowerCase().contains(lq) ?? false) ||
-          (s.album?.toLowerCase().contains(lq) ?? false);
-    }).toList();
-  }
 
   List<ArtistModel> _filterArtists() {
     if (_allArtists == null) return [];
@@ -224,8 +240,8 @@ class _SearchPageState extends State<SearchPage> {
     ThemeData theme,
     ColorScheme colorScheme,
   ) {
-    final mostPlayed = controller.getMostPlayed(limit: 10);
-    final recentlyAdded = controller.getRecentlyAdded(limit: 10);
+    final mostPlayed = _mostPlayed;
+    final recentlyAdded = _recentlyAdded;
 
     if (mostPlayed.isEmpty && recentlyAdded.isEmpty) {
       return Center(
@@ -322,7 +338,7 @@ class _SearchPageState extends State<SearchPage> {
           return Padding(
             padding: const EdgeInsets.only(right: 12),
             child: GestureDetector(
-              onTap: () => _playSong(controller, song),
+              onTap: () => _playSong(controller, songs, song),
               child: SizedBox(
                 width: 130,
                 child: Column(
@@ -413,7 +429,7 @@ class _SearchPageState extends State<SearchPage> {
     ThemeData theme,
     ColorScheme colorScheme,
   ) {
-    final songs = _filterSongs(controller);
+    final songs = _songResults;
     final artists = _filterArtists();
     final albums = _filterAlbums();
     final folders = _filterFolders();
@@ -512,7 +528,7 @@ class _SearchPageState extends State<SearchPage> {
             isCurrentTrack: isPlaying,
             showTrackNumber: false,
             showOptionsIcon: false,
-            onTap: () => _playSong(controller, song),
+            onTap: () => _playSong(controller, songs, song),
           );
         }),
         if (songs.length > 5)
@@ -909,12 +925,19 @@ class _SearchPageState extends State<SearchPage> {
   // Navigation / Actions
   // ---------------------------------------------------------------------------
 
-  void _playSong(AppController controller, SongModel song) {
-    final songIndex = controller.songs.indexWhere((s) => s.id == song.id);
-    if (songIndex != -1) {
-      controller.playSongFromList(controller.songs, songIndex);
-      Routes.routeTo(const Player(), context);
+  void _playSong(
+      AppController controller, List<SongModel> list, SongModel song) {
+    var index = list.indexWhere((s) => s.id == song.id);
+    // Play from the surfaced list (search results / discovery row). Falls back
+    // to a single-track queue so a tap ALWAYS plays — the old code searched the
+    // last-played queue and silently did nothing when the song wasn't in it.
+    List<SongModel> queue = list;
+    if (index == -1) {
+      queue = [song];
+      index = 0;
     }
+    controller.playSongFromList(queue, index);
+    Routes.routeTo(const Player(), context);
   }
 
   void _showAllSongs(List<SongModel> songs, AppController controller) {

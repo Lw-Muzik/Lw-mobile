@@ -1,7 +1,7 @@
-import 'dart:ui';
+import 'dart:io';
 
 import '/exports/exports.dart';
-import '../Helpers/index.dart';
+import '/services/artwork_service.dart';
 
 class ArtworkWidget extends StatefulWidget {
   final String path;
@@ -50,27 +50,47 @@ class _ArtworkWidgetState extends State<ArtworkWidget> {
   Future<ImageProvider>? _imageFuture;
   int? _decodeWidth;
 
-  int _computeDecodeWidth(BuildContext context) {
+  int _computeDecodeWidth(BuildContext context, double? availableWidth) {
     final dpr = MediaQuery.of(context).devicePixelRatio;
-    final w = widget.width.isFinite && widget.width > 0
-        ? widget.width
-        : MediaQuery.of(context).size.width;
+    // Prefer the ACTUAL laid-out width so a grid cell or the full-screen player
+    // decodes at its real display size, not the widget's nominal width (which
+    // is often a small default). Fall back to the nominal width, then screen.
+    double logical;
+    if (availableWidth != null &&
+        availableWidth.isFinite &&
+        availableWidth > 0) {
+      logical = availableWidth;
+    } else if (widget.width.isFinite && widget.width > 0) {
+      logical = widget.width;
+    } else {
+      logical = MediaQuery.of(context).size.width;
+    }
     // Physical pixels needed for crisp display, bounded so decoded bitmaps
     // stay small (a full-res 3000px embedded cover is ~36MB RGBA).
-    return (w * dpr).round().clamp(64, 1600);
+    return (logical * dpr).round().clamp(64, 1600);
   }
 
-  void _ensureFuture(BuildContext context) {
-    final decodeWidth = _computeDecodeWidth(context);
+  void _ensureFuture(int decodeWidth) {
     if (_imageFuture != null && decodeWidth == _decodeWidth) return;
     _decodeWidth = decodeWidth;
-    _imageFuture = savedImage(
-      widget.path,
-      widget.songId,
+    _imageFuture = _resolveProvider(decodeWidth);
+  }
+
+  // Resolves the art path lazily via ArtworkService (in-memory LRU -> DB path
+  // -> temp PNG -> capped extraction), then decodes at display size. Nothing
+  // is extracted until a tile actually asks for it.
+  Future<ImageProvider> _resolveProvider(int decodeWidth) async {
+    final path = await ArtworkService.instance.pathFor(
+      id: widget.songId,
+      data: widget.path,
       type: widget.type,
       other: widget.other,
-      quality: widget.quality,
-      decodeWidth: decodeWidth,
+    );
+    if (path == null) return const AssetImage("assets/audio.jpeg");
+    return ResizeImage(
+      FileImage(File(path)),
+      width: decodeWidth,
+      policy: ResizeImagePolicy.fit,
     );
   }
 
@@ -87,25 +107,29 @@ class _ArtworkWidgetState extends State<ArtworkWidget> {
 
   @override
   Widget build(BuildContext context) {
-    _ensureFuture(context);
-    return FutureBuilder<ImageProvider>(
-      future: _imageFuture,
-      builder: (context, imageSnap) {
-        return Container(
-          margin: widget.margin,
-          width: widget.width,
-          height: widget.height,
-          decoration: BoxDecoration(
-            borderRadius: widget.borderRadius ?? BorderRadius.circular(10),
-            image: DecorationImage(
-              fit: widget.fit,
-              colorFilter: widget.colorFilter,
-              image: imageSnap.hasData
-                  ? imageSnap.data!
-                  : const AssetImage("assets/audio.jpeg"),
-            ),
-          ),
-          child: widget.child,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        _ensureFuture(_computeDecodeWidth(context, constraints.maxWidth));
+        return FutureBuilder<ImageProvider>(
+          future: _imageFuture,
+          builder: (context, imageSnap) {
+            return Container(
+              margin: widget.margin,
+              width: widget.width,
+              height: widget.height,
+              decoration: BoxDecoration(
+                borderRadius: widget.borderRadius ?? BorderRadius.circular(10),
+                image: DecorationImage(
+                  fit: widget.fit,
+                  colorFilter: widget.colorFilter,
+                  image: imageSnap.hasData
+                      ? imageSnap.data!
+                      : const AssetImage("assets/audio.jpeg"),
+                ),
+              ),
+              child: widget.child,
+            );
+          },
         );
       },
     );

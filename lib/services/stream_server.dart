@@ -6,6 +6,7 @@ import 'dart:math';
 import 'package:bonsoir/bonsoir.dart';
 import 'package:flutter/foundation.dart';
 import 'package:on_audio_query/on_audio_query.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shelf/shelf.dart';
 import 'package:shelf/shelf_io.dart' as shelf_io;
@@ -13,6 +14,13 @@ import 'package:shelf_router/shelf_router.dart';
 
 import '../controllers/AppController.dart';
 import 'native_mdns.dart';
+import 'native_media_store.dart';
+
+/// Thrown when an upload body outgrows [StreamServerController._maxUploadBytes]
+/// mid-stream (a chunked request has no Content-Length to pre-check).
+class _UploadTooLarge implements Exception {
+  const _UploadTooLarge();
+}
 
 /// A desktop we've paired with (it holds a matching bearer token).
 class PairedDesktop {
@@ -50,6 +58,28 @@ class StreamServerController extends ChangeNotifier {
   // The last port we successfully bound. Re-used on every start so an
   // already-paired desktop reconnects at the same ip:port with no mDNS.
   static const String _kPort = 'link_server_port';
+  // Opt-in for `POST /upload`. Defaults to OFF: the bearer token a desktop
+  // holds was minted to grant *read* access, so honouring writes with it — on
+  // pairings that predate this endpoint, no less — would hand out a capability
+  // the user never agreed to. Pairing means "you may listen", not "you may put
+  // files on my phone"; the user turns this on deliberately.
+  static const String _kAllowUploads = 'link_allow_uploads';
+
+  // Ceiling for a single pushed file: comfortably above a long lossless track,
+  // far below anything that could fill a phone by accident or malice.
+  static const int _maxUploadBytes = 1024 * 1024 * 1024; // 1 GiB
+  // Only what the player and MediaStore actually understand. This is a *write*
+  // endpoint, so anything else is refused rather than parked in the library.
+  // Kept in step with [_contentType], which maps these to a real MIME type.
+  static const Set<String> _uploadableExts = {
+    'mp3',
+    'm4a',
+    'mp4',
+    'aac',
+    'flac',
+    'wav',
+    'ogg',
+  };
 
   HttpServer? _server;
   BonsoirBroadcast? _broadcast;
@@ -218,6 +248,7 @@ class StreamServerController extends ChangeNotifier {
     router.get('/stream/<file>', _handleStream);
     router.get('/art/<file>', _handleArt);
     router.get('/lyrics/<file>', _handleLyrics);
+    router.post('/upload', _handleUpload);
     return router;
   }
 
@@ -412,6 +443,243 @@ class StreamServerController extends ChangeNotifier {
         'Content-Length': '$length',
       },
     );
+  }
+
+  // ---------------------------------------------------------------- uploads
+
+  /// Receive a file pushed by a paired desktop and publish it into this phone's
+  /// music library. The desktop percent-encodes the name in `X-File-Name`.
+  Future<Response> _handleUpload(Request request) async {
+    if (!await _authorized(request)) return Response(401, body: 'unauthorized');
+    // The token that got us here only ever meant "this desktop may read the
+    // library" — accepting writes is a separate, explicit consent.
+    if (!await _uploadsAllowed()) {
+      return Response(403, body: 'receiving files is turned off on the phone');
+    }
+
+    final name = sanitizeUploadName(request.headers['x-file-name'] ?? '');
+    if (name.isEmpty) {
+      return Response(400, body: 'missing or unusable X-File-Name');
+    }
+    // Deliberately not [_extOf], which falls back to mp3 for an extension-less
+    // path: a sane default when reading our own library, but not when deciding
+    // what a desktop is allowed to write.
+    final dot = name.lastIndexOf('.');
+    final ext = dot > 0 ? name.substring(dot + 1).toLowerCase() : '';
+    if (!_uploadableExts.contains(ext)) {
+      return Response(415, body: 'unsupported file type');
+    }
+
+    final declared = int.tryParse(request.headers['content-length'] ?? '');
+    if (declared != null && declared > _maxUploadBytes) {
+      return Response(413, body: 'file is too large');
+    }
+
+    final dir = Directory('${(await getTemporaryDirectory()).path}/incoming');
+    await dir.create(recursive: true);
+    // Stage under a unique prefix so two desktops pushing the same title can't
+    // land on top of one another.
+    final staged = File('${dir.path}/${_randomHex(8)}_$name');
+    final part = File('${staged.path}.part');
+
+    try {
+      await _writeUpload(request.read(), part);
+      // Only a fully-received body is allowed to stop looking like a partial:
+      // a dropped connection leaves the `.part`, which the handlers below bin.
+      await part.rename(staged.path);
+    } on _UploadTooLarge {
+      await _deleteQuietly(part);
+      return Response(413, body: 'file is too large');
+    } on FileSystemException catch (e) {
+      await _deleteQuietly(part);
+      // Dart exposes no free-space API; ENOSPC (errno 28) is how a full disk
+      // actually reaches us, and the desktop maps 507 to its own message.
+      if (e.osError?.errorCode == 28) {
+        return Response(507, body: 'not enough space on the phone');
+      }
+      debugPrint('StreamServer: upload write failed: $e');
+      return Response(500, body: 'could not save the file');
+    } catch (e) {
+      await _deleteQuietly(part);
+      debugPrint('StreamServer: upload failed: $e');
+      return Response(500, body: 'could not save the file');
+    }
+
+    try {
+      final published = await _publishUpload(staged, name, ext);
+      // The cached snapshot no longer matches the library — drop it so the next
+      // /library or /stream re-queries and sees the track we just took.
+      _library = [];
+      return _json(published);
+    } catch (e) {
+      debugPrint('StreamServer: publishing upload failed: $e');
+      return Response(500, body: 'could not add the file to the library');
+    } finally {
+      // A no-op when [_publishUpload] moved the file rather than copying it.
+      await _deleteQuietly(staged);
+    }
+  }
+
+  /// Stream the request body to [part], enforcing [_maxUploadBytes] as it goes.
+  /// Never buffers the whole body — these are music files, and an album push
+  /// would OOM the service isolate.
+  Future<void> _writeUpload(Stream<List<int>> body, File part) async {
+    final sink = part.openWrite();
+    var total = 0;
+    try {
+      await for (final chunk in body) {
+        total += chunk.length;
+        if (total > _maxUploadBytes) throw const _UploadTooLarge();
+        sink.add(chunk);
+      }
+    } catch (_) {
+      // The original error must win over anything close() reports on the way
+      // down; the caller deletes the `.part`.
+      try {
+        await sink.close();
+      } catch (_) {/* already failing */}
+      rethrow;
+    }
+    // On the success path a close() failure is fatal rather than ignorable: it
+    // is where buffered bytes (and a full disk) actually surface, and swallowing
+    // it would rename a truncated file into the library.
+    await sink.flush();
+    await sink.close();
+  }
+
+  /// Publish a fully-received upload into the phone's music library, returning
+  /// the `{path, id}` payload for the response.
+  ///
+  /// Android goes through MediaStore: a file the app merely writes is invisible
+  /// to `OnAudioQuery`, so it would never appear in the library nor be
+  /// streamable back to the desktop. Elsewhere (iOS, whose music library is
+  /// closed to us) the file lands in the app's own documents directory and
+  /// reports no id.
+  Future<Map<String, dynamic>> _publishUpload(
+      File staged, String name, String ext) async {
+    if (NativeMediaStore.supported) {
+      final imported = await NativeMediaStore.importAudio(
+        sourcePath: staged.path,
+        displayName: name,
+        mimeType: _contentType(ext),
+      );
+      if (imported == null) {
+        throw const FileSystemException('MediaStore insert failed');
+      }
+      return {'path': imported['path'], 'id': imported['id']};
+    }
+    final docs = await getApplicationDocumentsDirectory();
+    final dest = Directory('${docs.path}/Music');
+    await dest.create(recursive: true);
+    final out = await staged.rename(_uniquePath(dest, name));
+    return {'path': out.path, 'id': null};
+  }
+
+  /// A free path for [name] in [dir], suffixing `(2)`, `(3)`… on collision so a
+  /// second push of the same title doesn't overwrite the first. (MediaStore
+  /// does this for us on Android; this is for the plain-file fallback.)
+  String _uniquePath(Directory dir, String name) {
+    final dot = name.lastIndexOf('.');
+    final stem = dot > 0 ? name.substring(0, dot) : name;
+    final ext = dot > 0 ? name.substring(dot) : '';
+    var candidate = '${dir.path}/$name';
+    var n = 2;
+    while (File(candidate).existsSync()) {
+      candidate = '${dir.path}/$stem ($n)$ext';
+      n++;
+    }
+    return candidate;
+  }
+
+  Future<void> _deleteQuietly(File f) async {
+    try {
+      if (await f.exists()) await f.delete();
+    } catch (_) {/* best effort — the OS reclaims the cache dir anyway */}
+  }
+
+  /// Whether the user has opted in to receiving files from a paired desktop.
+  ///
+  /// Re-read from disk on every call rather than cached: the toggle is written
+  /// by the *main* isolate while this server usually runs in the
+  /// foreground-service one (the same split [_authorized] reloads for), and a
+  /// stale `true` here would keep accepting writes after the user turned them
+  /// off. Unlike [_authorized] this isn't throttled — only an already-authorized
+  /// desktop can reach it, and an upload is far too heavy for one prefs read to
+  /// matter next to it.
+  Future<bool> _uploadsAllowed() async {
+    await _ensureLoaded();
+    try {
+      await _prefs?.reload();
+    } catch (_) {/* fall back on whatever this isolate last read */}
+    return _prefs?.getBool(_kAllowUploads) ?? false;
+  }
+
+  /// Whether receiving files from a paired desktop is enabled (see
+  /// [_uploadsAllowed] for why this always hits disk).
+  Future<bool> allowUploads() => _uploadsAllowed();
+
+  /// Persist the receive-files opt-in. Written from the main isolate; the
+  /// sharing server picks it up on its next upload, which re-reads per request.
+  Future<void> setAllowUploads(bool value) async {
+    await _ensureLoaded();
+    await _prefs!.setBool(_kAllowUploads, value);
+    notifyListeners();
+  }
+
+  /// Reduce the desktop-supplied `X-File-Name` to a bare, safe filename.
+  /// Returns an empty string when nothing usable survives — the caller rejects
+  /// the request rather than inventing a name for it.
+  @visibleForTesting
+  static String sanitizeUploadName(String raw) {
+    var name = raw;
+    try {
+      name = Uri.decodeComponent(raw);
+    } catch (_) {/* not valid percent-encoding — sanitize the raw value */}
+    // Keep only the last path segment, so `../../evil` and `C:\dir\evil` can't
+    // smuggle a traversal (or an absolute path) past the target directory.
+    name = name.replaceAll('\\', '/');
+    name = name.substring(name.lastIndexOf('/') + 1);
+    // Legal in a header, not in a filename — and a NUL would truncate the path
+    // at the syscall boundary.
+    name = name.replaceAll(RegExp(r'[\x00-\x1f\x7f]'), '');
+    // Strips `.`/`..` outright, and stops an upload from landing as a hidden
+    // dotfile the user can't see in their library.
+    name = name.replaceAll(RegExp(r'^[.\s]+'), '').trim();
+    if (name.isEmpty) return '';
+    return _boundNameLength(name);
+  }
+
+  /// Clamp a filename to something every filesystem will take, keeping the
+  /// extension (MediaStore and the player both key off it).
+  static String _boundNameLength(String name) {
+    // ext4/F2FS cap a filename at 255 *bytes*, not characters — a CJK or emoji
+    // title blows that long before it looks long. The headroom covers the
+    // staging prefix and the `.part` suffix.
+    const maxBytes = 180;
+    if (utf8.encode(name).length <= maxBytes) return name;
+    final dot = name.lastIndexOf('.');
+    // Only treat a short trailing run as an extension; a stray dot in a long
+    // title isn't one.
+    final hasExt = dot > 0 && name.length - dot <= 12;
+    final ext = hasExt ? name.substring(dot) : '';
+    final stem = _clampToBytes(
+      hasExt ? name.substring(0, dot) : name,
+      maxBytes - utf8.encode(ext).length,
+    );
+    return stem.isEmpty ? '' : '$stem$ext';
+  }
+
+  /// Truncate [s] to at most [maxBytes] of UTF-8 without splitting a code point.
+  static String _clampToBytes(String s, int maxBytes) {
+    final out = StringBuffer();
+    var used = 0;
+    for (final rune in s.runes) {
+      final size = utf8.encode(String.fromCharCode(rune)).length;
+      if (used + size > maxBytes) break;
+      out.writeCharCode(rune);
+      used += size;
+    }
+    return out.toString();
   }
 
   // ------------------------------------------------------------------ mDNS

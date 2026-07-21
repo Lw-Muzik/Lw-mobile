@@ -1,7 +1,7 @@
 import 'package:eq_app/Routes/routes.dart';
 import 'package:eq_app/extensions/index.dart';
 import '/exports/exports.dart';
-import '/Helpers/Files.dart';
+import '/data/library_repository.dart';
 
 import '../widgets/ArtworkWidget.dart';
 import '../widgets/pinch_zoom_grid.dart';
@@ -15,20 +15,20 @@ class Artists extends StatefulWidget {
 }
 
 class _ArtistsState extends State<Artists> {
-  late Future<List<ArtistModel>> _artistsFuture;
+  late final Stream<List<ArtistModel>> _artistsStream;
 
   @override
   void initState() {
     super.initState();
-    _artistsFuture = Files.fetchAllArtists();
+    _artistsStream = context.read<LibraryRepository>().watchArtists();
   }
 
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.all(8.0),
-      child: FutureBuilder<List<ArtistModel>>(
-        future: _artistsFuture,
+      child: StreamBuilder<List<ArtistModel>>(
+        stream: _artistsStream,
         builder: (context, item) {
           if (item.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator.adaptive());

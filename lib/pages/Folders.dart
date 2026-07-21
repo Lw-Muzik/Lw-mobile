@@ -3,6 +3,7 @@ import '../Routes/routes.dart';
 import '/exports/exports.dart';
 
 import '../Global/index.dart';
+import '../data/library_repository.dart';
 import '../widgets/pinch_zoom_grid.dart';
 import 'folder_songs.dart';
 
@@ -14,20 +15,15 @@ class Folders extends StatefulWidget {
 }
 
 class _FoldersState extends State<Folders> {
-  late Future<List<String>> _foldersFuture;
-
-  @override
-  void initState() {
-    super.initState();
-    _foldersFuture = OnAudioQuery.platform.queryAllPath();
-  }
+  late final Stream<List<FolderEntry>> _foldersStream =
+      context.read<LibraryRepository>().watchFolders();
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<List<String>>(
-      future: _foldersFuture,
+    return StreamBuilder<List<FolderEntry>>(
+      stream: _foldersStream,
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
+        if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator.adaptive());
         } else if (snapshot.hasError) {
           return Center(
@@ -85,8 +81,8 @@ class _FoldersState extends State<Folders> {
               ),
               itemCount: folders.length,
               itemBuilder: (context, index) {
-                final path = folders[index];
-                final folderName = path.split("/").last;
+                final folder = folders[index];
+                final path = folder.path;
                 return InkWell(
                   onTap: () => Routes.scaleTo(FolderSongs(path: path), context),
                   onLongPress: () {
@@ -100,7 +96,13 @@ class _FoldersState extends State<Folders> {
                         borderRadius: BorderRadius.circular(12),
                       ),
                       clipBehavior: Clip.antiAlias,
-                      child: folderArtwork(path, folderName),
+                      child: folderArtwork(
+                        context,
+                        folder.name,
+                        sampleId: folder.sampleId,
+                        sampleData: folder.sampleData,
+                        numSongs: folder.numSongs,
+                      ),
                     ),
                   ),
                 );

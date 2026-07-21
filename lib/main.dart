@@ -24,9 +24,14 @@ import 'package:firebase_core/firebase_core.dart';
 import 'config/app_config.dart';
 import 'controllers/PlayerController.dart';
 import 'controllers/PlaylistController.dart';
+import 'controllers/LibraryController.dart';
+import 'data/library_database.dart';
+import 'data/library_repository.dart';
 import 'firebase_options.dart';
 import 'widgets/DvcVolumeOverlay.dart';
 import 'services/streaming_data_guard.dart';
+import 'services/library_scanner.dart';
+import 'services/artwork_service.dart';
 import 'services/share_service.dart';
 
 Future<void> main() async {
@@ -99,6 +104,15 @@ Future<void> main() async {
   // Initialize streaming data guard (network-aware cloud streaming)
   await StreamingDataGuard.init(prefs);
 
+  // Local library database — the browsing UI's source of truth. Opening is
+  // lazy (first query triggers it on a background isolate), so this is cheap
+  // and never blocks launch. The scanner diffs MediaStore after the first
+  // frame; art is resolved on demand through the same repository.
+  final libraryRepo = LibraryRepository(LibraryDatabase());
+  ArtworkService.instance.attachRepository(libraryRepo);
+  AppController.libraryRepo = libraryRepo;
+  final libraryScanner = LibraryScanner(libraryRepo);
+
   runApp(
     MultiBlocProvider(
       providers: [
@@ -107,6 +121,14 @@ Future<void> main() async {
         Provider<HypeAudioHandler>.value(value: handler),
         ChangeNotifierProvider(create: (_) => PlayerController()),
         ChangeNotifierProvider(create: (_) => DrawerProvider()),
+        Provider<LibraryRepository>.value(value: libraryRepo),
+        ChangeNotifierProvider(
+          create: (_) => LibraryController(
+            repo: libraryRepo,
+            scanner: libraryScanner,
+            prefs: prefs,
+          ),
+        ),
         BlocProvider(create: (_) => BandController()),
       ],
       child: Wiredash(

@@ -1,4 +1,3 @@
-import 'dart:ui';
 
 import '/Global/index.dart';
 import '/Routes/routes.dart';
@@ -12,7 +11,7 @@ import '/exports/exports.dart';
 import '../player/player_ui.dart';
 import '../widgets/ArtworkWidget.dart';
 import '../widgets/BottomPlayer.dart';
-import '/Helpers/Files.dart';
+import '/data/library_repository.dart';
 
 class ArtistSongs extends StatefulWidget {
   final int? artistId;
@@ -33,6 +32,9 @@ class ArtistSongs extends StatefulWidget {
 }
 
 class _ArtistSongsState extends State<ArtistSongs> {
+  late final Stream<List<SongModel>> _songsStream =
+      context.read<LibraryRepository>().watchArtistSongs(widget.artist);
+
   @override
   Widget build(BuildContext context) {
     return Body(
@@ -132,22 +134,29 @@ class _ArtistSongsState extends State<ArtistSongs> {
       stream: controller.handler.player.playingStream,
       builder: (context, service) {
         return Scaffold(
-          body: FutureBuilder<List<SongModel>>(
-            future: Files.fetchSongsForArtist(widget.artistId ?? 0),
+          body: StreamBuilder<List<SongModel>>(
+            stream: _songsStream,
             builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
+              if (!snapshot.hasData) {
                 return const Center(
                   child: CircularProgressIndicator.adaptive(),
                 );
-              } else if (snapshot.hasData && snapshot.data!.isNotEmpty) {
+              } else if (snapshot.data!.isNotEmpty) {
+                final songs = snapshot.data!;
                 return SongListView(
-                  songs: snapshot.data!,
+                  songs: songs,
                   controller: controller,
                   onTap: (song, index) {
-                    controller.playSongFromList(snapshot.data!, index);
+                    controller.playSongFromList(songs, index);
                     Routes.routeTo(const Player(), context);
                   },
                   onLongPress: (song, index) {
+                    showModalBottomSheet(
+                      context: context,
+                      builder: (_) => SongOptionsSheet(song: song),
+                    );
+                  },
+                  onOptions: (song, index) {
                     showModalBottomSheet(
                       context: context,
                       builder: (_) => SongOptionsSheet(song: song),

@@ -2,10 +2,14 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:on_audio_query/on_audio_query.dart';
+import 'package:provider/provider.dart';
 
 import '/Helpers/Channel.dart';
 import '/controllers/AppController.dart';
+import '/data/library_repository.dart';
 import '/models/recognition_result.dart';
+import '/pages/album_songs.dart';
+import '/pages/artist_songs.dart';
 import '/widgets/PlayListWidget.dart';
 
 /// Bottom sheet with song actions: Identify track, Add to playlist, etc.
@@ -22,6 +26,49 @@ class _SongOptionsSheetState extends State<SongOptionsSheet> {
   bool _applying = false;
   RecognitionResult? _result;
   String? _error;
+
+  bool get _hasArtist {
+    final a = widget.song.artist;
+    return a != null && a.trim().isNotEmpty && a != '<unknown>';
+  }
+
+  bool get _hasAlbum {
+    final a = widget.song.album;
+    return a != null && a.trim().isNotEmpty;
+  }
+
+  Future<void> _goToArtist() async {
+    final artist = widget.song.artist!;
+    final repo = context.read<LibraryRepository>();
+    final nav = Navigator.of(context);
+    final songs = await repo.watchArtistSongs(artist).first;
+    if (!mounted) return;
+    nav.pop();
+    nav.push(MaterialPageRoute(
+      builder: (_) => ArtistSongs(
+        artistId: widget.song.artistId,
+        artist: artist,
+        songs: songs.length,
+        albums: 0,
+      ),
+    ));
+  }
+
+  Future<void> _goToAlbum() async {
+    final album = widget.song.album!;
+    final repo = context.read<LibraryRepository>();
+    final nav = Navigator.of(context);
+    final songs = await repo.watchAlbumSongs(album).first;
+    if (!mounted) return;
+    nav.pop();
+    nav.push(MaterialPageRoute(
+      builder: (_) => AlbumSongs(
+        albumId: widget.song.albumId,
+        album: album,
+        songs: songs.length,
+      ),
+    ));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -132,6 +179,32 @@ class _SongOptionsSheetState extends State<SongOptionsSheet> {
               );
             },
           ),
+
+          // Go to artist
+          if (_hasArtist)
+            ListTile(
+              leading: const Icon(Icons.person_outline_rounded),
+              title: const Text("Go to artist"),
+              subtitle: Text(
+                widget.song.artist!,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              onTap: _goToArtist,
+            ),
+
+          // Go to album
+          if (_hasAlbum)
+            ListTile(
+              leading: const Icon(Icons.album_outlined),
+              title: const Text("Go to album"),
+              subtitle: Text(
+                widget.song.album!,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              onTap: _goToAlbum,
+            ),
 
           const SizedBox(height: 8),
         ],

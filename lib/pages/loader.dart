@@ -5,10 +5,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../Helpers/fileloader.dart';
 import '../Routes/routes.dart';
 import '../controllers/PlayerController.dart';
 import '../controllers/AppController.dart';
+import '../controllers/LibraryController.dart';
 import '../onboarding/mode_chooser.dart';
 import '../onboarding/onboarding_screen.dart';
 
@@ -23,7 +23,10 @@ class _AssetLoaderState extends State<AssetLoader>
     with TickerProviderStateMixin {
   static const int _rippleCount = 7;
   static const Duration _animationDuration = Duration(milliseconds: 2000);
-  static const Duration _loadingDelay = Duration(seconds: 3);
+  // Brief splash so the branding animation doesn't flash; the library no
+  // longer blocks here (it loads from the DB on the home screen), so the old
+  // 3-second floor that hid the synchronous MediaStore import is gone.
+  static const Duration _splashMinimum = Duration(milliseconds: 900);
 
   // Two-tone palette
   static const Color _bg = Color(0xFF0A0A0A);
@@ -198,15 +201,21 @@ class _AssetLoaderState extends State<AssetLoader>
 
       // Only load music library in music player mode
       final appMode = AppMode.values[prefs.getInt("appMode") ?? 0];
-      if (appMode == AppMode.musicPlayer) {
-        await fetchMetaData(context);
-        await prefs.setBool("artworkLoaded", true);
+      if (appMode == AppMode.musicPlayer && mounted) {
+        // Home renders instantly from the library database; the scanner diffs
+        // MediaStore in the background and streams new songs into the live
+        // lists. No blocking full re-import, no per-launch artwork extraction.
+        final library = Provider.of<LibraryController>(context, listen: false);
+        final app = Provider.of<AppController>(context, listen: false);
+        unawaited(library.start().then((_) {
+          return library.importLegacyPlayCounts(app.playCounts);
+        }));
       }
 
       Future.delayed(
         appMode == AppMode.equalizer
             ? const Duration(milliseconds: 500)
-            : _loadingDelay,
+            : _splashMinimum,
         () {
           if (mounted && !_isNavigating) {
             _isNavigating = true;

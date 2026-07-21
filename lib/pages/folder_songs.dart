@@ -1,7 +1,7 @@
 import 'package:eq_app/Global/index.dart';
-import 'package:eq_app/Helpers/Files.dart';
 import '/exports/exports.dart';
 import '../controllers/AppController.dart';
+import '../data/library_repository.dart';
 import '../player/player_ui.dart';
 import '../widgets/BottomPlayer.dart';
 import '/widgets/song_options_sheet.dart';
@@ -17,32 +17,26 @@ class FolderSongs extends StatefulWidget {
 }
 
 class _FolderSongsState extends State<FolderSongs> {
-  late Future<List<SongModel>> _songsFuture;
-  int _songCount = 0;
-
-  @override
-  void initState() {
-    super.initState();
-    _initializeSongs();
-  }
-
-  void _initializeSongs() {
-    _songsFuture = Files.queryFromFolder(widget.path);
-    _songsFuture.then((songs) {
-      if (mounted) {
-        setState(() => _songCount = songs.length);
-      }
-    });
-  }
+  // Single reactive query feeding both the header and the list — the page used
+  // to run the folder query three separate times (init + two FutureBuilders in
+  // build()).
+  late final Stream<List<SongModel>> _songsStream =
+      context.read<LibraryRepository>().watchFolderSongs(widget.path);
 
   @override
   Widget build(BuildContext context) {
     return Consumer<AppController>(
-      builder: (context, appController, _) => NestedScrollView(
-        headerSliverBuilder: (context, _) => [
-          _buildSliverAppBar(context, appController),
-        ],
-        body: _buildBody(appController),
+      builder: (context, appController, _) => StreamBuilder<List<SongModel>>(
+        stream: _songsStream,
+        builder: (context, snapshot) {
+          final songs = snapshot.data ?? const <SongModel>[];
+          return NestedScrollView(
+            headerSliverBuilder: (context, _) => [
+              _buildSliverAppBar(context, appController, songs),
+            ],
+            body: _buildBody(appController, songs, snapshot.hasData),
+          );
+        },
       ),
     );
   }
@@ -50,6 +44,7 @@ class _FolderSongsState extends State<FolderSongs> {
   SliverAppBar _buildSliverAppBar(
     BuildContext context,
     AppController appController,
+    List<SongModel> songs,
   ) {
     return SliverAppBar(
       forceMaterialTransparency: appController.isFancy,
@@ -58,34 +53,33 @@ class _FolderSongsState extends State<FolderSongs> {
       elevation: 0,
       flexibleSpace: FlexibleSpaceBar(
         centerTitle: true,
-        background: _buildFlexibleSpaceBackground(context),
+        background: _buildFlexibleSpaceBackground(context, appController, songs),
       ),
     );
   }
 
-  Widget _buildFlexibleSpaceBackground(BuildContext context) {
+  Widget _buildFlexibleSpaceBackground(
+    BuildContext context,
+    AppController controller,
+    List<SongModel> songs,
+  ) {
     return Hero(
       tag: 'folder_${widget.path}',
       child: Stack(
         children: [
-          FutureBuilder<List<SongModel>>(
-            future: _songsFuture,
-            builder: (context, snapshot) {
-              if (!snapshot.hasData) return const SizedBox.shrink();
-
-              return Consumer<AppController>(
-                builder: (context, controller, _) =>
-                    headerWidget(controller, context, data: snapshot.data!),
-              );
-            },
+          if (songs.isNotEmpty)
+            headerWidget(controller, context, data: songs),
+          Positioned(
+            bottom: 45,
+            left: 10,
+            child: _buildFolderInfo(context, songs.length),
           ),
-          Positioned(bottom: 45, left: 10, child: _buildFolderInfo(context)),
         ],
       ),
     );
   }
 
-  Widget _buildFolderInfo(BuildContext context) {
+  Widget _buildFolderInfo(BuildContext context, int songCount) {
     final textTheme = Theme.of(context).textTheme;
     final folderName = widget.path.split("/").last;
 
@@ -94,13 +88,13 @@ class _FolderSongsState extends State<FolderSongs> {
         children: [
           TextSpan(text: "$folderName\n", style: textTheme.displayMedium),
           TextSpan(
-            text: "$_songCount",
+            text: "$songCount",
             style: textTheme.headlineLarge?.copyWith(
               fontWeight: FontWeight.w300,
             ),
           ),
           TextSpan(
-            text: _songCount == 1
+            text: songCount == 1
                 ? " Available Track\n"
                 : " Available Tracks\n",
             style: textTheme.headlineSmall?.copyWith(
@@ -116,7 +110,11 @@ class _FolderSongsState extends State<FolderSongs> {
     );
   }
 
-  Widget _buildBody(AppController controller) {
+  Widget _buildBody(
+    AppController controller,
+    List<SongModel> songs,
+    bool hasData,
+  ) {
     return StreamBuilder<bool>(
       stream: controller.handler.player.playingStream,
       builder: (context, snapshot) {
@@ -126,7 +124,7 @@ class _FolderSongsState extends State<FolderSongs> {
           backgroundColor: controller.isFancy
               ? Colors.transparent
               : Theme.of(context).scaffoldBackgroundColor,
-          body: _buildSongList(),
+          body: _buildSongList(controller, songs, hasData),
           bottomNavigationBar: isPlaying
               ? BottomPlayer(controller: controller)
               : null,
@@ -135,31 +133,31 @@ class _FolderSongsState extends State<FolderSongs> {
     );
   }
 
-  Widget _buildSongList() {
-    return FutureBuilder<List<SongModel>>(
-      future: _songsFuture,
-      builder: (context, snapshot) {
-        if (!snapshot.hasData) {
-          return const Center(child: CircularProgressIndicator.adaptive());
-        }
-
-        return Consumer<AppController>(
-          builder: (context, controller, _) {
-            return SongListView(
-              songs: snapshot.data!,
-              controller: controller,
-              onTap: (song, index) {
-                controller.playSongFromList(snapshot.data!, index);
-                Routes.routeTo(const Player(), context);
-              },
-              onLongPress: (song, index) {
-                showModalBottomSheet(
-                  context: context,
-                  builder: (_) => SongOptionsSheet(song: song),
-                );
-              },
-            );
-          },
+  Widget _buildSongList(
+    AppController controller,
+    List<SongModel> songs,
+    bool hasData,
+  ) {
+    if (!hasData) {
+      return const Center(child: CircularProgressIndicator.adaptive());
+    }
+    return SongListView(
+      songs: songs,
+      controller: controller,
+      onTap: (song, index) {
+        controller.playSongFromList(songs, index);
+        Routes.routeTo(const Player(), context);
+      },
+      onLongPress: (song, index) {
+        showModalBottomSheet(
+          context: context,
+          builder: (_) => SongOptionsSheet(song: song),
+        );
+      },
+      onOptions: (song, index) {
+        showModalBottomSheet(
+          context: context,
+          builder: (_) => SongOptionsSheet(song: song),
         );
       },
     );

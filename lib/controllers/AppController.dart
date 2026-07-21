@@ -5,6 +5,7 @@ import 'dart:math' as math;
 import 'package:eq_app/Global/index.dart';
 import '/exports/exports.dart';
 
+import '../data/library_repository.dart';
 import '../Helpers/AudioHandler.dart';
 import '../Helpers/Channel.dart';
 import '../Helpers/index.dart';
@@ -725,6 +726,11 @@ class AppController with ChangeNotifier {
   Map<int, int> _playCounts = {};
   Map<int, int> get playCounts => _playCounts;
 
+  /// Library database, wired once at startup in main(). Used to persist play
+  /// counts into the library DB so "Most played" reflects real listening even
+  /// after the switch away from the prefs-backed map.
+  static LibraryRepository? libraryRepo;
+
   StreamSubscription<Duration>? _positionSub;
   bool _isCrossfading = false;
 
@@ -1246,6 +1252,10 @@ class AppController with ChangeNotifier {
 
   void _incrementPlayCount(int songId) {
     _playCounts[songId] = (_playCounts[songId] ?? 0) + 1;
+    // Mirror into the library DB (fire-and-forget) so discovery surfaces read
+    // from the same source of truth as the rest of the library.
+    libraryRepo?.incrementPlayCount(
+        songId, DateTime.now().millisecondsSinceEpoch ~/ 1000);
     // Debounce disk persistence. Encoding the whole map + setString used to run
     // synchronously on the UI isolate on EVERY track change (plus a redundant
     // notifyListeners) — a hitch at the exact moment of the transition that

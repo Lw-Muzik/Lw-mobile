@@ -1,4 +1,3 @@
-import 'dart:ui';
 
 import 'package:eq_app/Routes/routes.dart';
 import 'package:eq_app/controllers/AppController.dart';
@@ -11,7 +10,7 @@ import '/widgets/ArtworkWidget.dart';
 import '/widgets/BottomPlayer.dart';
 import '/widgets/song_options_sheet.dart';
 import '/widgets/song_tile.dart';
-import '/Helpers/Files.dart';
+import '/data/library_repository.dart';
 
 class AlbumSongs extends StatefulWidget {
   final int? albumId;
@@ -30,6 +29,12 @@ class AlbumSongs extends StatefulWidget {
 
 class _AlbumSongsState extends State<AlbumSongs> {
   final ScrollController _controller = ScrollController();
+
+  // Built once here (not in build()) so the outer playingStream rebuilds no
+  // longer re-issue the query every time playback state flips.
+  late final Stream<List<SongModel>> _songsStream =
+      context.read<LibraryRepository>().watchAlbumSongs(widget.album);
+
   @override
   Widget build(BuildContext context) {
     return Body(
@@ -106,21 +111,28 @@ class _AlbumSongsState extends State<AlbumSongs> {
               stream: controller.handler.player.playingStream,
               builder: (context, service) {
                 return Scaffold(
-                  body: FutureBuilder<List<SongModel>>(
-                    future: Files.fetchSongsForAlbum(widget.albumId!),
+                  body: StreamBuilder<List<SongModel>>(
+                    stream: _songsStream,
                     builder: (context, snapshot) {
                       if (!snapshot.hasData) {
                         return const Center(
                           child: CircularProgressIndicator.adaptive(),
                         );
                       }
+                      final songs = snapshot.data!;
                       return SongListView(
-                        songs: snapshot.data ?? [],
+                        songs: songs,
                         controller: controller,
                         onTap: (song, index) {
-                          controller.playSongFromList(snapshot.data!, index);
+                          controller.playSongFromList(songs, index);
                         },
                         onLongPress: (song, index) {
+                          showModalBottomSheet(
+                            context: context,
+                            builder: (_) => SongOptionsSheet(song: song),
+                          );
+                        },
+                        onOptions: (song, index) {
                           showModalBottomSheet(
                             context: context,
                             builder: (_) => SongOptionsSheet(song: song),

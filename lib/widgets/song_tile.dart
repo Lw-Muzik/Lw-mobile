@@ -1,10 +1,13 @@
-import 'package:flutter/services.dart';
-
 import '/exports/exports.dart';
 import '/Helpers/index.dart';
 import '../controllers/AppController.dart';
 import '../widgets/ArtworkWidget.dart';
+import '../widgets/alphabet_fast_scroll.dart';
 import '../widgets/pinch_zoom_grid.dart';
+
+/// Fixed row height so the songs list can use `itemExtent` (O(1) scroll math
+/// for very large libraries) and the alphabet rail can jump precisely.
+const double kSongTileExtent = 68.0;
 
 // ---------------------------------------------------------------------------
 // SongTile — list-mode row
@@ -16,6 +19,7 @@ class SongTile extends StatelessWidget {
   final bool isCurrentTrack;
   final VoidCallback onTap;
   final VoidCallback? onLongPress;
+  final VoidCallback? onOptions;
   final bool showTrackNumber;
   final bool showDuration;
   final bool showOptionsIcon;
@@ -27,6 +31,7 @@ class SongTile extends StatelessWidget {
     required this.isCurrentTrack,
     required this.onTap,
     this.onLongPress,
+    this.onOptions,
     this.showTrackNumber = true,
     this.showDuration = true,
     this.showOptionsIcon = true,
@@ -155,14 +160,19 @@ class SongTile extends StatelessWidget {
                       fontSize: 12,
                     ),
                   ),
-                // Options icon
+                // Options button — now actually opens the track menu
+                // (was a decorative icon with no tap handler).
                 if (showOptionsIcon)
-                  Padding(
-                    padding: const EdgeInsets.only(left: 4),
-                    child: Icon(
-                      Icons.more_vert_rounded,
-                      size: 18,
-                      color: onSurface.withValues(alpha: 0.3),
+                  InkWell(
+                    onTap: onOptions ?? onLongPress,
+                    customBorder: const CircleBorder(),
+                    child: Padding(
+                      padding: const EdgeInsets.all(6),
+                      child: Icon(
+                        Icons.more_vert_rounded,
+                        size: 18,
+                        color: onSurface.withValues(alpha: 0.5),
+                      ),
                     ),
                   ),
               ],
@@ -308,6 +318,12 @@ class SongListView extends StatelessWidget {
   final bool showOptionsIcon;
   final void Function(SongModel song, int index)? onTap;
   final void Function(SongModel song, int index)? onLongPress;
+  final void Function(SongModel song, int index)? onOptions;
+
+  /// First-letter accessor that turns on the alphabet fast-scroll rail. Supply
+  /// it only when the list is in an alphabetical order (title/artist); leave
+  /// null for date/duration sorts or short detail lists.
+  final String Function(SongModel song)? fastScrollKey;
 
   const SongListView({
     super.key,
@@ -318,6 +334,8 @@ class SongListView extends StatelessWidget {
     this.showOptionsIcon = true,
     this.onTap,
     this.onLongPress,
+    this.onOptions,
+    this.fastScrollKey,
   });
 
   @override
@@ -356,10 +374,12 @@ class SongListView extends StatelessWidget {
         ? controller.songs[controller.songId].id
         : -1;
 
-    return ListView.builder(
+    return AlphabetFastScroll(
       itemCount: songs.length,
-      addAutomaticKeepAlives: false,
-      addRepaintBoundaries: true,
+      itemExtent: kSongTileExtent,
+      sectionKeyOf: fastScrollKey == null
+          ? null
+          : (index) => fastScrollKey!(songs[index]),
       itemBuilder: (context, index) {
         final song = songs[index];
         final isCurrent = song.id == currentSongId;
@@ -373,6 +393,9 @@ class SongListView extends StatelessWidget {
           onTap: () => onTap?.call(song, index),
           onLongPress: onLongPress != null
               ? () => onLongPress!.call(song, index)
+              : null,
+          onOptions: onOptions != null
+              ? () => onOptions!.call(song, index)
               : null,
         );
       },

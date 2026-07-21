@@ -9,7 +9,6 @@ import 'package:http/http.dart' as http;
 import '/exports/exports.dart';
 
 import '../Helpers/AudioHandler.dart';
-import '../Helpers/Files.dart';
 import '../Routes/routes.dart';
 import '../Visualizers/MultiwaveVisualizer.dart';
 import '../controllers/AppController.dart';
@@ -255,63 +254,75 @@ Widget playerCard(
   );
 }
 
-Widget folderArtwork(String path, String title) {
-  return FutureBuilder<List<SongModel>>(
-    future: Files.queryFromFolder(path),
-    builder: (context, snapshot) {
-      var data = snapshot.data;
-      return snapshot.hasData
-          ? Stack(
+/// Folder thumbnail. The representative track is now supplied by the caller
+/// (from a single grouped DB query), replacing the old per-card `querySongs()`
+/// scan of the entire library that made the Folders tab O(folders × library).
+Widget folderArtwork(
+  BuildContext context,
+  String title, {
+  int? sampleId,
+  String? sampleData,
+  int numSongs = 0,
+}) {
+  final side = MediaQuery.of(context).size.width;
+  return Stack(
+    children: [
+      if (sampleId != null && sampleData != null)
+        ArtworkWidget(
+          quality: 50,
+          size: 200,
+          borderRadius: BorderRadius.circular(10),
+          width: side,
+          height: side,
+          songId: sampleId,
+          type: ArtworkType.AUDIO,
+          path: sampleData,
+        )
+      else
+        Container(
+          width: side,
+          height: side,
+          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+          child: Icon(
+            Icons.folder_rounded,
+            size: 48,
+            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3),
+          ),
+        ),
+      Positioned(
+        right: 0,
+        left: 0,
+        bottom: -10,
+        child: Card(
+          margin: const EdgeInsets.all(10),
+          color: Theme.of(context).primaryColorDark.withValues(alpha: 0.7),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: RichText(
+            textAlign: TextAlign.center,
+            text: TextSpan(
               children: [
-                ArtworkWidget(
-                  quality: 50,
-                  size: 200,
-                  useSaved: data!.isNotEmpty,
-                  borderRadius: BorderRadius.circular(10),
-                  width: MediaQuery.of(context).size.width,
-                  height: MediaQuery.of(context).size.width,
-                  songId: data[data.length > 2 ? data.length - 2 : 0].id,
-                  type: ArtworkType.AUDIO,
-                  path: data[data.length > 2 ? data.length - 2 : 0].data,
+                TextSpan(
+                  text: "$title \n",
+                  style: Theme.of(context)
+                      .textTheme
+                      .labelSmall!
+                      .apply(color: Colors.white),
                 ),
-                Positioned(
-                  right: 0,
-                  left: 0,
-                  bottom: -10,
-                  child: Card(
-                    margin: const EdgeInsets.all(10),
-                    color: Theme.of(
-                      context,
-                    ).primaryColorDark.withValues(alpha: 0.7),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: RichText(
-                      textAlign: TextAlign.center,
-                      text: TextSpan(
-                        children: [
-                          TextSpan(
-                            text: "$title \n",
-                            style: Theme.of(
-                              context,
-                            ).textTheme.labelSmall!.apply(color: Colors.white),
-                          ),
-                          TextSpan(
-                            text: "${data.length} Songs",
-                            style: Theme.of(context).textTheme.labelSmall!
-                                .apply(
-                                  color: Theme.of(context).primaryColorLight,
-                                ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
+                TextSpan(
+                  text: "$numSongs Songs",
+                  style: Theme.of(context)
+                      .textTheme
+                      .labelSmall!
+                      .apply(color: Theme.of(context).primaryColorLight),
                 ),
               ],
-            )
-          : Container();
-    },
+            ),
+          ),
+        ),
+      ),
+    ],
   );
 }
 
