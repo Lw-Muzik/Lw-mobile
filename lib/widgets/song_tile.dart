@@ -1,6 +1,7 @@
 import '/exports/exports.dart';
 import '/Helpers/index.dart';
 import '../controllers/AppController.dart';
+import '../services/player_reveal_bus.dart';
 import '../widgets/ArtworkWidget.dart';
 import '../widgets/alphabet_fast_scroll.dart';
 import '../widgets/pinch_zoom_grid.dart';
@@ -377,6 +378,17 @@ class SongListView extends StatelessWidget {
     return AlphabetFastScroll(
       itemCount: songs.length,
       itemExtent: kSongTileExtent,
+      // After a slide-down player dismissal, land this list on the
+      // now-playing row (Poweramp behavior).
+      revealTick: PlayerRevealBus.tick,
+      revealIndex: () {
+        final current = controller.songId >= 0 &&
+                controller.songId < controller.songs.length
+            ? controller.songs[controller.songId].id
+            : -1;
+        if (current == -1) return -1;
+        return songs.indexWhere((s) => s.id == current);
+      },
       sectionKeyOf: fastScrollKey == null
           ? null
           : (index) => fastScrollKey!(songs[index]),

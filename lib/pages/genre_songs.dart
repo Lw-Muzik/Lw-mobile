@@ -6,7 +6,6 @@ import 'package:eq_app/extensions/index.dart';
 import 'package:eq_app/widgets/Body.dart';
 import '/exports/exports.dart';
 
-import '../player/player_ui.dart';
 import '/widgets/ArtworkWidget.dart';
 import '/widgets/BottomPlayer.dart';
 import '/widgets/song_options_sheet.dart';
@@ -121,7 +120,7 @@ class _GenreSongsState extends State<GenreSongs> {
                         controller: controller,
                         onTap: (song, index) {
                           controller.playSongFromList(songs, index);
-                          Routes.routeTo(const Player(), context);
+                          Routes.playerTo(context);
                         },
                         onLongPress: (song, index) {
                           showModalBottomSheet(

@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 
 import '../../Routes/routes.dart';
 import '../../controllers/AppController.dart';
-import '../../player/player_ui.dart';
 import 'music_models.dart';
 import 'music_repository.dart';
 
@@ -36,7 +35,7 @@ class MusicPlayerHelper {
     // Play tapped song immediately
     final tappedModel = _toSongModel(tapped, audioUrl);
     controller.playSongFromList([tappedModel], 0);
-    Routes.routeTo(const Player(), context);
+    Routes.playerTo(context);
 
     // Background: resolve all other songs and rebuild queue
     if (songs.length > 1) {

@@ -7,7 +7,6 @@ import '/Routes/routes.dart';
 import '../controllers/AppController.dart';
 import '../data/library_repository.dart';
 import '../models/cloud_file.dart';
-import '../player/player_ui.dart';
 import '../widgets/ArtworkWidget.dart';
 import '../widgets/song_tile.dart';
 import 'album_songs.dart';
@@ -937,7 +936,7 @@ class _SearchPageState extends State<SearchPage> {
       index = 0;
     }
     controller.playSongFromList(queue, index);
-    Routes.routeTo(const Player(), context);
+    Routes.playerTo(context);
   }
 
   void _showAllSongs(List<SongModel> songs, AppController controller) {
@@ -958,7 +957,7 @@ class _SearchPageState extends State<SearchPage> {
             showOptionsIcon: false,
             onTap: (song, index) {
               controller.playSongFromList(songs, index);
-              Routes.routeTo(const Player(), context);
+              Routes.playerTo(context);
             },
           ),
         ),

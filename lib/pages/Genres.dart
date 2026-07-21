@@ -3,7 +3,9 @@ import 'package:eq_app/extensions/index.dart';
 import 'package:eq_app/pages/genre_songs.dart';
 import '/exports/exports.dart';
 import '/data/library_repository.dart';
+import '/controllers/LibraryController.dart';
 
+import '../widgets/library_list_row.dart';
 import '../widgets/pinch_zoom_grid.dart';
 
 class Genres extends StatefulWidget {
@@ -76,12 +78,14 @@ class _GenresState extends State<Genres> {
         }
 
         final genres = snapshot.data!;
+        final library = context.read<LibraryController>();
         return Padding(
           padding: const EdgeInsets.all(8.0),
           child: PinchZoomGrid(
-            initialExtent: 200.0,
+            initialExtent: library.gridExtentFor('genres', fallback: 200.0),
             minExtent: 100.0,
             maxExtent: 300.0,
+            onExtentChanged: (e) => library.setGridExtent('genres', e),
             gridBuilder: (extent) => GridView.builder(
             itemCount: genres.length,
             gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
@@ -161,6 +165,29 @@ class _GenresState extends State<Genres> {
               );
             },
           ),
+            listBuilder: ListView.builder(
+              itemExtent: kLibraryRowExtent,
+              addAutomaticKeepAlives: false,
+              addRepaintBoundaries: true,
+              itemCount: genres.length,
+              itemBuilder: (context, index) {
+                final genre = genres[index];
+                return LibraryListRow(
+                  title: genre.genre,
+                  subtitle: '${genre.numOfSongs} songs',
+                  artworkId: null,
+                  fallbackIcon: Icons.library_music_rounded,
+                  onTap: () => Routes.scaleTo(
+                    GenreSongs(
+                      genreId: genre.id,
+                      genre: genre.genre,
+                      songs: genre.numOfSongs,
+                    ),
+                    context,
+                  ),
+                );
+              },
+            ),
           ),
         );
       },

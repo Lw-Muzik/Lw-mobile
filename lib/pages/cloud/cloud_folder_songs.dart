@@ -6,7 +6,6 @@ import '/Routes/routes.dart';
 import '../../Helpers/Channel.dart';
 import '../../controllers/AppController.dart';
 import '../../models/cloud_file.dart';
-import '../../player/player_ui.dart';
 import '../../widgets/BottomPlayer.dart';
 import '../../widgets/song_tile.dart';
 
@@ -328,7 +327,7 @@ class _CloudFolderSongsState extends State<CloudFolderSongs>
                               listen: false,
                             );
                             controller.playSongFromList(songs, randomIndex);
-                            Routes.routeTo(const Player(), context);
+                            Routes.playerTo(context);
                           },
                           icon: const Icon(Icons.shuffle_rounded, size: 18),
                           label: const Text('Shuffle'),
@@ -455,7 +454,7 @@ class _CloudFolderSongsState extends State<CloudFolderSongs>
       controller: controller,
       onTap: (song, index) {
         controller.playSongFromList(songs, index);
-        Routes.routeTo(const Player(), context);
+        Routes.playerTo(context);
       },
     );
   }

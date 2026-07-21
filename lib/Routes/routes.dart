@@ -62,6 +62,38 @@ class Routes {
     );
   }
 
+  /// Player route: slides up from the list on open and back DOWN on pop, so
+  /// the drag-to-dismiss gesture in the player hands off into the pop
+  /// transition without a direction change (Poweramp-style). The list beneath
+  /// is painted by the framework for the whole reverse transition, which is
+  /// what makes the "player slides away revealing the list" read work.
+  static void playerTo(BuildContext context) {
+    Navigator.of(context).push(
+      PageRouteBuilder(
+        transitionDuration: const Duration(milliseconds: 350),
+        reverseTransitionDuration: const Duration(milliseconds: 280),
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            const Player(),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          final slide = Tween<Offset>(
+            begin: const Offset(0, 1),
+            end: Offset.zero,
+          ).chain(CurveTween(curve: Curves.easeOutCubic)).animate(animation);
+          return SlideTransition(
+            position: slide,
+            child: FadeTransition(
+              opacity: CurvedAnimation(
+                parent: animation,
+                curve: const Interval(0.0, 0.4),
+              ),
+              child: child,
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   /// Premium detail-page transition: shared-axis Z (scale + fade)
   static void scaleTo(Widget page, BuildContext context) {
     Navigator.of(context).push(

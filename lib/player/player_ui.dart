@@ -3,7 +3,10 @@ import 'dart:async';
 import 'package:just_audio/just_audio.dart';
 import 'package:rxdart/rxdart.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+
+import '/services/player_reveal_bus.dart';
 
 import '/Global/index.dart';
 import '/Routes/routes.dart';
@@ -96,6 +99,36 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
   StreamSubscription<ProcessingState>? _autoAdvanceSub;
   int _lastCompletedSongId = -1; // prevent duplicate auto-advance
 
+  // ── Slide-down-to-dismiss (Poweramp-style) ────────────────────────────────
+  // A downward drag/fling on the card pops the player; its route (playerTo)
+  // reverse-slides the player DOWN while the framework paints the list route
+  // beneath, and PlayerRevealBus scrolls that list to the now-playing row. We
+  // accumulate the drag distance so a slow-but-long pull commits too, not just
+  // a fast fling.
+  double _dragDy = 0;
+
+  void _handleDismissDragUpdate(DragUpdateDetails details) {
+    _dragDy += details.delta.dy;
+  }
+
+  /// Returns true if the gesture was handled as a downward drag (dismissed, or
+  /// a small downward move that should NOT fall through to "open lyrics").
+  /// Returns false for an upward/neutral gesture so the caller can open lyrics.
+  bool _handleDismissDragEnd(DragEndDetails details) {
+    final vy = details.velocity.pixelsPerSecond.dy;
+    final commit = _dragDy > MediaQuery.of(context).size.height * 0.18 ||
+        vy > 700;
+    final wasDownward = _dragDy > 8 || vy > 200;
+    _dragDy = 0;
+    if (commit) {
+      HapticFeedback.lightImpact();
+      PlayerRevealBus.revealNowPlaying();
+      Navigator.of(context).pop();
+      return true;
+    }
+    return wasDownward;
+  }
+
   @override
   void dispose() {
     _coachController.dispose();
@@ -179,6 +212,8 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
                       cardDeckKey: _cardDeckKey,
                       controlsKey: _controlsKey,
                       actionBarKey: _actionBarKey,
+                      onDismissDragUpdate: _handleDismissDragUpdate,
+                      onDismissDragEnd: _handleDismissDragEnd,
                     ),
                   ],
                 ),
@@ -201,6 +236,8 @@ class _PlayerLayout extends StatelessWidget {
   final GlobalKey cardDeckKey;
   final GlobalKey controlsKey;
   final GlobalKey actionBarKey;
+  final void Function(DragUpdateDetails)? onDismissDragUpdate;
+  final bool Function(DragEndDetails)? onDismissDragEnd;
 
   const _PlayerLayout({
     required this.controller,
@@ -211,6 +248,8 @@ class _PlayerLayout extends StatelessWidget {
     required this.cardDeckKey,
     required this.controlsKey,
     required this.actionBarKey,
+    this.onDismissDragUpdate,
+    this.onDismissDragEnd,
   });
 
   @override
@@ -244,6 +283,8 @@ class _PlayerLayout extends StatelessWidget {
             animation: animation,
             cardKey: cardKey,
             spotlightKey: cardDeckKey,
+            onDismissDragUpdate: onDismissDragUpdate,
+            onDismissDragEnd: onDismissDragEnd,
           ),
           _TrackInfo(controller: controller),
           SizedBox(height: gap),
@@ -299,6 +340,8 @@ class _PlayerLayout extends StatelessWidget {
                           cardKey: cardKey,
                           landscape: true,
                           spotlightKey: cardDeckKey,
+                          onDismissDragUpdate: onDismissDragUpdate,
+                          onDismissDragEnd: onDismissDragEnd,
                         ),
                         _TrackInfo(controller: controller),
                       ],
@@ -348,6 +391,8 @@ class _CardDeck extends StatelessWidget {
   final GlobalKey<AnimatedPlayerCardState> cardKey;
   final bool landscape;
   final GlobalKey? spotlightKey;
+  final void Function(DragUpdateDetails)? onDismissDragUpdate;
+  final bool Function(DragEndDetails)? onDismissDragEnd;
 
   const _CardDeck({
     required this.controller,
@@ -355,6 +400,8 @@ class _CardDeck extends StatelessWidget {
     required this.cardKey,
     this.landscape = false,
     this.spotlightKey,
+    this.onDismissDragUpdate,
+    this.onDismissDragEnd,
   });
 
   void _openLyrics(BuildContext context) {
@@ -380,8 +427,12 @@ class _CardDeck extends StatelessWidget {
   Widget build(BuildContext context) {
     final cardContent = GestureDetector(
       behavior: HitTestBehavior.translucent,
+      // Downward drag/fling pops the player (route slides it down) and returns
+      // to the now-playing list; a fast upward fling opens lyrics.
+      onVerticalDragUpdate: onDismissDragUpdate,
       onVerticalDragEnd: (details) {
-        if (details.velocity.pixelsPerSecond.dy < -300) {
+        final consumed = onDismissDragEnd?.call(details) ?? false;
+        if (!consumed && details.velocity.pixelsPerSecond.dy < -300) {
           _openLyrics(context);
         }
       },
@@ -406,7 +457,12 @@ class _CardDeck extends StatelessWidget {
               },
               itemBuilder: (context, index, {bool isActive = false}) {
                 return InkWell(
-                  onTap: () => Routes.pop(context),
+                  // Tap the cover to return to the now-playing list (Poweramp:
+                  // tap OR swipe-down both go back to the current category).
+                  onTap: () {
+                    PlayerRevealBus.revealNowPlaying();
+                    Routes.pop(context);
+                  },
                   onLongPress: () => showTrackInfo(context, controller),
                   child: AnimatedSwitcher(
                     duration: const Duration(milliseconds: 300),

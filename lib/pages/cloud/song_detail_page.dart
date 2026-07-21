@@ -5,7 +5,6 @@ import 'package:on_audio_query/on_audio_query.dart';
 
 import '../../Routes/routes.dart';
 import '../../controllers/AppController.dart';
-import '../../player/player_ui.dart';
 import '../../services/music/music_models.dart';
 import '../../services/music/music_repository.dart';
 
@@ -66,7 +65,7 @@ class _SongDetailPageState extends State<SongDetailPage> {
       'is_music': true,
     });
     controller.playSongFromList([songModel], 0);
-    Routes.routeTo(const Player(), context);
+    Routes.playerTo(context);
   }
 
   String _formatDuration(String? iso) {

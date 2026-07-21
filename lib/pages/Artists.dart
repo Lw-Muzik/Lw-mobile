@@ -2,8 +2,10 @@ import 'package:eq_app/Routes/routes.dart';
 import 'package:eq_app/extensions/index.dart';
 import '/exports/exports.dart';
 import '/data/library_repository.dart';
+import '/controllers/LibraryController.dart';
 
 import '../widgets/ArtworkWidget.dart';
+import '../widgets/library_list_row.dart';
 import '../widgets/pinch_zoom_grid.dart';
 import 'artist_songs.dart';
 
@@ -73,10 +75,13 @@ class _ArtistsState extends State<Artists> {
           }
 
           final artists = item.data!;
+          final library = context.read<LibraryController>();
           return PinchZoomGrid(
-            initialExtent: 140.0,
+            initialExtent: library.gridExtentFor('artists', fallback: 140.0),
             minExtent: 80.0,
-            maxExtent: 200.0,
+            // Must exceed listModeExtent (260) or list mode is unreachable.
+            maxExtent: 300.0,
+            onExtentChanged: (e) => library.setGridExtent('artists', e),
             gridBuilder: (extent) => GridView.builder(
               gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
                 maxCrossAxisExtent: extent,
@@ -133,6 +138,34 @@ class _ArtistsState extends State<Artists> {
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
                     ],
+                  ),
+                );
+              },
+            ),
+            listBuilder: ListView.builder(
+              itemExtent: kLibraryRowExtent,
+              addAutomaticKeepAlives: false,
+              addRepaintBoundaries: true,
+              itemCount: artists.length,
+              itemBuilder: (context, index) {
+                final artist = artists[index];
+                final artistName = "${artist.getMap['artist'] ?? 'Unknown'}";
+                return LibraryListRow(
+                  title: artistName,
+                  subtitle: '${artist.numberOfTracks ?? 0} tracks',
+                  artworkId: artist.id,
+                  artworkType: ArtworkType.ARTIST,
+                  artworkName: artistName,
+                  circular: true,
+                  fallbackIcon: Icons.person_rounded,
+                  onTap: () => Routes.scaleTo(
+                    ArtistSongs(
+                      songs: artist.numberOfTracks ?? 0,
+                      albums: artist.numberOfAlbums ?? 0,
+                      artistId: artist.id,
+                      artist: artistName,
+                    ),
+                    context,
                   ),
                 );
               },

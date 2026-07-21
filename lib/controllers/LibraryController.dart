@@ -65,6 +65,15 @@ class LibraryController extends ChangeNotifier {
 
   Future<void> rescan() => scan(force: true);
 
+  /// Per-category pinch-zoom level (grid extent), Poweramp-style: each library
+  /// category remembers its own zoom independently. Read once at tab build;
+  /// written on pinch release — no notify, nothing else depends on it live.
+  double gridExtentFor(String tab, {required double fallback}) =>
+      _prefs.getDouble('library_extent_$tab') ?? fallback;
+
+  void setGridExtent(String tab, double extent) =>
+      _prefs.setDouble('library_extent_$tab', extent);
+
   void setSongSort(SongSort sort, SortDir dir) {
     if (sort == _songSort && dir == _songDir) return;
     _songSort = sort;

@@ -5,7 +5,6 @@ import '/widgets/song_tile.dart';
 import '/widgets/song_options_sheet.dart';
 import '/Routes/routes.dart';
 import '/controllers/AppController.dart';
-import '../player/player_ui.dart';
 
 class Recents extends StatefulWidget {
   const Recents({super.key});
@@ -35,7 +34,7 @@ class _RecentsState extends State<Recents> {
               controller: controller,
               onTap: (song, index) {
                 controller.playSongFromList(songs, index);
-                Routes.routeTo(const Player(), context);
+                Routes.playerTo(context);
               },
               onLongPress: (song, index) {
                 showModalBottomSheet(

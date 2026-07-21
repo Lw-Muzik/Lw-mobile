@@ -3,7 +3,9 @@ import '../Routes/routes.dart';
 import '/exports/exports.dart';
 
 import '../Global/index.dart';
+import '../controllers/LibraryController.dart';
 import '../data/library_repository.dart';
+import '../widgets/library_list_row.dart';
 import '../widgets/pinch_zoom_grid.dart';
 import 'folder_songs.dart';
 
@@ -66,12 +68,14 @@ class _FoldersState extends State<Folders> {
         }
 
         final folders = snapshot.data!;
+        final library = context.read<LibraryController>();
         return Padding(
           padding: const EdgeInsets.all(8.0),
           child: PinchZoomGrid(
-            initialExtent: 200.0,
+            initialExtent: library.gridExtentFor('folders', fallback: 200.0),
             minExtent: 100.0,
             maxExtent: 300.0,
+            onExtentChanged: (e) => library.setGridExtent('folders', e),
             gridBuilder: (extent) => GridView.builder(
               gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
                 maxCrossAxisExtent: extent,
@@ -105,6 +109,28 @@ class _FoldersState extends State<Folders> {
                       ),
                     ),
                   ),
+                );
+              },
+            ),
+            listBuilder: ListView.builder(
+              itemExtent: kLibraryRowExtent,
+              addAutomaticKeepAlives: false,
+              addRepaintBoundaries: true,
+              itemCount: folders.length,
+              itemBuilder: (context, index) {
+                final folder = folders[index];
+                final path = folder.path;
+                return LibraryListRow(
+                  title: folder.name,
+                  subtitle: '${folder.numSongs} Songs',
+                  artworkId: folder.sampleId,
+                  artworkType: ArtworkType.AUDIO,
+                  artworkPath: folder.sampleData ?? '',
+                  fallbackIcon: Icons.folder_rounded,
+                  onTap: () => Routes.scaleTo(FolderSongs(path: path), context),
+                  onLongPress: () {
+                    showDeleteWindow("folder", path, context);
+                  },
                 );
               },
             ),

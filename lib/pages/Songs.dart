@@ -10,7 +10,6 @@ import '/Routes/routes.dart';
 import '/controllers/AppController.dart';
 import '/controllers/LibraryController.dart';
 import '/services/local_music_scanner.dart';
-import '../player/player_ui.dart';
 
 class AllSongs extends StatefulWidget {
   const AllSongs({super.key});
@@ -97,7 +96,7 @@ class _AllSongsState extends State<AllSongs> {
                     fastScrollKey: _fastKey(library.songSort),
                     onTap: (song, index) {
                       controller.playSongFromList(songs, index);
-                      Routes.routeTo(const Player(), context);
+                      Routes.playerTo(context);
                     },
                     onLongPress: (song, index) => _openOptions(song),
                     onOptions: (song, index) => _openOptions(song),

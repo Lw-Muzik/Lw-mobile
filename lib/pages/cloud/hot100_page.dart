@@ -5,7 +5,6 @@ import 'package:on_audio_query/on_audio_query.dart';
 
 import '../../Routes/routes.dart';
 import '../../controllers/AppController.dart';
-import '../../player/player_ui.dart';
 import '../../services/hot100/hot100_model.dart';
 import '../../services/hot100/hot100_repository.dart';
 
@@ -78,7 +77,7 @@ class _Hot100PageState extends State<Hot100Page>
     })).toList();
 
     controller.playSongFromList(songModels, index);
-    Routes.routeTo(const Player(), context);
+    Routes.playerTo(context);
   }
 
   @override

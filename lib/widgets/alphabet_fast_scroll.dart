@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 /// A fixed-extent [ListView] with an A–Z rail for jumping through long lists —
@@ -15,6 +16,8 @@ class AlphabetFastScroll extends StatefulWidget {
     this.sectionKeyOf,
     this.padding,
     this.minItemsForRail = 30,
+    this.revealTick,
+    this.revealIndex,
   });
 
   final int itemCount;
@@ -27,6 +30,12 @@ class AlphabetFastScroll extends StatefulWidget {
 
   final EdgeInsets? padding;
   final int minItemsForRail;
+
+  /// When [revealTick] fires, the list animates to [revealIndex] (centered in
+  /// the viewport). Used to land back on the now-playing row after the player
+  /// is dismissed with the slide-down gesture.
+  final ValueListenable<int>? revealTick;
+  final int Function()? revealIndex;
 
   @override
   State<AlphabetFastScroll> createState() => _AlphabetFastScrollState();
@@ -49,6 +58,7 @@ class _AlphabetFastScrollState extends State<AlphabetFastScroll> {
   void initState() {
     super.initState();
     _rebuildIndex();
+    widget.revealTick?.addListener(_onReveal);
   }
 
   @override
@@ -58,12 +68,37 @@ class _AlphabetFastScrollState extends State<AlphabetFastScroll> {
         old.sectionKeyOf != widget.sectionKeyOf) {
       _rebuildIndex();
     }
+    if (!identical(old.revealTick, widget.revealTick)) {
+      old.revealTick?.removeListener(_onReveal);
+      widget.revealTick?.addListener(_onReveal);
+    }
   }
 
   @override
   void dispose() {
+    widget.revealTick?.removeListener(_onReveal);
     _scroll.dispose();
     super.dispose();
+  }
+
+  void _onReveal() {
+    final index = widget.revealIndex?.call() ?? -1;
+    if (index < 0 || index >= widget.itemCount) return;
+    if (!_scroll.hasClients) return;
+    // Center the row in the viewport; skip the animation when it's already
+    // fully visible so an idle list doesn't twitch on dismiss.
+    final viewport = _scroll.position.viewportDimension;
+    final rowTop = index * widget.itemExtent;
+    final target = (rowTop - (viewport - widget.itemExtent) / 2)
+        .clamp(0.0, _scroll.position.maxScrollExtent);
+    final visibleTop = _scroll.offset;
+    final visibleBottom = visibleTop + viewport - widget.itemExtent;
+    if (rowTop >= visibleTop && rowTop <= visibleBottom) return;
+    _scroll.animateTo(
+      target,
+      duration: const Duration(milliseconds: 350),
+      curve: Curves.easeOutCubic,
+    );
   }
 
   void _rebuildIndex() {

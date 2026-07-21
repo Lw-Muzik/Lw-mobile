@@ -8,7 +8,6 @@ import '/widgets/song_options_sheet.dart';
 import '/widgets/song_tile.dart';
 import '/exports/exports.dart';
 
-import '../player/player_ui.dart';
 import '../widgets/ArtworkWidget.dart';
 import '../widgets/BottomPlayer.dart';
 import '/data/library_repository.dart';
@@ -148,7 +147,7 @@ class _ArtistSongsState extends State<ArtistSongs> {
                   controller: controller,
                   onTap: (song, index) {
                     controller.playSongFromList(songs, index);
-                    Routes.routeTo(const Player(), context);
+                    Routes.playerTo(context);
                   },
                   onLongPress: (song, index) {
                     showModalBottomSheet(
