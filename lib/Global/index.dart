@@ -21,6 +21,7 @@ import '../player/lyrics_view.dart';
 import '../widgets/ArtworkWidget.dart';
 import '../widgets/listen_sheet.dart';
 import '../player/widgets/stem_button.dart';
+import '../services/ytmusic/yt_innertube.dart';
 
 SystemUiOverlayStyle overlay = const SystemUiOverlayStyle(
   systemNavigationBarDividerColor: Colors.transparent,
@@ -445,15 +446,20 @@ void loadAudioSource(
     AudioSource source;
     final guard = StreamingDataGuard.instance;
 
-    // Discover streams (nowviba.com) — direct URI, no caching
-    if (song.data.contains('nowviba.com')) {
-      // Data guard applies to all streaming, including discover
+    // YouTube streams — direct URI, no caching. The target is single-use and
+    // 403s without the User-Agent of the client that resolved it.
+    if (YtInnerTube.isStreamUrl(song.data)) {
+      // The data guard applies to all streaming, Discover included.
       final blockReason = guard.shouldBlockStream();
       if (blockReason != null) {
         debugPrint('Streaming blocked: $blockReason');
         return;
       }
-      source = AudioSource.uri(Uri.parse(item.id), tag: item);
+      source = AudioSource.uri(
+        Uri.parse(item.id),
+        headers: YtInnerTube.audioPlaybackHeaders,
+        tag: item,
+      );
     } else {
       // Cloud storage (Google Drive / Dropbox)
       final cache = AppController.instance.cloudCache;

@@ -12,7 +12,7 @@ import 'search_page.dart';
 import 'songs.dart';
 import 'artists.dart';
 import 'cloud/cloud_view.dart';
-import 'cloud/discover_view.dart';
+import 'discover/discover_view.dart';
 import 'equalizer.dart';
 import '/widgets/Body.dart';
 import '/widgets/BottomPlayer.dart';

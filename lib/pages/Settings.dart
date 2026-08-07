@@ -20,6 +20,7 @@ import 'stream_server.dart';
 
 import '/Helpers/AudioHandler.dart';
 import '/widgets/BottomPlayer.dart';
+import '../services/ytmusic/yt_playback.dart';
 
 class Settings extends StatefulWidget {
   const Settings({super.key});
@@ -34,6 +35,17 @@ class _SettingsState extends State<Settings> {
   int _scanTotal = 0;
   String _scanSongName = '';
   int? _scanResult;
+
+  @override
+  void initState() {
+    super.initState();
+    // The Autoplay switch below reads a field that starts at its default, so
+    // without this it shows "on" to a user who turned it off in an earlier
+    // session and never opened Discover this run.
+    YtRadioQueue.instance.loadPreference().then((_) {
+      if (mounted) setState(() {});
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -236,6 +248,20 @@ class _SettingsState extends State<Settings> {
             title: const Text("Replay gain"),
             subtitle: const Text("Volume normalization via ID3 tags"),
             onChanged: (enabled) => controller.replayGain = enabled,
+          ),
+          const Divider(height: 1, indent: 16, endIndent: 16),
+          // Gates every radio request Discover would otherwise make — with this
+          // off, no related-track fetching happens at all.
+          SwitchListTile.adaptive(
+            value: YtRadioQueue.instance.enabled,
+            title: const Text("Autoplay"),
+            subtitle: const Text(
+              "Keep playing related tracks when a Discover queue ends",
+            ),
+            onChanged: (enabled) async {
+              await YtRadioQueue.instance.setEnabled(enabled);
+              if (mounted) setState(() {});
+            },
           ),
         ]),
       ],

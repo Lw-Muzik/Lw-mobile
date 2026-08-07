@@ -91,7 +91,15 @@ class ArtworkService {
     return _inFlight.putIfAbsent(
       key,
       () => _extract(id: id, type: type, target: target, key: key),
-    ).whenComplete(() => _inFlight.remove(key));
+      // A BLOCK body, deliberately. `whenComplete(() => _inFlight.remove(key))`
+      // reads as identical but deadlocks: `Map.remove` returns the value it
+      // removed — this very future — and `whenComplete` waits on any Future its
+      // callback returns, so the future ends up awaiting itself and never
+      // completes. The symptom is artwork that never appears for any track
+      // whose art has to be extracted rather than read from disk.
+    ).whenComplete(() {
+      _inFlight.remove(key);
+    });
   }
 
   Future<String?> _extract({

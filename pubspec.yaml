@@ -73,6 +73,11 @@ dependencies:
   dartz: ^0.10.1
   cached_network_image: ^3.4.1
 
+  # Music-video playback in Discover. YouTube's IOS client answers with an
+  # adaptive HLS manifest, which ExoPlayer and AVPlayer both play from a single
+  # URL — so this needs no muxing, no local proxy and no manifest generation.
+  video_player: ^2.10.0
+
   # Local music-library database (drift/SQLite). Source of truth for the
   # browsing UI so cold-open renders instantly and the background scanner only
   # diffs MediaStore instead of re-querying the whole library every launch.
@@ -90,6 +95,8 @@ dependencies:
 
 
 dev_dependencies:
+  integration_test:
+    sdk: flutter
   flutter_test:
     sdk: flutter
 

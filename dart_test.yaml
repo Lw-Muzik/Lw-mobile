@@ -1,0 +1,14 @@
+# Live tests hit the real YouTube. They are the only thing that catches YouTube
+# reshaping a page, but they depend on a service nobody here controls — so a
+# red CI must never mean "YouTube was slow". They are skipped by default and
+# asked for by name:
+#
+#   flutter test -P live
+tags:
+  live:
+    skip: "live test — run the whole suite with: flutter test -P live"
+
+presets:
+  live:
+    include_tags: live
+    run_skipped: true

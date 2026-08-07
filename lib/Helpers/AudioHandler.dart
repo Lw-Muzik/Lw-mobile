@@ -31,11 +31,25 @@ class HypeAudioHandler extends BaseAudioHandler {
     ),
   );
 
+  // `useProxyForRequestHeaders: false` — send request headers natively rather
+  // than through just_audio's local HTTP proxy.
+  //
+  // By default, *any* source carrying headers is rewritten to
+  // `http://127.0.0.1:<port>/<original path and query>` and served by a
+  // cleartext proxy inside the app. That is a poor fit for YouTube: a
+  // googlevideo URL carries a thousand-character query string, and the proxy
+  // sits between the player and the CDN for every Range request and every seek.
+  // With this off, ExoPlayer uses `setDefaultRequestProperties` and AVPlayer
+  // uses `AVURLAssetHTTPHeaderFieldsKey`, so the player talks to the CDN
+  // directly — no extra hop, native Range and seek, and no dependence on
+  // cleartext traffic being permitted.
   final AudioPlayer _playerA = AudioPlayer(
     audioLoadConfiguration: _streamingLoadConfig,
+    useProxyForRequestHeaders: false,
   );
   final AudioPlayer _playerB = AudioPlayer(
     audioLoadConfiguration: _streamingLoadConfig,
+    useProxyForRequestHeaders: false,
   );
   late AudioPlayer _activePlayer;
   late AudioPlayer _inactivePlayer;

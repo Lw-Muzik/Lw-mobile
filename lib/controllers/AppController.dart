@@ -25,6 +25,8 @@ import '../services/lyrics_service.dart';
 import '../services/fingerprint_service.dart';
 import '../services/cast_controller.dart';
 import '../services/streaming_data_guard.dart';
+import '../services/ytmusic/yt_innertube.dart';
+import '../services/ytmusic/yt_playback.dart';
 import '../models/lyrics_model.dart';
 import '../models/recognition_result.dart';
 import '../models/speaker_profile.dart';
@@ -874,6 +876,9 @@ class AppController with ChangeNotifier {
             songId += 1;
             artWorkId = songs[songId].id;
             loadAudioSource(handler, songs[songId], replayGain: _replayGain);
+            // The non-gapless path advances here rather than through
+            // currentIndexStream, so radio has to be topped up here too.
+            unawaited(YtRadioQueue.instance.onIndexChanged(this, songId));
           }
         }
       }
@@ -898,6 +903,9 @@ class AppController with ChangeNotifier {
         _updateMediaItemForIndex(index);
         notifyListeners();
         _loadLyricsForCurrentSong();
+        // Endless radio: tops the queue up before it runs out. A no-op unless a
+        // YouTube queue is playing and Autoplay is on.
+        unawaited(YtRadioQueue.instance.onIndexChanged(this, index));
       }
     });
   }
@@ -952,9 +960,14 @@ class AppController with ChangeNotifier {
 
       final AudioSource nextSource;
       if (nextSong.data.startsWith('http')) {
-        if (nextSong.data.contains('nowviba.com')) {
-          // Discover stream — direct URI, no proxy overhead
-          nextSource = AudioSource.uri(Uri.parse(nextSong.data));
+        // YouTube stream — direct URI with its headers. Must not go through the
+        // cloud-cache branch below: these targets are single-use, keyed by
+        // nothing the cache understands, and need no auth exchange.
+        if (YtInnerTube.isStreamUrl(nextSong.data)) {
+          nextSource = AudioSource.uri(
+            Uri.parse(nextSong.data),
+            headers: YtInnerTube.audioPlaybackHeaders,
+          );
         } else {
           final fileId = nextSong.id.toString();
           if (cloudCache.isCached(fileId)) {
@@ -1043,6 +1056,12 @@ class AppController with ChangeNotifier {
     songs = songList;
     songId = index;
     artWorkId = songList[index].id;
+    // Anything that isn't a YouTube stream has taken over the player, so the
+    // radio must stop topping up a queue that no longer exists — and the
+    // playlist still filling in the background must stop appending to it.
+    if (!YtInnerTube.isStreamUrl(songList[index].data)) {
+      YtRadioQueue.instance.detach();
+    }
     // When casting to a desktop, send the track there instead of playing it
     // locally (the desktop pulls + plays it through its DSP chain).
     if (CastController.instance.isCasting) {
@@ -1054,6 +1073,50 @@ class AppController with ChangeNotifier {
     } else {
       loadAudioSource(handler, songList[index], replayGain: _replayGain);
     }
+  }
+
+  /// Appends already-resolved tracks to the end of the live queue.
+  ///
+  /// Exists for streaming sources whose URLs can only be resolved one request at
+  /// a time — a YouTube playlist starts playing on its first resolved track and
+  /// grows behind it, rather than making the user wait for fifty resolves before
+  /// hearing anything.
+  ///
+  /// Appending rather than reloading is the whole point: rebuilding the queue
+  /// with [playSongFromList] would restart the track the user is already
+  /// listening to. In gapless mode the player's own source list is extended in
+  /// step with [songs], which is what keeps `currentIndexStream` aligned with
+  /// it; otherwise the list alone is enough, since that path loads each track as
+  /// the previous one finishes.
+  Future<void> appendToQueue(List<SongModel> extra) async {
+    if (extra.isEmpty) return;
+    final gapless = _gaplessPlayback && _crossfadeDuration == 0;
+    // Extend the model first so a currentIndex event that lands mid-append
+    // always finds a song at its index.
+    _songs.addAll(extra);
+    _shuffledSongs.addAll(extra);
+
+    if (gapless && handler.player.audioSources.isNotEmpty) {
+      final sources = <AudioSource>[
+        for (final s in extra)
+          if (YtInnerTube.isStreamUrl(s.data))
+            AudioSource.uri(
+              Uri.parse(s.data),
+              headers: YtInnerTube.audioPlaybackHeaders,
+            )
+          else if (s.data.startsWith('/'))
+            AudioSource.file(s.data)
+          else
+            AudioSource.uri(Uri.parse(s.data)),
+      ];
+      try {
+        await handler.player.addAudioSources(sources);
+      } catch (e) {
+        // A queue that won't extend still plays what it already holds.
+        debugPrint('Queue append: $e');
+      }
+    }
+    notifyListeners();
   }
 
   /// Build and load a queue for gapless playback.
@@ -1073,9 +1136,14 @@ class AppController with ChangeNotifier {
     for (int i = 0; i < songs.length; i++) {
       final s = songs[i];
       if (s.data.startsWith('http')) {
-        // Discover streams (nowviba.com) — direct URI, no proxy/cache overhead
-        if (s.data.contains('nowviba.com')) {
-          sources.add(AudioSource.uri(Uri.parse(s.data)));
+        // YouTube streams — direct URI with the headers the CDN checks against
+        // the client that resolved it. Never cached: the target is single-use
+        // and carries its own expiry.
+        if (YtInnerTube.isStreamUrl(s.data)) {
+          sources.add(AudioSource.uri(
+            Uri.parse(s.data),
+            headers: YtInnerTube.audioPlaybackHeaders,
+          ));
         } else {
           final fileId = s.id.toString();
           if (cloudCache.isCached(fileId)) {
