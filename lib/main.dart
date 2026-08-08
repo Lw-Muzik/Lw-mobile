@@ -84,7 +84,7 @@ Future<void> main() async {
       // it has no effect — and would crash — unless androidStopForegroundOnPause
       // is true.
       androidNotificationOngoing: false,
-      androidNotificationIcon: 'mipmap/launcher_icon',
+      androidNotificationIcon: 'mipmap/ic_launcher',
       androidStopForegroundOnPause: false,
       androidResumeOnClick: true,
     ),
