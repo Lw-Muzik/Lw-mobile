@@ -54,6 +54,7 @@ import androidx.media3.datasource.DataSource;
 import androidx.media3.datasource.DefaultDataSource;
 import androidx.media3.datasource.DefaultHttpDataSource;
 import androidx.media3.common.MimeTypes;
+import androidx.media3.common.VideoSize;
 import androidx.media3.common.util.Util;
 import io.flutter.Log;
 import io.flutter.plugin.common.BinaryMessenger;
@@ -63,6 +64,7 @@ import io.flutter.plugin.common.MethodCall;
 import io.flutter.plugin.common.MethodChannel;
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler;
 import io.flutter.plugin.common.MethodChannel.Result;
+import io.flutter.view.TextureRegistry;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -81,6 +83,8 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
     private static Random random = new Random();
 
     private final Context context;
+    private final BinaryMessenger messenger;
+    private final String id;
     private final MethodChannel methodChannel;
     private final BetterEventChannel eventChannel;
     private final BetterEventChannel dataEventChannel;
@@ -109,6 +113,16 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
     private Map<String, Object> pendingPlaybackEvent;
 
     private ExoPlayer player;
+    /**
+     * The video half of this player, created lazily.
+     *
+     * <p>Null until something asks to see the picture, which is the common case:
+     * most of what this app plays is a song. Once created it outlives individual
+     * surfaces, because the selected quality and the last known video size are
+     * worth keeping across a trip to the home screen and back.
+     */
+    private VideoOutput videoOutput;
+    private final TextureRegistry textureRegistry;
     private Integer audioSessionId;
     private Integer errorCode;
     private String errorMessage;
@@ -151,9 +165,13 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
         List<Object> rawAudioEffects,
         Map<?, ?> audioOffloadPreferences,
         Boolean offloadSchedulingEnabled,
-        boolean useLazyPreparation
+        boolean useLazyPreparation,
+        TextureRegistry textureRegistry
     ) {
         this.context = applicationContext;
+        this.messenger = messenger;
+        this.id = id;
+        this.textureRegistry = textureRegistry;
         this.rawAudioEffects = rawAudioEffects;
         this.offloadSchedulingEnabled = offloadSchedulingEnabled != null ? offloadSchedulingEnabled : false;
         this.useLazyPreparation = useLazyPreparation;
@@ -257,6 +275,7 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
 
     @Override
     public void onTracksChanged(Tracks tracks) {
+        if (videoOutput != null) videoOutput.onTracksChanged(tracks);
         for (int i = 0; i < tracks.getGroups().size(); i++) {
             TrackGroup trackGroup = tracks.getGroups().get(i).getMediaTrackGroup();
 
@@ -273,6 +292,55 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
                     }
                 }
             }
+        }
+    }
+
+    @Override
+    public void onVideoSizeChanged(VideoSize videoSize) {
+        if (videoOutput != null) videoOutput.onVideoSizeChanged(videoSize);
+    }
+
+    @Override
+    public void onMediaItemTransition(MediaItem mediaItem, int reason) {
+        // The aspect ratio belongs to the item that is leaving. Carrying it into
+        // the next one letterboxes a song's artwork to the shape of a video, or
+        // stretches a portrait clip to the width of the one before it.
+        if (videoOutput != null) videoOutput.onItemChanged();
+    }
+
+    // ---- Video output ----
+    //
+    // Reached over a separate method channel rather than the one just_audio's
+    // own Dart layer speaks, because that layer is a published platform
+    // interface this app does not own. Keeping video on its own channel means
+    // the upstream package can be updated without a merge conflict here.
+
+    /**
+     * Creates the texture this player renders into, and returns its id.
+     *
+     * <p>Enables the video track as a side effect: a caller that has gone to the
+     * trouble of asking for a surface wants what is on it.
+     */
+    long attachVideo() {
+        ensureVideoOutput();
+        ensurePlayerInitialized();
+        return videoOutput.attach(player);
+    }
+
+    /** Releases the texture and stops decoding video. Audio is untouched. */
+    void detachVideo() {
+        if (videoOutput != null) videoOutput.detach(player);
+    }
+
+    /** Pins a rendition by its index in the broadcast list; -1 restores adaptive selection. */
+    void selectVideoQuality(int index) {
+        ensureVideoOutput();
+        videoOutput.select(player, index);
+    }
+
+    private void ensureVideoOutput() {
+        if (videoOutput == null) {
+            videoOutput = new VideoOutput(messenger, id, textureRegistry);
         }
     }
 
@@ -849,10 +917,20 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
                 player.getTrackSelectionParameters()
                     .buildUpon()
                     .setAudioOffloadPreferences(audioOffloadPreferences)
+                    // Video off until something asks to see it. The renderer
+                    // loads samples whether or not it has a surface to draw
+                    // them on, so leaving it enabled would have a music player
+                    // downloading and decoding video nobody can see — most of
+                    // the bytes in a music video, spent for nothing.
+                    .setTrackTypeDisabled(C.TRACK_TYPE_VIDEO, true)
                     .build()
             );
             setAudioSessionId(player.getAudioSessionId());
             player.addListener(this);
+            // A surface that outlived the engine it was drawing into: the player
+            // is built lazily, so a screen already showing video can be the very
+            // thing that caused this call.
+            if (videoOutput != null) videoOutput.reattach(player);
         }
     }
 
@@ -1109,6 +1187,12 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
         }
         mediaSources.clear();
         clearAudioEffects();
+        // Before the player is released: the surface has to be handed back while
+        // there is still something to hand it back to.
+        if (videoOutput != null) {
+            videoOutput.dispose(player);
+            videoOutput = null;
+        }
         if (player != null) {
             player.release();
             player = null;

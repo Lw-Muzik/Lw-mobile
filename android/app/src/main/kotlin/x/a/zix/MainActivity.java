@@ -145,6 +145,43 @@ public class MainActivity extends AudioServiceFragmentActivity {
             }
         });
 
+        // Screen brightness, for the swipe gesture on the video screen.
+        //
+        // A *window* brightness override rather than a system setting: it needs
+        // no permission, it applies only while this app is in front, and Android
+        // drops it the moment the window goes away — which is exactly the
+        // lifetime a video player's brightness should have. Writing the system
+        // brightness instead would change every other app on the phone and
+        // outlive the video by however long until the user noticed.
+        new MethodChannel(
+                flutterEngine.getDartExecutor().getBinaryMessenger(), "eq_app/screen_brightness")
+                .setMethodCallHandler((call, result) -> {
+                    switch (call.method) {
+                        case "get": {
+                            float value = getWindow().getAttributes().screenBrightness;
+                            // BRIGHTNESS_OVERRIDE_NONE (-1) means "whatever the
+                            // system decides", which is not a number to show on a
+                            // slider. Reported as null so Dart shows its own
+                            // starting point rather than a negative percentage.
+                            result.success(value < 0 ? null : (double) value);
+                            break;
+                        }
+                        case "set": {
+                            Double value = call.argument("value");
+                            android.view.WindowManager.LayoutParams params =
+                                    getWindow().getAttributes();
+                            params.screenBrightness = value == null
+                                    ? android.view.WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
+                                    : Math.max(0.01f, Math.min(1f, value.floatValue()));
+                            getWindow().setAttributes(params);
+                            result.success(null);
+                            break;
+                        }
+                        default:
+                            result.notImplemented();
+                    }
+                });
+
         // projectM renderer init
         projectMRenderer = new ProjectMRenderer(this, flutterEngine.getRenderer());
 

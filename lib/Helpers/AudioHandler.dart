@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:just_audio/video.dart';
 import 'package:id3tag/id3tag.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 
@@ -65,11 +66,46 @@ class HypeAudioHandler extends BaseAudioHandler {
   /// The primary player used for playback controls (play/pause/stop/seek).
   AudioPlayer get player => _activePlayer;
 
+  /// Video surfaces, one per player, created the first time one is asked for.
+  ///
+  /// Keyed by player rather than held as a single field because there are two
+  /// of them for crossfading, and a surface belongs to the engine that draws
+  /// into it. Videos never crossfade — `AppController` refuses the fade when
+  /// either side is one — so in practice only the active player ever grows a
+  /// surface, but tying the two together explicitly is what makes that true by
+  /// construction rather than by luck.
+  final Map<AudioPlayer, VideoOutput> _videoOutputs = {};
+
+  /// The video surface of whichever player is currently audible.
+  VideoOutput get video => videoOutputFor(currentTrackPlayer);
+
+  VideoOutput videoOutputFor(AudioPlayer player) =>
+      _videoOutputs.putIfAbsent(player, () => VideoOutput(player));
+
   /// The player that has the latest track loaded.
   /// During crossfade this returns the incoming player (new track).
   /// Outside crossfade this is the same as [player].
   AudioPlayer get currentTrackPlayer =>
       _isCrossfading ? _inactivePlayer : _activePlayer;
+
+  /// Repeat mode, held here rather than on one player.
+  ///
+  /// There are two players so tracks can crossfade, and a crossfade ends by
+  /// swapping which one is active. Setting the mode on `player` alone therefore
+  /// survived exactly until the first crossfade, after which the incoming
+  /// player — which had never been told — silently reverted to no repeat. Both
+  /// are set, always, so the swap cannot lose it.
+  LoopMode _loopMode = LoopMode.off;
+
+  LoopMode get loopMode => _loopMode;
+
+  Future<void> setLoopMode(LoopMode mode) async {
+    _loopMode = mode;
+    await Future.wait([
+      _playerA.setLoopMode(mode),
+      _playerB.setLoopMode(mode),
+    ]);
+  }
 
   VoidCallback? onSkipToNext;
   VoidCallback? onSkipToPrevious;

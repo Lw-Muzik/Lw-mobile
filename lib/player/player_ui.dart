@@ -19,7 +19,11 @@ import '/Helpers/index.dart';
 import '/widgets/common.dart';
 import 'swipe_animation.dart';
 import 'lyrics_view.dart';
+import 'video/video_fullscreen.dart';
+import 'video/video_stage.dart';
+import 'video/video_surface.dart';
 import '../onboarding/coach_marks.dart';
+import '../services/video/video_registry.dart';
 
 // Main Player Widget
 class Player extends StatefulWidget {
@@ -456,6 +460,27 @@ class _CardDeck extends StatelessWidget {
                 }
               },
               itemBuilder: (context, index, {bool isActive = false}) {
+                // A video occupies the card where the artwork would be — the
+                // player screen is where playback lives, and a video is a track
+                // being played, not a place to navigate to. Only the track
+                // actually playing gets it: there is one surface, and the cards
+                // either side are previews of things not yet started.
+                final isVideo = index == controller.songId &&
+                    VideoRegistry.instance
+                        .isVideo(controller.songs[index].id);
+                if (isVideo) {
+                  return GestureDetector(
+                    onTap: () => openFullscreenVideo(context),
+                    onLongPress: () => showTrackInfo(context, controller),
+                    child: const Padding(
+                      padding: EdgeInsets.all(12),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.all(Radius.circular(14)),
+                        child: VideoStage(host: VideoHost.card),
+                      ),
+                    ),
+                  );
+                }
                 return InkWell(
                   // Tap the cover to return to the now-playing list (Poweramp:
                   // tap OR swipe-down both go back to the current category).

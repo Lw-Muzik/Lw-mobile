@@ -114,6 +114,29 @@ class AudioPlayer {
   StreamSubscription<void>? _errorsResetSubscription;
 
   String? _id;
+
+  /// Announces the identity of the platform player behind this one.
+  ///
+  /// The native player is torn down and rebuilt under a fresh id whenever this
+  /// player is deactivated and reactivated — an audio-session interruption, a
+  /// `stop()`. Anything holding a native resource keyed by that id (a video
+  /// surface, say) has to hear about it, or it goes on addressing a player that
+  /// no longer exists.
+  final _platformIdSubject = BehaviorSubject<String?>.seeded(null);
+
+  /// The id of the current platform player, or null before one exists.
+  String? get platformId => _id;
+
+  /// Emits whenever the platform player is replaced. See [_platformIdSubject].
+  Stream<String?> get platformIdStream => _platformIdSubject.stream;
+
+  String _assignId() {
+    final id = _generateId();
+    _id = id;
+    if (!_platformIdSubject.isClosed) _platformIdSubject.add(id);
+    return id;
+  }
+
   final _proxy = _ProxyHttpServer();
   // ignore: deprecated_member_use_from_same_package
   final ConcatenatingAudioSource _playlist;
@@ -1435,6 +1458,7 @@ class AudioPlayer {
       await _errorsResetSubscription?.cancel();
 
       await _playerEventSubject.close();
+      await _platformIdSubject.close();
 
       await _playbackEventPipe;
 
@@ -1634,7 +1658,7 @@ class AudioPlayer {
         // _platform is updated again during initialisation.
         final platform = active && !_disposed
             ? await (_nativePlatform = _pluginPlatform.init(InitRequest(
-                id: _id = _generateId(),
+                id: _assignId(),
                 audioLoadConfiguration: _audioLoadConfiguration?._toMessage(),
                 androidAudioEffects: (_isAndroid() || _isUnitTest())
                     ? _audioPipeline.androidAudioEffects
@@ -1653,7 +1677,7 @@ class AudioPlayer {
                 useLazyPreparation: _playlist.useLazyPreparation,
               )))
             : (_idlePlatform = _IdleAudioPlayer(
-                id: _id = _generateId(),
+                id: _assignId(),
                 sequenceStream: sequenceStream,
                 errorCode: playbackEvent.errorCode,
                 errorMessage: playbackEvent.errorMessage,

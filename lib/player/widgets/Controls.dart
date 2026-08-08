@@ -157,15 +157,11 @@ class _ShuffleButton extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: () {
-          if (enabled) {
-            controller.isShuffled = false;
-            controller.unshuffleSongs();
-          } else {
-            controller.isShuffled = true;
-            controller.shuffleSongs();
-          }
-        },
+        // One call. Setting the flag and reordering the queue used to be two,
+        // and the queue was read through a getter that the flag had already
+        // switched — so turning shuffle off jumped to whatever track happened
+        // to sit at the shuffled index in the unshuffled list.
+        onTap: () => controller.setShuffled(!enabled),
         borderRadius: BorderRadius.circular(20),
         child: Container(
           width: 40,
@@ -195,53 +191,63 @@ class _RepeatButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<LoopMode>(
-      stream: controller.handler.player.loopModeStream,
-      builder: (context, snapshot) {
-        final mode = snapshot.data ?? LoopMode.off;
-        final IconData icon;
-        final Color color;
-        final bool active;
+    // Read from the controller, not from `handler.player.loopModeStream`. There
+    // are two players so tracks can crossfade, and the swap at the end of a fade
+    // leaves a stream bound to the player that is no longer active — the button
+    // then reports the mode of something nobody is listening to.
+    final mode = controller.loopMode;
+    final IconData icon;
+    final Color color;
+    final bool active;
 
-        switch (mode) {
-          case LoopMode.off:
-            icon = Icons.repeat_rounded;
-            color = Colors.white38;
-            active = false;
-          case LoopMode.all:
-            icon = Icons.repeat_rounded;
-            color = const Color(0xFFD4A825);
-            active = true;
-          case LoopMode.one:
-            icon = Icons.repeat_one_rounded;
-            color = const Color(0xFFD4A825);
-            active = true;
-        }
+    switch (mode) {
+      case LoopMode.off:
+        icon = Icons.repeat_rounded;
+        color = Colors.white38;
+        active = false;
+      case LoopMode.all:
+        icon = Icons.repeat_rounded;
+        color = const Color(0xFFD4A825);
+        active = true;
+      case LoopMode.one:
+        icon = Icons.repeat_one_rounded;
+        color = const Color(0xFFD4A825);
+        active = true;
+    }
 
-        return Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: () {
-              const modes = [LoopMode.off, LoopMode.all, LoopMode.one];
-              final next = modes[(modes.indexOf(mode) + 1) % modes.length];
-              controller.handler.player.setLoopMode(next);
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          const modes = [LoopMode.off, LoopMode.all, LoopMode.one];
+          controller.setLoopMode(
+            modes[(modes.indexOf(mode) + 1) % modes.length],
+          );
+        },
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          width: 40,
+          height: 40,
+          alignment: Alignment.center,
+          decoration: active
+              ? BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: const Color(0xFFD4A825).withValues(alpha: 0.15),
+                )
+              : null,
+          child: Semantics(
+            // The three states differ by icon and tint alone, which a screen
+            // reader cannot convey and a glance at two similar glyphs barely
+            // can.
+            label: switch (mode) {
+              LoopMode.off => 'Repeat off',
+              LoopMode.all => 'Repeat all',
+              LoopMode.one => 'Repeat one',
             },
-            borderRadius: BorderRadius.circular(20),
-            child: Container(
-              width: 40,
-              height: 40,
-              alignment: Alignment.center,
-              decoration: active
-                  ? BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: const Color(0xFFD4A825).withValues(alpha: 0.15),
-                    )
-                  : null,
-              child: Icon(icon, color: color, size: 22),
-            ),
+            child: Icon(icon, color: color, size: 22),
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 }

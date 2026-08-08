@@ -19,7 +19,6 @@ import '../../services/ytmusic/yt_models.dart';
 import '../../services/ytmusic/yt_playback.dart';
 import 'artist_page.dart';
 import 'opened_list_page.dart';
-import 'video_page.dart';
 
 /// Opens [item], using [siblings] as the queue when it turns out to be a track.
 ///
@@ -39,7 +38,7 @@ void openExploreItem(
     case ExploreKind.artist:
       Routes.routeTo(YtArtistPage(item: item), context);
     case ExploreKind.video:
-      Routes.routeTo(YtVideoPage(track: item.asTrack()), context);
+      YtPlayback.watch(context, item.asTrack());
     case ExploreKind.song:
       // A song plays with whatever it was listed alongside, so tapping the
       // third song on a shelf continues into the fourth rather than stopping.
@@ -96,7 +95,7 @@ Future<void> showTrackActions(BuildContext context, YtTrack track) async {
               title: const Text('Watch video'),
               onTap: () {
                 Navigator.pop(sheetContext);
-                Routes.routeTo(YtVideoPage(track: track), context);
+                YtPlayback.watch(context, track);
               },
             ),
           ListTile(

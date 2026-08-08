@@ -43,6 +43,30 @@ import AVFoundation
 
             // Separate channel for visualizer data (matches Android pattern)
             visualizerChannel = channel
+
+            // Screen brightness, for the swipe gesture on the video screen.
+            //
+            // iOS has no per-window override, so this is the device brightness
+            // and it persists after the app is closed — the same bargain every
+            // iOS video player makes, and the reason the value is restored when
+            // the full-screen route is left rather than on app exit.
+            let brightnessChannel = FlutterMethodChannel(
+                name: "eq_app/screen_brightness",
+                binaryMessenger: controller.binaryMessenger)
+            brightnessChannel.setMethodCallHandler { call, result in
+                switch call.method {
+                case "get":
+                    result(Double(UIScreen.main.brightness))
+                case "set":
+                    let value = (call.arguments as? [String: Any])?["value"] as? Double
+                    if let value = value {
+                        UIScreen.main.brightness = CGFloat(min(max(value, 0.01), 1.0))
+                    }
+                    result(nil)
+                default:
+                    result(FlutterMethodNotImplemented)
+                }
+            }
         }
 
         return super.application(application, didFinishLaunchingWithOptions: launchOptions)

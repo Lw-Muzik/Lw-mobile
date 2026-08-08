@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import '/controllers/drawer_controller.dart';
 
 import '/Helpers/AudioHandler.dart';
@@ -29,6 +31,8 @@ import 'data/library_database.dart';
 import 'data/library_repository.dart';
 import 'firebase_options.dart';
 import 'widgets/DvcVolumeOverlay.dart';
+import 'player/video/video_mini_player.dart';
+import 'services/video/video_registry.dart';
 import 'services/streaming_data_guard.dart';
 import 'services/library_scanner.dart';
 import 'services/artwork_service.dart';
@@ -104,6 +108,13 @@ Future<void> main() async {
   // Initialize streaming data guard (network-aware cloud streaming)
   await StreamingDataGuard.init(prefs);
 
+  // Video manifests left by earlier runs are stale by definition — the URLs
+  // inside them last hours at most and nothing in this launch's queue points at
+  // them. Swept here rather than at teardown because a process that is killed
+  // never reaches its teardown. Unawaited: it is disk hygiene, not a dependency
+  // of the first frame.
+  unawaited(VideoRegistry.instance.sweepManifests());
+
   // Local library database — the browsing UI's source of truth. Opening is
   // lazy (first query triggers it on a background isolate), so this is cheap
   // and never blocks launch. The scanner diffs MediaStore after the first
@@ -142,7 +153,17 @@ Future<void> main() async {
             initialRoute: Routes.loader,
             routes: Routes.routes(),
             builder: (context, child) {
-              return Stack(children: [child!, const DvcVolumeOverlay()]);
+              // The mini video player rides above every route: leaving the
+              // player screen should not end the video any more than it ends
+              // the song. It shows itself only when the current track is a
+              // video and no other host is already displaying it.
+              return Stack(
+                children: [
+                  child!,
+                  const DvcVolumeOverlay(),
+                  const VideoMiniPlayer(),
+                ],
+              );
             },
           ),
         ),

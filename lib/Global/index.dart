@@ -21,6 +21,7 @@ import '../player/lyrics_view.dart';
 import '../widgets/ArtworkWidget.dart';
 import '../widgets/listen_sheet.dart';
 import '../player/widgets/stem_button.dart';
+import '../services/video/video_registry.dart';
 import '../services/ytmusic/yt_innertube.dart';
 
 SystemUiOverlayStyle overlay = const SystemUiOverlayStyle(
@@ -442,6 +443,26 @@ void loadAudioSource(
 
   handler.setCurrentMediaItem(item);
 
+  // A video is loaded like any other track — same player, same handler, same
+  // notification — but what it opens is the manifest this app wrote for it,
+  // which lives beside the queue rather than in `data`. Still subject to the
+  // data guard: video is the most expensive thing this app can stream.
+  final video = VideoRegistry.instance.sourceFor(song.id);
+  if (video != null) {
+    final blockReason = StreamingDataGuard.instance.shouldBlockStream();
+    if (blockReason != null) {
+      debugPrint('Streaming blocked: $blockReason');
+      return;
+    }
+    await handler.player.setAudioSource(video.toAudioSource(tag: item));
+    // Replay gain is read from ID3 tags, which a manifest has none of, so a
+    // video always plays at unity — and must say so, or it inherits whatever
+    // gain the last local file left behind.
+    handler.player.setVolume(1.0);
+    handler.player.play();
+    return;
+  }
+
   if (isCloud) {
     AudioSource source;
     final guard = StreamingDataGuard.instance;
@@ -546,6 +567,10 @@ void _prefetchNextTrack() async {
     if (!nextSong.data.startsWith('http')) return;
     // Don't prefetch discover streams (transient URLs)
     if (nextSong.data.contains('nowviba.com')) return;
+    // A video's `data` is a watch page, not a media file: caching it would
+    // store an HTML document under a song id and then play it. What the player
+    // actually opens lives in the registry, and it expires anyway.
+    if (VideoRegistry.instance.isVideo(nextSong.id)) return;
 
     final fileId = nextSong.id.toString();
     final cache = ctrl.cloudCache;

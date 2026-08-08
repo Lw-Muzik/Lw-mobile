@@ -29,6 +29,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../Routes/routes.dart';
 import '../../controllers/AppController.dart';
+import '../video/video_registry.dart';
 import 'parse/yt_json.dart';
 import 'yt_models.dart';
 import 'yt_repository.dart';
@@ -99,6 +100,113 @@ class YtPlayback {
     // Everything after the first track arrives behind the music.
     _fillQueue(controller, playable.skip(1).toList());
   }
+
+  /// Plays [track] as video.
+  ///
+  /// # Watching is playing
+  ///
+  /// A video is not a screen this app navigates to, it is a track it plays. It
+  /// enters the queue like any other, on the same player, inside the same
+  /// background service — which is what gives it the equaliser, the lock-screen
+  /// controls, the queue the user can reach and pick from, and a radio that
+  /// takes over when it ends. None of those are video features. They are
+  /// consequences of a video being an ordinary member of the queue instead of a
+  /// second player standing beside it.
+  ///
+  /// The player screen is where it appears, because that is where playback
+  /// lives.
+  ///
+  /// # When there is no video to show
+  ///
+  /// YouTube serves most music videos as separate audio and video streams that
+  /// only a DASH manifest can recombine, and iOS cannot open DASH. Rather than
+  /// refusing, the track plays as audio and says so — the user asked to hear
+  /// this song, and the picture was the part the platform could not provide.
+  static Future<void> watch(BuildContext context, YtTrack track) async {
+    final artwork = cacheArtwork(track);
+    final StreamTarget target;
+    try {
+      target = await YtMusicRepository.instance
+          .videoTarget(track.videoId)
+          .timeout(const Duration(seconds: 25));
+    } on TimeoutException {
+      if (context.mounted) _complain(context, 'YouTube took too long to answer.');
+      return;
+    } catch (e) {
+      // A dead target is worth forgetting so a retry re-resolves rather than
+      // replaying the same expired URL.
+      YtMusicRepository.instance.forget(track.videoId);
+      if (!context.mounted) return;
+      _complain(
+        context,
+        e is YtException ? e.message : 'That video would not play.',
+      );
+      return;
+    }
+    if (!context.mounted) return;
+
+    if (target.format == YtStreamFormat.dash && Platform.isIOS) {
+      _complain(
+        context,
+        'YouTube only offers this one as separate video and audio streams, '
+        'which iOS cannot combine. Playing the audio.',
+      );
+      await play(context, [track], 0);
+      return;
+    }
+
+    final songId = _songIdOf(track);
+    final video = await VideoRegistry.instance.adopt(
+      songId: songId,
+      videoId: track.videoId,
+      target: target,
+    );
+    if (!context.mounted) return;
+    if (video == null) {
+      // The manifest could not be staged. The song is still worth playing.
+      _complain(context, 'Could not prepare that video. Playing the audio.');
+      await play(context, [track], 0);
+      return;
+    }
+    await artwork;
+    if (!context.mounted) return;
+
+    final controller = context.read<AppController>();
+    controller.playSongFromList([videoModelOf(track)], 0);
+    Routes.playerTo(context);
+
+    // Attached before the radio is asked to fill, for the same reason
+    // [play] does it in that order: `fill` checks `isLive`, and that check has
+    // to be able to see this seed.
+    //
+    // Unlike a tapped search result this is not gated on Autoplay: a queue of
+    // exactly one video has nothing to follow it, and stopping dead after a
+    // three-minute video is the behaviour being fixed. The preference governs
+    // stations the app invents, and `fill` still honours it.
+    YtRadioQueue.instance.attach(seed: track.videoId);
+    unawaited(YtRadioQueue.instance.fill(controller));
+  }
+
+  /// One video as the player's own model.
+  ///
+  /// `_data` is the watch URL rather than anything playable: what to open lives
+  /// in [VideoRegistry], because a DASH target is a local manifest and a local
+  /// path in this field would read as a downloaded file to every part of the app
+  /// that inspects it — the artwork layer, the cloud cache, the radio's check
+  /// for whether YouTube is still what's playing.
+  static SongModel videoModelOf(YtTrack track) => SongModel({
+        '_id': _songIdOf(track),
+        '_data': 'https://music.youtube.com/watch?v=${track.videoId}',
+        'title': track.title,
+        'artist': track.artist ?? 'YouTube Music',
+        'album': track.thumbnail,
+        'duration': ((track.durationSecs ?? 0) * 1000).round(),
+        '_display_name': '${track.title}.mp4',
+        '_display_name_wo_ext': track.title,
+        '_size': 0,
+        'file_extension': 'mp4',
+        'is_music': true,
+      });
 
   /// Starts a station built from one song — YouTube's "Start radio".
   ///

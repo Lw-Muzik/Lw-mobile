@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:math' as math;
 
 import 'package:eq_app/Global/index.dart';
 import '/exports/exports.dart';
@@ -25,11 +24,13 @@ import '../services/lyrics_service.dart';
 import '../services/fingerprint_service.dart';
 import '../services/cast_controller.dart';
 import '../services/streaming_data_guard.dart';
+import '../services/video/video_registry.dart';
 import '../services/ytmusic/yt_innertube.dart';
 import '../services/ytmusic/yt_playback.dart';
 import '../models/lyrics_model.dart';
 import '../models/recognition_result.dart';
 import '../models/speaker_profile.dart';
+import 'queue_order.dart';
 import 'stem_controller.dart';
 
 enum AppMode { musicPlayer, equalizer }
@@ -864,14 +865,26 @@ class AppController with ChangeNotifier {
         }
       }
       if (event == ProcessingState.completed) {
+        // Repeat-all wraps instead of stopping. `next()` has always done this
+        // for the skip button, but a track ending on its own reached here and
+        // stopped — so the setting appeared to work right up until the user put
+        // the phone down, which is the only time it matters.
+        final repeatAll = handler.loopMode == LoopMode.all;
         if (_gaplessPlayback && handler.player.audioSources.length > 1) {
           final idx = handler.player.currentIndex ?? 0;
-          if (idx >= songs.length - 1) {
+          if (idx >= songs.length - 1 && !repeatAll) {
             handler.player.stop();
           }
         } else if (!_isCrossfading) {
           if (songId >= songs.length - 1) {
-            handler.player.stop();
+            if (repeatAll && songs.isNotEmpty) {
+              songId = 0;
+              artWorkId = songs[0].id;
+              loadAudioSource(handler, songs[0], replayGain: _replayGain);
+              unawaited(YtRadioQueue.instance.onIndexChanged(this, songId));
+            } else {
+              handler.player.stop();
+            }
           } else {
             songId += 1;
             artWorkId = songs[songId].id;
@@ -929,7 +942,11 @@ class AppController with ChangeNotifier {
     _positionSub?.cancel();
     _positionSub = handler.player.positionStream.listen((position) {
       final duration = handler.player.duration;
+      // Repeat-one and crossfade are contradictory instructions: the fade
+      // exists to reach the *next* track, which is the one thing repeat-one
+      // says not to do. The explicit setting wins.
       if (_crossfadeDuration > 0 &&
+          handler.loopMode != LoopMode.one &&
           !_isCrossfading &&
           duration != null &&
           duration.inSeconds > _crossfadeDuration &&
@@ -948,6 +965,15 @@ class AppController with ChangeNotifier {
     if (_isCrossfading) return;
     final nextIdx = songId + 1;
     if (nextIdx == _crossfadeFailedIdx) return;
+    // A crossfade runs two players at once and hands the output to the second.
+    // The video surface belongs to one of them, so a fade into or out of a
+    // video would either show the wrong player's frames or none at all — and
+    // fading a picture out under its own soundtrack is not something anyone
+    // asked for. Videos cut.
+    if (VideoRegistry.instance.isVideo(songs[songId].id) ||
+        VideoRegistry.instance.isVideo(songs[nextIdx].id)) {
+      return;
+    }
     _isCrossfading = true;
     final nextSong = songs[nextIdx];
     final prevId = _songId;
@@ -1054,13 +1080,30 @@ class AppController with ChangeNotifier {
   /// Properly handles gapless queue vs single-source loading.
   void playSongFromList(List<SongModel> songList, int index) {
     songs = songList;
-    songId = index;
+    // A new list arriving while shuffle is already on has to *be* shuffled. The
+    // `songs` setter copies the incoming order into both lists verbatim, so
+    // without this the button reads "shuffle on" over a queue in perfect
+    // original order — which is how the setting appeared to do nothing at all
+    // for anyone who left it switched on between sessions.
+    var startIndex = index;
+    if (_isShuffled) {
+      _shuffledSongs = QueueOrder.shuffle(_songs, songList[index]);
+      startIndex = 0;
+    }
+    songId = startIndex;
     artWorkId = songList[index].id;
     // Anything that isn't a YouTube stream has taken over the player, so the
     // radio must stop topping up a queue that no longer exists — and the
     // playlist still filling in the background must stop appending to it.
-    if (!YtInnerTube.isStreamUrl(songList[index].data)) {
+    //
+    // A music video counts as a YouTube stream even though its `data` is a local
+    // manifest rather than a googlevideo URL. Reading only the URL would detach
+    // the radio the moment a video started, which is exactly the case that
+    // wanted it attached.
+    if (!YtInnerTube.isStreamUrl(songList[index].data) &&
+        !VideoRegistry.instance.isVideo(songList[index].id)) {
       YtRadioQueue.instance.detach();
+      VideoRegistry.instance.clear();
     }
     // When casting to a desktop, send the track there instead of playing it
     // locally (the desktop pulls + plays it through its DSP chain).
@@ -1069,7 +1112,7 @@ class AppController with ChangeNotifier {
       return;
     }
     if (_gaplessPlayback && _crossfadeDuration == 0) {
-      loadGaplessQueue(index);
+      loadGaplessQueue(startIndex);
     } else {
       loadAudioSource(handler, songList[index], replayGain: _replayGain);
     }
@@ -1099,7 +1142,11 @@ class AppController with ChangeNotifier {
     if (gapless && handler.player.audioSources.isNotEmpty) {
       final sources = <AudioSource>[
         for (final s in extra)
-          if (YtInnerTube.isStreamUrl(s.data))
+          // A video's playable location is not its `data` — that is a manifest
+          // this app wrote, held by the registry beside the queue.
+          if (VideoRegistry.instance.sourceFor(s.id) case final video?)
+            video.toAudioSource()
+          else if (YtInnerTube.isStreamUrl(s.data))
             AudioSource.uri(
               Uri.parse(s.data),
               headers: YtInnerTube.audioPlaybackHeaders,
@@ -1122,7 +1169,18 @@ class AppController with ChangeNotifier {
   /// Build and load a queue for gapless playback.
   /// Cached cloud tracks play from disk; uncached ones stream with auth headers.
   bool _loadingQueue = false;
-  Future<void> loadGaplessQueue(int startIndex) async {
+  Future<void> loadGaplessQueue(int startIndex, {
+    /// Where the track at [startIndex] should resume from.
+    ///
+    /// Reloading is the only way to change a gapless queue's order, and
+    /// reordering must not restart the song the user is listening to — so the
+    /// position is carried across explicitly. Null starts from the beginning,
+    /// which is what every caller other than a reorder wants.
+    Duration? initialPosition,
+    /// Whether to start playing once loaded. False preserves a paused player
+    /// through a reorder.
+    bool autoPlay = true,
+  }) async {
     if (songs.isEmpty) return;
     // If already loading, the new call will interrupt the old one in just_audio.
     // That's fine — just_audio handles cancellation gracefully.
@@ -1135,7 +1193,11 @@ class AppController with ChangeNotifier {
 
     for (int i = 0; i < songs.length; i++) {
       final s = songs[i];
-      if (s.data.startsWith('http')) {
+      // Videos first: a video's `data` is an identity, not something to fetch.
+      // The manifest or HLS URL to open lives in the registry.
+      if (VideoRegistry.instance.sourceFor(s.id) case final video?) {
+        sources.add(video.toAudioSource());
+      } else if (s.data.startsWith('http')) {
         // YouTube streams — direct URI with the headers the CDN checks against
         // the client that resolved it. Never cached: the target is single-use
         // and carries its own expiry.
@@ -1170,9 +1232,13 @@ class AppController with ChangeNotifier {
       }
     }
     try {
-      await handler.player.setAudioSources(sources, initialIndex: startIndex);
+      await handler.player.setAudioSources(
+        sources,
+        initialIndex: startIndex,
+        initialPosition: initialPosition,
+      );
       await _updateMediaItemForIndex(startIndex);
-      handler.player.play();
+      if (autoPlay) handler.player.play();
     } catch (e) {
       // "Loading interrupted" — a newer load replaced this one; safe to ignore
       debugPrint('Gapless queue load: $e');
@@ -1187,6 +1253,14 @@ class AppController with ChangeNotifier {
     _selectedPreset = _prefs.getInt("selectedPreset") ?? 0;
     _isFancy = _prefs.getBool("fancyMode") ?? false;
     _isShuffled = _prefs.getBool("isShuffled") ?? false;
+    // Repeat is restored the same way shuffle always has been. Applied to the
+    // players rather than merely remembered, or the button would show a mode
+    // nothing is obeying. Stored as the enum index, clamped in case a future
+    // version removes a mode and an old value outlives it.
+    final storedLoop = _prefs.getInt("loopMode") ?? LoopMode.off.index;
+    unawaited(handler.setLoopMode(
+      LoopMode.values[storedLoop.clamp(0, LoopMode.values.length - 1)],
+    ));
     _isVisualInBackground = _prefs.getBool("isVisualInBackground") ?? false;
     _visuals = _prefs.getBool("visuals") ?? false;
     _bgQuality = _prefs.getDouble("bgQuality") ?? 2.0;
@@ -1725,11 +1799,10 @@ class AppController with ChangeNotifier {
     notifyListeners();
   }
 
-  set isShuffled(bool sh) {
-    _prefs.setBool("isShuffled", sh);
-    _isShuffled = sh;
-    notifyListeners();
-  }
+  // No `isShuffled` setter. Flipping the flag on its own is what the bug was:
+  // it changes which list `songs` returns without moving the playing index into
+  // that list or telling the player, so the track shown and the track heard
+  // come apart. Use [setShuffled], which does all three or none.
 
   set selectedTheme(String t) {
     _prefs.setString("selectedTheme", t);
@@ -1784,44 +1857,81 @@ class AppController with ChangeNotifier {
     notifyListeners();
   }
 
-  /// Shuffle the song list, keeping the currently playing song at position 0.
-  /// Does NOT restart playback — the current song continues uninterrupted.
-  void shuffleSongs() {
-    if (_songs.isEmpty) return;
+  /// The repeat mode, as the app remembers it.
+  ///
+  /// Read from here rather than from the player: the player that holds it
+  /// changes when a crossfade swaps them, and a UI bound to one player's stream
+  /// goes stale at exactly the moment the mode matters.
+  LoopMode get loopMode => handler.loopMode;
 
-    // Preserve the currently playing song
-    final currentSong = (_songId >= 0 && _songId < _songs.length)
-        ? _songs[_songId]
-        : null;
-
-    _shuffledSongs = List.from(_songs);
-    _shuffledSongs.shuffle(math.Random());
-
-    // Move the current song to index 0 so playback continues seamlessly
-    if (currentSong != null) {
-      _shuffledSongs.remove(currentSong);
-      _shuffledSongs.insert(0, currentSong);
-      _songId = 0;
-    }
-
+  /// Sets repeat off / all / one, and remembers it across launches.
+  ///
+  /// Shuffle has always been persisted; repeat was not, so it silently reset
+  /// every launch while its neighbour in the same row did not.
+  Future<void> setLoopMode(LoopMode mode) async {
+    await handler.setLoopMode(mode);
+    unawaited(_prefs.setInt('loopMode', mode.index));
     notifyListeners();
   }
 
-  /// Restore original (unshuffled) order, keeping the current song selected.
-  void unshuffleSongs() {
-    if (_songs.isEmpty) return;
+  /// Turns shuffle on or off.
+  ///
+  /// # One call, because the order of the steps is the bug
+  ///
+  /// This replaces a flag setter and two methods that callers had to invoke in
+  /// the right sequence. They could not: [songs] switches which list it returns
+  /// the moment [_isShuffled] changes, so setting the flag first made
+  /// unshuffling read the playing track out of the *original* list at a
+  /// *shuffled* index — restoring the user to a track they had never chosen.
+  /// Reading the playing track once, before anything moves, is the whole fix.
+  ///
+  /// # The player is reordered too
+  ///
+  /// Shuffling the app's list alone was a relabelling. ExoPlayer holds its own
+  /// copy of the queue in gapless mode and goes on advancing through the order
+  /// it was given, so the next track was the unshuffled one and the index it
+  /// reported landed in a list that had since been reordered — the track shown
+  /// and the track heard drifted apart. The queue is rebuilt so the two agree.
+  ///
+  /// Playback is not interrupted: the current track keeps its position.
+  Future<void> setShuffled(bool value) async {
+    if (_isShuffled == value) return;
 
-    final currentSong = (_songId >= 0 && _songId < songs.length)
-        ? songs[_songId]
-        : null;
+    // Before anything moves. Everything below depends on this being the track
+    // that is actually playing.
+    final playing =
+        (_songId >= 0 && _songId < songs.length) ? songs[_songId] : null;
 
-    // Find the song's position in the original list
-    if (currentSong != null) {
-      final origIdx = _songs.indexWhere((s) => s.id == currentSong.id);
-      if (origIdx >= 0) _songId = origIdx;
-    }
+    _shuffledSongs = value
+        ? QueueOrder.shuffle(_songs, playing)
+        : List<SongModel>.of(_songs);
 
+    _isShuffled = value;
+    unawaited(_prefs.setBool('isShuffled', value));
+
+    _songId = QueueOrder.indexOf(songs, playing);
+    if (songs.isNotEmpty) _artWorkId = songs[_songId].id;
     notifyListeners();
+
+    await _reloadQueueOrder();
+  }
+
+  /// Rebuilds the player's source list so it plays the order the app is showing.
+  ///
+  /// Only gapless mode needs this. The other paths load one track at a time
+  /// from `songs[songId]`, so they pick up a new order for free on the next
+  /// advance; a gapless queue is handed to the player once and has to be handed
+  /// over again to change.
+  Future<void> _reloadQueueOrder() async {
+    if (!(_gaplessPlayback && _crossfadeDuration == 0)) return;
+    if (handler.player.audioSources.length <= 1) return;
+    // Reordering must not resume a queue the user had paused, nor restart the
+    // song they are in the middle of.
+    await loadGaplessQueue(
+      _songId,
+      initialPosition: handler.player.position,
+      autoPlay: handler.player.playing,
+    );
   }
 
   set songId(int id) {
@@ -1928,7 +2038,7 @@ class AppController with ChangeNotifier {
 
   void next() {
     if (songs.isEmpty) return;
-    final loopMode = handler.player.loopMode;
+    final loopMode = handler.loopMode;
 
     if (loopMode == LoopMode.one) {
       // Repeat-one: restart current track
@@ -1959,7 +2069,7 @@ class AppController with ChangeNotifier {
 
   void prev() {
     if (songs.isEmpty) return;
-    final loopMode = handler.player.loopMode;
+    final loopMode = handler.loopMode;
 
     // If more than 3 seconds in, restart current track (standard behavior)
     final position = handler.player.position;
@@ -2055,6 +2165,10 @@ class AppController with ChangeNotifier {
     for (int i = songId + 1; i <= songId + count && i < songs.length; i++) {
       final song = songs[i];
       if (!song.data.startsWith('http')) continue;
+      // A video is megabytes per minute and its manifest expires; pre-fetching
+      // one into a cache keyed by song id would spend a phone's data plan on
+      // something that has to be re-resolved before it can play anyway.
+      if (VideoRegistry.instance.isVideo(song.id)) continue;
       final fileId = song.id.toString();
       if (cloudCache.isCached(fileId)) continue;
       // Fire-and-forget
