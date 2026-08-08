@@ -130,11 +130,24 @@ class HypeAudioHandler extends BaseAudioHandler {
     });
   }
 
+  /// Run before playback starts, if set.
+  ///
+  /// Exists for the restored session: reopening the app rebuilds the queue and
+  /// the position but deliberately loads nothing into the player, because doing
+  /// so would spend a request — sometimes several — on music the user may not
+  /// have come back to hear. Pressing play is the signal that they have, and
+  /// this is where that work happens. Awaited, so play acts on a loaded player.
+  Future<void> Function()? onBeforePlay;
+
   // Controls route to [currentTrackPlayer]: during a crossfade the audible
   // track lives on the incoming player — acting on _activePlayer (outgoing)
   // would target a player the fade loop is about to stop.
   @override
-  Future<void> play() => currentTrackPlayer.play();
+  Future<void> play() async {
+    final before = onBeforePlay;
+    if (before != null) await before();
+    await currentTrackPlayer.play();
+  }
 
   @override
   Future<void> pause() => currentTrackPlayer.pause();

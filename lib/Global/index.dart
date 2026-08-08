@@ -400,10 +400,18 @@ Widget headerWidget(
   );
 }
 
-void loadAudioSource(
+Future<void> loadAudioSource(
   HypeAudioHandler handler,
   SongModel song, {
   bool replayGain = false,
+  /// Where to start the track. For a session restored from the last run, which
+  /// has to resume mid-song rather than from the beginning.
+  Duration? initialPosition,
+  /// Whether to start playing once loaded.
+  ///
+  /// False when the caller is itself running inside `play()` — starting
+  /// playback from in there would recurse through the handler.
+  bool autoPlay = true,
 }) async {
   // If a crossfade is mid-flight, settle it first (fast — one fade step) so
   // this load lands on the settled active player instead of the outgoing one
@@ -454,12 +462,15 @@ void loadAudioSource(
       debugPrint('Streaming blocked: $blockReason');
       return;
     }
-    await handler.player.setAudioSource(video.toAudioSource(tag: item));
+    await handler.player.setAudioSource(
+      video.toAudioSource(tag: item),
+      initialPosition: initialPosition,
+    );
     // Replay gain is read from ID3 tags, which a manifest has none of, so a
     // video always plays at unity — and must say so, or it inherits whatever
     // gain the last local file left behind.
     handler.player.setVolume(1.0);
-    handler.player.play();
+    if (autoPlay) handler.player.play();
     return;
   }
 
@@ -525,16 +536,18 @@ void loadAudioSource(
       _prefetchNextTrack();
     }
 
-    await handler.player.setAudioSource(source);
+    await handler.player.setAudioSource(source, initialPosition: initialPosition);
   } else {
     // Local file: use AudioSource.file for proper path handling (spaces, special chars)
     if (song.data.startsWith('/')) {
       await handler.player.setAudioSource(
         AudioSource.file(song.data, tag: item),
+        initialPosition: initialPosition,
       );
     } else {
       await handler.player.setAudioSource(
         AudioSource.uri(Uri.parse(item.id), tag: item),
+        initialPosition: initialPosition,
       );
     }
   }
@@ -547,7 +560,7 @@ void loadAudioSource(
     handler.player.setVolume(1.0);
   }
 
-  handler.player.play();
+  if (autoPlay) handler.player.play();
 }
 
 /// Prefetch the next track in the current queue if conditions allow.

@@ -212,6 +212,11 @@ class _AppLifecycleGateState extends State<_AppLifecycleGate>
         // being killed in the background. Null-safe: the provider creates the
         // controller lazily, so a background event can fire before it exists.
         AppController.instanceOrNull?.flushPendingWrites();
+        // Where the user got to, written now rather than on the next debounce
+        // tick: backgrounding is the moment most likely to be followed by the
+        // process being killed, and a session that never reached disk resumes
+        // from wherever it last did.
+        unawaited(AppController.instanceOrNull?.flushSession() ?? Future.value());
         break;
       case AppLifecycleState.resumed:
         Visualizers.resume();

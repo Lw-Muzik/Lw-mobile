@@ -26,10 +26,13 @@ import '../services/cast_controller.dart';
 import '../services/streaming_data_guard.dart';
 import '../services/video/video_registry.dart';
 import '../services/ytmusic/yt_innertube.dart';
+import '../services/ytmusic/yt_repository.dart';
 import '../services/ytmusic/yt_playback.dart';
 import '../models/lyrics_model.dart';
 import '../models/recognition_result.dart';
 import '../models/speaker_profile.dart';
+import '../models/track_extras.dart';
+import '../services/playback_session.dart';
 import 'queue_order.dart';
 import 'stem_controller.dart';
 
@@ -770,6 +773,12 @@ class AppController with ChangeNotifier {
     _handler.onSkipToNext = next;
     _handler.onSkipToPrevious = prev;
 
+    // The last session comes back as a queue and a position; the player stays
+    // empty until the first press of play, which is what loads it.
+    _handler.onBeforePlay = _resumePendingSession;
+    unawaited(_restoreSession());
+    _startSessionTicker();
+
     // When crossfade starts, notify UI so waveform binds to the new track player
     _handler.onCrossfadeStarted = () => notifyListeners();
 
@@ -880,7 +889,7 @@ class AppController with ChangeNotifier {
             if (repeatAll && songs.isNotEmpty) {
               songId = 0;
               artWorkId = songs[0].id;
-              loadAudioSource(handler, songs[0], replayGain: _replayGain);
+              unawaited(loadTrackAt(0));
               unawaited(YtRadioQueue.instance.onIndexChanged(this, songId));
             } else {
               handler.player.stop();
@@ -888,7 +897,7 @@ class AppController with ChangeNotifier {
           } else {
             songId += 1;
             artWorkId = songs[songId].id;
-            loadAudioSource(handler, songs[songId], replayGain: _replayGain);
+            unawaited(loadTrackAt(songId));
             // The non-gapless path advances here rather than through
             // currentIndexStream, so radio has to be topped up here too.
             unawaited(YtRadioQueue.instance.onIndexChanged(this, songId));
@@ -914,6 +923,9 @@ class AppController with ChangeNotifier {
         _songId = index;
         _artWorkId = songs[index].id;
         _updateMediaItemForIndex(index);
+        // The gapless path advances the index here rather than through the
+        // setter, so this is where a session learns the track changed.
+        _saveSession();
         notifyListeners();
         _loadLyricsForCurrentSong();
         // Endless radio: tops the queue up before it runs out. A no-op unless a
@@ -1079,6 +1091,9 @@ class AppController with ChangeNotifier {
   /// Central method for playing a song selected from any list.
   /// Properly handles gapless queue vs single-source loading.
   void playSongFromList(List<SongModel> songList, int index) {
+    // The user picked something rather than resuming. Whatever was waiting from
+    // the last session is no longer what is about to play.
+    _pendingResume = null;
     songs = songList;
     // A new list arriving while shuffle is already on has to *be* shuffled. The
     // `songs` setter copies the incoming order into both lists verbatim, so
@@ -1857,6 +1872,185 @@ class AppController with ChangeNotifier {
     notifyListeners();
   }
 
+  // ---- Resuming where the user left off ----
+
+  /// Where the restored session was paused, until it is actually resumed.
+  ///
+  /// Non-null means: the queue below came off disk and the player holds nothing.
+  /// Loading is deferred to the moment the user presses play, because restoring
+  /// a streamed queue costs a network request and reopening an app is not a
+  /// request to hear anything.
+  Duration? _pendingResume;
+
+  /// Whether the current queue is one restored from the last run and not yet
+  /// started. The UI can show the track and its position; the player is empty.
+  bool get hasPendingResume => _pendingResume != null;
+
+  Timer? _sessionTicker;
+
+  /// Notes the position periodically while something is playing.
+  ///
+  /// The position is the one part of a session that changes continuously, and
+  /// subscribing to `positionStream` would mean a save several times a second.
+  /// A slow tick that only fires while playing costs one debounced write every
+  /// few seconds and bounds what a sudden kill can lose to roughly that.
+  void _startSessionTicker() {
+    _sessionTicker?.cancel();
+    _sessionTicker = Timer.periodic(const Duration(seconds: 10), (_) {
+      if (handler.player.playing) _saveSession();
+    });
+  }
+
+  /// Records the current queue and position for the next launch.
+  ///
+  /// Debounced inside the store, so calling this on every track change and once
+  /// a few seconds while playing costs one write.
+  void _saveSession() {
+    if (_songs.isEmpty) return;
+    PlaybackSessionStore.instance.save(PlaybackSession(
+      songs: _songs,
+      shuffledOrder: _isShuffled ? [for (final s in _shuffledSongs) s.id] : null,
+      shuffled: _isShuffled,
+      index: _songId,
+      // While a resume is still pending the player is empty and would report
+      // zero, which would overwrite the very position being restored.
+      position: _pendingResume ?? handler.player.position,
+      loopMode: handler.loopMode.index,
+    ));
+  }
+
+  /// Writes the session immediately. For the app going to the background, which
+  /// is the moment most likely to be followed by the process being killed.
+  Future<void> flushSession() async {
+    _saveSession();
+    await PlaybackSessionStore.instance.flush();
+  }
+
+  /// Reads back the last session, without loading anything into the player.
+  ///
+  /// Deliberately silent about playback: a restored session is paused. An app
+  /// that starts making noise because it was opened is a bad guest.
+  Future<void> _restoreSession() async {
+    final session = await PlaybackSessionStore.instance.load();
+    if (session == null) return;
+    // The user was faster than the disk and has already started something.
+    // Their choice wins.
+    if (_songs.isNotEmpty) return;
+
+    _songs = List<SongModel>.of(session.songs);
+    _isShuffled = session.shuffled;
+    _shuffledSongs = session.effectiveQueue;
+    _songId = session.index.clamp(0, songs.length - 1);
+    if (songs.isNotEmpty) _artWorkId = songs[_songId].id;
+    _pendingResume = session.position;
+
+    await handler.setLoopMode(
+      LoopMode.values[session.loopMode.clamp(0, LoopMode.values.length - 1)],
+    );
+    await _updateMediaItemForIndex(_songId);
+    notifyListeners();
+    _loadLyricsForCurrentSong();
+  }
+
+  /// Loads the restored queue and starts it from where it stopped.
+  ///
+  /// Called from [HypeAudioHandler.onBeforePlay], so it runs once, on the first
+  /// press of play, whether that press came from the app, the lock screen or a
+  /// headset.
+  Future<void> _resumePendingSession() async {
+    final position = _pendingResume;
+    if (position == null) return;
+    // Cleared before the first await: two rapid presses of play must not both
+    // decide they are the one doing the restoring.
+    _pendingResume = null;
+    if (songs.isEmpty) return;
+
+    // One request, for the track being resumed. The rest of the queue is
+    // refreshed as each becomes current — reopening the app should not cost a
+    // resolve per track in a queue the user may skip out of immediately.
+    await _refreshTarget(_songId);
+
+    // A queue holding expired links cannot be handed to the player whole: the
+    // gapless path loads every source up front and the dead ones fail as they
+    // are reached. Such a queue plays one track at a time instead, each
+    // refreshed on the way in, until nothing stale is left.
+    final anyStale = songs.any((song) => !song.hasFreshTarget);
+    if (_gaplessPlayback && _crossfadeDuration == 0 && !anyStale) {
+      await loadGaplessQueue(_songId, initialPosition: position, autoPlay: false);
+    } else {
+      await loadAudioSource(
+        handler,
+        songs[_songId],
+        replayGain: _replayGain,
+        initialPosition: position,
+        autoPlay: false,
+      );
+    }
+  }
+
+  /// Loads the track at [index], resolving it again first if its link has died.
+  ///
+  /// Every advance inside this controller goes through here. A YouTube URL is
+  /// good for about six hours, which is shorter than a queue's life and much
+  /// shorter than a saved session's, so "the URL in the queue still works" is
+  /// an assumption that has to be checked rather than made.
+  Future<void> loadTrackAt(int index, {Duration? position}) async {
+    if (index < 0 || index >= songs.length) return;
+    // Skipping is starting something, so there is no longer a paused session
+    // waiting to be resumed — and leaving the mark set would save the old
+    // track's position against the new one.
+    _pendingResume = null;
+    await _refreshTarget(index);
+    if (index >= songs.length) return;
+    await loadAudioSource(
+      handler,
+      songs[index],
+      replayGain: _replayGain,
+      initialPosition: position,
+    );
+  }
+
+  /// Re-resolves the track at [index] when its stream URL has expired.
+  ///
+  /// A no-op for local files, cloud tracks and anything still fresh — which is
+  /// almost everything, almost always.
+  Future<void> _refreshTarget(int index) async {
+    if (index < 0 || index >= songs.length) return;
+    final song = songs[index];
+    final videoId = song.ytVideoId;
+    if (videoId == null || song.hasFreshTarget) return;
+
+    try {
+      if (song.isYtVideo) {
+        // The manifest is gone — they are swept at every launch — so the video
+        // is staged again before its entry is handed to the player.
+        final target = await YtMusicRepository.instance.videoTarget(videoId);
+        await VideoRegistry.instance.adopt(
+          songId: song.id,
+          videoId: videoId,
+          target: target,
+        );
+        _replaceSong(song.id, song.withTarget(song.data, target.expiresAt));
+      } else {
+        final target = await YtMusicRepository.instance.audioTarget(videoId);
+        _replaceSong(song.id, song.withTarget(target.url, target.expiresAt));
+      }
+    } catch (e) {
+      // A track that will not resolve is one that will not play; the ordinary
+      // playback error path takes it from here rather than this becoming a
+      // second, competing failure mode.
+      debugPrint('Re-resolve failed for $videoId: $e');
+    }
+  }
+
+  /// Swaps a track for an updated copy of itself in both orderings.
+  void _replaceSong(int id, SongModel updated) {
+    for (final list in [_songs, _shuffledSongs]) {
+      final at = list.indexWhere((song) => song.id == id);
+      if (at >= 0) list[at] = updated;
+    }
+  }
+
   /// The repeat mode, as the app remembers it.
   ///
   /// Read from here rather than from the player: the player that holds it
@@ -1944,6 +2138,7 @@ class AppController with ChangeNotifier {
       _incrementPlayCount(songs[id].id);
       stemController.onSongChanged(songs[id].data);
     }
+    _saveSession();
     notifyListeners();
     _loadLyricsForCurrentSong();
   }
@@ -2052,7 +2247,7 @@ class AppController with ChangeNotifier {
         // Repeat-all: wrap to first song
         songId = 0;
         artWorkId = songs[0].id;
-        loadAudioSource(handler, songs[0], replayGain: _replayGain);
+        unawaited(loadTrackAt(0));
       } else {
         // No repeat: stop at end
         songId = 0;
@@ -2063,7 +2258,7 @@ class AppController with ChangeNotifier {
     } else {
       songId += 1;
       artWorkId = songs[songId].id;
-      loadAudioSource(handler, songs[songId], replayGain: _replayGain);
+      unawaited(loadTrackAt(songId));
     }
   }
 
@@ -2089,7 +2284,7 @@ class AppController with ChangeNotifier {
         // Repeat-all: wrap to last song
         songId = songs.length - 1;
         artWorkId = songs[songId].id;
-        loadAudioSource(handler, songs[songId], replayGain: _replayGain);
+        unawaited(loadTrackAt(songId));
       } else {
         // No repeat: restart first song
         handler.player.seek(Duration.zero);
@@ -2099,7 +2294,7 @@ class AppController with ChangeNotifier {
     } else {
       songId -= 1;
       artWorkId = songs[songId].id;
-      loadAudioSource(handler, songs[songId], replayGain: _replayGain);
+      unawaited(loadTrackAt(songId));
     }
   }
 

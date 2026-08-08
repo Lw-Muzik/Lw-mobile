@@ -29,6 +29,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../Routes/routes.dart';
 import '../../controllers/AppController.dart';
+import '../../models/track_extras.dart';
 import '../video/video_registry.dart';
 import 'parse/yt_json.dart';
 import 'yt_models.dart';
@@ -172,7 +173,7 @@ class YtPlayback {
     if (!context.mounted) return;
 
     final controller = context.read<AppController>();
-    controller.playSongFromList([videoModelOf(track)], 0);
+    controller.playSongFromList([videoModelOf(track, expiresAt: target.expiresAt)], 0);
     Routes.playerTo(context);
 
     // Attached before the radio is asked to fill, for the same reason
@@ -194,7 +195,7 @@ class YtPlayback {
   /// path in this field would read as a downloaded file to every part of the app
   /// that inspects it — the artwork layer, the cloud cache, the radio's check
   /// for whether YouTube is still what's playing.
-  static SongModel videoModelOf(YtTrack track) => SongModel({
+  static SongModel videoModelOf(YtTrack track, {int? expiresAt}) => SongModel({
         '_id': _songIdOf(track),
         '_data': 'https://music.youtube.com/watch?v=${track.videoId}',
         'title': track.title,
@@ -206,6 +207,12 @@ class YtPlayback {
         '_size': 0,
         'file_extension': 'mp4',
         'is_music': true,
+        // A restored session finds the manifest gone — they are swept at every
+        // launch — so a video entry has to say that it *is* one, or it comes
+        // back as audio.
+        TrackKeys.videoId: track.videoId,
+        TrackKeys.isVideo: true,
+        TrackKeys.expiresAt: expiresAt,
       });
 
   /// Starts a station built from one song — YouTube's "Start radio".
@@ -315,6 +322,11 @@ class YtPlayback {
         '_size': 0,
         'file_extension': 'm4a',
         'is_music': true,
+        // The URL above is single-use and stops working in about six hours. A
+        // queue saved tonight and reopened tomorrow needs the id to build a new
+        // one, and the deadline to know that it has to. See `TrackExtras`.
+        TrackKeys.videoId: track.videoId,
+        TrackKeys.expiresAt: target.expiresAt,
       });
 
   /// Resolves [track] for playback.

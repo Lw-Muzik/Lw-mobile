@@ -92,11 +92,15 @@ class _PlayPauseButton extends StatelessWidget {
                 ? Icons.pause_rounded
                 : Icons.play_arrow_rounded;
 
+        // Through the handler, not straight at the player. The handler is what
+        // the lock screen, the headset button and the notification already call,
+        // and it is where a session restored from the last run gets loaded
+        // before anything tries to play it.
         final onPressed = processingState == ProcessingState.completed
             ? () => controller.handler.player.seek(Duration.zero)
             : playing
-                ? controller.handler.player.pause
-                : controller.handler.player.play;
+                ? controller.handler.pause
+                : controller.handler.play;
 
         return GestureDetector(
           onTap: onPressed,
