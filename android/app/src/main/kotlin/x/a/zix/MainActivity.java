@@ -48,6 +48,83 @@ import io.flutter.plugin.common.EventChannel;
 import io.flutter.plugin.common.MethodChannel;
 
 public class MainActivity extends AudioServiceFragmentActivity {
+    /// Picture-in-picture: the channel the Dart side listens on, and the state
+    /// needed to enter the mode when the user leaves.
+    private MethodChannel pipChannel;
+
+    /// Whether a video is playing and would be worth floating. Set by Dart, read
+    /// at the one moment Android offers: the user leaving the app.
+    private boolean pipWanted = false;
+
+    /// The video's shape, so the floating window matches it instead of guessing.
+    private int pipWidth = 16;
+    private int pipHeight = 9;
+
+    private boolean supportsPip() {
+        return android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O
+                && getPackageManager().hasSystemFeature(
+                        android.content.pm.PackageManager.FEATURE_PICTURE_IN_PICTURE);
+    }
+
+    /**
+     * Enters picture-in-picture, or reports that it could not.
+     *
+     * Android refuses aspect ratios outside roughly 1:2.39–2.39:1, and throws
+     * rather than declining, so the ratio is clamped before it is offered.
+     */
+    private boolean enterPip(Integer width, Integer height) {
+        if (!supportsPip()) return false;
+        final int w = width != null && width > 0 ? width : pipWidth;
+        final int h = height != null && height > 0 ? height : pipHeight;
+        try {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                android.util.Rational ratio = clampRatio(w, h);
+                android.app.PictureInPictureParams params =
+                        new android.app.PictureInPictureParams.Builder()
+                                .setAspectRatio(ratio)
+                                .build();
+                return enterPictureInPictureMode(params);
+            }
+        } catch (IllegalStateException | IllegalArgumentException e) {
+            // The activity was not in a state that allows it — mid-teardown, or
+            // the device disallows PiP for this app. Not worth a crash.
+            android.util.Log.w("MainActivity", "PiP refused: " + e.getMessage());
+        }
+        return false;
+    }
+
+    /** A ratio Android will accept, as close to the video's as it allows. */
+    private android.util.Rational clampRatio(int width, int height) {
+        final double max = 2.39;
+        final double min = 1 / max;
+        double ratio = (double) width / (double) height;
+        if (ratio > max) ratio = max;
+        if (ratio < min) ratio = min;
+        // Scaled to integers because Rational takes them, and 1000 is plenty of
+        // precision for a window a few centimetres across.
+        return new android.util.Rational((int) Math.round(ratio * 1000), 1000);
+    }
+
+    @Override
+    public void onUserLeaveHint() {
+        super.onUserLeaveHint();
+        // The only callback Android gives for "the user pressed home", which is
+        // the gesture every video app treats as "keep playing, but smaller".
+        if (pipWanted) enterPip(pipWidth, pipHeight);
+    }
+
+    @Override
+    public void onPictureInPictureModeChanged(
+            boolean inPictureInPicture, android.content.res.Configuration config) {
+        super.onPictureInPictureModeChanged(inPictureInPicture, config);
+        // Flutter shrinks the whole app, so Dart has to know to draw the video
+        // alone. Without this the floating window shows a miniature of the
+        // entire player screen, controls and all.
+        if (pipChannel != null) {
+            pipChannel.invokeMethod("changed", inPictureInPicture);
+        }
+    }
+
     // static {
     // System.loadLibrary("eq_app");
     // }
@@ -177,10 +254,71 @@ public class MainActivity extends AudioServiceFragmentActivity {
                             result.success(null);
                             break;
                         }
+                        case "keepAwake": {
+                            // FLAG_KEEP_SCREEN_ON rather than a wake lock: it
+                            // needs no permission, it is scoped to this window,
+                            // and Android clears it when the window goes away —
+                            // so a crash cannot leave the user's screen pinned
+                            // on. Audio-only playback deliberately does not set
+                            // it; only a picture nobody is touching does.
+                            final Boolean on = call.argument("on");
+                            final boolean keep = on != null && on;
+                            runOnUiThread(() -> {
+                                if (keep) {
+                                    getWindow().addFlags(
+                                        android.view.WindowManager.LayoutParams
+                                            .FLAG_KEEP_SCREEN_ON);
+                                } else {
+                                    getWindow().clearFlags(
+                                        android.view.WindowManager.LayoutParams
+                                            .FLAG_KEEP_SCREEN_ON);
+                                }
+                            });
+                            result.success(null);
+                            break;
+                        }
                         default:
                             result.notImplemented();
                     }
                 });
+
+        // Picture-in-picture.
+        //
+        // Flutter draws the whole app into one window, so entering PiP shrinks
+        // *everything*. The Dart side answers that by rendering the video alone
+        // while `pipChannel` reports being in the mode — which is why the state
+        // is pushed back rather than merely accepted.
+        pipChannel = new MethodChannel(
+                flutterEngine.getDartExecutor().getBinaryMessenger(), "eq_app/pip");
+        pipChannel.setMethodCallHandler((call, result) -> {
+            switch (call.method) {
+                case "isSupported":
+                    result.success(supportsPip());
+                    break;
+                case "enter": {
+                    final Integer width = call.argument("width");
+                    final Integer height = call.argument("height");
+                    result.success(enterPip(width, height));
+                    break;
+                }
+                case "setAutoEnter": {
+                    // Remembered rather than acted on: the moment that matters
+                    // is the user leaving, which arrives at onUserLeaveHint.
+                    final Boolean on = call.argument("on");
+                    pipWanted = on != null && on;
+                    final Integer width = call.argument("width");
+                    final Integer height = call.argument("height");
+                    if (width != null && height != null) {
+                        pipWidth = width;
+                        pipHeight = height;
+                    }
+                    result.success(null);
+                    break;
+                }
+                default:
+                    result.notImplemented();
+            }
+        });
 
         // projectM renderer init
         projectMRenderer = new ProjectMRenderer(this, flutterEngine.getRenderer());

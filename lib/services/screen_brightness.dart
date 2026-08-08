@@ -45,6 +45,24 @@ class ScreenBrightness {
     }
   }
 
+  /// Keeps the screen on, or lets it dim again.
+  ///
+  /// For video only. A song does not need the screen — locking the phone during
+  /// one is the point of a music player — but a video the user is watching
+  /// without touching is exactly the case the idle timer gets wrong.
+  ///
+  /// Scoped to the window on Android and to the app on iOS, so neither platform
+  /// can be left with the screen pinned on after the player has gone.
+  static Future<void> keepAwake(bool on) async {
+    try {
+      await _channel.invokeMethod<void>('keepAwake', {'on': on});
+    } on PlatformException {
+      // Nothing to do about it, and nothing the user could do either.
+    } on MissingPluginException {
+      // No screen control on this platform.
+    }
+  }
+
   /// Hands control back to the system.
   ///
   /// Android takes this literally — the window override is cleared. iOS has no

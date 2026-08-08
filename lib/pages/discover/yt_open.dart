@@ -38,7 +38,14 @@ void openExploreItem(
     case ExploreKind.artist:
       Routes.routeTo(YtArtistPage(item: item), context);
     case ExploreKind.video:
-      YtPlayback.watch(context, item.asTrack());
+      // A video plays with the videos it was listed alongside, exactly as a
+      // song plays with its siblings. Picking the third result in the Videos
+      // tab used to give one video and then a station of audio.
+      final videos = [
+        for (final sibling in siblings)
+          if (sibling.kind == ExploreKind.video) sibling.asTrack(),
+      ];
+      YtPlayback.watch(context, item.asTrack(), siblings: videos);
     case ExploreKind.song:
       // A song plays with whatever it was listed alongside, so tapping the
       // third song on a shelf continues into the fourth rather than stopping.

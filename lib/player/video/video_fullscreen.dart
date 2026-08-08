@@ -31,6 +31,7 @@ import 'package:just_audio/video.dart';
 
 import '../../controllers/AppController.dart';
 import '../../services/screen_brightness.dart';
+import 'picture_in_picture.dart';
 import 'video_quality_sheet.dart';
 import 'video_stage.dart';
 import 'video_surface.dart';
@@ -376,6 +377,20 @@ class _FullscreenControls extends StatelessWidget {
                     ),
                   ),
                 ),
+                if (PictureInPicture.instance.isSupported)
+                  IconButton(
+                    tooltip: 'Picture-in-picture',
+                    icon: const Icon(Icons.picture_in_picture_alt_rounded,
+                        color: Colors.white, size: 20),
+                    onPressed: () async {
+                      onInteraction();
+                      final state = video.state;
+                      await PictureInPicture.instance.enter(
+                        width: state.hasVideo ? state.width : null,
+                        height: state.hasVideo ? state.height : null,
+                      );
+                    },
+                  ),
                 StreamBuilder<VideoState>(
                   stream: video.stateStream,
                   initialData: video.state,

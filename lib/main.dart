@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import '/controllers/drawer_controller.dart';
 
@@ -31,7 +32,10 @@ import 'data/library_database.dart';
 import 'data/library_repository.dart';
 import 'firebase_options.dart';
 import 'widgets/DvcVolumeOverlay.dart';
+import 'player/video/picture_in_picture.dart';
 import 'player/video/video_mini_player.dart';
+import 'player/video/video_stage.dart';
+import 'player/video/video_surface.dart';
 import 'services/video/video_registry.dart';
 import 'services/streaming_data_guard.dart';
 import 'services/library_scanner.dart';
@@ -115,6 +119,11 @@ Future<void> main() async {
   // of the first frame.
   unawaited(VideoRegistry.instance.sweepManifests());
 
+  // Asks the platform whether it offers a floating window, and starts listening
+  // for the mode changing. Cheap, and the answer decides whether any of the
+  // picture-in-picture affordances are offered at all.
+  unawaited(PictureInPicture.instance.init());
+
   // Local library database — the browsing UI's source of truth. Opening is
   // lazy (first query triggers it on a background isolate), so this is cheap
   // and never blocks launch. The scanner diffs MediaStore after the first
@@ -157,12 +166,44 @@ Future<void> main() async {
               // player screen should not end the video any more than it ends
               // the song. It shows itself only when the current track is a
               // video and no other host is already displaying it.
-              return Stack(
-                children: [
-                  child!,
-                  const DvcVolumeOverlay(),
-                  const VideoMiniPlayer(),
-                ],
+              return ValueListenableBuilder<bool>(
+                valueListenable: PictureInPicture.instance.isActive,
+                builder: (context, floating, _) {
+                  return Stack(
+                    children: [
+                      // Kept mounted while floating, never rebuilt away: the
+                      // system shrinks the whole app, and tearing the navigator
+                      // down to show a thumbnail would lose every route the
+                      // user is going to come back to.
+                      //
+                      // Android only. On iOS the floating window is AVKit's
+                      // own, drawn from a player layer rather than from this
+                      // widget tree, so there is nothing here to hide.
+                      Offstage(
+                        offstage: floating && !Platform.isIOS,
+                        child: Stack(
+                          children: [
+                            child!,
+                            const DvcVolumeOverlay(),
+                            const VideoMiniPlayer(),
+                          ],
+                        ),
+                      ),
+                      // In a window a few centimetres across, the player's
+                      // controls and artwork are noise. Only the picture.
+                      if (floating && !Platform.isIOS)
+                        const Positioned.fill(
+                          child: ColoredBox(
+                            color: Colors.black,
+                            child: VideoStage(
+                              host: VideoHost.pip,
+                              fit: BoxFit.contain,
+                            ),
+                          ),
+                        ),
+                    ],
+                  );
+                },
               );
             },
           ),

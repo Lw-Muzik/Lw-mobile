@@ -27,6 +27,8 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 
 import '../../controllers/AppController.dart';
+import '../../services/screen_brightness.dart';
+import 'picture_in_picture.dart';
 
 /// The places a video can be shown, in ascending order of precedence.
 enum VideoHost {
@@ -41,6 +43,13 @@ enum VideoHost {
 
   /// A route covering everything else.
   fullscreen,
+
+  /// The system's floating window.
+  ///
+  /// Highest, because when the whole app has been shrunk into a thumbnail the
+  /// only thing worth drawing in it is the video — every other host is still
+  /// mounted underneath, and every one of them should stand down.
+  pip,
 }
 
 /// What a claim ultimately turns into: a surface handed to the player, or taken
@@ -52,6 +61,20 @@ enum VideoHost {
 abstract class VideoSink {
   void attach();
   void detach();
+
+  /// Releases every surface, on any player. See [VideoSurface.rebind].
+  void detachAll();
+
+  /// Whether leaving the app should float the video, and at what shape.
+  void setFloatOnLeave(bool on);
+
+  /// Whether the screen should be held awake.
+  ///
+  /// Belongs here rather than in a widget because it answers the same question
+  /// attaching does — is a picture on screen — and answering it twice, in two
+  /// places, is how the two get out of step and the screen stays lit over a
+  /// player that closed.
+  void keepAwake(bool on);
 }
 
 /// The real sink: the video output of whichever player is currently audible.
@@ -63,11 +86,37 @@ class _PlayerVideoSink implements VideoSink {
 
   @override
   void detach() => AppController.instance.handler.video.detach();
+
+  @override
+  void detachAll() => AppController.instance.handler.detachAllVideo();
+
+  @override
+  void setFloatOnLeave(bool on) {
+    final state = AppController.instance.handler.video.state;
+    PictureInPicture.instance.setAutoEnter(
+      on: on,
+      width: state.hasVideo ? state.width : null,
+      height: state.hasVideo ? state.height : null,
+    );
+  }
+
+  @override
+  void keepAwake(bool on) => ScreenBrightness.keepAwake(on);
 }
 
 class VideoSurface extends ChangeNotifier with WidgetsBindingObserver {
   VideoSurface._() {
     WidgetsBinding.instance.addObserver(this);
+    // A floating window backgrounds the app while the video is still very much
+    // on screen. Without this the lifecycle handler below would tear the
+    // surface down the instant picture-in-picture started — on Android that is
+    // a black thumbnail, on iOS a video dropped to its lowest rendition.
+    PictureInPicture.instance.isActive.addListener(_onFloatingChanged);
+  }
+
+  void _onFloatingChanged() {
+    _sync();
+    _announce();
   }
 
   static final VideoSurface instance = VideoSurface._();
@@ -83,9 +132,16 @@ class VideoSurface extends ChangeNotifier with WidgetsBindingObserver {
   /// so it should not be decoding either — see the library comment.
   bool _foreground = true;
 
+  /// Whether the video is on screen anywhere.
+  ///
+  /// Being in the background is not the same as being invisible: a floating
+  /// window outlives the app going away, and is the one case where a
+  /// backgrounded app should go on decoding.
+  bool get _visible => _foreground || PictureInPicture.instance.isActive.value;
+
   /// The host that should draw, or null when the video is not being shown.
   VideoHost? get owner {
-    if (!_foreground || _claims.isEmpty) return null;
+    if (!_visible || _claims.isEmpty) return null;
     for (final host in VideoHost.values.reversed) {
       if (_claims.contains(host)) return host;
     }
@@ -150,6 +206,18 @@ class VideoSurface extends ChangeNotifier with WidgetsBindingObserver {
     _announce();
   }
 
+  /// Moves the picture onto whichever player is now the audible one.
+  ///
+  /// Called when a crossfade starts and again when it swaps the players over.
+  /// There are two players and a surface belongs to exactly one of them, so
+  /// without this the video would keep drawing from the player the fade is
+  /// about to stop: a frozen last frame over the next track's soundtrack.
+  void rebind() {
+    _sink.detachAll();
+    if (owner != null) _sink.attach();
+    _announce();
+  }
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     final foreground = state == AppLifecycleState.resumed;
@@ -159,19 +227,37 @@ class VideoSurface extends ChangeNotifier with WidgetsBindingObserver {
     _announce();
   }
 
-  /// Brings the native surface into line with whether anyone is watching.
+  /// Brings the native surface — and the screen — into line with whether
+  /// anyone is watching.
+  ///
+  /// A video the user is watching without touching is exactly the case the
+  /// screen timeout gets wrong; a song is exactly the case it gets right. Since
+  /// this is already the one place that knows which of the two is happening, it
+  /// is the one place that decides.
   void _sync() {
-    if (owner != null) {
+    final watching = owner != null;
+    if (watching) {
       _sink.attach();
     } else {
       _sink.detach();
     }
+    if (watching != _awake) {
+      _awake = watching;
+      _sink.keepAwake(watching);
+      // Registered here rather than at the moment of leaving, because Android
+      // refuses the request once the app is already going away.
+      _sink.setFloatOnLeave(watching);
+    }
   }
+
+  /// Whether the screen is currently being held on by this class.
+  bool _awake = false;
 
   @visibleForTesting
   void resetForTest() {
     _claims.clear();
     _foreground = true;
+    _awake = false;
     _sink = const _PlayerVideoSink();
   }
 

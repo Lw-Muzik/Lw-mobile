@@ -33,6 +33,35 @@
 /** Pins the rendition at @c index in the last broadcast list; -1 is adaptive. */
 - (void)selectQualityAtIndex:(NSInteger)index;
 
+/** Whether this output currently holds a texture. */
+- (BOOL)isAttached;
+
+// ---- Picture-in-picture ----
+//
+// AVKit drives picture-in-picture from an @c AVPlayerLayer, and this app draws
+// video into a Flutter texture instead — so there is no layer for it to attach
+// to unless one is made. That is what this does: a layer bound to the same
+// player, placed behind the Flutter view where it is occluded but present, for
+// AVKit to hand to the system window. The texture keeps drawing the picture the
+// user sees inline; the layer exists solely so iOS has something to float.
+
+/** Whether this device offers picture-in-picture at all. */
+- (BOOL)pipSupported;
+
+/** Floats the video now. Returns whether the request was made. */
+- (BOOL)pipStart;
+
+/**
+ * Whether leaving the app should float the video automatically.
+ *
+ * iOS 14.2 and later only — earlier versions offer no equivalent, and the
+ * button remains the way in.
+ */
+- (void)pipSetAutoEnter:(BOOL)on;
+
+/** Reports entering and leaving the floating window. */
+- (void)setPipChannel:(FlutterMethodChannel *)channel;
+
 - (void)dispose;
 
 @end

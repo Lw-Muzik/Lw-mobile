@@ -63,6 +63,14 @@ import AVFoundation
                         UIScreen.main.brightness = CGFloat(min(max(value, 0.01), 1.0))
                     }
                     result(nil)
+                case "keepAwake":
+                    // The idle timer is the iOS equivalent of FLAG_KEEP_SCREEN_ON.
+                    // Set only while a picture is on screen; audio-only playback
+                    // leaves it alone, so locking the phone during a song still
+                    // works as it should.
+                    let on = (call.arguments as? [String: Any])?["on"] as? Bool ?? false
+                    UIApplication.shared.isIdleTimerDisabled = on
+                    result(nil)
                 default:
                     result(FlutterMethodNotImplemented)
                 }

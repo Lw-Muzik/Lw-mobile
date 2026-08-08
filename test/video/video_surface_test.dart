@@ -10,12 +10,32 @@ library;
 
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:eq_app/player/video/picture_in_picture.dart';
 import 'package:eq_app/player/video/video_surface.dart';
 
 class _RecordingSink implements VideoSink {
   int attaches = 0;
   int detaches = 0;
   bool attached = false;
+  bool awake = false;
+  int awakeChanges = 0;
+
+  bool floats = false;
+
+  @override
+  void keepAwake(bool on) {
+    awake = on;
+    awakeChanges++;
+  }
+
+  @override
+  void detachAll() {
+    detaches++;
+    attached = false;
+  }
+
+  @override
+  void setFloatOnLeave(bool on) => floats = on;
 
   @override
   void attach() {
@@ -42,7 +62,10 @@ void main() {
     surface.sink = sink;
   });
 
-  tearDown(surface.resetForTest);
+  tearDown(() {
+    PictureInPicture.instance.isActive.value = false;
+    surface.resetForTest();
+  });
 
   test('nobody claiming means nothing attached', () {
     expect(surface.owner, isNull);
@@ -135,6 +158,72 @@ void main() {
     surface.claim(VideoHost.card);
     surface.claim(VideoHost.fullscreen);
     surface.releaseAll();
+    expect(surface.owner, isNull);
+    expect(sink.attached, isFalse);
+  });
+
+  test('a picture on screen holds the screen awake', () {
+    expect(sink.awake, isFalse);
+    surface.claim(VideoHost.card);
+    expect(sink.awake, isTrue,
+        reason: 'a video watched without touching is what the screen timeout '
+            'gets wrong');
+    surface.release(VideoHost.card);
+    expect(sink.awake, isFalse, reason: 'a song does not need the screen');
+  });
+
+  test('handing the surface between hosts does not toggle the screen', () {
+    surface.claim(VideoHost.card);
+    final changes = sink.awakeChanges;
+    surface.claim(VideoHost.fullscreen);
+    surface.release(VideoHost.fullscreen);
+    expect(sink.awake, isTrue);
+    expect(sink.awakeChanges, changes,
+        reason: 'the picture never left the screen, so nothing changed');
+  });
+
+  test('backgrounding releases the screen', () {
+    surface.claim(VideoHost.card);
+    surface.setForegroundForTest(false);
+    expect(sink.awake, isFalse,
+        reason: 'a backgrounded app must not pin the screen on');
+    surface.setForegroundForTest(true);
+    expect(sink.awake, isTrue);
+  });
+
+  test('a video on screen asks to keep floating when the app is left', () {
+    expect(sink.floats, isFalse);
+    surface.claim(VideoHost.card);
+    expect(sink.floats, isTrue,
+        reason: 'Android refuses the request once the app is already leaving, '
+            'so intent has to be registered while the video is still showing');
+    surface.release(VideoHost.card);
+    expect(sink.floats, isFalse);
+  });
+
+  test('the floating window outranks every other host', () {
+    surface.claim(VideoHost.card);
+    surface.claim(VideoHost.fullscreen);
+    surface.claim(VideoHost.pip);
+    expect(surface.owner, VideoHost.pip,
+        reason: 'the whole app is a thumbnail; only the video belongs in it');
+  });
+
+  test('a floating window survives the app being backgrounded', () {
+    surface.claim(VideoHost.card);
+    PictureInPicture.instance.isActive.value = true;
+    surface.setForegroundForTest(false);
+    expect(surface.owner, VideoHost.card,
+        reason: 'picture-in-picture backgrounds the app while the video is '
+            'still on screen; tearing the surface down blacks it out');
+    expect(sink.attached, isTrue);
+  });
+
+  test('leaving the floating window while backgrounded does detach', () {
+    surface.claim(VideoHost.card);
+    PictureInPicture.instance.isActive.value = true;
+    surface.setForegroundForTest(false);
+    PictureInPicture.instance.isActive.value = false;
     expect(surface.owner, isNull);
     expect(sink.attached, isFalse);
   });

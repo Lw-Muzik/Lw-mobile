@@ -166,6 +166,10 @@ class YtPlayback {
     }
 
     final songId = _songIdOf(track);
+    // Set before the track is queued: `playSongFromList` clears the registry
+    // when something that is not a YouTube stream takes over, and the mode has
+    // to be in place for the queue that is about to be built, not after it.
+    VideoRegistry.instance.videoMode = true;
     final video = await VideoRegistry.instance.adopt(
       songId: songId,
       videoId: track.videoId,
@@ -174,6 +178,7 @@ class YtPlayback {
     if (!context.mounted) return;
     if (video == null) {
       // The manifest could not be staged. The song is still worth playing.
+      VideoRegistry.instance.videoMode = false;
       _complain(context, 'Could not prepare that video. Playing the audio.');
       await play(context, [track], 0);
       return;
@@ -194,7 +199,71 @@ class YtPlayback {
     // three-minute video is the behaviour being fixed. The preference governs
     // stations the app invents, and `fill` still honours it.
     YtRadioQueue.instance.attach(seed: track.videoId);
-    unawaited(YtRadioQueue.instance.fill(controller));
+
+    // The rest of the tapped list first, as videos. Only when there is no list
+    // — a single "Watch video" from a track's overflow — does the station take
+    // over immediately.
+    final rest = [
+      for (final sibling in siblings)
+        if (sibling.videoId != track.videoId && sibling.isAvailable) sibling,
+    ];
+    if (rest.isEmpty) {
+      unawaited(YtRadioQueue.instance.fill(controller));
+    } else {
+      unawaited(_fillVideoQueue(controller, rest));
+    }
+  }
+
+  /// Resolves [rest] as videos and appends them, a few at a time.
+  ///
+  /// Smaller batches than the audio path uses: a video target is heavier to
+  /// resolve and each one writes a manifest to disk, so running far ahead of the
+  /// user spends effort on videos they will most likely skip.
+  static Future<void> _fillVideoQueue(
+    AppController controller,
+    List<YtTrack> rest,
+  ) async {
+    const batchSize = 6;
+    for (var i = 0; i < rest.length; i += batchSize) {
+      final batch = rest.skip(i).take(batchSize).toList();
+      final models = await resolveVideoModels(batch);
+      // The user may have started something else by now; appending to a queue
+      // they have left would graft this list onto it.
+      if (models.isEmpty || !YtRadioQueue.instance.isLive) return;
+      await controller.appendToQueue(models);
+    }
+    if (!YtRadioQueue.instance.isLive) return;
+    await YtRadioQueue.instance.onIndexChanged(controller, controller.songId);
+  }
+
+  /// Resolves [tracks] as videos, registers their manifests and returns the
+  /// queue entries for the ones that worked.
+  ///
+  /// Shared with the station, so a radio running in video mode produces the same
+  /// kind of entry as a tapped list does.
+  static Future<List<SongModel>> resolveVideoModels(List<YtTrack> tracks) async {
+    final targets = await YtMusicRepository.instance.videoTargets(
+      [for (final track in tracks) track.videoId],
+    );
+    await Future.wait([for (final track in tracks) cacheArtwork(track)]);
+
+    final models = <SongModel>[];
+    for (final track in tracks) {
+      final target = targets[track.videoId];
+      if (target == null) continue;
+      // iOS cannot open DASH, and a video that cannot be staged is not one to
+      // queue. Skipped rather than substituted with its audio, which would put
+      // a track with no picture into a queue of videos.
+      if (target.format == YtStreamFormat.dash && Platform.isIOS) continue;
+      final source = await VideoRegistry.instance.adopt(
+        songId: _songIdOf(track),
+        videoId: track.videoId,
+        target: target,
+      );
+      if (source == null) continue;
+      models.add(videoModelOf(track, expiresAt: target.expiresAt));
+    }
+    return models;
   }
 
   /// One video as the player's own model.
@@ -501,6 +570,21 @@ class YtRadioQueue {
     _offered.clear();
   }
 
+  /// Resolves [tracks] as audio and returns the queue entries that worked.
+  Future<List<SongModel>> _resolveAudioModels(List<YtTrack> tracks) async {
+    final targets = await YtMusicRepository.instance.audioTargets(
+      [for (final track in tracks) track.videoId],
+    );
+    await Future.wait(
+      [for (final track in tracks) YtPlayback.cacheArtwork(track)],
+    );
+    return [
+      for (final track in tracks)
+        if (targets[track.videoId] case final target?)
+          YtPlayback.songModelOf(track, target),
+    ];
+  }
+
   /// The tracks in [page] this station has not already handed over, at most
   /// [limit] of them.
   ///
@@ -560,7 +644,11 @@ class YtRadioQueue {
         _token = batch.continuation;
         if (batch.tracks.isEmpty) return;
 
-        final fresh = _freshTracks(batch.tracks, limit: _batchSize);
+        // Videos are resolved a few at a time and each writes a manifest, so a
+        // station showing pictures runs a shorter way ahead than one playing
+        // songs.
+        final limit = VideoRegistry.instance.videoMode ? 6 : _batchSize;
+        final fresh = _freshTracks(batch.tracks, limit: limit);
         // Every track on this page is already in the queue. Ask for the next
         // one rather than reporting a station that has run dry.
         if (fresh.isEmpty) {
@@ -568,17 +656,12 @@ class YtRadioQueue {
           continue;
         }
 
-        final targets = await YtMusicRepository.instance.audioTargets(
-          [for (final track in fresh) track.videoId],
-        );
-        await Future.wait(
-          [for (final track in fresh) YtPlayback.cacheArtwork(track)],
-        );
-        final models = <SongModel>[
-          for (final track in fresh)
-            if (targets[track.videoId] case final target?)
-              YtPlayback.songModelOf(track, target),
-        ];
+        // A station seeded from a video keeps showing pictures. Someone who
+        // opened the Videos tab and let it run should not find themselves
+        // listening to a radio of songs three tracks later.
+        final models = VideoRegistry.instance.videoMode
+            ? await YtPlayback.resolveVideoModels(fresh)
+            : await _resolveAudioModels(fresh);
         // The user may have started something else entirely while those
         // resolved; appending to a queue they have left would graft this
         // station onto it.

@@ -38,7 +38,12 @@
 
     <application android:name=".HypeApplication" android:enableOnBackInvokedCallback="true" android:icon="@mipmap/ic_launcher" android:label="Hype Muzik" tools:ignore="ExtraText" android:requestLegacyExternalStorage="true" android:usesCleartextTraffic="true">
         <meta-data android:name="google_analytics_automatic_screen_reporting_enabled" android:value="true" />
-        <activity android:name=".MainActivity" android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode" android:exported="true" android:hardwareAccelerated="true" android:launchMode="singleTop" android:theme="@style/LaunchTheme" android:windowSoftInputMode="adjustResize">
+        <!-- supportsPictureInPicture + resizeableActivity: watching a video and
+             leaving the app floats it over whatever comes next. The
+             configChanges list already covers every dimension a PiP
+             transition changes, so the activity is resized rather than
+             recreated — recreating it would restart playback. -->
+        <activity android:name=".MainActivity" android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode" android:exported="true" android:hardwareAccelerated="true" android:launchMode="singleTop" android:resizeableActivity="true" android:supportsPictureInPicture="true" android:theme="@style/LaunchTheme" android:windowSoftInputMode="adjustResize">
             <!-- Specifies an Android theme to apply to this Activity as soon as
                  the Android process has started. This theme is visible to the user
                  while the Flutter UI initializes. After that, this theme continues

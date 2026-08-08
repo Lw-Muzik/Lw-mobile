@@ -70,10 +70,9 @@ class HypeAudioHandler extends BaseAudioHandler {
   ///
   /// Keyed by player rather than held as a single field because there are two
   /// of them for crossfading, and a surface belongs to the engine that draws
-  /// into it. Videos never crossfade — `AppController` refuses the fade when
-  /// either side is one — so in practice only the active player ever grows a
-  /// surface, but tying the two together explicitly is what makes that true by
-  /// construction rather than by luck.
+  /// into it. A video crossfades like anything else, so the picture has to move
+  /// between them as the fade hands over — see [detachAllVideo] and
+  /// `VideoSurface.rebind`.
   final Map<AudioPlayer, VideoOutput> _videoOutputs = {};
 
   /// The video surface of whichever player is currently audible.
@@ -81,6 +80,19 @@ class HypeAudioHandler extends BaseAudioHandler {
 
   VideoOutput videoOutputFor(AudioPlayer player) =>
       _videoOutputs.putIfAbsent(player, () => VideoOutput(player));
+
+  /// Hands back every surface, whichever player holds it.
+  ///
+  /// A crossfade ends by swapping which player is active, so the picture has to
+  /// move with it. Detaching all of them and re-attaching the current one is
+  /// the only way to be sure the surface is not still bound to the player the
+  /// fade just stopped — which would leave the last frame of the previous video
+  /// frozen over the new one's soundtrack.
+  Future<void> detachAllVideo() async {
+    for (final output in _videoOutputs.values) {
+      await output.detach();
+    }
+  }
 
   /// The player that has the latest track loaded.
   /// During crossfade this returns the incoming player (new track).

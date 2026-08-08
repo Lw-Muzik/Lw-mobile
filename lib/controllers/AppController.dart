@@ -24,6 +24,7 @@ import '../services/lyrics_service.dart';
 import '../services/fingerprint_service.dart';
 import '../services/cast_controller.dart';
 import '../services/streaming_data_guard.dart';
+import '../player/video/video_surface.dart';
 import '../services/video/video_registry.dart';
 import '../services/ytmusic/yt_innertube.dart';
 import '../services/ytmusic/yt_repository.dart';
@@ -780,7 +781,14 @@ class AppController with ChangeNotifier {
     _startSessionTicker();
 
     // When crossfade starts, notify UI so waveform binds to the new track player
-    _handler.onCrossfadeStarted = () => notifyListeners();
+    _handler.onCrossfadeStarted = () {
+      // The incoming track is now the audible one, so the picture moves to its
+      // player at the same moment the audio starts fading over. The sound
+      // dissolves; the picture cuts, because dissolving it would mean decoding
+      // two videos at once.
+      VideoSurface.instance.rebind();
+      notifyListeners();
+    };
 
     // Re-bind all player streams after a crossfade player swap
     _handler.onPlayerSwapped = _rebindPlayerStreams;
@@ -939,6 +947,8 @@ class AppController with ChangeNotifier {
   /// Re-binds all subscriptions to the new active player and notifies the UI
   /// so StreamBuilders (waveform, playing state) reconnect to the new player.
   void _rebindPlayerStreams() {
+    // The picture belongs to a player, and the players have just traded places.
+    VideoSurface.instance.rebind();
     _bindProcessingState();
     _bindCurrentIndex();
     _setupCrossfadeListener();
@@ -977,15 +987,6 @@ class AppController with ChangeNotifier {
     if (_isCrossfading) return;
     final nextIdx = songId + 1;
     if (nextIdx == _crossfadeFailedIdx) return;
-    // A crossfade runs two players at once and hands the output to the second.
-    // The video surface belongs to one of them, so a fade into or out of a
-    // video would either show the wrong player's frames or none at all — and
-    // fading a picture out under its own soundtrack is not something anyone
-    // asked for. Videos cut.
-    if (VideoRegistry.instance.isVideo(songs[songId].id) ||
-        VideoRegistry.instance.isVideo(songs[nextIdx].id)) {
-      return;
-    }
     _isCrossfading = true;
     final nextSong = songs[nextIdx];
     final prevId = _songId;
@@ -997,7 +998,12 @@ class AppController with ChangeNotifier {
       _loadLyricsForCurrentSong();
 
       final AudioSource nextSource;
-      if (nextSong.data.startsWith('http')) {
+      // Videos first, for the same reason every other source-construction site
+      // checks: a video's `data` is an identity, and what the player opens
+      // lives in the registry.
+      if (VideoRegistry.instance.sourceFor(nextSong.id) case final video?) {
+        nextSource = video.toAudioSource();
+      } else if (nextSong.data.startsWith('http')) {
         // YouTube stream — direct URI with its headers. Must not go through the
         // cloud-cache branch below: these targets are single-use, keyed by
         // nothing the cache understands, and need no auth exchange.

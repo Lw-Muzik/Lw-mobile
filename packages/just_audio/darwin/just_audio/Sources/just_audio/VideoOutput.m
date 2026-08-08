@@ -1,6 +1,14 @@
 #import "./include/just_audio/VideoOutput.h"
 #import "./include/just_audio/BetterEventChannel.h"
 #include <TargetConditionals.h>
+#if !TARGET_OS_OSX
+#import <AVKit/AVKit.h>
+#endif
+
+#if !TARGET_OS_OSX
+@interface VideoOutput () <AVPictureInPictureControllerDelegate>
+@end
+#endif
 
 /// KVO contexts, so observations meant for this object are never confused with
 /// a superclass's.
@@ -24,9 +32,23 @@ static void *kSizeContext = &kSizeContext;
 #endif
 
     /// The renditions last offered to Dart, and which one is pinned.
-    NSArray<AVAssetVariant *> *_variants;
+    ///
+    /// Untyped because `AVAssetVariant` did not exist until iOS 15 and this
+    /// plugin deploys to 12: naming the type in an ivar declaration is an
+    /// unguarded reference the compiler is right to object to. Every use is
+    /// inside an availability check and casts there.
+    NSArray *_variants;
     NSInteger _selected;
     CGSize _lastSize;
+
+#if !TARGET_OS_OSX
+    /// The layer AVKit floats. Occluded by the Flutter view, never drawn to by
+    /// this app — its only job is to exist somewhere in the hierarchy.
+    AVPlayerLayer *_pipLayer;
+    AVPictureInPictureController *_pipController;
+#endif
+    FlutterMethodChannel *_pipChannel;
+    BOOL _pipAutoEnter;
 }
 
 - (instancetype)initWithRegistrar:(NSObject<FlutterPluginRegistrar> *)registrar
@@ -51,6 +73,10 @@ static void *kSizeContext = &kSizeContext;
     return self;
 }
 
+- (BOOL)isAttached {
+    return _attached;
+}
+
 - (int64_t)attach {
     if (_attached) return _textureId;
     _attached = YES;
@@ -68,6 +94,7 @@ static void *kSizeContext = &kSizeContext;
     [self startPump];
     // Undo the resolution floor that detaching imposed — see -detach.
     [self selectQualityAtIndex:_selected];
+    [self setUpPip];
     [self broadcast];
     return _textureId;
 }
@@ -82,6 +109,7 @@ static void *kSizeContext = &kSizeContext;
         [_textures unregisterTexture:_textureId];
         _textureId = -1;
     }
+    [self tearDownPip];
     // AVPlayer has no way to turn a video track off the way ExoPlayer does, so
     // this is the nearest honest equivalent: ask for the smallest picture there
     // is, and let variant selection drop to the cheapest rendition. Frames are
@@ -205,7 +233,12 @@ static void *kSizeContext = &kSizeContext;
  */
 - (void)loadVariantsForItem:(AVPlayerItem *)item {
     if (@available(iOS 15.0, macOS 12.0, *)) {
-        AVAsset *asset = item.asset;
+        // `variants` belongs to AVURLAsset, not AVAsset — a distinction the
+        // compiler catches and the documentation does not lead with. Everything
+        // this plugin plays is built from a URL, so the check is a formality,
+        // but reading the property off the base class does not compile.
+        if (![item.asset isKindOfClass:AVURLAsset.class]) return;
+        AVURLAsset *asset = (AVURLAsset *)item.asset;
         __weak typeof(self) weakSelf = self;
         [asset loadValuesAsynchronouslyForKeys:@[ @"variants" ] completionHandler:^{
             dispatch_async(dispatch_get_main_queue(), ^{
@@ -213,9 +246,8 @@ static void *kSizeContext = &kSizeContext;
                 if (strongSelf == nil || strongSelf->_player.currentItem != item) return;
                 NSError *error = nil;
                 if ([asset statusOfValueForKey:@"variants" error:&error] != AVKeyValueStatusLoaded) return;
-                NSArray<AVAssetVariant *> *variants = asset.variants;
                 // Largest first: a quality menu reads downwards from the best.
-                strongSelf->_variants = [variants sortedArrayUsingComparator:^NSComparisonResult(AVAssetVariant *a, AVAssetVariant *b) {
+                strongSelf->_variants = [asset.variants sortedArrayUsingComparator:^NSComparisonResult(AVAssetVariant *a, AVAssetVariant *b) {
                     CGSize sa = a.videoAttributes.presentationSize;
                     CGSize sb = b.videoAttributes.presentationSize;
                     return [@(sb.width * sb.height) compare:@(sa.width * sa.height)];
@@ -247,10 +279,13 @@ static void *kSizeContext = &kSizeContext;
     } else {
         _selected = index;
         if (@available(iOS 15.0, macOS 12.0, *)) {
-            AVAssetVariant *variant = _variants[index];
+            AVAssetVariant *variant = (AVAssetVariant *)_variants[index];
             item.preferredMaximumResolution = variant.videoAttributes.presentationSize;
-            NSNumber *peak = variant.peakBitRate;
-            item.preferredPeakBitRate = peak != nil ? peak.doubleValue : 0;
+            // A `double`, not a boxed number, and negative when the manifest
+            // did not state one — in which case there is no cap to apply and 0
+            // means "no preference".
+            const double peak = variant.peakBitRate;
+            item.preferredPeakBitRate = peak > 0 ? peak : 0;
         }
     }
     [self broadcast];
@@ -261,16 +296,18 @@ static void *kSizeContext = &kSizeContext;
 - (void)broadcast {
     NSMutableArray *renditions = [NSMutableArray array];
     if (@available(iOS 15.0, macOS 12.0, *)) {
-        for (AVAssetVariant *variant in _variants) {
+        for (AVAssetVariant *variant in (NSArray<AVAssetVariant *> *)_variants) {
             CGSize size = variant.videoAttributes.presentationSize;
             if (size.width <= 0 || size.height <= 0) continue;
-            NSNumber *rate = variant.videoAttributes.nominalFrameRate;
-            NSNumber *peak = variant.peakBitRate;
+            // Both are plain doubles and both are negative when unstated, so
+            // an unknown rate reports as zero rather than as -1 frames a second.
+            const double rate = variant.videoAttributes.nominalFrameRate;
+            const double peak = variant.peakBitRate;
             [renditions addObject:@{
                 @"width" : @((int)size.width),
                 @"height" : @((int)size.height),
-                @"bitrate" : @(peak != nil ? peak.intValue : 0),
-                @"frameRate" : @(rate != nil ? rate.doubleValue : 0.0),
+                @"bitrate" : @(peak > 0 ? (int)peak : 0),
+                @"frameRate" : @(rate > 0 ? rate : 0.0),
                 @"codecs" : @"",
             }];
         }
@@ -283,6 +320,115 @@ static void *kSizeContext = &kSizeContext;
         @"selected" : @(_selected),
     }];
 }
+
+#pragma mark - Picture-in-picture
+
+- (void)setPipChannel:(FlutterMethodChannel *)channel {
+    _pipChannel = channel;
+}
+
+- (BOOL)pipSupported {
+#if TARGET_OS_OSX
+    return NO;
+#else
+    return [AVPictureInPictureController isPictureInPictureSupported];
+#endif
+}
+
+/**
+ * Builds the layer AVKit needs, once there is a picture worth floating.
+ *
+ * Placed *behind* the Flutter view rather than hidden. A layer with no place in
+ * a visible hierarchy is one AVKit refuses to start from, but Flutter's view is
+ * opaque and covers the whole window — so a full-size layer at the bottom of
+ * the stack satisfies the requirement without ever being seen.
+ */
+- (void)setUpPip {
+#if !TARGET_OS_OSX
+    if (_pipController != nil || ![self pipSupported]) return;
+
+    UIViewController *root = nil;
+    if (@available(iOS 13.0, *)) {
+        for (UIScene *scene in UIApplication.sharedApplication.connectedScenes) {
+            if (![scene isKindOfClass:UIWindowScene.class]) continue;
+            for (UIWindow *window in ((UIWindowScene *)scene).windows) {
+                if (window.isKeyWindow) root = window.rootViewController;
+            }
+        }
+    }
+    if (root == nil) {
+        // iOS 12, or an app with no scene yet. Deprecated but still the answer.
+        root = UIApplication.sharedApplication.keyWindow.rootViewController;
+    }
+    if (root == nil) return;
+
+    _pipLayer = [AVPlayerLayer playerLayerWithPlayer:_player];
+    _pipLayer.frame = root.view.bounds;
+    _pipLayer.videoGravity = AVLayerVideoGravityResizeAspect;
+    [root.view.layer insertSublayer:_pipLayer atIndex:0];
+
+    _pipController = [[AVPictureInPictureController alloc] initWithPlayerLayer:_pipLayer];
+    _pipController.delegate = self;
+    if (@available(iOS 14.2, *)) {
+        _pipController.canStartPictureInPictureAutomaticallyFromInline = _pipAutoEnter;
+    }
+#endif
+}
+
+- (void)tearDownPip {
+#if !TARGET_OS_OSX
+    if (_pipController.isPictureInPictureActive) {
+        [_pipController stopPictureInPicture];
+    }
+    _pipController.delegate = nil;
+    _pipController = nil;
+    [_pipLayer removeFromSuperlayer];
+    _pipLayer = nil;
+#endif
+}
+
+- (BOOL)pipStart {
+#if TARGET_OS_OSX
+    return NO;
+#else
+    [self setUpPip];
+    if (_pipController == nil) return NO;
+    // Asking before AVKit says it is possible is a no-op that reports success,
+    // which would leave the UI believing the video had floated.
+    if (!_pipController.isPictureInPicturePossible) return NO;
+    [_pipController startPictureInPicture];
+    return YES;
+#endif
+}
+
+- (void)pipSetAutoEnter:(BOOL)on {
+    _pipAutoEnter = on;
+#if !TARGET_OS_OSX
+    if (@available(iOS 14.2, *)) {
+        _pipController.canStartPictureInPictureAutomaticallyFromInline = on;
+    }
+#endif
+}
+
+#if !TARGET_OS_OSX
+- (void)pictureInPictureControllerDidStartPictureInPicture:
+    (AVPictureInPictureController *)controller {
+    [_pipChannel invokeMethod:@"changed" arguments:@(YES)];
+}
+
+- (void)pictureInPictureControllerDidStopPictureInPicture:
+    (AVPictureInPictureController *)controller {
+    [_pipChannel invokeMethod:@"changed" arguments:@(NO)];
+}
+
+- (void)pictureInPictureController:(AVPictureInPictureController *)controller
+    failedToStartPictureInPictureWithError:(NSError *)error {
+    // The app is not floating, whatever it was told. Saying so keeps the UI
+    // from drawing a thumbnail layout over a full-size window.
+    NSLog(@"[just_audio] picture-in-picture failed: %@", error.localizedDescription);
+    [_pipChannel invokeMethod:@"changed" arguments:@(NO)];
+}
+#endif
 
 - (void)dispose {
     [self detach];
