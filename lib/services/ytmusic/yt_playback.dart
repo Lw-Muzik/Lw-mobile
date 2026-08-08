@@ -123,7 +123,16 @@ class YtPlayback {
   /// only a DASH manifest can recombine, and iOS cannot open DASH. Rather than
   /// refusing, the track plays as audio and says so — the user asked to hear
   /// this song, and the picture was the part the platform could not provide.
-  static Future<void> watch(BuildContext context, YtTrack track) async {
+  static Future<void> watch(
+    BuildContext context,
+    YtTrack track, {
+    /// The rest of the list [track] was tapped in.
+    ///
+    /// Queued behind it as videos, the way tapping a song queues the songs
+    /// beside it. Without this, picking something in the Videos tab played one
+    /// video and then a station of audio — one video, from a tab of videos.
+    List<YtTrack> siblings = const [],
+  }) async {
     final artwork = cacheArtwork(track);
     final StreamTarget target;
     try {
@@ -383,10 +392,38 @@ class YtRadioQueue {
 
   static const _prefsKey = 'ytmusic.autoplay';
 
-  /// How close to the end of the queue to get before fetching more. Three
-  /// tracks is roughly ten minutes of warning — enough that a slow request
-  /// finishes long before the silence it exists to prevent.
-  static const _headroom = 3;
+  /// How close to the end of the queue to get before fetching more.
+  ///
+  /// Five tracks is roughly fifteen minutes of warning. It used to be three,
+  /// which on a queue that only ever grew by eight meant the station lived
+  /// permanently on the edge of running out — and because a failed fetch is
+  /// swallowed on purpose, one bad moment ended it silently.
+  static const _headroom = 5;
+
+  /// How many tracks to add per page.
+  ///
+  /// A page from YouTube holds about fifty; this used to take eight of them and
+  /// throw the rest away, which is why a station was one seed plus eight tracks
+  /// and looked like it had run out before it started. Every track added needs
+  /// its own request to become playable, so the whole page is still not taken —
+  /// but twenty-five of them resolve in about four seconds in the background,
+  /// measured, which buys a queue that looks like a station instead of a
+  /// handful.
+  static const _batchSize = 25;
+
+  /// How many pages to walk through before accepting that a station has no more
+  /// to offer.
+  ///
+  /// Consecutive pages overlap, so a page can be entirely tracks already
+  /// queued. That is a reason to turn the page, not to stop — but it has to be
+  /// bounded, or a station that genuinely ended would be asked for ever.
+  static const _maxPagesPerFill = 3;
+
+  /// Every track this station has already handed over.
+  ///
+  /// Without it, overlapping pages put the same songs into the queue again:
+  /// page two of a sampled station repeated ten of page one's forty-nine.
+  final Set<String> _offered = {};
 
   bool _enabled = true;
   String? _seed;
@@ -443,19 +480,47 @@ class YtRadioQueue {
     _seed = null;
     _token = null;
     _fetching = false;
+    _offered.clear();
   }
 
   /// Starts watching the queue, seeded by the track that just began.
   void attach({required String seed}) {
     _seed = seed;
     _token = null;
+    // A track heard on the last station is fair game on this one, and the seed
+    // is already playing so it is never worth offering back.
+    _offered
+      ..clear()
+      ..add(seed);
   }
 
   /// Stops watching. Called when something that isn't YouTube starts playing.
   void detach() {
     _seed = null;
     _token = null;
+    _offered.clear();
   }
+
+  /// The tracks in [page] this station has not already handed over, at most
+  /// [limit] of them.
+  ///
+  /// Only what is returned is remembered: tracks left behind by the limit are
+  /// still on offer on the next call, so a page is used up over several fills
+  /// rather than mostly discarded.
+  List<YtTrack> _freshTracks(List<YtTrack> page, {required int limit}) {
+    final fresh = <YtTrack>[];
+    for (final track in page) {
+      if (fresh.length >= limit) break;
+      if (_offered.contains(track.videoId)) continue;
+      _offered.add(track.videoId);
+      fresh.add(track);
+    }
+    return fresh;
+  }
+
+  @visibleForTesting
+  List<YtTrack> freshTracksForTest(List<YtTrack> page, {required int limit}) =>
+      _freshTracks(page, limit: limit);
 
   /// Called as playback advances. Appends more tracks when the end is near.
   ///
@@ -481,30 +546,46 @@ class YtRadioQueue {
 
     _fetching = true;
     try {
-      final token = _token;
-      final batch = token == null
-          ? await YtMusicRepository.instance.radio(seed)
-          : await YtMusicRepository.instance.radioContinue(seed, token);
+      // Pages overlap, so one can be entirely tracks already queued. That page
+      // is not the end of the station — it is a page to turn.
+      for (var page = 0; page < _maxPagesPerFill; page++) {
+        final token = _token;
+        final batch = token == null
+            ? await YtMusicRepository.instance.radio(seed)
+            : await YtMusicRepository.instance.radioContinue(seed, token);
 
-      // A radio that stops offering a token has not necessarily ended; the seed
-      // still produces a fresh panel, so forgetting the token re-seeds next time
-      // rather than ending the music.
-      _token = batch.continuation;
-      if (batch.tracks.isEmpty) return;
+        // A radio that stops offering a token has not necessarily ended; the
+        // seed still produces a fresh panel, so forgetting the token re-seeds
+        // next time rather than ending the music.
+        _token = batch.continuation;
+        if (batch.tracks.isEmpty) return;
 
-      final targets = await YtMusicRepository.instance.audioTargets(
-        [for (final track in batch.tracks.take(8)) track.videoId],
-      );
-      await Future.wait(
-        [for (final track in batch.tracks.take(8)) YtPlayback.cacheArtwork(track)],
-      );
-      final models = <SongModel>[
-        for (final track in batch.tracks.take(8))
-          if (targets[track.videoId] case final target?)
-            YtPlayback.songModelOf(track, target),
-      ];
-      if (models.isEmpty || !isLive) return;
-      await controller.appendToQueue(models);
+        final fresh = _freshTracks(batch.tracks, limit: _batchSize);
+        // Every track on this page is already in the queue. Ask for the next
+        // one rather than reporting a station that has run dry.
+        if (fresh.isEmpty) {
+          if (_token == null) return;
+          continue;
+        }
+
+        final targets = await YtMusicRepository.instance.audioTargets(
+          [for (final track in fresh) track.videoId],
+        );
+        await Future.wait(
+          [for (final track in fresh) YtPlayback.cacheArtwork(track)],
+        );
+        final models = <SongModel>[
+          for (final track in fresh)
+            if (targets[track.videoId] case final target?)
+              YtPlayback.songModelOf(track, target),
+        ];
+        // The user may have started something else entirely while those
+        // resolved; appending to a queue they have left would graft this
+        // station onto it.
+        if (models.isEmpty || !isLive) return;
+        await controller.appendToQueue(models);
+        return;
+      }
     } catch (_) {
       // Radio is a courtesy. A batch that won't load costs nothing visible —
       // the queue simply ends where it would have anyway.

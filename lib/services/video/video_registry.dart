@@ -91,6 +91,24 @@ class VideoRegistry {
 
   final Map<int, VideoSource> _sources = {};
 
+  /// Whether the user is watching rather than listening.
+  ///
+  /// # Why this is a mode and not a property of one track
+  ///
+  /// Tapping a video used to queue exactly one, and everything that followed it
+  /// — the rest of the list, the station that took over at the end — arrived as
+  /// audio. Someone who opened the Videos tab and picked a video got one video
+  /// and then a radio of songs, which is not what the tab promised.
+  ///
+  /// So watching is a mode the queue stays in: while it is on, the tracks that
+  /// follow are resolved as video too, and the station keeps showing pictures.
+  /// It ends when something that is not a video takes over the player.
+  bool _videoMode = false;
+
+  bool get videoMode => _videoMode;
+
+  set videoMode(bool value) => _videoMode = value;
+
   /// Where DASH manifests are written. One directory so it can be swept whole.
   static const _manifestDirName = 'hype_video';
 
@@ -109,10 +127,16 @@ class VideoRegistry {
   void forget(int songId) => _sources.remove(songId);
 
   /// Drops everything. Called when a queue that isn't YouTube's takes over.
-  void clear() => _sources.clear();
+  void clear() {
+    _sources.clear();
+    _videoMode = false;
+  }
 
   @visibleForTesting
-  void resetForTest() => _sources.clear();
+  void resetForTest() {
+    _sources.clear();
+    _videoMode = false;
+  }
 
   /// Records [target] for [songId], writing the manifest out when there is one.
   ///

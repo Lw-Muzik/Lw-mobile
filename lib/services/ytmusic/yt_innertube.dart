@@ -176,6 +176,32 @@ class YtInnerTube {
         headers: _webRemixHeaders,
       );
 
+  /// A later page of the station, addressed the way [browse] addresses one.
+  ///
+  /// The token goes in the **query string**, not the body. That is the same
+  /// lesson `browse` above carries: the body form answers 200 with an empty
+  /// panel, which reads as "the station ended" and quietly stops an endless
+  /// queue at its first page.
+  ///
+  /// The body still carries the seed, because the wire format re-posts the full
+  /// request rather than the token alone.
+  Future<Map<String, dynamic>> nextContinuation(
+    String videoId,
+    String continuation,
+  ) =>
+      _post(
+        '$_musicBase/next?prettyPrint=false'
+        '&ctoken=${Uri.encodeQueryComponent(continuation)}'
+        '&continuation=${Uri.encodeQueryComponent(continuation)}&type=next',
+        {
+          'context': _webRemixContext,
+          'videoId': videoId,
+          'playlistId': 'RDAMVM$videoId',
+          'isAudioOnly': true,
+        },
+        headers: _webRemixHeaders,
+      );
+
   /// The `player` call that resolves a video id to streams.
   ///
   /// Retries once when the answer is a refusal and this call had no

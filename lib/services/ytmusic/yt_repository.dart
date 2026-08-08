@@ -292,6 +292,31 @@ class YtMusicRepository {
     return resolved;
   }
 
+  /// Resolves several tracks' *video*, a few at a time.
+  ///
+  /// Bounded for the same reasons as [audioTargets], and used with a smaller
+  /// list: a video target is heavier to resolve and its manifest has to be
+  /// written to disk, so queueing a great many ahead of the user spends effort
+  /// on videos they will most likely skip past.
+  Future<Map<String, StreamTarget>> videoTargets(
+    List<String> videoIds, {
+    int concurrency = 3,
+  }) async {
+    final resolved = <String, StreamTarget>{};
+    for (var i = 0; i < videoIds.length; i += concurrency) {
+      final batch = videoIds.skip(i).take(concurrency);
+      await Future.wait([
+        for (final id in batch)
+          videoTarget(id).then(
+            (target) => resolved[id] = target,
+            // One video that won't resolve costs itself, not the batch.
+            onError: (_) {},
+          ),
+      ]);
+    }
+    return resolved;
+  }
+
   /// Whether [videoId] can be played right now with no request at all.
   ///
   /// The play path uses this to decide whether it needs to show the user
