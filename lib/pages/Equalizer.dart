@@ -99,25 +99,19 @@ class _EqualizerState extends State<Equalizer> with TickerProviderStateMixin {
               IconButton(
                 icon: const Icon(Icons.settings_rounded, size: 22),
                 onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const Settings()),
-                  );
+                  Navigator.of(
+                    context,
+                  ).push(MaterialPageRoute(builder: (_) => const Settings()));
                 },
               ),
             const SizedBox(width: 12),
           ],
           bottom: PreferredSize(
             preferredSize: const Size.fromHeight(kTextTabBarHeight),
-            child: KeyedSubtree(
-              key: _tabBarKey,
-              child: _buildTabBar(context),
-            ),
+            child: KeyedSubtree(key: _tabBarKey, child: _buildTabBar(context)),
           ),
         ),
-        body: KeyedSubtree(
-          key: _contentKey,
-          child: _buildTabBarView(),
-        ),
+        body: KeyedSubtree(key: _contentKey, child: _buildTabBarView()),
       ),
     );
   }
@@ -153,6 +147,7 @@ class _EqualizerState extends State<Equalizer> with TickerProviderStateMixin {
   Widget _buildTabBarView() {
     return SafeArea(
       child: TabBarView(
+        physics: const NeverScrollableScrollPhysics(),
         controller: _tabController,
         children: [
           const GraphicEqView(),
