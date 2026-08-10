@@ -95,6 +95,46 @@ void main() {
             'an endless station should have produced far more');
   }, timeout: const Timeout(Duration(seconds: 120)));
 
+  /// One seed is not endless, and this measures where it stops.
+  ///
+  /// Pages converge — each brings fewer tracks the last did not — so a station
+  /// pinned to its original seed runs dry at a definite number. Re-seeding from
+  /// a track the station itself offered has to get past that, or "endless" is
+  /// just a longer finite.
+  test('re-seeding gets past what one seed can offer', () async {
+    Future<Set<String>> drain(String from, Set<String> seen) async {
+      String? token;
+      for (var i = 0; i < 6; i++) {
+        final batch = token == null
+            ? await YtWorker.instance
+                .run<RadioBatch>(YtOp.radio, {'videoId': from})
+            : await YtWorker.instance.run<RadioBatch>(
+                YtOp.radioContinue, {'videoId': from, 'token': token});
+        if (batch.tracks.isEmpty) break;
+        seen.addAll([for (final t in batch.tracks) t.videoId]);
+        token = batch.continuation;
+        if (token == null) break;
+      }
+      return seen;
+    }
+
+    final seen = await drain(seed, <String>{});
+    final exhausted = seen.length;
+    // ignore: avoid_print
+    print('[radio] one seed ran to $exhausted distinct tracks');
+
+    // The deepest track this station offered — what the app re-seeds from.
+    final deepest = seen.last;
+    await drain(deepest, seen);
+    // ignore: avoid_print
+    print('[radio] after re-seeding from $deepest: ${seen.length} distinct '
+        '(+${seen.length - exhausted})');
+
+    expect(seen.length, greaterThan(exhausted),
+        reason: 're-seeding produced nothing new, so the station still ends — '
+            'the whole point is that one seed running dry is not the end');
+  }, timeout: const Timeout(Duration(seconds: 180)));
+
   /// Where the continuation travels matters.
   ///
   /// `browse` carries a comment earned the hard way: a continuation sent in the

@@ -606,16 +606,55 @@ class YtRadioQueue {
   List<YtTrack> freshTracksForTest(List<YtTrack> page, {required int limit}) =>
       _freshTracks(page, limit: limit);
 
+  /// Whether a queue of [queueLength] playing [index] is close enough to its
+  /// end to be worth fetching more.
+  static bool needsFill({required int queueLength, required int index}) =>
+      queueLength - index - 1 <= _headroom;
+
   /// Called as playback advances. Appends more tracks when the end is near.
   ///
-  /// Cheap and safe to call on every index change: it returns immediately
-  /// unless a fetch is actually warranted.
+  /// Cheap and safe to call on every index change — and it is called on every
+  /// index change, from the one setter every track change passes through. It
+  /// returns immediately unless a fetch is actually warranted.
   Future<void> onIndexChanged(AppController controller, int index) async {
     if (!_enabled) return;
-    final remaining = controller.songs.length - index - 1;
-    if (remaining > _headroom) return;
+    if (!isLive) return;
+    if (!needsFill(queueLength: controller.songs.length, index: index)) return;
     await fill(controller);
   }
+
+  /// Points the station at a track it chose itself.
+  ///
+  /// A seed's own pages converge: measured against the real service one seed
+  /// yields 49 tracks on page one and then 25, 13, 4, 3 new ones — about 94 in
+  /// total before every page is tracks already queued. At that point the
+  /// station has run out of *its* suggestions, which is not the same as running
+  /// out of music, and stopping there is what makes an endless station end.
+  ///
+  /// Re-seeding from the deepest track this station has offered is what keeps
+  /// the result related rather than random: that track is one the station
+  /// itself picked as a match for the last one, so asking what matches *it*
+  /// walks the station forward through neighbouring music instead of jumping
+  /// somewhere unconnected. [_offered] is deliberately not cleared, so nothing
+  /// already heard comes back.
+  bool _reseed() {
+    if (_offered.length <= 1) return false;
+    // Insertion-ordered, so the last entry is the furthest the station has got.
+    final next = _offered.last;
+    if (next == _seed) return false;
+    _seed = next;
+    _token = null;
+    return true;
+  }
+
+  @visibleForTesting
+  bool reseedForTest() => _reseed();
+
+  @visibleForTesting
+  String? get seedForTest => _seed;
+
+  @visibleForTesting
+  void offerForTest(List<String> ids) => _offered.addAll(ids);
 
   /// Fetches the next batch of related tracks and appends them.
   ///
@@ -625,56 +664,69 @@ class YtRadioQueue {
   Future<void> fill(AppController controller, {bool force = false}) async {
     if (_fetching) return;
     if (!_enabled && !force) return;
-    final seed = _seed;
-    if (seed == null) return;
+    if (_seed == null) return;
 
     _fetching = true;
     try {
-      // Pages overlap, so one can be entirely tracks already queued. That page
-      // is not the end of the station — it is a page to turn.
-      for (var page = 0; page < _maxPagesPerFill; page++) {
-        final token = _token;
-        final batch = token == null
-            ? await YtMusicRepository.instance.radio(seed)
-            : await YtMusicRepository.instance.radioContinue(seed, token);
-
-        // A radio that stops offering a token has not necessarily ended; the
-        // seed still produces a fresh panel, so forgetting the token re-seeds
-        // next time rather than ending the music.
-        _token = batch.continuation;
-        if (batch.tracks.isEmpty) return;
-
-        // Videos are resolved a few at a time and each writes a manifest, so a
-        // station showing pictures runs a shorter way ahead than one playing
-        // songs.
-        final limit = VideoRegistry.instance.videoMode ? 6 : _batchSize;
-        final fresh = _freshTracks(batch.tracks, limit: limit);
-        // Every track on this page is already in the queue. Ask for the next
-        // one rather than reporting a station that has run dry.
-        if (fresh.isEmpty) {
-          if (_token == null) return;
-          continue;
-        }
-
-        // A station seeded from a video keeps showing pictures. Someone who
-        // opened the Videos tab and let it run should not find themselves
-        // listening to a radio of songs three tracks later.
-        final models = VideoRegistry.instance.videoMode
-            ? await YtPlayback.resolveVideoModels(fresh)
-            : await _resolveAudioModels(fresh);
-        // The user may have started something else entirely while those
-        // resolved; appending to a queue they have left would graft this
-        // station onto it.
-        if (models.isEmpty || !isLive) return;
-        await controller.appendToQueue(models);
-        return;
-      }
+      if (await _fillFromSeed(controller)) return;
+      // This seed has nothing left that isn't already queued. Move the station
+      // on rather than letting it stop — see [_reseed].
+      if (!_reseed()) return;
+      await _fillFromSeed(controller);
     } catch (_) {
       // Radio is a courtesy. A batch that won't load costs nothing visible —
       // the queue simply ends where it would have anyway.
     } finally {
       _fetching = false;
     }
+  }
+
+  /// Walks the current seed's pages, appending the first batch that has
+  /// anything new. Returns whether it appended.
+  Future<bool> _fillFromSeed(AppController controller) async {
+    final seed = _seed;
+    if (seed == null) return false;
+
+    // Pages overlap, so one can be entirely tracks already queued. That page
+    // is not the end of the station — it is a page to turn.
+    for (var page = 0; page < _maxPagesPerFill; page++) {
+      final token = _token;
+      final batch = token == null
+          ? await YtMusicRepository.instance.radio(seed)
+          : await YtMusicRepository.instance.radioContinue(seed, token);
+
+      // A radio that stops offering a token has not necessarily ended; the
+      // seed still produces a fresh panel, so forgetting the token re-seeds
+      // next time rather than ending the music.
+      _token = batch.continuation;
+      if (batch.tracks.isEmpty) return false;
+
+      // Videos are resolved a few at a time and each writes a manifest, so a
+      // station showing pictures runs a shorter way ahead than one playing
+      // songs.
+      final limit = VideoRegistry.instance.videoMode ? 6 : _batchSize;
+      final fresh = _freshTracks(batch.tracks, limit: limit);
+      // Every track on this page is already in the queue. Ask for the next
+      // one rather than reporting a station that has run dry.
+      if (fresh.isEmpty) {
+        if (_token == null) return false;
+        continue;
+      }
+
+      // A station seeded from a video keeps showing pictures. Someone who
+      // opened the Videos tab and let it run should not find themselves
+      // listening to a radio of songs three tracks later.
+      final models = VideoRegistry.instance.videoMode
+          ? await YtPlayback.resolveVideoModels(fresh)
+          : await _resolveAudioModels(fresh);
+      // The user may have started something else entirely while those
+      // resolved; appending to a queue they have left would graft this
+      // station onto it.
+      if (models.isEmpty || !isLive) return false;
+      await controller.appendToQueue(models);
+      return true;
+    }
+    return false;
   }
 }
 

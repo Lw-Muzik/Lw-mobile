@@ -366,7 +366,8 @@ class _VisualUIState extends State<VisualUI>
     return Body(
       child: Consumer<AppController>(
         builder: (context, controller, child) {
-          if (controller.visuals) Visualizers.enableVisual(true);
+          // See PlayerBody: starting the tap from build() meant a platform call
+          // per notify. AppController drives it from the two surface toggles.
           final size = MediaQuery.of(context).size;
           final isMilkDrop = controller.visualizerStyle == 'milkdrop';
 

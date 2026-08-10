@@ -4,7 +4,6 @@ import 'dart:io';
 import '/controllers/drawer_controller.dart';
 
 import '/Helpers/AudioHandler.dart';
-import '/Helpers/AudioVisualizer.dart';
 import '/Routes/routes.dart';
 import '/Global/index.dart';
 import '/Themes/AppThemes.dart';
@@ -248,7 +247,7 @@ class _AppLifecycleGateState extends State<_AppLifecycleGate>
       case AppLifecycleState.detached:
         // Silence the native FFT/PCM tap so it stops computing and pushing
         // events into an invisible UI (a major screen-off heat/battery source).
-        Visualizers.suspend();
+        AppController.instanceOrNull?.suspendVisualTap();
         // Flush any debounced disk writes (e.g. play counts) before we risk
         // being killed in the background. Null-safe: the provider creates the
         // controller lazily, so a background event can fire before it exists.
@@ -260,7 +259,7 @@ class _AppLifecycleGateState extends State<_AppLifecycleGate>
         unawaited(AppController.instanceOrNull?.flushSession() ?? Future.value());
         break;
       case AppLifecycleState.resumed:
-        Visualizers.resume();
+        AppController.instanceOrNull?.resumeVisualTap();
         break;
       case AppLifecycleState.inactive:
         break;

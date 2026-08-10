@@ -751,22 +751,10 @@ class _SettingsState extends State<Settings> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _buildSectionHeader(Icons.graphic_eq, "Visualizer"),
+        // No master "Enable visualizer" switch: these two rows ARE the switch.
+        // Turning either on starts the native capture, turning both off stops
+        // it. A third control could only disagree with them.
         _buildSectionCard([
-          FutureBuilder<bool>(
-            future: Visualizers.getEnabled(),
-            builder: (context, snapshot) {
-              return SwitchListTile.adaptive(
-                value: controller.visuals,
-                title: const Text("Enable visualizer"),
-                subtitle: Text(controller.visuals ? "Enabled" : "Disabled"),
-                onChanged: (enabled) {
-                  controller.visuals = enabled;
-                  Visualizers.enableVisual(enabled);
-                },
-              );
-            },
-          ),
-          const Divider(height: 1, indent: 16, endIndent: 16),
           SwitchListTile.adaptive(
             value: controller.playerVisual,
             title: const Text("Bottom player visualizer"),

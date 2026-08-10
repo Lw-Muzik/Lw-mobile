@@ -35,6 +35,8 @@ import '../models/speaker_profile.dart';
 import '../models/track_extras.dart';
 import '../services/playback_session.dart';
 import 'queue_order.dart';
+import 'visualizer_tap.dart';
+import '../Helpers/AudioVisualizer.dart';
 import 'stem_controller.dart';
 
 enum AppMode { musicPlayer, equalizer }
@@ -73,7 +75,6 @@ class AppController with ChangeNotifier {
   // app themes
   String _selectedTheme = "light";
   final bool _isDark = false;
-  bool _playerVisual = false;
 
   bool _enableEffects = false;
   bool get enableEffects => _enableEffects;
@@ -701,8 +702,11 @@ class AppController with ChangeNotifier {
   int _selectedPreset = 0;
   bool _isFancy = false;
   bool _isShuffled = false;
-  bool _isVisualInBackground = false;
-  bool _visuals = false;
+
+  /// Which visualizer surfaces are on, and whether the native tap they imply is
+  /// currently running. See [VisualizerTap] — there is deliberately no separate
+  /// "enable visualizer" flag any more.
+  final VisualizerTap _visualTap = VisualizerTap();
 
   // Visualizer fine-tuning
   String _visualizerStyle = 'circular';
@@ -898,17 +902,15 @@ class AppController with ChangeNotifier {
               songId = 0;
               artWorkId = songs[0].id;
               unawaited(loadTrackAt(0));
-              unawaited(YtRadioQueue.instance.onIndexChanged(this, songId));
             } else {
               handler.player.stop();
             }
           } else {
+            // Both branches assign through the `songId` setter, which tops the
+            // radio up for every path at once.
             songId += 1;
             artWorkId = songs[songId].id;
             unawaited(loadTrackAt(songId));
-            // The non-gapless path advances here rather than through
-            // currentIndexStream, so radio has to be topped up here too.
-            unawaited(YtRadioQueue.instance.onIndexChanged(this, songId));
           }
         }
       }
@@ -993,8 +995,14 @@ class AppController with ChangeNotifier {
     final prevArtId = _artWorkId;
 
     try {
+      // Deliberately not through the `songId` setter — a crossfade must not
+      // fire the setter's play-count and session work mid-fade — so the radio
+      // top-up the setter does has to be repeated here. Without it a station
+      // played with crossfade on never grows past its first page, because a
+      // crossfaded track never reaches the natural-end handler either.
       _songId = nextIdx;
       _artWorkId = nextSong.id;
+      unawaited(YtRadioQueue.instance.onIndexChanged(this, nextIdx));
       _loadLyricsForCurrentSong();
 
       final AudioSource nextSource;
@@ -1282,8 +1290,13 @@ class AppController with ChangeNotifier {
     unawaited(handler.setLoopMode(
       LoopMode.values[storedLoop.clamp(0, LoopMode.values.length - 1)],
     ));
-    _isVisualInBackground = _prefs.getBool("isVisualInBackground") ?? false;
-    _visuals = _prefs.getBool("visuals") ?? false;
+    // Restore both visualizer surfaces, then tell the native tap once. The
+    // player visual used to be the odd one out: its setter never wrote to prefs
+    // and nothing read it back, so it silently reset to off on every launch.
+    _visualTap.backgroundVisual =
+        _prefs.getBool("isVisualInBackground") ?? false;
+    _visualTap.playerVisual = _prefs.getBool("playerVisual") ?? false;
+    _syncVisualTap();
     _bgQuality = _prefs.getDouble("bgQuality") ?? 2.0;
     _blur = _prefs.getDouble("blur") ?? 40.0;
     _selectedRoomPreset = _prefs.getInt("selectedRoomPreset") ?? 0;
@@ -1483,7 +1496,7 @@ class AppController with ChangeNotifier {
     return _selectedPreset;
   }
 
-  bool get playerVisual => _playerVisual;
+  bool get playerVisual => _visualTap.playerVisual;
   double get bgQuality => _bgQuality;
   bool get isFancy {
     return _isFancy;
@@ -1493,11 +1506,34 @@ class AppController with ChangeNotifier {
     return _selectedTheme;
   }
 
-  bool get isVisualInBackground => _isVisualInBackground;
+  bool get isVisualInBackground => _visualTap.backgroundVisual;
   set isVisualInBackground(bool b) {
     _prefs.setBool("isVisualInBackground", b);
-    _isVisualInBackground = b;
+    _visualTap.backgroundVisual = b;
+    _syncVisualTap();
     notifyListeners();
+  }
+
+  /// Starts or stops the native capture to match the surfaces now on screen.
+  ///
+  /// Safe to call on any state change: [VisualizerTap.pendingPush] swallows
+  /// everything that is not a real transition, so nothing reaches the platform
+  /// channel unless the tap genuinely has to start or stop.
+  void _syncVisualTap() {
+    final push = _visualTap.pendingPush();
+    if (push != null) Visualizers.enableVisual(push);
+  }
+
+  /// Silences the capture while the app is backgrounded, and restores exactly
+  /// what was on screen when it comes back.
+  void suspendVisualTap() {
+    _visualTap.suspended = true;
+    _syncVisualTap();
+  }
+
+  void resumeVisualTap() {
+    _visualTap.suspended = false;
+    _syncVisualTap();
   }
 
   // Visualizer fine-tuning getters
@@ -1802,7 +1838,6 @@ class AppController with ChangeNotifier {
     notifyListeners();
   }
 
-  bool get visuals => _visuals;
   double get opacity => _opacity;
   double get blur => _blur;
   int get artWorkId => _artWorkId;
@@ -1813,12 +1848,6 @@ class AppController with ChangeNotifier {
   List<SongModel> get shuffledSongs => _shuffledSongs;
 
   OnAudioQuery get audioQuery => _audioQuery;
-
-  set visuals(bool v) {
-    _prefs.setBool("visuals", v);
-    _visuals = v;
-    notifyListeners();
-  }
 
   // No `isShuffled` setter. Flipping the flag on its own is what the bug was:
   // it changes which list `songs` returns without moving the playing index into
@@ -1839,7 +1868,9 @@ class AppController with ChangeNotifier {
   }
 
   set playerVisual(bool pV) {
-    _playerVisual = pV;
+    _prefs.setBool("playerVisual", pV);
+    _visualTap.playerVisual = pV;
+    _syncVisualTap();
     notifyListeners();
   }
 
@@ -2137,6 +2168,14 @@ class AppController with ChangeNotifier {
   set songId(int id) {
     _songId = id;
     _crossfadeFailedIdx = -1; // new track — allow crossfade again
+    // Every ordinary track change funnels through here — the skip buttons, a
+    // card swipe, a queue tap, a track ending — so this is where an endless
+    // station is kept topped up. It used to be asked only from the two
+    // branches of the natural-end handler, which meant that skipping by hand,
+    // or listening with crossfade on (which advances the index itself and
+    // never reaches that handler), grew the queue exactly once and then let a
+    // station that was supposed to be endless stop dead.
+    unawaited(YtRadioQueue.instance.onIndexChanged(this, id));
     // Update play count (no notify, debounced write) + stem state BEFORE the
     // single notifyListeners, so the track change is one synchronous rebuild
     // pass instead of the previous 2-3 (setter + play-count).

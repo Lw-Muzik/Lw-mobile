@@ -11,27 +11,14 @@ class Visualizers {
     );
   }
 
-  /// Tracks the user's last requested tap state so [resume] can restore it
-  /// after the app is backgrounded (and [suspend] silenced the tap).
-  static bool _visualDesired = false;
-
+  /// Starts or stops the native FFT/PCM tap.
+  ///
+  /// Desired state, suspend-on-background and redundant-call suppression all
+  /// live in `VisualizerTap`, owned by `AppController`. This is the wire, not
+  /// the policy — it used to keep its own `_visualDesired` copy, which was a
+  /// second source of truth that no toggle updated.
   static void enableVisual(bool enable) {
-    _visualDesired = enable;
     Channel.channel.invokeMethod("enableVisual", {"enableVisual": enable});
-  }
-
-  /// Silence the native FFT/PCM tap without changing the user's desired state.
-  /// Called when the app is backgrounded to stop the tap from computing and
-  /// pushing events (CPU + battery drain) while nothing is visible.
-  static void suspend() {
-    Channel.channel.invokeMethod("enableVisual", {"enableVisual": false});
-  }
-
-  /// Restore the tap to the user's last desired state when the app resumes.
-  static void resume() {
-    if (_visualDesired) {
-      Channel.channel.invokeMethod("enableVisual", {"enableVisual": true});
-    }
   }
 
   static void scaleVisualizer(bool scale) async {
@@ -54,9 +41,6 @@ class Visualizers {
     await Channel.channel.invokeMethod("setVizGain", {"gain": gain});
   }
 
-  static Future<bool> getEnabled() async {
-    return await Channel.channel.invokeMethod("getEnabled");
-  }
 }
 
 /// Unified audio visualizer that uses:

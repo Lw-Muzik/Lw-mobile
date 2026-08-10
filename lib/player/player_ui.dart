@@ -1,6 +1,5 @@
 // ignore_for_file: library_private_types_in_public_api, depend_on_referenced_packages
 import 'dart:async';
-import 'package:just_audio/just_audio.dart';
 import 'package:rxdart/rxdart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -100,9 +99,6 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
     ).animate(_animationController!);
   }
 
-  StreamSubscription<ProcessingState>? _autoAdvanceSub;
-  int _lastCompletedSongId = -1; // prevent duplicate auto-advance
-
   // ── Slide-down-to-dismiss (Poweramp-style) ────────────────────────────────
   // A downward drag/fling on the card pops the player; its route (playerTo)
   // reverse-slides the player DOWN while the framework paints the list route
@@ -137,39 +133,23 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
   void dispose() {
     _coachController.dispose();
     _animationController?.dispose();
-    _autoAdvanceSub?.cancel();
     super.dispose();
   }
 
+  // Both buttons just change the track. The card deck watches `songId` and
+  // animates toward whatever it becomes, so a button, a swipe, a crossfade, a
+  // track ending and the notification all produce the same movement without
+  // any of them knowing the deck exists.
   void _onControlNext() {
     final ctrl = context.read<AppController>();
     if (ctrl.songs.isEmpty) return;
-    // Animate card, then onPageChanged will call ctrl.next()
-    _cardKey.currentState?.animateToNext();
+    ctrl.next();
   }
 
   void _onControlPrev() {
     final ctrl = context.read<AppController>();
     if (ctrl.songs.isEmpty) return;
-    // Prev always acts immediately — no card throw animation
-    // (card deck only stacks forward, not backward)
     ctrl.prev();
-  }
-
-  void _setupAutoAdvanceListener(AppController controller) {
-    _autoAdvanceSub?.cancel();
-    _autoAdvanceSub = controller.handler.player.processingStateStream.listen((state) {
-      if (state == ProcessingState.completed && mounted) {
-        // Prevent duplicate: only trigger once per song completion
-        final currentId = controller.songId;
-        if (currentId == _lastCompletedSongId) return;
-        _lastCompletedSongId = currentId;
-
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) _cardKey.currentState?.animateAutoAdvance();
-        });
-      }
-    });
   }
 
   @override
@@ -177,11 +157,6 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
     return Scaffold(
       body: Consumer<AppController>(
         builder: (context, controller, child) {
-          // Set up auto-advance listener once
-          if (_autoAdvanceSub == null) {
-            _setupAutoAdvanceListener(controller);
-          }
-
           final player = controller.handler.player;
           // Re-key ONLY when the underlying player instance changes (crossfade
           // A/B swap), NOT on every songId change — otherwise the whole

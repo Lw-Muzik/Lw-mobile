@@ -1,7 +1,12 @@
 import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
+import 'package:flutter/physics.dart';
 import 'package:vector_math/vector_math_64.dart' show Vector3;
-export 'swipe_animation.dart';
+
+import 'deck_motion.dart';
+
+export 'deck_motion.dart';
 
 // ─── Configuration ──────────────────────────────────────────────────────────
 
@@ -10,256 +15,95 @@ class CardAnimationConfig {
   static const double scaleFraction = 0.05;
   static const double yOffset = 12.0;
 
-  /// Fraction of screen width to count as a swipe.
+  /// Fraction of screen width that commits a swipe on distance alone.
   static const double swipeThreshold = 0.15;
 
-  /// Minimum fling velocity (px/s) to trigger a swipe regardless of distance.
+  /// Speed (px/s) that commits a swipe regardless of distance.
   static const double flingVelocity = 600.0;
 
-  static const Duration throwDuration = Duration(milliseconds: 380);
-  static const Duration popUpDuration = Duration(milliseconds: 350);
-  static const Duration snapBackDuration = Duration(milliseconds: 250);
+  /// How far a card travels to leave, as a multiple of screen width. Also the
+  /// distance an incoming card comes from, so the two directions are mirror
+  /// images of each other rather than two separately-tuned effects.
+  static const double travelFraction = 1.15;
 
-  /// Rotation during throw (degrees).
-  static const double throwRotationDeg = 25.0;
+  /// Rotation at full travel (degrees).
+  static const double throwRotationDeg = 18.0;
 
-  /// How far the card flies off (multiplier of screen width).
-  static const double throwDistance = 1.5;
+  /// How much the front card slides with a backward drag. It is being covered,
+  /// not thrown, so it barely moves — but it moves, because a card that
+  /// ignores your finger entirely reads as a dead surface.
+  static const double backwardFollow = 0.25;
 
-  /// Max tilt angle during drag (radians).
-  static const double maxDragTilt = 0.08;
-}
+  /// Resistance when there is nothing to move to. The card gives a little and
+  /// pulls back, which says "end of the queue" without a message.
+  static const double rubberBand = 0.3;
 
-enum SwipeDirection { left, right }
+  /// Lift as a card leaves, in logical pixels at full travel.
+  static const double throwLift = 34.0;
 
-// ─── Card Controller ────────────────────────────────────────────────────────
+  /// A programmatic move is a hand throw the user did not make. Expressed in
+  /// travels-per-second, so it takes the same time on any screen.
+  static const double syntheticVelocity = 2.3;
 
-class CardController extends ChangeNotifier {
-  final TickerProvider vsync;
-  final Function(SwipeDirection) onSwipeComplete;
-  Size screenSize;
+  static const Duration dissolveDuration = Duration(milliseconds: 260);
 
-  late AnimationController _throwController;
-  late AnimationController _popUpController;
-  late AnimationController _snapBackController;
+  /// Carries a thrown card off the screen. Critically damped: a card that
+  /// bounces on its way out is a spring, not a card.
+  static final SpringDescription throwSpring =
+      SpringDescription.withDampingRatio(mass: 1, stiffness: 190, ratio: 1.0);
 
-  // Throw animations
-  late Animation<double> _throwSlideX;
-  late Animation<double> _throwSlideY;
-  late Animation<double> _throwRotation;
-  late Animation<double> _throwOpacity;
-
-  double get throwProgress => _throwController.value;
-  double get popUpProgress => _popUpController.value;
-
-  bool get isAnimating =>
-      _throwController.isAnimating ||
-      _popUpController.isAnimating ||
-      _snapBackController.isAnimating;
-
-  SwipeDirection _direction = SwipeDirection.right;
-  SwipeDirection get direction => _direction;
-
-  // Drag state
-  double _dragDx = 0.0;
-  double _dragDy = 0.0;
-  double get dragDx => _dragDx;
-  double get dragDy => _dragDy;
-  bool isDragging = false;
-
-  bool _isControlAnimation = false;
-  bool get isControlAnimation => _isControlAnimation;
-
-  bool Function(SwipeDirection)? canSwipe;
-
-  // Snap-back animated values
-  double _snapStartDx = 0.0;
-  double _snapStartDy = 0.0;
-
-  CardController({
-    required this.vsync,
-    required this.onSwipeComplete,
-    required this.screenSize,
-  }) {
-    _throwController = AnimationController(
-      vsync: vsync,
-      duration: CardAnimationConfig.throwDuration,
-    );
-    _popUpController = AnimationController(
-      vsync: vsync,
-      duration: CardAnimationConfig.popUpDuration,
-    );
-    _snapBackController = AnimationController(
-      vsync: vsync,
-      duration: CardAnimationConfig.snapBackDuration,
-    );
-
-    _setupThrowAnimations(SwipeDirection.right, 0.0);
-
-    _throwController.addListener(notifyListeners);
-    _popUpController.addListener(notifyListeners);
-    _snapBackController.addListener(() {
-      // Interpolate drag back to zero
-      final t = Curves.easeOutCubic.transform(_snapBackController.value);
-      _dragDx = _snapStartDx * (1.0 - t);
-      _dragDy = _snapStartDy * (1.0 - t);
-      notifyListeners();
-    });
-  }
-
-  void updateScreenSize(Size newSize) => screenSize = newSize;
-
-  void _setupThrowAnimations(SwipeDirection dir, double startDx) {
-    final isRight = dir == SwipeDirection.right;
-    final endX =
-        (isRight ? 1 : -1) *
-        screenSize.width *
-        CardAnimationConfig.throwDistance;
-
-    _throwSlideX = Tween<double>(begin: startDx, end: endX).animate(
-      CurvedAnimation(parent: _throwController, curve: Curves.easeInCubic),
-    );
-    _throwSlideY = Tween<double>(
-      begin: _dragDy * 0.3,
-      end: -40.0,
-    ).animate(CurvedAnimation(parent: _throwController, curve: Curves.easeOut));
-
-    final rotDeg =
-        CardAnimationConfig.throwRotationDeg * (isRight ? 1.0 : -1.0);
-    _throwRotation = Tween<double>(begin: 0, end: rotDeg).animate(
-      CurvedAnimation(parent: _throwController, curve: Curves.easeInOut),
-    );
-    _throwOpacity = Tween<double>(begin: 1.0, end: 0.0).animate(
-      CurvedAnimation(
-        parent: _throwController,
-        curve: const Interval(0.5, 1.0, curve: Curves.easeIn),
-      ),
-    );
-  }
-
-  // ── Gestures ──
-
-  void onPanStart(DragStartDetails details) {
-    if (isAnimating) return;
-    isDragging = true;
-    _dragDx = 0;
-    _dragDy = 0;
-    _snapBackController.reset();
-  }
-
-  void onPanUpdate(DragUpdateDetails details) {
-    if (!isDragging) return;
-    _dragDx += details.delta.dx;
-    _dragDy += details.delta.dy;
-    notifyListeners();
-  }
-
-  void onPanEnd(DragEndDetails details) {
-    if (!isDragging) return;
-    isDragging = false;
-
-    final velocity = details.velocity.pixelsPerSecond.dx;
-    final distance = _dragDx.abs() / screenSize.width;
-    final isFling = velocity.abs() > CardAnimationConfig.flingVelocity;
-    final isPastThreshold = distance > CardAnimationConfig.swipeThreshold;
-
-    if (isFling || isPastThreshold) {
-      final dir = (isFling ? velocity > 0 : _dragDx > 0)
-          ? SwipeDirection.right
-          : SwipeDirection.left;
-
-      if (canSwipe != null && !canSwipe!(dir)) {
-        _animateSnapBack();
-        return;
-      }
-
-      _isControlAnimation = false;
-      _launchThrow(dir, _dragDx);
-    } else {
-      _animateSnapBack();
-    }
-  }
-
-  void _animateSnapBack() {
-    _snapStartDx = _dragDx;
-    _snapStartDy = _dragDy;
-    _snapBackController.forward(from: 0);
-  }
-
-  void _launchThrow(SwipeDirection dir, double startDx) {
-    _direction = dir;
-    _setupThrowAnimations(dir, startDx);
-    _dragDx = 0;
-    _dragDy = 0;
-    _throwController.forward(from: 0);
-    _popUpController.forward(from: 0);
-    _throwController.addStatusListener(_onThrowComplete);
-  }
-
-  void _onThrowComplete(AnimationStatus status) {
-    if (status == AnimationStatus.completed) {
-      _throwController.removeStatusListener(_onThrowComplete);
-      onSwipeComplete(_direction);
-    }
-  }
-
-  // ── Programmatic ──
-
-  void animateToNext() {
-    if (isAnimating) return;
-    _isControlAnimation = true;
-    _launchThrow(SwipeDirection.right, 0.0);
-  }
-
-  void animateToPrevious() {
-    if (isAnimating) return;
-    _isControlAnimation = true;
-    _launchThrow(SwipeDirection.left, 0.0);
-  }
-
-  void resetImmediate() {
-    _throwController.reset();
-    _popUpController.reset();
-    _snapBackController.reset();
-    _dragDx = 0;
-    _dragDy = 0;
-    isDragging = false;
-    _isControlAnimation = false;
-  }
-
-  double get throwX => _throwSlideX.value;
-  double get throwY => _throwSlideY.value;
-  double get throwRotation => _throwRotation.value;
-  double get throwOpacity => _throwOpacity.value;
-
-  @override
-  void dispose() {
-    _throwController.dispose();
-    _popUpController.dispose();
-    _snapBackController.dispose();
-    super.dispose();
-  }
+  /// Returns an uncommitted card to the deck. Slightly underdamped so it
+  /// arrives with a small settle instead of stopping dead.
+  static final SpringDescription settleSpring =
+      SpringDescription.withDampingRatio(mass: 1, stiffness: 380, ratio: 0.86);
 }
 
 // ─── Animated Player Card Widget ────────────────────────────────────────────
 
+/// A deck of cards that follows whatever track is actually playing.
+///
+/// # Why this follows rather than being driven
+///
+/// The index it shows can move for at least six reasons: a swipe, the next or
+/// previous button, a track ending under gapless playback, a track ending
+/// without it, a crossfade starting seconds before the track ends, and the
+/// notification or a headphone button. The deck used to have a separate trigger
+/// for some of these and nothing at all for the rest, which is why crossfades
+/// and the previous button teleported — nobody had wired them up, and there was
+/// no place where forgetting one would be noticed.
+///
+/// So the deck subscribes to the outcome instead of the causes: it watches
+/// `currentSongId` and animates toward it. A swipe is not special — it changes
+/// the track like everything else and the deck reacts the same way. Adding a
+/// seventh source of change requires no work here.
+///
+/// # Why one number
+///
+/// All motion is a single signed value [_s]: `+1` is one track forward, `-1`
+/// one back, `0` at rest. Card offsets, stack depths, rotation, opacity and
+/// lift are all read off it. The previous implementation ran three
+/// `AnimationController`s of 380 ms, 350 ms and 250 ms against each other, so
+/// the stack stopped rising at a different instant than the thrown card
+/// committed and the difference was visible as a snap. With one value there is
+/// no second timeline to disagree with.
 class AnimatedPlayerCard extends StatefulWidget {
   final int itemCount;
   final int currentSongId;
+
+  /// Called when the *user* moved the deck, never when the deck is catching up
+  /// with a change someone else made. Fires the moment the gesture commits, so
+  /// the audio responds to the flick rather than to the end of the animation.
   final Function(int) onPageChanged;
+
   final Widget Function(BuildContext, int, {bool isActive}) itemBuilder;
-  final Function()? onNextTap;
-  final Function()? onPreviousTap;
 
   const AnimatedPlayerCard({
-    Key? key,
+    super.key,
     required this.itemCount,
     required this.currentSongId,
     required this.onPageChanged,
     required this.itemBuilder,
-    this.onNextTap,
-    this.onPreviousTap,
-  }) : super(key: key);
+  });
 
   @override
   AnimatedPlayerCardState createState() => AnimatedPlayerCardState();
@@ -267,242 +111,412 @@ class AnimatedPlayerCard extends StatefulWidget {
 
 class AnimatedPlayerCardState extends State<AnimatedPlayerCard>
     with TickerProviderStateMixin {
-  late List<CardController> _cardControllers;
-  Size _screenSize = Size.zero;
-  int _currentIndex = 0;
-  bool _animatingFromControls = false;
-  // True when the card is auto-advancing due to natural song end.
-  // In that case AppController already handled audio, so onPageChanged
-  // must be suppressed to prevent a second controller.next() call.
-  bool _isAutoAdvance = false;
+  /// Signed progress of the move in flight. See the class comment.
+  late final AnimationController _motion;
+
+  /// Cross-fade for a jump of more than one track.
+  late final AnimationController _dissolve;
+
+  /// The track whose card is currently the front of the deck.
+  int _index = 0;
+
+  /// Where the deck is going, while it is going there. Distinct from [_index]
+  /// so the audio can change at the moment a gesture commits while the card is
+  /// still flying — and so a `currentSongId` that arrives mid-flight is
+  /// recognised as the move already under way rather than a new one.
+  int? _pending;
+
+  /// The index being faded out during a jump.
+  int? _dissolvingFrom;
+
+  bool _dragging = false;
+  double _rawDrag = 0;
+
+  /// Where the finger landed, as a [Transform] alignment. A real card pivots
+  /// about the point you are holding, so one grabbed near a corner swings more
+  /// than one held in the middle.
+  Alignment _pivot = Alignment.center;
+
+  double get _s => _motion.value;
+
+  double _travel = 400 * CardAnimationConfig.travelFraction;
 
   @override
   void initState() {
     super.initState();
-    _currentIndex = widget.currentSongId;
-    _initializeCards();
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        setState(() {
-          _screenSize = MediaQuery.of(context).size;
-          _updateControllerScreenSizes();
-        });
-      }
-    });
-  }
-
-  void animateToNext() {
-    if (_currentIndex < widget.itemCount - 1) {
-      _animatingFromControls = true;
-      _cardControllers[0].animateToNext();
-    }
-  }
-
-  void animateToPrevious() {
-    if (_currentIndex > 0) {
-      _animatingFromControls = true;
-      _cardControllers[0].animateToPrevious();
-    }
-  }
-
-  /// Auto-advance: card throws forward visually but onPageChanged is suppressed.
-  /// Use this when AppController has already handled the audio transition
-  /// (natural song end) to avoid a second controller.next() call.
-  void animateAutoAdvance() {
-    if (_currentIndex < widget.itemCount - 1) {
-      _animatingFromControls = true;
-      _isAutoAdvance = true;
-      _cardControllers[0].animateToNext();
-    }
-  }
-
-  @override
-  void didUpdateWidget(AnimatedPlayerCard oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.itemCount > 0 && _currentIndex >= widget.itemCount) {
-      setState(() => _currentIndex = widget.itemCount - 1);
-    }
-    // Only snap index if no animation is in progress — during animated
-    // transitions the card deck manages its own index via _handleSwipeComplete.
-    final anyAnimating = _cardControllers.any((c) => c.isAnimating);
-    if (widget.currentSongId != _currentIndex &&
-        !_animatingFromControls &&
-        !anyAnimating) {
-      setState(() {
-        _currentIndex = widget.currentSongId.clamp(
-          0,
-          math.max(0, widget.itemCount - 1),
-        );
-      });
-    }
-  }
-
-  bool _canSwipe(SwipeDirection direction) {
-    // Only allow forward (right) swipe — the card stack shows next songs only.
-    // Previous is handled by the prev button directly (no card animation).
-    if (direction == SwipeDirection.right) {
-      return _currentIndex < widget.itemCount - 1;
-    }
-    return false;
-  }
-
-  void _initializeCards() {
-    _cardControllers = List.generate(
-      CardAnimationConfig.maxVisibleCards,
-      (index) => CardController(
-        vsync: this,
-        onSwipeComplete: _handleSwipeComplete,
-        screenSize: _screenSize,
-      )..canSwipe = _canSwipe,
-    );
-  }
-
-  void _updateControllerScreenSizes() {
-    for (var c in _cardControllers) {
-      c.updateScreenSize(_screenSize);
-    }
-  }
-
-  void _handleSwipeComplete(SwipeDirection direction) {
-    final nextIndex = direction == SwipeDirection.right
-        ? _currentIndex + 1
-        : _currentIndex - 1;
-
-    if (nextIndex >= 0 && nextIndex < widget.itemCount) {
-      setState(() => _currentIndex = nextIndex);
-      // Suppress onPageChanged for auto-advance: AppController already
-      // handled the audio transition, so calling next() again would skip a song.
-      if (!_isAutoAdvance) {
-        widget.onPageChanged(nextIndex);
-      }
-      _animatingFromControls = false;
-      _isAutoAdvance = false;
-
-      final swipedController = _cardControllers.removeAt(0);
-      swipedController.resetImmediate();
-      _cardControllers.add(swipedController);
-    } else {
-      _animatingFromControls = false;
-      _isAutoAdvance = false;
-      _cardControllers[0].resetImmediate();
-    }
+    _index = widget.currentSongId;
+    _motion = AnimationController.unbounded(vsync: this)
+      ..addListener(_onMotionTick);
+    _dissolve = AnimationController(
+      vsync: this,
+      duration: CardAnimationConfig.dissolveDuration,
+    )..addStatusListener(_onDissolveDone);
   }
 
   @override
   void dispose() {
-    for (var c in _cardControllers) {
-      c.dispose();
-    }
+    _motion.dispose();
+    _dissolve.dispose();
     super.dispose();
   }
 
+  // ── Reconciliation ──
+
+  /// Where the deck will be once everything in flight has landed.
+  int get _destination => _pending ?? _index;
+
+  @override
+  void didUpdateWidget(AnimatedPlayerCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    if (widget.itemCount == 0) return;
+    if (_index >= widget.itemCount) {
+      setState(() => _index = widget.itemCount - 1);
+    }
+    // Mid-gesture the finger is the authority. Whatever arrived is reconciled
+    // on release, by which time it may no longer be a difference at all.
+    if (_dragging) return;
+
+    _reconcile();
+  }
+
+  void _reconcile() {
+    final target = widget.currentSongId.clamp(0, widget.itemCount - 1);
+    switch (reconcile(
+      shown: _destination,
+      target: target,
+      itemCount: widget.itemCount,
+    )) {
+      case DeckStep.none:
+        return;
+      case DeckStep.next:
+        _launch(DeckStep.next, CardAnimationConfig.syntheticVelocity, target);
+      case DeckStep.previous:
+        _launch(
+            DeckStep.previous, -CardAnimationConfig.syntheticVelocity, target);
+      case DeckStep.jump:
+        _startDissolve(target);
+    }
+  }
+
+  /// Springs the deck one card in [step], seeded with [velocity] in travels/s,
+  /// landing on [destination].
+  ///
+  /// Seeding rather than replaying a fixed curve is what makes a hard flick
+  /// leave faster than a gentle push: same code, different initial conditions.
+  /// Programmatic moves supply a synthetic velocity and so are indistinguishable
+  /// from a moderate hand throw.
+  ///
+  /// [destination] is passed rather than derived because a repeat-all wrap is
+  /// one card's worth of movement to somewhere that is not one index away.
+  void _launch(DeckStep step, double velocity, int destination) {
+    if (_dissolve.isAnimating) return;
+    _pending = destination;
+
+    // Aim past the commit point so the card is still moving when it gets
+    // there. Springing exactly to 1 would crawl the last few percent.
+    final target = step == DeckStep.next ? 1.06 : -1.06;
+    _motion.animateWith(
+      SpringSimulation(
+        CardAnimationConfig.throwSpring,
+        _s,
+        target,
+        velocity,
+      ),
+    );
+  }
+
+  void _onMotionTick() {
+    if (!mounted) return;
+    // Commit as soon as the card has covered a whole travel. The geometry at
+    // that instant is identical to the committed deck's — see the continuity
+    // test in deck_motion_test.dart — so resetting to zero here is invisible.
+    if (_pending != null && _s.abs() >= 1.0) {
+      _motion.stop();
+      final landed = _pending!;
+      _pending = null;
+      _motion.value = 0;
+      setState(() => _index = landed.clamp(0, widget.itemCount - 1));
+      // Something may have moved again while this card was in the air.
+      _reconcile();
+      return;
+    }
+    setState(() {});
+  }
+
+  void _startDissolve(int target) {
+    _motion.stop();
+    _motion.value = 0;
+    setState(() {
+      _dissolvingFrom = _index;
+      _pending = null;
+      _index = target;
+    });
+    _dissolve.forward(from: 0);
+  }
+
+  void _onDissolveDone(AnimationStatus status) {
+    if (status != AnimationStatus.completed) return;
+    setState(() => _dissolvingFrom = null);
+    _reconcile();
+  }
+
+  // ── Gestures ──
+
+  bool get _canNext => _destination < widget.itemCount - 1;
+  bool get _canPrevious => _destination > 0;
+
+  void _onDragStart(DragStartDetails details, Size size) {
+    if (_pending != null || _dissolve.isAnimating) return;
+    _dragging = true;
+    _rawDrag = 0;
+    _motion.stop();
+    // Alignment is -1..1 across the box, so a touch at the left edge is -1.
+    _pivot = Alignment(
+      (details.localPosition.dx / size.width) * 2 - 1,
+      (details.localPosition.dy / size.height) * 2 - 1,
+    );
+  }
+
+  void _onDragUpdate(DragUpdateDetails details) {
+    if (!_dragging) return;
+    _rawDrag += details.delta.dx;
+
+    // Past the end of the queue the card resists instead of moving freely.
+    final blocked = (_rawDrag > 0 && !_canNext) || (_rawDrag < 0 && !_canPrevious);
+    final effective =
+        blocked ? _rawDrag * CardAnimationConfig.rubberBand : _rawDrag;
+
+    _motion.value = (effective / _travel).clamp(-1.0, 1.0);
+    setState(() {});
+  }
+
+  void _onDragEnd(DragEndDetails details) {
+    if (!_dragging) return;
+    _dragging = false;
+
+    final vx = details.velocity.pixelsPerSecond.dx;
+    final outcome = resolveDrag(
+      dx: _rawDrag,
+      velocity: vx,
+      width: _travel / CardAnimationConfig.travelFraction,
+      canNext: _canNext,
+      canPrevious: _canPrevious,
+      distanceFraction: CardAnimationConfig.swipeThreshold,
+      flingVelocity: CardAnimationConfig.flingVelocity,
+    );
+
+    // Hand the gesture's own speed to the spring, in the units it works in.
+    final velocity = vx / _travel;
+
+    switch (outcome) {
+      case DragOutcome.next:
+        _commitUserMove(DeckStep.next, velocity);
+      case DragOutcome.previous:
+        _commitUserMove(DeckStep.previous, velocity);
+      case DragOutcome.snapBack:
+        _motion.animateWith(
+          SpringSimulation(
+            CardAnimationConfig.settleSpring,
+            _s,
+            0,
+            velocity,
+          ),
+        );
+    }
+  }
+
+  /// The user committed a swipe: tell the audio now, animate the rest.
+  ///
+  /// Changing the track here rather than when the card lands is what makes a
+  /// flick feel answered. The resulting `currentSongId` matches [_pending], so
+  /// [_reconcile] sees the move already in flight and does not start a second.
+  void _commitUserMove(DeckStep step, double velocity) {
+    // A swipe never wraps — [_canNext] and [_canPrevious] stop it at the ends
+    // of the queue — so the destination is always the neighbour.
+    final destination = _index + (step == DeckStep.next ? 1 : -1);
+    _launch(step, velocity, destination);
+    widget.onPageChanged(destination);
+  }
+
+  // ── Painting ──
+
   @override
   Widget build(BuildContext context) {
-    final frontCtrl = _cardControllers[0];
-
-    return AnimatedBuilder(
-      animation: Listenable.merge(_cardControllers),
-      builder: (context, _) {
-        final isThrowing = frontCtrl.isAnimating && !frontCtrl.isDragging;
-        final popProgress = Curves.easeOutCubic.transform(
-          frontCtrl.popUpProgress.clamp(0.0, 1.0),
-        );
-
-        // Back cards respond to drag AND throw
-        final dragInfluence = frontCtrl.isDragging
-            ? (frontCtrl.dragDx.abs() / (_screenSize.width * 0.5)).clamp(
-                0.0,
-                1.0,
-              )
-            : 0.0;
-        final backProgress = isThrowing ? popProgress : dragInfluence * 0.4;
-
-        final cards = <Widget>[];
-
-        for (int i = CardAnimationConfig.maxVisibleCards - 1; i >= 0; i--) {
-          final itemIndex = _currentIndex + i;
-          if (itemIndex < 0 || itemIndex >= widget.itemCount) continue;
-
-          if (i == 0) {
-            cards.add(_buildFrontCard(itemIndex, frontCtrl));
-          } else {
-            cards.add(_buildBackCard(itemIndex, i, backProgress));
-          }
-        }
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final size = constraints.biggest;
+        _travel = size.width * CardAnimationConfig.travelFraction;
 
         return GestureDetector(
           behavior: HitTestBehavior.translucent,
-          onPanStart: frontCtrl.onPanStart,
-          onPanUpdate: frontCtrl.onPanUpdate,
-          onPanEnd: frontCtrl.onPanEnd,
-          child: Stack(fit: StackFit.expand, children: cards),
+          // Horizontal, not pan: the player's vertical drag dismisses the
+          // screen, and two pan recognisers in one arena made a diagonal
+          // gesture's outcome a coin toss. Declaring an axis lets the arena
+          // resolve it the way the user meant.
+          onHorizontalDragStart: (d) => _onDragStart(d, size),
+          onHorizontalDragUpdate: _onDragUpdate,
+          onHorizontalDragEnd: _onDragEnd,
+          child: Stack(fit: StackFit.expand, children: _buildCards()),
         );
       },
     );
   }
 
-  Widget _buildFrontCard(int itemIndex, CardController ctrl) {
-    final child = RepaintBoundary(
-      child: widget.itemBuilder(context, itemIndex, isActive: true),
-    );
-
-    if (ctrl.isAnimating && !ctrl.isDragging) {
-      // Throw — card flies away
-      return Transform(
-        transform: Matrix4.identity()
-          ..translateByVector3(Vector3(ctrl.throwX, ctrl.throwY, 0.0))
-          ..rotateZ(ctrl.throwRotation * (math.pi / 180)),
-        alignment: Alignment.center,
-        child: Opacity(
-          opacity: ctrl.throwOpacity.clamp(0.0, 1.0),
-          child: child,
-        ),
-      );
+  /// Which track belongs in the slot [depth] cards back, or null for a slot
+  /// past the end of the queue.
+  ///
+  /// The card arriving during a step is the *destination*, which is not always
+  /// the neighbour: a repeat-all wrap is one card's worth of movement from the
+  /// last track to the first. Reading `_index + depth` there would leave the
+  /// slot empty and the thrown card would fly off over nothing.
+  int? _trackAt(int depth) {
+    if (_pending case final destination?) {
+      if (depth == 1 && _s > 0) return destination;
+      if (depth == -1 && _s < 0) return destination;
     }
-
-    // Drag or snap-back — card follows finger 1:1
-    if (ctrl.dragDx.abs() > 0.5 || ctrl.dragDy.abs() > 0.5) {
-      final tilt =
-          (ctrl.dragDx / _screenSize.width) * CardAnimationConfig.maxDragTilt;
-      return Transform(
-        transform: Matrix4.identity()
-          ..translateByVector3(Vector3(ctrl.dragDx, ctrl.dragDy * 0.4, 0.0))
-          ..rotateZ(tilt),
-        alignment: Alignment.center,
-        child: child,
-      );
-    }
-
-    return child;
+    final index = _index + depth;
+    if (index < 0 || index >= widget.itemCount) return null;
+    return index;
   }
 
-  Widget _buildBackCard(int depth, int depthIndex, double animProgress) {
-    final currentScale = 1.0 - (depthIndex * CardAnimationConfig.scaleFraction);
-    final targetScale =
-        1.0 - ((depthIndex - 1) * CardAnimationConfig.scaleFraction);
-    final scale = currentScale + (targetScale - currentScale) * animProgress;
+  List<Widget> _buildCards() {
+    final step = _s > 0
+        ? DeckStep.next
+        : _s < 0
+            ? DeckStep.previous
+            : DeckStep.none;
+    final shift = stackShift(step, _s.abs());
 
-    final currentY = -depthIndex * CardAnimationConfig.yOffset;
-    final targetY = -(depthIndex - 1) * CardAnimationConfig.yOffset;
-    final yOff = currentY + (targetY - currentY) * animProgress;
+    // A backward move needs the card above the deck — the one being brought
+    // home. It rests at -1 so it arrives at the front slot exactly on commit.
+    final shallowest = _s < 0 ? -1 : 0;
 
-    final opacity = (1.0 - depthIndex * 0.12 + animProgress * 0.12).clamp(
-      0.0,
-      1.0,
+    final cards = <Widget>[];
+    for (var depth = CardAnimationConfig.maxVisibleCards - 1;
+        depth >= shallowest;
+        depth--) {
+      final itemIndex = _trackAt(depth);
+      if (itemIndex == null) continue;
+
+      cards.add(
+        depth == 0 && _s > 0
+            ? _buildDepartingCard(itemIndex, shift)
+            : depth == -1
+                ? _buildArrivingCard(itemIndex, shift)
+                : _buildStackedCard(itemIndex, depth, shift),
+      );
+    }
+
+    if (_dissolvingFrom case final from?
+        when from >= 0 && from < widget.itemCount) {
+      cards.add(
+        IgnorePointer(
+          child: Opacity(
+            opacity: (1.0 - _dissolve.value).clamp(0.0, 1.0),
+            child: RepaintBoundary(
+              child: widget.itemBuilder(context, from, isActive: false),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return cards;
+  }
+
+  Widget _buildStackedCard(int itemIndex, int baseDepth, double shift) {
+    final layout = layoutAt(
+      baseDepth + shift,
+      scaleFraction: CardAnimationConfig.scaleFraction,
+      yOffset: CardAnimationConfig.yOffset,
     );
 
+    final inFrontSlot = baseDepth == 0;
+    // Going back, the card being covered is no longer the one the user is
+    // acting on — the card arriving over it is. Two cards claiming that at
+    // once would both pivot about the same grab point.
+    final isActive = inFrontSlot && _s >= 0;
+
+    return _transformed(
+      // The front card slides a little under a backward drag: it is being
+      // covered, not thrown.
+      dx: inFrontSlot && _s < 0
+          ? _s * _travel * CardAnimationConfig.backwardFollow
+          : 0.0,
+      dy: layout.dy,
+      scale: layout.scale,
+      rotation: 0,
+      opacity: layout.opacity,
+      child: widget.itemBuilder(context, itemIndex, isActive: isActive),
+      isActive: isActive,
+    );
+  }
+
+  /// The card being thrown away.
+  Widget _buildDepartingCard(int itemIndex, double shift) {
+    final t = _s.clamp(0.0, 1.0);
+    final layout = layoutAt(
+      shift,
+      scaleFraction: CardAnimationConfig.scaleFraction,
+      yOffset: CardAnimationConfig.yOffset,
+    );
+
+    return _transformed(
+      dx: _s * _travel,
+      // Lifts as it goes, on the same curve as everything else.
+      dy: -CardAnimationConfig.throwLift * t,
+      scale: layout.scale,
+      rotation: t * CardAnimationConfig.throwRotationDeg,
+      // Gone before it commits, so the reset at |s| = 1 has nothing to reveal.
+      opacity: (1.0 - ((t - 0.55) / 0.4)).clamp(0.0, 1.0),
+      child: widget.itemBuilder(context, itemIndex, isActive: true),
+      isActive: true,
+    );
+  }
+
+  /// The card being brought back, mirror image of the one being thrown.
+  Widget _buildArrivingCard(int itemIndex, double shift) {
+    final t = (-_s).clamp(0.0, 1.0);
+    final remaining = 1.0 - t;
+    final layout = layoutAt(
+      -1 + shift,
+      scaleFraction: CardAnimationConfig.scaleFraction,
+      yOffset: CardAnimationConfig.yOffset,
+    );
+
+    return _transformed(
+      dx: -_travel * remaining,
+      dy: -CardAnimationConfig.throwLift * remaining,
+      scale: layout.scale,
+      rotation: -remaining * CardAnimationConfig.throwRotationDeg,
+      opacity: 1.0,
+      child: widget.itemBuilder(context, itemIndex, isActive: true),
+      isActive: true,
+    );
+  }
+
+  Widget _transformed({
+    required double dx,
+    required double dy,
+    required double scale,
+    required double rotation,
+    required double opacity,
+    required Widget child,
+    required bool isActive,
+  }) {
+    final wrapped = RepaintBoundary(child: child);
     return Transform(
       transform: Matrix4.identity()
-        ..translateByVector3(Vector3(0.0, yOff, 0.0))
+        ..translateByVector3(Vector3(dx, dy, 0.0))
+        ..rotateZ(rotation * (math.pi / 180))
         ..scaleByVector3(Vector3.all(scale)),
-      alignment: Alignment.center,
-      child: Opacity(
-        opacity: opacity,
-        child: RepaintBoundary(
-          child: widget.itemBuilder(context, depth, isActive: false),
-        ),
-      ),
+      // Only a card under the finger pivots about the grab point; the rest of
+      // the stack has no finger on it and turns about its middle.
+      alignment: isActive ? _pivot : Alignment.center,
+      child: opacity >= 1.0
+          ? wrapped
+          : Opacity(opacity: opacity.clamp(0.0, 1.0), child: wrapped),
     );
   }
 }
