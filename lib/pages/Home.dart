@@ -7,7 +7,7 @@ import '/exports/exports.dart';
 import 'albums.dart';
 import 'folders.dart';
 import 'genres.dart';
-import 'playlist.dart';
+import 'play_list_view.dart';
 import 'search_page.dart';
 import 'songs.dart';
 import 'artists.dart';
