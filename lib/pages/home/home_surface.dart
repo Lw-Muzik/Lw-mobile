@@ -21,8 +21,12 @@ import 'package:provider/provider.dart';
 import '../../controllers/app_controller.dart';
 import '../../data/library_repository.dart';
 import '../../routes/routes.dart';
+import '../../models/cloud_file.dart';
 import '../../services/mixes/daily_mix_service.dart';
 import '../../services/mixes/daily_mixes.dart';
+import '../../services/mixes/mix_playback.dart';
+import '../../services/ytmusic/yt_models.dart';
+import '../../services/ytmusic/yt_repository.dart';
 import '../../services/radio/library_station.dart';
 import '../../themes/ember.dart';
 import '../playlist_songs.dart';
@@ -51,7 +55,30 @@ class _HomeSurfaceState extends State<HomeSurface> {
     super.didChangeDependencies();
     // Guarded: didChangeDependencies runs again on any inherited-widget change.
     if (_mixService != null) return;
-    _mixService = DailyMixService(_repo);
+    final controller = context.read<AppController>();
+    _mixService = DailyMixService(
+      _repo,
+      // A drive the user has linked; empty when they have not.
+      cloudLibrary: () {
+        final files = <CloudFile>[];
+        for (final provider in CloudProvider.values) {
+          final list = controller.cloudCache.loadFileList(provider);
+          if (list != null) files.addAll(list);
+        }
+        return files;
+      },
+      // Songs that go with a taste the library already has. Fails silently —
+      // offline costs the variety and nothing else.
+      youTube: (descriptor) async {
+        final shelves = await YtMusicRepository.instance
+            .search(descriptor, SearchFilter.songs);
+        return [
+          for (final shelf in shelves)
+            for (final item in shelf.items)
+              if (item.kind == ExploreKind.song) item.asTrack(),
+        ];
+      },
+    );
     _load();
   }
 
@@ -185,12 +212,21 @@ class _HomeSurfaceState extends State<HomeSurface> {
 
   // ---------------------------------------------------------------------------
 
-  /// A mix is a running order — it was built as one — so it queues rather than
-  /// seeding a station.
-  void _playMix(AppController controller, ResolvedMix mix) {
-    if (mix.songs.isEmpty) return;
-    controller.playSongFromList(mix.songs, 0);
+  /// A mix may hold drive and YouTube tracks that are not playable yet, so this
+  /// starts on the first one that resolves and grows behind it.
+  Future<void> _playMix(AppController controller, ResolvedMix mix) async {
+    if (mix.tracks.isEmpty) return;
     Routes.playerTo(context);
+    await MixPlayback.play(
+      controller,
+      mix,
+      resolveCloud: (file) async {
+        if (file.provider == CloudProvider.googleDrive) {
+          return controller.googleDriveService.getStreamUrl(file.fileId);
+        }
+        return controller.dropboxService.getTemporaryLink(file.fileId);
+      },
+    );
   }
 
   /// A shelf is a report, not a running order, so tapping one seeds a station —

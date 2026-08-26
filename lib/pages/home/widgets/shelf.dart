@@ -139,10 +139,27 @@ class MixShelf extends StatelessWidget {
                               fontWeight: FontWeight.w600,
                             ),
                           ),
-                          Text(
-                            '${mix.length} tracks',
-                            style: TextStyle(
-                                color: Ember.textTertiary, fontSize: 11),
+                          Row(
+                            children: [
+                              Text(
+                                '${mix.length} tracks',
+                                style: TextStyle(
+                                    color: Ember.textTertiary, fontSize: 11),
+                              ),
+                              // Said plainly, because playing this one will use
+                              // data and the user should know before they tap.
+                              if (mix.hasRemote) ...[
+                                const SizedBox(width: 5),
+                                Icon(Icons.cloud_outlined,
+                                    size: 11, color: Ember.textTertiary),
+                                const SizedBox(width: 3),
+                                Text(
+                                  'streams',
+                                  style: TextStyle(
+                                      color: Ember.textTertiary, fontSize: 11),
+                                ),
+                              ],
+                            ],
                           ),
                         ],
                       ),

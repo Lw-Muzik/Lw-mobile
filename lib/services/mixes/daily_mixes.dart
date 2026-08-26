@@ -60,11 +60,15 @@ enum Daypart {
   }
 }
 
+/// Where a candidate came from.
+enum MixSource { local, cloud, youtube }
+
 /// One track, as the mix engine needs to see it.
 @immutable
 class MixCandidate {
   const MixCandidate({
     required this.key,
+    this.source = MixSource.local,
     this.artist,
     this.genre,
     this.addedAtSec,
@@ -75,6 +79,7 @@ class MixCandidate {
   });
 
   final String key;
+  final MixSource source;
   final String? artist;
   final String? genre;
   final int? addedAtSec;
@@ -148,6 +153,14 @@ class MixRules {
 
   /// Every candidate keeps some weight, so a mix is never the same list twice.
   static const floor = 0.5;
+
+  /// Most of a mix that may come from somewhere other than the user's own files.
+  ///
+  /// A drive and YouTube are what stop a small library producing the same forty
+  /// tracks for ever. But a mix that is mostly streamed is not *theirs* any
+  /// more — it is a recommendation feed wearing their library's name. Local
+  /// music keeps the majority, always.
+  static const maxRemoteShare = 0.4;
 }
 
 /// Builds the mixes for [now], newest-taste first.
@@ -325,17 +338,30 @@ List<String> _fill(
   required int limit,
   required Random random,
 }) {
-  final proven = [for (final t in cluster) if (t.isProven) t];
-  final novel = [for (final t in cluster) if (t.isNovel) t];
+  final local = [
+    for (final t in cluster)
+      if (t.source == MixSource.local) t,
+  ];
+  final remote = [
+    for (final t in cluster)
+      if (t.source != MixSource.local) t,
+  ];
+
+  final proven = [for (final t in local) if (t.isProven) t];
+  final novel = [for (final t in local) if (t.isNovel) t];
   // Played a little, or played and skipped — neither earned nor unheard. Kept
   // as the pool that tops the other two up.
   final rest = [
-    for (final t in cluster)
+    for (final t in local)
       if (!t.isProven && !t.isNovel) t,
   ];
 
-  final wantProven = (limit * MixRules.provenShare).round();
-  final wantNovel = limit - wantProven;
+  // The user's own music takes the majority before anything streamed is drawn.
+  final wantLocal = remote.isEmpty
+      ? limit
+      : (limit * (1 - MixRules.maxRemoteShare)).round();
+  final wantProven = (wantLocal * MixRules.provenShare).round();
+  final wantNovel = wantLocal - wantProven;
 
   final picked = <String>{};
   final out = <String>[];
@@ -354,9 +380,15 @@ List<String> _fill(
 
   draw(proven, wantProven);
   draw(novel, wantNovel);
-  // Whatever the two shares could not supply, from everything left.
+  // Whatever the local shares could not supply, from the rest of the local pool
+  // — a small library should fill up with its own music before reaching out.
+  if (out.length < wantLocal) {
+    draw([...rest, ...proven, ...novel], wantLocal - out.length);
+  }
+  draw(remote, limit - out.length);
+  // Still short: the library is smaller than a mix. Take anything left.
   if (out.length < limit) {
-    draw([...rest, ...proven, ...novel], limit - out.length);
+    draw([...rest, ...proven, ...novel, ...remote], limit - out.length);
   }
   return out;
 }

@@ -13,7 +13,10 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:eq_app/data/library_database.dart';
 import 'package:eq_app/data/library_repository.dart';
+import 'package:eq_app/models/cloud_file.dart';
 import 'package:eq_app/services/mixes/daily_mix_service.dart';
+import 'package:eq_app/services/mixes/daily_mixes.dart';
+import 'package:eq_app/services/ytmusic/yt_models.dart';
 
 void main() {
   late LibraryDatabase db;
@@ -67,9 +70,11 @@ void main() {
     expect(mixes, hasLength(1));
     expect(mixes.single.descriptor, 'Afrobeat');
     expect(mixes.single.name, 'afrobeat afternoon');
-    expect(mixes.single.songs, isNotEmpty);
-    // The point of resolving: these have to be real rows the player can open.
-    expect(mixes.single.songs.every((s) => s.data.isNotEmpty), isTrue);
+    expect(mixes.single.tracks, isNotEmpty);
+    // Local tracks come out ready to play; nothing else needs resolving here.
+    expect(mixes.single.tracks.every((t) => t.isReady), isTrue);
+    expect(mixes.single.tracks.every((t) => t.song!.data.isNotEmpty), isTrue);
+    expect(mixes.single.hasRemote, isFalse);
   });
 
   test('two tastes produce two mixes', () async {
@@ -240,6 +245,93 @@ void main() {
       await repo.deletePlaylist(id);
       expect(await repo.playlists(), isEmpty);
       expect(await repo.playlistEntries(id), isEmpty);
+    });
+  });
+
+  group('blending a drive and YouTube in', () {
+    CloudFile cloudFile(String id, String artist) => CloudFile(
+          provider: CloudProvider.googleDrive,
+          fileId: id,
+          name: '$id.mp3',
+          folderPath: '/M',
+          size: 1,
+          mimeType: 'audio/mpeg',
+          trackTitle: 'Cloud $id',
+          trackArtist: artist,
+        );
+
+    YtTrack ytTrack(String id) => YtTrack(
+        videoId: id, title: 'YT $id', playlistId: '', playlistTitle: '');
+
+    test('drive files matching a taste reach the mix', () async {
+      await insertTaste('Afrobeat', 100, count: 30);
+      final service = DailyMixService(
+        repo,
+        cloudLibrary: () => [for (var i = 0; i < 10; i++) cloudFile('c$i', 'Afrobeat')],
+      );
+
+      final mix = (await service.mixes(now: afternoon)).single;
+      expect(mix.hasRemote, isTrue);
+      expect(mix.tracks.any((t) => t.source == MixSource.cloud), isTrue);
+    });
+
+    test('YouTube tracks reach the mix', () async {
+      await insertTaste('Afrobeat', 100, count: 30);
+      final service = DailyMixService(
+        repo,
+        youTube: (_) async => [for (var i = 0; i < 10; i++) ytTrack('y$i')],
+      );
+
+      final mix = (await service.mixes(now: afternoon)).single;
+      expect(mix.tracks.any((t) => t.source == MixSource.youtube), isTrue);
+    });
+
+    test("YouTube is asked only about tastes the library already has", () async {
+      await insertTaste('Afrobeat', 100, count: 30);
+      final asked = <String>[];
+      final service = DailyMixService(
+        repo,
+        youTube: (descriptor) async {
+          asked.add(descriptor);
+          return const [];
+        },
+      );
+      await service.mixes(now: afternoon);
+      expect(asked, ['Afrobeat'],
+          reason: 'streaming may add variety inside a taste, never invent one');
+    });
+
+    // Offline is a normal state for this app.
+    test('a YouTube failure costs the variety and nothing else', () async {
+      await insertTaste('Afrobeat', 100, count: 30);
+      final service = DailyMixService(
+        repo,
+        youTube: (_) async => throw StateError('offline'),
+      );
+
+      final mixes = await service.mixes(now: afternoon);
+      expect(mixes, hasLength(1));
+      expect(mixes.single.tracks, isNotEmpty);
+      expect(mixes.single.hasRemote, isFalse);
+    });
+
+    test('no drive and no YouTube is simply a local mix', () async {
+      await insertTaste('Afrobeat', 100, count: 30);
+      final mixes = await DailyMixService(repo).mixes(now: afternoon);
+      expect(mixes.single.hasRemote, isFalse);
+    });
+
+    test('the user\'s own music still holds the majority', () async {
+      await insertTaste('Afrobeat', 100, count: 30);
+      final service = DailyMixService(
+        repo,
+        cloudLibrary: () =>
+            [for (var i = 0; i < 200; i++) cloudFile('c$i', 'Afrobeat')],
+      );
+      final mix = (await service.mixes(now: afternoon)).single;
+      final remote =
+          mix.tracks.where((t) => t.source != MixSource.local).length;
+      expect(remote, lessThan(mix.length / 2));
     });
   });
 }

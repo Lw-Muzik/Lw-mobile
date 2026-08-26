@@ -54,6 +54,8 @@ final _evening = DateTime(2026, 8, 26, 19);
 final _nextDay = DateTime(2026, 8, 27, 14);
 
 void main() {
+  _blendingTests();
+
   group('dayparts', () {
     test('the day is divided the way someone listening would describe it', () {
       expect(Daypart.of(DateTime(2026, 1, 1, 6)), Daypart.earlyMorning);
@@ -343,6 +345,73 @@ void main() {
       expect(day, greaterThan(night));
       expect(night, greaterThan(0),
           reason: 'a bias, not a filter — the rest must stay reachable');
+    });
+  });
+}
+
+/// Blending a drive and YouTube into a mix, when the user has them.
+///
+/// Variety is the point — a small library otherwise produces the same forty
+/// tracks for ever. But a mix that is mostly streamed is not *theirs* any more,
+/// so the user's own files keep the majority whatever else is available.
+void _blendingTests() {
+  MixCandidate remote(String key, MixSource source, {String genre = 'Afrobeat'}) =>
+      MixCandidate(
+        key: key,
+        source: source,
+        genre: genre,
+        artist: 'remote artist ${key.hashCode % 5}',
+      );
+
+  group('blending in a drive and YouTube', () {
+    final localTaste = taste('Afrobeat', 'l', count: 40);
+
+    test('remote tracks reach the mix', () {
+      final library = [
+        ...localTaste,
+        for (var i = 0; i < 20; i++) remote('c$i', MixSource.cloud),
+        for (var i = 0; i < 20; i++) remote('y$i', MixSource.youtube),
+      ];
+      final keys = buildDailyMixes(library: library, now: _afternoon)
+          .single
+          .trackKeys;
+      final remotes =
+          keys.where((k) => k.startsWith('c') || k.startsWith('y')).length;
+      expect(remotes, greaterThan(0), reason: 'that is the whole point');
+    });
+
+    test('but never the majority of it', () {
+      final library = [
+        ...localTaste,
+        for (var i = 0; i < 200; i++) remote('c$i', MixSource.cloud),
+      ];
+      final keys = buildDailyMixes(library: library, now: _afternoon)
+          .single
+          .trackKeys;
+      final remotes = keys.where((k) => k.startsWith('c')).length;
+      expect(remotes, lessThan(keys.length / 2),
+          reason: 'a mix that is mostly streamed is a feed, not your library');
+    });
+
+    test('with nothing remote available the mix is entirely local', () {
+      final keys =
+          buildDailyMixes(library: localTaste, now: _afternoon).single.trackKeys;
+      expect(keys.every((k) => k.startsWith('l')), isTrue);
+    });
+
+    // The case that matters for a small library: local first, then reach out.
+    test('a library too small to fill a mix is topped up from remote', () {
+      final library = [
+        ...taste('Afrobeat', 'l', count: 10),
+        for (var i = 0; i < 40; i++) remote('c$i', MixSource.cloud),
+      ];
+      final keys = buildDailyMixes(library: library, now: _afternoon)
+          .single
+          .trackKeys;
+      expect(keys.length, greaterThan(10),
+          reason: 'the drive is what makes a small library listenable');
+      expect(keys.where((k) => k.startsWith('l')).length, 10,
+          reason: 'and every local track is still used');
     });
   });
 }
