@@ -290,13 +290,28 @@ List<_Cluster> _group(
 ///
 /// Without this, every untagged file lands in one enormous "Unknown Artist"
 /// group and the app offers a mix of everything nobody bothered to tag.
+///
+/// YouTube's auto-generated artist channels are suffixed `" - Topic"`, and a
+/// library assembled from downloads is full of them. Stripping it does two jobs:
+/// it stops a mix being called *"chris brown - topic late night"*, and it merges
+/// `Chris Brown` with `Chris Brown - Topic` into the one artist they obviously
+/// are — which is the difference between two thin clusters and one real one.
 String? _normalise(String? value) {
-  final trimmed = value?.trim();
+  var trimmed = value?.trim();
   if (trimmed == null || trimmed.isEmpty) return null;
+
+  final lower = trimmed.toLowerCase();
+  if (lower.endsWith(_topicSuffix)) {
+    trimmed = trimmed.substring(0, trimmed.length - _topicSuffix.length).trim();
+    if (trimmed.isEmpty) return null;
+  }
+
   const unknown = {'unknown', 'unknown artist', 'unknown album', '<unknown>'};
   if (unknown.contains(trimmed.toLowerCase())) return null;
   return trimmed;
 }
+
+const _topicSuffix = ' - topic';
 
 /// Draws one mix's worth of tracks: mostly proven, substantially novel.
 ///

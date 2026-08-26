@@ -173,6 +173,31 @@ void main() {
           reason: 'twelve tracks by one artist is an album, not a genre mix');
     });
 
+    // A library of downloads is full of YouTube's auto-generated artist
+    // channels. On a real device the fallback produced a mix called
+    // "chris brown - topic late night".
+    test('a YouTube "- Topic" artist is named like an artist', () {
+      final library = [
+        for (var i = 0; i < 20; i++)
+          track('t$i', artist: 'Chris Brown - Topic'),
+      ];
+      final mixes = buildDailyMixes(library: library, now: _afternoon);
+      expect(mixes.single.descriptor, 'Chris Brown');
+      expect(mixes.single.name, 'chris brown afternoon');
+    });
+
+    test('the "- Topic" channel and the artist are one cluster, not two', () {
+      final library = [
+        for (var i = 0; i < 10; i++) track('a$i', artist: 'Chris Brown'),
+        for (var i = 0; i < 10; i++)
+          track('b$i', artist: 'Chris Brown - Topic'),
+      ];
+      final mixes = buildDailyMixes(library: library, now: _afternoon);
+      expect(mixes, hasLength(1),
+          reason: 'two thin clusters where there is obviously one artist');
+      expect(mixes.single.length, greaterThanOrEqualTo(16));
+    });
+
     test('one genre across many artists still produces its mix', () {
       final library = taste('OnlyGenre', 'o', count: 30);
       final mixes = buildDailyMixes(library: library, now: _afternoon);
