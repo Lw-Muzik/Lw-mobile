@@ -55,3 +55,4 @@ Widget fadeThroughShuttle(
     child: Material(type: MaterialType.transparency, child: destination),
   );
 }
+

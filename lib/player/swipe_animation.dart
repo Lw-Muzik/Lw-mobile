@@ -360,10 +360,24 @@ class AnimatedPlayerCardState extends State<AnimatedPlayerCard>
     // home. It rests at -1 so it arrives at the front slot exactly on commit.
     final shallowest = _s < 0 ? -1 : 0;
 
+    // While the route is still opening or closing, the front card is a Hero and
+    // Hero *hides* its child in flight, leaving an empty box the size of the
+    // card. Whatever the deck draws behind it is then fully visible — and the
+    // second card sits at 95% scale, twelve pixels up, which is very nearly
+    // that same slot.
+    //
+    // The effect is the NEXT track's cover sitting in the place the flying one
+    // is travelling to. So the stack stands down for the duration of the
+    // transition: one card leaves, one card lands, nothing behind them.
+    final routeAnimation = ModalRoute.of(context)?.animation;
+    final inRouteTransition = routeAnimation != null &&
+        routeAnimation.status != AnimationStatus.completed &&
+        routeAnimation.status != AnimationStatus.dismissed;
+    final deepest =
+        inRouteTransition ? 0 : CardAnimationConfig.maxVisibleCards - 1;
+
     final cards = <Widget>[];
-    for (var depth = CardAnimationConfig.maxVisibleCards - 1;
-        depth >= shallowest;
-        depth--) {
+    for (var depth = deepest; depth >= shallowest; depth--) {
       final itemIndex = _trackAt(depth);
       if (itemIndex == null) continue;
 
