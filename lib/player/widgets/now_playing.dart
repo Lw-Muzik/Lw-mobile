@@ -39,12 +39,43 @@ class _NowPlayingState extends State<NowPlaying> {
 
   @override
   Widget build(BuildContext context) {
-    final songs = widget.controller.songs;
-    final currentId = widget.controller.songId;
     final bottomPadding = MediaQuery.of(context).padding.bottom;
     final theme = Theme.of(context);
     final surfaceColor = theme.scaffoldBackgroundColor;
 
+    // Subscribed, not sampled. This sheet is shown by `showModalBottomSheet`,
+    // which puts it on its own route with its own element tree — so it does not
+    // rebuild when the page behind it does, and reading `controller.songs`
+    // directly froze the list at whatever it held the moment the sheet opened.
+    //
+    // That is exactly wrong for the one list in the app that grows while you are
+    // looking at it: a station appends behind the current track, and the queue
+    // showed the seed and nothing else until the sheet was closed and reopened.
+    return ListenableBuilder(
+      listenable: widget.controller,
+      builder: (context, _) {
+        final songs = widget.controller.songs;
+        final currentId = widget.controller.songId;
+        return _buildSheet(
+          context: context,
+          songs: songs,
+          currentId: currentId,
+          bottomPadding: bottomPadding,
+          theme: theme,
+          surfaceColor: surfaceColor,
+        );
+      },
+    );
+  }
+
+  Widget _buildSheet({
+    required BuildContext context,
+    required List<SongModel> songs,
+    required int currentId,
+    required double bottomPadding,
+    required ThemeData theme,
+    required Color surfaceColor,
+  }) {
     return Container(
       clipBehavior: Clip.hardEdge,
       decoration: BoxDecoration(
