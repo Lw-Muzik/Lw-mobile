@@ -119,8 +119,9 @@ class _FolderSongsState extends State<FolderSongs> {
     return StreamBuilder<bool>(
       stream: controller.handler.player.playingStream,
       builder: (context, snapshot) {
-        final isPlaying = snapshot.data ?? false;
-
+        // The stream is kept as a rebuild trigger — the bar's *contents* still
+        // track play/pause — but its value no longer decides whether the bar
+        // exists. That is `hasNowPlaying`'s job now.
         return Scaffold(
           backgroundColor: controller.isFancy
               ? Colors.transparent
