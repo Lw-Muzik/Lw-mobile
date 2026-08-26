@@ -18,12 +18,133 @@ import '../services/streaming_data_guard.dart';
 import '../services/share_service.dart';
 import 'stream_server.dart';
 
-import '/Helpers/audio_handler.dart';
 import '/widgets/bottom_player.dart';
 import '../services/radio/radio_queue.dart';
+import '../themes/ember.dart';
+
+/// One group of settings, and the sections it gathers.
+///
+/// # Why an index and not one scroll
+///
+/// This page carried fifteen sections in a single list — App Mode through
+/// About — and finding one meant scrolling past the fourteen that were not it.
+/// Grouping into a handful of categories, each opening a focused page, is what
+/// every piece of guidance on settings converges on, and a search field is what
+/// makes the grouping bearable when the user does not know which group a thing
+/// is in.
+enum SettingsCategory {
+  // ── Playback ──
+  appMode('App Mode', Icons.swap_horiz_rounded,
+      'Full player, or equalizer only', _SettingsGroup.playback),
+  playback('Playback', Icons.play_circle_outline_rounded,
+      'Gapless, crossfade, replay gain, autoplay', _SettingsGroup.playback),
+  streaming('Streaming', Icons.wifi_rounded,
+      'Data saver and cellular limits', _SettingsGroup.playback),
+
+  // ── Sound ──
+  equalizer('Equalizer', Icons.equalizer_rounded,
+      'Bands, presets, global EQ', _SettingsGroup.sound),
+  tone('Tone & Effects', Icons.tune_rounded,
+      'Bass, treble, enhancement', _SettingsGroup.sound),
+
+  // ── Look ──
+  appearance('Appearance', Icons.palette_outlined,
+      'Theme, blur, artwork background', _SettingsGroup.look),
+  visualizer('Visualizers', Icons.graphic_eq_rounded,
+      'Spectrum, visual style, MilkDrop', _SettingsGroup.look),
+
+  // ── System ──
+  library('Library', Icons.library_music_outlined,
+      'Scanning, artwork, identifying tracks', _SettingsGroup.system),
+  devices('Cloud & Devices', Icons.devices_rounded,
+      'Drives, phone link, cast to desktop', _SettingsGroup.system),
+  about('About & Support', Icons.info_outline_rounded,
+      'App info, guides, report a bug', _SettingsGroup.system);
+
+  const SettingsCategory(this.title, this.icon, this.summary, this.group);
+
+  final String title;
+  final IconData icon;
+  final String summary;
+  final _SettingsGroup group;
+}
+
+/// The headings the index is divided under.
+///
+/// Ten rows in one undivided list is the same crowding problem one level up.
+/// Four headings give the eye somewhere to land.
+enum _SettingsGroup {
+  playback('PLAYBACK'),
+  sound('SOUND'),
+  look('LOOK'),
+  system('SYSTEM');
+
+  const _SettingsGroup(this.label);
+  final String label;
+}
+
+/// One searchable setting: what it is called, and where it lives.
+///
+/// Written out rather than derived from the widget tree because the tree is
+/// built lazily per category — nothing can be searched that has not been built,
+/// and the whole point is to find a setting without knowing where it is.
+class SettingsEntry {
+  const SettingsEntry(this.label, this.category, [this.keywords = '']);
+  final String label;
+  final SettingsCategory category;
+
+  /// Extra words someone might reach for. "loudness" finds Replay Gain.
+  final String keywords;
+
+  bool matches(String query) {
+    final q = query.trim().toLowerCase();
+    if (q.isEmpty) return false;
+    return label.toLowerCase().contains(q) ||
+        keywords.toLowerCase().contains(q) ||
+        category.title.toLowerCase().contains(q);
+  }
+}
+
+const kSettingsIndex = <SettingsEntry>[
+  SettingsEntry('App mode', SettingsCategory.appMode, 'player equalizer only'),
+  SettingsEntry('Gapless playback', SettingsCategory.playback, 'seamless'),
+  SettingsEntry('Crossfade', SettingsCategory.playback, 'fade overlap'),
+  SettingsEntry('Autoplay', SettingsCategory.playback, 'radio station endless'),
+  SettingsEntry('Data Saver', SettingsCategory.streaming, 'quality data network'),
+  SettingsEntry('Stream on Cellular', SettingsCategory.streaming, 'mobile wifi'),
+  SettingsEntry('Cellular Data Limit', SettingsCategory.streaming, 'cap mb quota'),
+  SettingsEntry('Equalizer', SettingsCategory.equalizer, 'eq bands preset'),
+  SettingsEntry('Global equalizer', SettingsCategory.equalizer, 'system wide other apps'),
+  SettingsEntry('Replay gain', SettingsCategory.playback, 'loudness volume normalise'),
+  SettingsEntry('Bass', SettingsCategory.tone, 'low end boost'),
+  SettingsEntry('Treble', SettingsCategory.tone, 'high end'),
+  SettingsEntry('Audio enhancement', SettingsCategory.tone, 'effects reverb virtualizer'),
+  SettingsEntry('Theme', SettingsCategory.appearance, 'dark light fancy colour'),
+  SettingsEntry('Blur', SettingsCategory.appearance, 'background artwork'),
+  SettingsEntry('Visualizer', SettingsCategory.visualizer, 'spectrum waveform bars'),
+  SettingsEntry('Visual style', SettingsCategory.visualizer, 'frame rate'),
+  SettingsEntry('MilkDrop', SettingsCategory.visualizer, 'presets'),
+  SettingsEntry('Rescan library', SettingsCategory.library, 'refresh songs missing'),
+  SettingsEntry('Identify unknown tracks', SettingsCategory.library,
+      'fingerprint tags artwork'),
+  SettingsEntry('Cloud storage', SettingsCategory.devices, 'google drive dropbox'),
+  SettingsEntry('Phone link', SettingsCategory.devices, 'upload transfer'),
+  SettingsEntry('Stream to desktop', SettingsCategory.devices, 'cast'),
+  SettingsEntry('About Hype Music', SettingsCategory.about, 'version build info'),
+  SettingsEntry('Interactions Guide', SettingsCategory.about, 'gestures shortcuts tips'),
+  SettingsEntry('Reset Guides', SettingsCategory.about,
+      'walkthrough onboarding coach marks show again tour'),
+  SettingsEntry('Report a bug', SettingsCategory.about, 'feedback send issue'),
+];
 
 class Settings extends StatefulWidget {
-  const Settings({super.key});
+  /// Null shows the index; a category shows just that category's sections.
+  ///
+  /// The same State either way, so every section builder below is reached
+  /// unchanged — none of the wiring inside them moves.
+  const Settings({super.key, this.category});
+
+  final SettingsCategory? category;
 
   @override
   State<Settings> createState() => _SettingsState();
@@ -52,7 +173,13 @@ class _SettingsState extends State<Settings> {
     return Consumer<AppController>(
       builder: (context, controller, child) {
         return StreamBuilder(
-          stream: context.read<HypeAudioHandler>().player.playingStream,
+          // The handler off the controller, not out of a second provider.
+          // `context.read<HypeAudioHandler>()` threw "Provider not found" here
+          // and took the whole page with it — Flutter renders a grey
+          // ErrorWidget in release, so Settings was a blank grey screen rather
+          // than anything that looked like a crash. The controller already
+          // holds the handler, so the lookup was redundant as well as broken.
+          stream: controller.handler.player.playingStream,
           builder: (context, service) {
             return Body(
               child: Scaffold(
@@ -61,50 +188,11 @@ class _SettingsState extends State<Settings> {
                     : Theme.of(context).scaffoldBackgroundColor,
                 appBar: AppBar(
                   forceMaterialTransparency: controller.isFancy,
-                  title: const Text("Settings"),
+                  title: Text(widget.category?.title ?? "Settings"),
                 ),
-                body: ListView(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 8,
-                  ),
-                  children: [
-                    if (Platform.isAndroid) ...[
-                      _buildAppModeSection(controller),
-                      const SizedBox(height: 12),
-                    ],
-                    if (!controller.isEqMode) ...[
-                      _buildPlaybackSection(controller),
-                      const SizedBox(height: 12),
-                      _buildAudioEnhancementSection(controller),
-                      const SizedBox(height: 12),
-                    ],
-                    if (controller.globalEqAvailable) ...[
-                      _buildGlobalEqSection(controller),
-                      const SizedBox(height: 12),
-                    ],
-                    _buildEqualizerSection(controller),
-                    const SizedBox(height: 12),
-                    _buildToneSection(controller),
-                    const SizedBox(height: 12),
-                    if (!controller.isEqMode) ...[
-                      _buildAppearanceSection(controller),
-                      const SizedBox(height: 12),
-                      _buildVisualizerSection(controller),
-                      const SizedBox(height: 12),
-                      _buildLibrarySection(),
-                      const SizedBox(height: 12),
-                      _buildCloudStorageSection(controller),
-                      const SizedBox(height: 12),
-                      _buildPhoneLinkSection(),
-                      const SizedBox(height: 12),
-                      _buildStreamingSection(),
-                      const SizedBox(height: 12),
-                    ],
-                    _buildAboutSection(context),
-                    const SizedBox(height: 24),
-                  ],
-                ),
+                body: widget.category == null
+                    ? _buildIndex(controller)
+                    : _buildCategory(controller, widget.category!),
                 bottomNavigationBar:
                     !controller.isEqMode && controller.hasNowPlaying
                     ? BottomPlayer(controller: controller)
@@ -114,6 +202,229 @@ class _SettingsState extends State<Settings> {
           },
         );
       },
+    );
+  }
+
+  // -- Index --
+
+  String _query = '';
+
+  /// The categories worth showing, given the app's current mode.
+  ///
+  /// EQ-only mode hides most of the app, so it hides most of the settings too —
+  /// offering a Library page to someone running the equalizer alone is offering
+  /// a page that will be empty when they arrive.
+  List<SettingsCategory> _visibleCategories(AppController controller) {
+    if (controller.isEqMode) {
+      return const [
+        SettingsCategory.appMode,
+        SettingsCategory.equalizer,
+        SettingsCategory.tone,
+        SettingsCategory.about,
+      ];
+    }
+    return [
+      for (final category in SettingsCategory.values)
+        // Nothing to show on a device without a system-wide equalizer.
+        if (category != SettingsCategory.appMode || Platform.isAndroid)
+          category,
+    ];
+  }
+
+  Widget _buildIndex(AppController controller) {
+    final searching = _query.trim().isNotEmpty;
+    final visible = _visibleCategories(controller);
+    if (searching) {
+      // Only what this mode can actually reach. Equalizer-only mode hides most
+      // of the categories, and a search result that opens a page the mode does
+      // not otherwise offer is a dead end dressed up as an answer.
+      final reachable = visible.toSet();
+      final matches = [
+        for (final entry in kSettingsIndex)
+          if (reachable.contains(entry.category) && entry.matches(_query))
+            entry,
+      ];
+      return ListView(
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+        children: [
+          _buildSearchField(),
+          const SizedBox(height: 8),
+          if (matches.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 40),
+              child: Center(
+                child: Text('Nothing matches that',
+                    style: TextStyle(color: Ember.textTertiary)),
+              ),
+            )
+          else
+            ...matches.map(_buildSearchResult),
+        ],
+      );
+    }
+
+    final children = <Widget>[_buildSearchField(), const SizedBox(height: 20)];
+    for (final group in _SettingsGroup.values) {
+      final inGroup = [
+        for (final category in visible)
+          if (category.group == group) category,
+      ];
+      if (inGroup.isEmpty) continue;
+      children
+        ..add(Padding(
+          padding: const EdgeInsets.fromLTRB(4, 0, 4, 10),
+          child: Text(group.label, style: Ember.shelfTitle(context)),
+        ))
+        ..addAll(inGroup.map(_buildCategoryRow))
+        ..add(const SizedBox(height: 22));
+    }
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+      children: children,
+    );
+  }
+
+  Widget _buildSearchField() {
+    return TextField(
+      onChanged: (value) => setState(() => _query = value),
+      style: const TextStyle(color: Ember.textPrimary, fontSize: 15),
+      decoration: InputDecoration(
+        hintText: 'Search settings',
+        hintStyle: TextStyle(color: Ember.textTertiary, fontSize: 15),
+        prefixIcon: Icon(Icons.search_rounded, color: Ember.textTertiary),
+        filled: true,
+        fillColor: Ember.surface,
+        contentPadding: const EdgeInsets.symmetric(vertical: 4),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(Ember.radiusTile),
+          borderSide: BorderSide.none,
+        ),
+      ),
+    );
+  }
+
+  /// A hit names the setting AND the group it is in — finding it is only half
+  /// the job, the other half is knowing where it lived so it can be found again.
+  Widget _buildSearchResult(SettingsEntry entry) {
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+      leading: Icon(entry.category.icon, color: Ember.ember400, size: 22),
+      title: Text(entry.label,
+          style: const TextStyle(
+              color: Ember.textPrimary,
+              fontSize: 15,
+              fontWeight: FontWeight.w500)),
+      subtitle: Text(entry.category.title,
+          style: TextStyle(color: Ember.textTertiary, fontSize: 12)),
+      trailing:
+          Icon(Icons.chevron_right_rounded, color: Ember.textTertiary, size: 20),
+      onTap: () => _openCategory(entry.category),
+    );
+  }
+
+  Widget _buildCategoryRow(SettingsCategory category) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Material(
+        color: Ember.surface,
+        borderRadius: BorderRadius.circular(Ember.radiusTile),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(Ember.radiusTile),
+          onTap: () => _openCategory(category),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+            child: Row(
+              children: [
+                // A tinted plate rather than a bare glyph: at this size an icon
+                // alone reads as decoration, and the row is the tap target.
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: Ember.ember400.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(Ember.radiusControl),
+                  ),
+                  child: Icon(category.icon, color: Ember.ember400, size: 20),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(category.title,
+                          style: const TextStyle(
+                              color: Ember.textPrimary,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600)),
+                      const SizedBox(height: 2),
+                      Text(category.summary,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                              color: Ember.textTertiary, fontSize: 12)),
+                    ],
+                  ),
+                ),
+                Icon(Icons.chevron_right_rounded,
+                    color: Ember.textTertiary, size: 20),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _openCategory(SettingsCategory category) {
+    Routes.scaleTo(Settings(category: category), context);
+  }
+
+  /// One category's page. The section builders are reached exactly as they were
+  /// — nothing inside them moves, which is the point: the wiring in fifteen
+  /// hundred lines of controls is the part worth not touching.
+  Widget _buildCategory(AppController controller, SettingsCategory category) {
+    final body = switch (category) {
+      SettingsCategory.appMode => _buildAppModeSection(controller),
+      SettingsCategory.playback => _buildPlaybackSection(controller),
+      SettingsCategory.streaming => _buildStreamingSection(),
+      SettingsCategory.equalizer => Column(children: [
+          if (controller.globalEqAvailable) ...[
+            _buildGlobalEqSection(controller),
+            const SizedBox(height: 12),
+          ],
+          _buildEqualizerSection(controller),
+        ]),
+      SettingsCategory.tone => Column(children: [
+          if (!controller.isEqMode) ...[
+            _buildAudioEnhancementSection(controller),
+            const SizedBox(height: 12),
+          ],
+          _buildToneSection(controller),
+        ]),
+      SettingsCategory.appearance => _buildAppearanceSection(controller),
+      SettingsCategory.visualizer => _buildVisualizerSection(controller),
+      SettingsCategory.library => _buildLibrarySection(),
+      SettingsCategory.devices => Column(children: [
+          _buildCloudStorageSection(controller),
+          const SizedBox(height: 12),
+          _buildPhoneLinkSection(),
+        ]),
+      SettingsCategory.about => _buildAboutSection(context),
+    };
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+      children: [
+        // The summary from the index, repeated as a lede. Arriving on a page
+        // whose title you tapped a second ago and being told what it is for
+        // costs one line and settles "am I in the right place".
+        Padding(
+          padding: const EdgeInsets.fromLTRB(4, 0, 4, 16),
+          child: Text(category.summary,
+              style: TextStyle(color: Ember.textTertiary, fontSize: 13)),
+        ),
+        body,
+      ],
     );
   }
 
