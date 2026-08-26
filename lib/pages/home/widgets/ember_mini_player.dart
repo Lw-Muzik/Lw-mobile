@@ -13,7 +13,7 @@ library;
 import 'package:flutter/material.dart';
 
 import '../../../controllers/app_controller.dart';
-import '../../../player/player_ui.dart';
+import '../../../player/now_playing_hero.dart';
 import '../../../routes/routes.dart';
 import '../../../themes/ember.dart';
 import '../../../widgets/artwork_widget.dart';
@@ -35,20 +35,26 @@ class EmberMiniPlayer extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: () => Routes.routeTo(const Player(), context),
+        // The player's own route, not the fading one: it slides up and hands
+        // its direction to the drag-to-dismiss gesture on the way back, and a
+        // cross-fade over a flying cover would wash the flight out.
+        onTap: () => Routes.playerTo(context),
         child: SizedBox(
           height: height,
           child: Row(
             children: [
               const SizedBox(width: 12),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: ArtworkWidget(
-                  songId: song.id,
-                  path: song.data,
-                  width: 42,
-                  height: 42,
+              Hero(
+                tag: kNowPlayingHeroTag,
+                child: ClipRRect(
                   borderRadius: BorderRadius.circular(8),
+                  child: ArtworkWidget(
+                    songId: song.id,
+                    path: song.data,
+                    width: 42,
+                    height: 42,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                 ),
               ),
               const SizedBox(width: 12),

@@ -22,6 +22,7 @@ import 'video/video_stage.dart';
 import 'video/video_surface.dart';
 import '../onboarding/coach_marks.dart';
 import '../services/video/video_registry.dart';
+import 'now_playing_hero.dart';
 
 // Main Player Widget
 class Player extends StatefulWidget {
@@ -469,13 +470,24 @@ class _CardDeck extends StatelessWidget {
                     Routes.pop(context);
                   },
                   onLongPress: () => showTrackInfo(context, controller),
-                  child: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 300),
-                    child: playerCard(
-                      animation,
-                      context,
-                      controller,
-                      songIndex: index,
+                  // The hero wraps the switcher, not the card inside it. An
+                  // AnimatedSwitcher holds both children for the length of its
+                  // transition, so a tag placed within one could exist twice in
+                  // this route during a track change — and two heroes sharing a
+                  // tag is an assertion failure, not a worse animation.
+                  //
+                  // Only the card actually playing carries it: the deck builds
+                  // the tracks either side as well.
+                  child: _NowPlayingHero(
+                    enabled: index == controller.songId,
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 300),
+                      child: playerCard(
+                        animation,
+                        context,
+                        controller,
+                        songIndex: index,
+                      ),
                     ),
                   ),
                 );
@@ -760,5 +772,23 @@ class _WaveformProgress extends StatelessWidget {
         );
       },
     );
+  }
+}
+
+/// Ties the playing card's cover to the mini player's, or does nothing.
+///
+/// Wrapping rather than a bare `Hero` so the enabled/disabled decision reads at
+/// the call site — the condition is the interesting part, and the crash it
+/// prevents is invisible in a diff that only shows a `Hero(` appearing.
+class _NowPlayingHero extends StatelessWidget {
+  const _NowPlayingHero({required this.enabled, required this.child});
+
+  final bool enabled;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!enabled) return child;
+    return Hero(tag: kNowPlayingHeroTag, child: child);
   }
 }

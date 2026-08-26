@@ -79,16 +79,10 @@ class Routes {
             begin: const Offset(0, 1),
             end: Offset.zero,
           ).chain(CurveTween(curve: Curves.easeOutCubic)).animate(animation);
-          return SlideTransition(
-            position: slide,
-            child: FadeTransition(
-              opacity: CurvedAnimation(
-                parent: animation,
-                curve: const Interval(0.0, 0.4),
-              ),
-              child: child,
-            ),
-          );
+          // No cross-fade. The cover flies between the mini player and the
+          // card as a hero, and fading the page it is landing on makes the
+          // flight read as two images dissolving rather than one object moving.
+          return SlideTransition(position: slide, child: child);
         },
       ),
     );
