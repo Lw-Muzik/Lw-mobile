@@ -15,11 +15,11 @@ import 'package:flutter/material.dart';
 
 import '../../Routes/routes.dart';
 import '../../services/ytmusic/yt_models.dart';
-import '../../services/ytmusic/yt_playback.dart';
 import '../../services/ytmusic/yt_repository.dart';
 import 'category_page.dart';
 import 'widgets/yt_widgets.dart';
 import 'yt_search_page.dart';
+import '../../services/radio/radio_queue.dart';
 
 class DiscoverView extends StatefulWidget {
   const DiscoverView({super.key});
@@ -43,7 +43,7 @@ class _DiscoverViewState extends State<DiscoverView>
     _load();
     // The Autoplay preference is read once, here, because this is the first
     // screen that can lead to playback.
-    YtRadioQueue.instance.loadPreference();
+    RadioQueue.instance.loadPreference();
   }
 
   Future<void> _load() async {

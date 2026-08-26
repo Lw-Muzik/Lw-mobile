@@ -290,6 +290,65 @@ class LibraryRepository {
     return _songs(rows);
   }
 
+  /// Tracks worth considering for a station seeded on this artist/genre/album.
+  ///
+  /// Narrowed in SQL rather than scored in Dart over the whole library: a
+  /// forty-thousand-track library would otherwise build forty thousand models
+  /// on the UI isolate every time a station topped up, to keep twenty-five.
+  ///
+  /// [wander] is the share of the result that ignores the seed entirely. A
+  /// station drawn only from exact matches can never leave the artist it
+  /// started on — the scorer needs somewhere else to be able to go, even if it
+  /// rarely does.
+  Future<List<SongModel>> stationCandidates({
+    String? artist,
+    String? genre,
+    String? album,
+    int limit = 400,
+    int wander = 100,
+  }) async {
+    final related = await _db.customSelect(
+      'SELECT * FROM songs WHERE '
+      '(?1 IS NOT NULL AND artist = ?1 COLLATE NOCASE) OR '
+      '(?2 IS NOT NULL AND genre  = ?2 COLLATE NOCASE) OR '
+      '(?3 IS NOT NULL AND album  = ?3 COLLATE NOCASE) '
+      'ORDER BY RANDOM() LIMIT ?4',
+      variables: [
+        Variable<String>(_orNull(artist)),
+        Variable<String>(_orNull(genre)),
+        Variable<String>(_orNull(album)),
+        Variable<int>(limit),
+      ],
+    ).get();
+
+    final roaming = wander <= 0
+        ? const <QueryRow>[]
+        : await _db.customSelect(
+            'SELECT * FROM songs ORDER BY RANDOM() LIMIT ?',
+            variables: [Variable<int>(wander)],
+          ).get();
+
+    // De-duplicated by id: the wandering sample can legitimately land on a
+    // track the narrowed query already returned.
+    final byId = <Object?, SongModel>{};
+    for (final row in [...related, ...roaming]) {
+      byId[row.data['id']] = _song(row.data);
+    }
+    return byId.values.toList();
+  }
+
+  /// Blank and placeholder values read as "no constraint" rather than matching
+  /// every untagged file in the library.
+  static String? _orNull(String? value) {
+    final trimmed = value?.trim();
+    if (trimmed == null || trimmed.isEmpty) return null;
+    if (const {'unknown', 'unknown artist', 'unknown album', '<unknown>'}
+        .contains(trimmed.toLowerCase())) {
+      return null;
+    }
+    return trimmed;
+  }
+
   Future<List<SongModel>> mostPlayed({int limit = 20}) async {
     final rows = await _db.customSelect(
       'SELECT * FROM songs WHERE play_count > 0 '

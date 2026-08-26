@@ -20,7 +20,7 @@ import 'stream_server.dart';
 
 import '/Helpers/audio_handler.dart';
 import '/widgets/bottom_player.dart';
-import '../services/ytmusic/yt_playback.dart';
+import '../services/radio/radio_queue.dart';
 
 class Settings extends StatefulWidget {
   const Settings({super.key});
@@ -42,7 +42,7 @@ class _SettingsState extends State<Settings> {
     // The Autoplay switch below reads a field that starts at its default, so
     // without this it shows "on" to a user who turned it off in an earlier
     // session and never opened Discover this run.
-    YtRadioQueue.instance.loadPreference().then((_) {
+    RadioQueue.instance.loadPreference().then((_) {
       if (mounted) setState(() {});
     });
   }
@@ -253,13 +253,13 @@ class _SettingsState extends State<Settings> {
           // Gates every radio request Discover would otherwise make — with this
           // off, no related-track fetching happens at all.
           SwitchListTile.adaptive(
-            value: YtRadioQueue.instance.enabled,
+            value: RadioQueue.instance.enabled,
             title: const Text("Autoplay"),
             subtitle: const Text(
               "Keep playing related tracks when a Discover queue ends",
             ),
             onChanged: (enabled) async {
-              await YtRadioQueue.instance.setEnabled(enabled);
+              await RadioQueue.instance.setEnabled(enabled);
               if (mounted) setState(() {});
             },
           ),

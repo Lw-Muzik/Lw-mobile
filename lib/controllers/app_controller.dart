@@ -30,11 +30,12 @@ import '../player/video/video_surface.dart';
 import '../services/video/video_registry.dart';
 import '../services/ytmusic/yt_innertube.dart';
 import '../services/ytmusic/yt_repository.dart';
-import '../services/ytmusic/yt_playback.dart';
 import '../models/lyrics_model.dart';
 import '../models/recognition_result.dart';
 import '../models/speaker_profile.dart';
 import '../models/track_extras.dart';
+import '../services/radio/radio_queue.dart';
+import '../services/radio/station_source.dart';
 import '../services/playback_session.dart';
 import 'queue_order.dart';
 import 'visualizer_tap.dart';
@@ -43,7 +44,7 @@ import 'stem_controller.dart';
 
 enum AppMode { musicPlayer, equalizer }
 
-class AppController with ChangeNotifier {
+class AppController with ChangeNotifier implements StationSink {
   static AppController? _instance;
   static AppController get instance => _instance!;
 
@@ -961,7 +962,7 @@ class AppController with ChangeNotifier {
           _loadLyricsForCurrentSong();
           // Endless radio: tops the queue up before it runs out. A no-op unless a
           // YouTube queue is playing and Autoplay is on.
-          unawaited(YtRadioQueue.instance.onIndexChanged(this, index));
+          unawaited(RadioQueue.instance.onIndexChanged(this, index));
         }
       },
       // Derived from the same event stream as the handler's, so a dead track
@@ -1034,7 +1035,7 @@ class AppController with ChangeNotifier {
       // crossfaded track never reaches the natural-end handler either.
       _songId = nextIdx;
       _artWorkId = nextSong.id;
-      unawaited(YtRadioQueue.instance.onIndexChanged(this, nextIdx));
+      unawaited(RadioQueue.instance.onIndexChanged(this, nextIdx));
       _loadLyricsForCurrentSong();
 
       final AudioSource nextSource;
@@ -1170,7 +1171,7 @@ class AppController with ChangeNotifier {
     // wanted it attached.
     if (!YtInnerTube.isStreamUrl(songList[index].data) &&
         !VideoRegistry.instance.isVideo(songList[index].id)) {
-      YtRadioQueue.instance.detach();
+      RadioQueue.instance.detach();
       VideoRegistry.instance.clear();
     }
     // When casting to a desktop, send the track there instead of playing it
@@ -1184,6 +1185,25 @@ class AppController with ChangeNotifier {
     } else {
       loadAudioSource(handler, songList[index], replayGain: _replayGain);
     }
+  }
+
+  /// Plays [seed] alone and builds a station behind it.
+  ///
+  /// The other door out of [playSongFromList]. That one queues the whole list
+  /// the user tapped in, because a list is usually a running order — an album,
+  /// a playlist, a folder, an artist page. Search results are not a running
+  /// order: they are twenty answers to one question, and what a person means by
+  /// tapping one of them is "play this", not "play this and then the nineteen
+  /// other things I was choosing between".
+  ///
+  /// Deliberately **not** gated on the Autoplay preference. That setting governs
+  /// stations the app decides to start on its own as a queue runs out; this is
+  /// one the user asked for by tapping.
+  Future<void> playStation(SongModel seed, StationSource source) async {
+    // First, because playSongFromList detaches whatever station was running.
+    playSongFromList([seed], 0);
+    RadioQueue.instance.attach(source);
+    await RadioQueue.instance.fill(this, force: true);
   }
 
   /// Appends already-resolved tracks to the end of the live queue.
@@ -2352,7 +2372,7 @@ class AppController with ChangeNotifier {
     // or listening with crossfade on (which advances the index itself and
     // never reaches that handler), grew the queue exactly once and then let a
     // station that was supposed to be endless stop dead.
-    unawaited(YtRadioQueue.instance.onIndexChanged(this, id));
+    unawaited(RadioQueue.instance.onIndexChanged(this, id));
     // Update play count (no notify, debounced write) + stem state BEFORE the
     // single notifyListeners, so the track change is one synchronous rebuild
     // pass instead of the previous 2-3 (setter + play-count).
