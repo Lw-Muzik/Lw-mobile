@@ -1,26 +1,26 @@
 import 'dart:io';
 import 'dart:ui';
 
-import 'package:eq_app/Helpers/VisualizerWidget.dart';
-import 'package:eq_app/Helpers/index.dart';
+import '../player/widgets/track_info_widget.dart';
+import '/helpers/visualizer_widget.dart';
+import '/helpers/index.dart';
+import '/exports/exports.dart';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
-import '/exports/exports.dart';
 
-import '../Helpers/AudioHandler.dart';
-import '../Routes/routes.dart';
-import '../Visualizers/MultiwaveVisualizer.dart';
-import '../controllers/AppController.dart';
+import '../helpers/audio_handler.dart';
+import '../routes/routes.dart';
+import '../visualizers/multiwave_visualizer.dart';
+import '../controllers/app_controller.dart';
 import '../services/streaming_data_guard.dart';
 import '../pages/visual_ui.dart';
-import '../player/widgets/NowPlaying.dart';
-import '../player/widgets/TrackInfo.dart';
+import '../player/widgets/now_playing.dart';
 import '../pages/equalizer.dart';
 import '../player/lyrics_view.dart';
-import '../widgets/ArtworkWidget.dart';
+import '../widgets/artwork_widget.dart';
 import '../widgets/listen_sheet.dart';
-import '../player/widgets/stem_button.dart';
 import '../services/video/video_registry.dart';
 import '../services/ytmusic/yt_innertube.dart';
 
@@ -288,7 +288,9 @@ Widget folderArtwork(
           child: Icon(
             Icons.folder_rounded,
             size: 48,
-            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3),
+            color: Theme.of(
+              context,
+            ).colorScheme.onSurface.withValues(alpha: 0.3),
           ),
         ),
       Positioned(
@@ -307,17 +309,15 @@ Widget folderArtwork(
               children: [
                 TextSpan(
                   text: "$title \n",
-                  style: Theme.of(context)
-                      .textTheme
-                      .labelSmall!
-                      .apply(color: Colors.white),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.labelSmall!.apply(color: Colors.white),
                 ),
                 TextSpan(
                   text: "$numSongs Songs",
-                  style: Theme.of(context)
-                      .textTheme
-                      .labelSmall!
-                      .apply(color: Theme.of(context).primaryColorLight),
+                  style: Theme.of(context).textTheme.labelSmall!.apply(
+                    color: Theme.of(context).primaryColorLight,
+                  ),
                 ),
               ],
             ),
@@ -404,9 +404,11 @@ Future<void> loadAudioSource(
   HypeAudioHandler handler,
   SongModel song, {
   bool replayGain = false,
+
   /// Where to start the track. For a session restored from the last run, which
   /// has to resume mid-song rather than from the beginning.
   Duration? initialPosition,
+
   /// Whether to start playing once loaded.
   ///
   /// False when the caller is itself running inside `play()` — starting
@@ -536,7 +538,10 @@ Future<void> loadAudioSource(
       _prefetchNextTrack();
     }
 
-    await handler.player.setAudioSource(source, initialPosition: initialPosition);
+    await handler.player.setAudioSource(
+      source,
+      initialPosition: initialPosition,
+    );
   } else {
     // Local file: use AudioSource.file for proper path handling (spaces, special chars)
     if (song.data.startsWith('/')) {
@@ -597,7 +602,12 @@ void _prefetchNextTrack() async {
     // On cellular: only prefetch first 512KB (enough for ~30s at 128kbps)
     // On WiFi: prefetch entire file for offline use
     final maxBytes = guard.isCellular ? 512 * 1024 : 0; // 0 = unlimited
-    await cache.preCacheTrack(nextSong.data, fileId, headers, maxBytes: maxBytes);
+    await cache.preCacheTrack(
+      nextSong.data,
+      fileId,
+      headers,
+      maxBytes: maxBytes,
+    );
   } catch (e) {
     debugPrint('Prefetch failed: $e');
   }

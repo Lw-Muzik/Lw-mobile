@@ -4,10 +4,10 @@ import 'dart:io';
 import '/exports/exports.dart';
 import '/Routes/routes.dart';
 
-import '../controllers/AppController.dart';
+import '../controllers/app_controller.dart';
 import '../data/library_repository.dart';
 import '../models/cloud_file.dart';
-import '../widgets/ArtworkWidget.dart';
+import '../widgets/artwork_widget.dart';
 import '../widgets/song_tile.dart';
 import 'album_songs.dart';
 import 'artist_songs.dart';
@@ -118,11 +118,13 @@ class _SearchPageState extends State<SearchPage> {
 
   List<CloudFile> _loadCachedCloudFiles(AppController controller) {
     final files = <CloudFile>[];
-    final gdriveList =
-        controller.cloudCache.loadFileList(CloudProvider.googleDrive);
+    final gdriveList = controller.cloudCache.loadFileList(
+      CloudProvider.googleDrive,
+    );
     if (gdriveList != null) files.addAll(gdriveList);
-    final dropboxList =
-        controller.cloudCache.loadFileList(CloudProvider.dropbox);
+    final dropboxList = controller.cloudCache.loadFileList(
+      CloudProvider.dropbox,
+    );
     if (dropboxList != null) files.addAll(dropboxList);
     return files;
   }
@@ -204,8 +206,10 @@ class _SearchPageState extends State<SearchPage> {
               color: colorScheme.onSurface.withValues(alpha: 0.4),
             ),
             border: InputBorder.none,
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 4, vertical: 12),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 4,
+              vertical: 12,
+            ),
           ),
         ),
         actions: [
@@ -362,17 +366,23 @@ class _SearchPageState extends State<SearchPage> {
                             right: 6,
                             child: Container(
                               padding: const EdgeInsets.symmetric(
-                                  horizontal: 7, vertical: 3),
+                                horizontal: 7,
+                                vertical: 3,
+                              ),
                               decoration: BoxDecoration(
-                                color: colorScheme.primary
-                                    .withValues(alpha: 0.9),
+                                color: colorScheme.primary.withValues(
+                                  alpha: 0.9,
+                                ),
                                 borderRadius: BorderRadius.circular(10),
                               ),
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Icon(Icons.play_arrow_rounded,
-                                      size: 12, color: colorScheme.onPrimary),
+                                  Icon(
+                                    Icons.play_arrow_rounded,
+                                    size: 12,
+                                    color: colorScheme.onPrimary,
+                                  ),
                                   const SizedBox(width: 2),
                                   Text(
                                     '$playCount',
@@ -435,7 +445,8 @@ class _SearchPageState extends State<SearchPage> {
     final playlists = _filterPlaylists();
     final cloudFiles = _filterCloud();
 
-    final hasResults = songs.isNotEmpty ||
+    final hasResults =
+        songs.isNotEmpty ||
         artists.isNotEmpty ||
         albums.isNotEmpty ||
         folders.isNotEmpty ||
@@ -476,8 +487,7 @@ class _SearchPageState extends State<SearchPage> {
           _buildArtistsSection(artists, theme, colorScheme),
 
         // Albums section
-        if (albums.isNotEmpty)
-          _buildAlbumsSection(albums, theme, colorScheme),
+        if (albums.isNotEmpty) _buildAlbumsSection(albums, theme, colorScheme),
 
         // Folders section (Android only)
         if (folders.isNotEmpty)
@@ -707,8 +717,10 @@ class _SearchPageState extends State<SearchPage> {
           final name = path.split('/').last;
           return ListTile(
             dense: true,
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 20, vertical: 0),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 20,
+              vertical: 0,
+            ),
             leading: Icon(
               Icons.folder_rounded,
               color: colorScheme.primary.withValues(alpha: 0.7),
@@ -718,8 +730,9 @@ class _SearchPageState extends State<SearchPage> {
               name,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.bodyMedium
-                  ?.copyWith(fontWeight: FontWeight.w500),
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w500,
+              ),
             ),
             subtitle: Text(
               path,
@@ -761,8 +774,10 @@ class _SearchPageState extends State<SearchPage> {
         ...display.map((playlist) {
           return ListTile(
             dense: true,
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 20, vertical: 0),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 20,
+              vertical: 0,
+            ),
             leading: Icon(
               Icons.queue_music_rounded,
               color: colorScheme.tertiary.withValues(alpha: 0.7),
@@ -772,8 +787,9 @@ class _SearchPageState extends State<SearchPage> {
               playlist.playlist,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.bodyMedium
-                  ?.copyWith(fontWeight: FontWeight.w500),
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w500,
+              ),
             ),
             subtitle: Text(
               '${playlist.numOfSongs} songs',
@@ -819,8 +835,10 @@ class _SearchPageState extends State<SearchPage> {
               : 'Dropbox';
           return ListTile(
             dense: true,
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 20, vertical: 0),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 20,
+              vertical: 0,
+            ),
             leading: Icon(
               icon,
               color: colorScheme.secondary.withValues(alpha: 0.7),
@@ -830,8 +848,9 @@ class _SearchPageState extends State<SearchPage> {
               file.trackTitle ?? file.name,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.bodyMedium
-                  ?.copyWith(fontWeight: FontWeight.w500),
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w500,
+              ),
             ),
             subtitle: Text(
               '${file.trackArtist ?? file.folderName} · $providerName',
@@ -905,9 +924,7 @@ class _SearchPageState extends State<SearchPage> {
         onPressed: onTap,
         style: TextButton.styleFrom(
           padding: const EdgeInsets.symmetric(vertical: 8),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
         child: Text(
           label,
@@ -925,7 +942,10 @@ class _SearchPageState extends State<SearchPage> {
   // ---------------------------------------------------------------------------
 
   void _playSong(
-      AppController controller, List<SongModel> list, SongModel song) {
+    AppController controller,
+    List<SongModel> list,
+    SongModel song,
+  ) {
     var index = list.indexWhere((s) => s.id == song.id);
     // Play from the surfaced list (search results / discovery row). Falls back
     // to a single-track queue so a tap ALWAYS plays — the old code searched the
@@ -981,11 +1001,7 @@ class _SearchPageState extends State<SearchPage> {
   void _navigateToAlbum(AlbumModel album) {
     final albumName = album.album;
     Routes.scaleTo(
-      AlbumSongs(
-        albumId: album.id,
-        album: albumName,
-        songs: album.numOfSongs,
-      ),
+      AlbumSongs(albumId: album.id, album: albumName, songs: album.numOfSongs),
       context,
     );
   }

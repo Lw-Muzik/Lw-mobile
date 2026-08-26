@@ -1,13 +1,12 @@
-
 import 'package:eq_app/Routes/routes.dart';
-import 'package:eq_app/controllers/AppController.dart';
+import 'package:eq_app/controllers/app_controller.dart';
 import 'package:eq_app/extensions/index.dart';
 import 'package:eq_app/widgets/Body.dart';
 import '/exports/exports.dart';
 
-import '/Global/index.dart';
-import '/widgets/ArtworkWidget.dart';
-import '/widgets/BottomPlayer.dart';
+import '../global/index.dart';
+import '../widgets/artwork_widget.dart';
+import '../widgets/bottom_player.dart';
 import '/widgets/song_options_sheet.dart';
 import '/widgets/song_tile.dart';
 import '/data/library_repository.dart';
@@ -32,8 +31,9 @@ class _AlbumSongsState extends State<AlbumSongs> {
 
   // Built once here (not in build()) so the outer playingStream rebuilds no
   // longer re-issue the query every time playback state flips.
-  late final Stream<List<SongModel>> _songsStream =
-      context.read<LibraryRepository>().watchAlbumSongs(widget.album);
+  late final Stream<List<SongModel>> _songsStream = context
+      .read<LibraryRepository>()
+      .watchAlbumSongs(widget.album);
 
   @override
   Widget build(BuildContext context) {
@@ -153,4 +153,3 @@ class _AlbumSongsState extends State<AlbumSongs> {
     );
   }
 }
-

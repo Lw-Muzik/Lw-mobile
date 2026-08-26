@@ -1,10 +1,9 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
-import '/Helpers/index.dart';
-import '/controllers/PlayerController.dart';
+import '/helpers/index.dart';
+import '/controllers/player_controller.dart';
 import '/exports/exports.dart';
 import '/services/local_music_scanner.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 class MetadataCache {
   final Set<String> processedIds;
@@ -139,14 +138,20 @@ class MetadataProcessor {
       final localSongs = await LocalMusicScanner.scanLocalFiles();
       final albumMap = <String, Map<String, dynamic>>{};
       for (final s in localSongs) {
-        final name = (s.album != null && s.album!.isNotEmpty) ? s.album! : 'Unknown Album';
-        albumMap.putIfAbsent(name, () => {
-          "_id": name.hashCode.abs(),
-          "album": name,
-          "artist": s.artist ?? 'Unknown Artist',
-          "number_of_songs": 0,
-        });
-        albumMap[name]!["number_of_songs"] = (albumMap[name]!["number_of_songs"] as int) + 1;
+        final name = (s.album != null && s.album!.isNotEmpty)
+            ? s.album!
+            : 'Unknown Album';
+        albumMap.putIfAbsent(
+          name,
+          () => {
+            "_id": name.hashCode.abs(),
+            "album": name,
+            "artist": s.artist ?? 'Unknown Artist',
+            "number_of_songs": 0,
+          },
+        );
+        albumMap[name]!["number_of_songs"] =
+            (albumMap[name]!["number_of_songs"] as int) + 1;
       }
       for (final entry in albumMap.values) {
         final id = entry["_id"].toString();
@@ -225,7 +230,9 @@ class MetadataProcessor {
         if (localSongs.isNotEmpty) {
           // Merge: avoid duplicates by path
           final existingPaths = songs.map((s) => s.data).toSet();
-          final newLocal = localSongs.where((s) => !existingPaths.contains(s.data));
+          final newLocal = localSongs.where(
+            (s) => !existingPaths.contains(s.data),
+          );
           songs = [...songs, ...newLocal];
         }
       } catch (e) {

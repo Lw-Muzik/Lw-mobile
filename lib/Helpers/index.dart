@@ -4,11 +4,11 @@ import 'dart:io';
 
 import 'package:flutter/services.dart';
 import 'package:id3tag/id3tag.dart';
+import '../player/widgets/delete_window.dart';
 import '/exports/exports.dart';
 
 import '../Routes/routes.dart';
-import '../controllers/AppController.dart';
-import '../player/widgets/DeleteWindow.dart';
+import '../controllers/app_controller.dart';
 
 String tempPath = "";
 
@@ -124,11 +124,7 @@ Future<ImageProvider<Object>> savedImage(
   ImageProvider fileProvider(String p) {
     final base = FileImage(File(p));
     if (decodeWidth == null) return base;
-    return ResizeImage(
-      base,
-      width: decodeWidth,
-      policy: ResizeImagePolicy.fit,
-    );
+    return ResizeImage(base, width: decodeWidth, policy: ResizeImagePolicy.fit);
   }
 
   var tempDir = await getTemporaryDirectory();
@@ -188,8 +184,9 @@ Future<String> fetchArtworkUrl(
     if (!dirD.existsSync()) {
       await dirD.create(recursive: true);
       final defaultImg = await rootBundle.load("assets/audio.jpeg");
-      await File("${dirD.path}/default.png")
-          .writeAsBytes(defaultImg.buffer.asUint8List());
+      await File(
+        "${dirD.path}/default.png",
+      ).writeAsBytes(defaultImg.buffer.asUint8List());
     }
     return File(cloudArt).existsSync() ? cloudArt : "${dirD.path}/default.png";
   }

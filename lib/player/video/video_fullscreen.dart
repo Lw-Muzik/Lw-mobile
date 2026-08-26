@@ -29,7 +29,7 @@ import 'package:flutter/services.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:just_audio/video.dart';
 
-import '../../controllers/AppController.dart';
+import '../../controllers/app_controller.dart';
 import '../../services/screen_brightness.dart';
 import 'picture_in_picture.dart';
 import 'video_quality_sheet.dart';
@@ -236,7 +236,8 @@ class _VideoFullscreenPageState extends State<VideoFullscreenPage> {
       body: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: _toggleControls,
-        onDoubleTapDown: (details) => _onDoubleTapAt(details.localPosition, size),
+        onDoubleTapDown: (details) =>
+            _onDoubleTapAt(details.localPosition, size),
         // `onDoubleTap` still has to exist for `onDoubleTapDown` to fire; the
         // position is what this screen actually needs, and only the *Down*
         // callback carries it.
@@ -252,7 +253,9 @@ class _VideoFullscreenPageState extends State<VideoFullscreenPage> {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            Center(child: VideoStage(host: VideoHost.fullscreen, fit: _fit)),
+            Center(
+              child: VideoStage(host: VideoHost.fullscreen, fit: _fit),
+            ),
             if (_feedback != null) _FeedbackBadge(feedback: _feedback!),
             AnimatedOpacity(
               opacity: _controlsVisible ? 1 : 0,
@@ -341,7 +344,10 @@ class _FullscreenControls extends StatelessWidget {
   Widget build(BuildContext context) {
     final song = controller.songs.isEmpty
         ? null
-        : controller.songs[controller.songId.clamp(0, controller.songs.length - 1)];
+        : controller.songs[controller.songId.clamp(
+            0,
+            controller.songs.length - 1,
+          )];
 
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -362,8 +368,10 @@ class _FullscreenControls extends StatelessWidget {
             Row(
               children: [
                 IconButton(
-                  icon: const Icon(Icons.keyboard_arrow_down_rounded,
-                      color: Colors.white),
+                  icon: const Icon(
+                    Icons.keyboard_arrow_down_rounded,
+                    color: Colors.white,
+                  ),
                   onPressed: () => Navigator.of(context).pop(),
                 ),
                 Expanded(
@@ -380,8 +388,11 @@ class _FullscreenControls extends StatelessWidget {
                 if (PictureInPicture.instance.isSupported)
                   IconButton(
                     tooltip: 'Picture-in-picture',
-                    icon: const Icon(Icons.picture_in_picture_alt_rounded,
-                        color: Colors.white, size: 20),
+                    icon: const Icon(
+                      Icons.picture_in_picture_alt_rounded,
+                      color: Colors.white,
+                      size: 20,
+                    ),
                     onPressed: () async {
                       onInteraction();
                       final state = video.state;
@@ -401,8 +412,11 @@ class _FullscreenControls extends StatelessWidget {
                         onInteraction();
                         showVideoQualitySheet(context, video);
                       },
-                      icon: const Icon(Icons.high_quality_rounded,
-                          color: Colors.white, size: 20),
+                      icon: const Icon(
+                        Icons.high_quality_rounded,
+                        color: Colors.white,
+                        size: 20,
+                      ),
                       label: Text(
                         state.selected?.label ?? 'Auto',
                         style: const TextStyle(color: Colors.white),
@@ -418,8 +432,10 @@ class _FullscreenControls extends StatelessWidget {
               children: [
                 IconButton(
                   iconSize: 38,
-                  icon: const Icon(Icons.skip_previous_rounded,
-                      color: Colors.white),
+                  icon: const Icon(
+                    Icons.skip_previous_rounded,
+                    color: Colors.white,
+                  ),
                   onPressed: () {
                     onInteraction();
                     controller.prev();
@@ -449,7 +465,10 @@ class _FullscreenControls extends StatelessWidget {
                 const SizedBox(width: 20),
                 IconButton(
                   iconSize: 38,
-                  icon: const Icon(Icons.skip_next_rounded, color: Colors.white),
+                  icon: const Icon(
+                    Icons.skip_next_rounded,
+                    color: Colors.white,
+                  ),
                   onPressed: () {
                     onInteraction();
                     controller.next();
@@ -474,7 +493,10 @@ class _Scrubber extends StatelessWidget {
 
   static String _clock(Duration d) {
     final hours = d.inHours;
-    final minutes = (d.inMinutes % 60).toString().padLeft(hours > 0 ? 2 : 1, '0');
+    final minutes = (d.inMinutes % 60).toString().padLeft(
+      hours > 0 ? 2 : 1,
+      '0',
+    );
     final seconds = (d.inSeconds % 60).toString().padLeft(2, '0');
     return hours > 0 ? '$hours:$minutes:$seconds' : '$minutes:$seconds';
   }
@@ -492,8 +514,10 @@ class _Scrubber extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
           child: Row(
             children: [
-              Text(_clock(position),
-                  style: const TextStyle(color: Colors.white70, fontSize: 12)),
+              Text(
+                _clock(position),
+                style: const TextStyle(color: Colors.white70, fontSize: 12),
+              ),
               Expanded(
                 child: Slider(
                   value: max <= 0
@@ -506,8 +530,10 @@ class _Scrubber extends StatelessWidget {
                   },
                 ),
               ),
-              Text(_clock(duration),
-                  style: const TextStyle(color: Colors.white70, fontSize: 12)),
+              Text(
+                _clock(duration),
+                style: const TextStyle(color: Colors.white70, fontSize: 12),
+              ),
             ],
           ),
         );

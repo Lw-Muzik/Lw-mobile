@@ -1,16 +1,14 @@
 import 'package:flutter/material.dart';
 
-import '../controllers/AppController.dart';
-import 'ArtworkWidget.dart';
+import '../controllers/app_controller.dart';
+import 'artwork_widget.dart';
 
 Widget bottomPlayer(AppController controller, BuildContext context) {
   final song = controller.songs[controller.songId];
 
   return Container(
     height: 64,
-    decoration: BoxDecoration(
-      color: Colors.black.withValues(alpha:0.45),
-    ),
+    decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.45)),
     padding: const EdgeInsets.symmetric(horizontal: 12),
     child: Row(
       children: [
@@ -47,7 +45,7 @@ Widget bottomPlayer(AppController controller, BuildContext context) {
                 overflow: TextOverflow.ellipsis,
                 maxLines: 1,
                 style: TextStyle(
-                  color: Colors.white.withValues(alpha:0.55),
+                  color: Colors.white.withValues(alpha: 0.55),
                   fontSize: 12,
                   fontWeight: FontWeight.w400,
                 ),
@@ -119,7 +117,7 @@ class _ControlButton extends StatelessWidget {
         icon: Icon(
           icon,
           size: size,
-          color: prominent ? Colors.white : Colors.white.withValues(alpha:0.8),
+          color: prominent ? Colors.white : Colors.white.withValues(alpha: 0.8),
         ),
         splashRadius: 20,
       ),

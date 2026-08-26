@@ -1,14 +1,13 @@
 import 'dart:async';
 import 'dart:io';
 
-import '/controllers/drawer_controller.dart';
+import 'controllers/drawer_controller.dart';
 
-import '/Helpers/AudioHandler.dart';
-import '/Routes/routes.dart';
-import '/Global/index.dart';
-import '/Themes/AppThemes.dart';
-import '/controllers/AppController.dart';
-import '/controllers/BandController.dart';
+import 'routes/routes.dart';
+import 'global/index.dart';
+import 'themes/AppThemes.dart';
+import 'controllers/app_controller.dart';
+import 'controllers/band_controller.dart';
 import 'package:audio_service/audio_service.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/foundation.dart';
@@ -24,13 +23,14 @@ import 'package:wiredash/wiredash.dart';
 import 'package:firebase_core/firebase_core.dart';
 
 import 'config/app_config.dart';
-import 'controllers/PlayerController.dart';
-import 'controllers/PlaylistController.dart';
-import 'controllers/LibraryController.dart';
+import 'controllers/player_controller.dart';
+import 'controllers/playlist_controller.dart';
+import 'controllers/library_controller.dart';
 import 'data/library_database.dart';
 import 'data/library_repository.dart';
 import 'firebase_options.dart';
-import 'widgets/DvcVolumeOverlay.dart';
+import 'helpers/audio_handler.dart';
+import 'widgets/dvc_volume_overlay.dart';
 import 'player/video/picture_in_picture.dart';
 import 'player/video/video_mini_player.dart';
 import 'player/video/video_stage.dart';
@@ -256,7 +256,9 @@ class _AppLifecycleGateState extends State<_AppLifecycleGate>
         // tick: backgrounding is the moment most likely to be followed by the
         // process being killed, and a session that never reached disk resumes
         // from wherever it last did.
-        unawaited(AppController.instanceOrNull?.flushSession() ?? Future.value());
+        unawaited(
+          AppController.instanceOrNull?.flushSession() ?? Future.value(),
+        );
         break;
       case AppLifecycleState.resumed:
         AppController.instanceOrNull?.resumeVisualTap();

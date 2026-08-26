@@ -21,7 +21,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../Routes/routes.dart';
-import '../../controllers/AppController.dart';
+import '../../controllers/app_controller.dart';
 import '../../services/video/video_registry.dart';
 import 'video_stage.dart';
 import 'video_surface.dart';
@@ -52,15 +52,18 @@ class _VideoMiniPlayerState extends State<VideoMiniPlayer> {
         builder: (context, controller, _) {
           final song = controller.songs.isEmpty
               ? null
-              : controller.songs[
-                  controller.songId.clamp(0, controller.songs.length - 1)];
+              : controller.songs[controller.songId.clamp(
+                  0,
+                  controller.songs.length - 1,
+                )];
           final isVideo =
               song != null && VideoRegistry.instance.isVideo(song.id);
 
           if (_dismissedSongId != null && _dismissedSongId != song?.id) {
             _dismissedSongId = null;
           }
-          final hidden = !isVideo ||
+          final hidden =
+              !isVideo ||
               _dismissedSongId == song.id ||
               VideoSurface.instance.claimedByOther(VideoHost.mini);
           if (hidden) return const SizedBox.shrink();
@@ -143,8 +146,11 @@ class _MiniWindow extends StatelessWidget {
                         bottomLeft: Radius.circular(10),
                       ),
                     ),
-                    child: const Icon(Icons.close_rounded,
-                        color: Colors.white, size: 16),
+                    child: const Icon(
+                      Icons.close_rounded,
+                      color: Colors.white,
+                      size: 16,
+                    ),
                   ),
                 ),
               ),

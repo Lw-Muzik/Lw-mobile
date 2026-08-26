@@ -1,6 +1,6 @@
 import 'dart:io';
-import 'package:eq_app/controllers/drawer_controller.dart';
-import 'package:eq_app/Routes/routes.dart';
+import '/controllers/drawer_controller.dart';
+import '/Routes/routes.dart';
 
 import '/exports/exports.dart';
 
@@ -14,10 +14,10 @@ import 'artists.dart';
 import 'cloud/cloud_view.dart';
 import 'discover/discover_view.dart';
 import 'equalizer.dart';
-import '/widgets/Body.dart';
-import '/widgets/BottomPlayer.dart';
+import '/widgets/body.dart';
+import '/widgets/bottom_player.dart';
 import '../Helpers/Channel.dart';
-import '../controllers/AppController.dart';
+import '../controllers/app_controller.dart';
 import '../onboarding/coach_marks.dart';
 import '../onboarding/home_guide.dart';
 
@@ -122,10 +122,8 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
     await Future.delayed(const Duration(milliseconds: 1500));
     if (!mounted) return;
 
-    final discoverTabIndex =
-        _tabDefs.indexWhere((t) => t.label == 'Discover');
-    final songsTabIndex =
-        _tabDefs.indexWhere((t) => t.label == 'Songs');
+    final discoverTabIndex = _tabDefs.indexWhere((t) => t.label == 'Discover');
+    final songsTabIndex = _tabDefs.indexWhere((t) => t.label == 'Songs');
 
     void safeAnimateTab(int index) {
       if (!mounted) return;
@@ -254,7 +252,10 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
                 headerSliverBuilder: (context, innerBoxIsScrolled) => [
                   _buildSliverAppBar(controller, innerBoxIsScrolled),
                 ],
-                body: TabBarView(controller: _tabController, children: _tabViews),
+                body: TabBarView(
+                  controller: _tabController,
+                  children: _tabViews,
+                ),
               ),
               bottomNavigationBar: controller.handler.player.playing
                   ? BottomPlayer(controller: controller)

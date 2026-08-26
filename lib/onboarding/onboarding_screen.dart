@@ -2,7 +2,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../controllers/AppController.dart';
+import '../controllers/app_controller.dart';
 import 'onboarding_data.dart';
 
 /// EQ-mode onboarding: focused pages for equalizer-only usage.
@@ -192,8 +192,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                         key: ValueKey(_currentPage == _pages.length - 1),
                         onPressed: _next,
                         style: FilledButton.styleFrom(
-                          backgroundColor:
-                              _pages[_currentPage].accentColor,
+                          backgroundColor: _pages[_currentPage].accentColor,
                           foregroundColor: Colors.black,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(16),
@@ -260,7 +259,8 @@ class _OnboardingPageView extends StatelessWidget {
                     boxShadow: [
                       BoxShadow(
                         color: page.accentColor.withValues(
-                            alpha: 0.15 + pulseAnimation.value * 0.1),
+                          alpha: 0.15 + pulseAnimation.value * 0.1,
+                        ),
                         blurRadius: 30 + pulseAnimation.value * 20,
                         spreadRadius: 5,
                       ),
@@ -350,17 +350,25 @@ class _GradientBgPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     // Slow-moving gradient orbs
-    final paint = Paint()..maskFilter = const MaskFilter.blur(BlurStyle.normal, 100);
+    final paint = Paint()
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 100);
 
     // Orb 1: accent color, top-right
-    final x1 = size.width * 0.7 + math.sin(progress * math.pi * 2) * size.width * 0.15;
-    final y1 = size.height * 0.2 + math.cos(progress * math.pi * 2) * size.height * 0.1;
+    final x1 =
+        size.width * 0.7 + math.sin(progress * math.pi * 2) * size.width * 0.15;
+    final y1 =
+        size.height * 0.2 +
+        math.cos(progress * math.pi * 2) * size.height * 0.1;
     paint.color = accent.withValues(alpha: 0.08);
     canvas.drawCircle(Offset(x1, y1), size.width * 0.4, paint);
 
     // Orb 2: accent shifted, bottom-left
-    final x2 = size.width * 0.3 + math.cos(progress * math.pi * 2 + 1) * size.width * 0.1;
-    final y2 = size.height * 0.7 + math.sin(progress * math.pi * 2 + 1) * size.height * 0.08;
+    final x2 =
+        size.width * 0.3 +
+        math.cos(progress * math.pi * 2 + 1) * size.width * 0.1;
+    final y2 =
+        size.height * 0.7 +
+        math.sin(progress * math.pi * 2 + 1) * size.height * 0.08;
     paint.color = accent.withValues(alpha: 0.05);
     canvas.drawCircle(Offset(x2, y2), size.width * 0.35, paint);
   }

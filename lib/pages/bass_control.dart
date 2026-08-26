@@ -1,4 +1,4 @@
-import 'package:eq_app/controllers/AppController.dart';
+import '/controllers/app_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 

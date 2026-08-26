@@ -1,7 +1,7 @@
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 
-import 'AudioVisualizer.dart';
+import 'audio_visualizer.dart';
 
 class VisualizerWidget extends StatefulWidget {
   final Widget Function(
@@ -9,7 +9,8 @@ class VisualizerWidget extends StatefulWidget {
     List<int> waveform,
     List<int> fft,
     int sampleRate,
-  ) builder;
+  )
+  builder;
 
   final int id;
   const VisualizerWidget({super.key, required this.builder, required this.id});

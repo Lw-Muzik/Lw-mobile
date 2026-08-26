@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:provider/provider.dart';
 
-import '../../controllers/AppController.dart';
-import '../../Helpers/AudioHandler.dart';
+import '/controllers/app_controller.dart';
 
 class Controls extends StatelessWidget {
   final VoidCallback? onNextPressed;
@@ -89,8 +88,8 @@ class _PlayPauseButton extends StatelessWidget {
         final icon = processingState == ProcessingState.completed
             ? Icons.replay_rounded
             : playing
-                ? Icons.pause_rounded
-                : Icons.play_arrow_rounded;
+            ? Icons.pause_rounded
+            : Icons.play_arrow_rounded;
 
         // Through the handler, not straight at the player. The handler is what
         // the lock screen, the headset button and the notification already call,
@@ -99,8 +98,8 @@ class _PlayPauseButton extends StatelessWidget {
         final onPressed = processingState == ProcessingState.completed
             ? () => controller.handler.player.seek(Duration.zero)
             : playing
-                ? controller.handler.pause
-                : controller.handler.play;
+            ? controller.handler.pause
+            : controller.handler.play;
 
         return GestureDetector(
           onTap: onPressed,

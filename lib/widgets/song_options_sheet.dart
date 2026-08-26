@@ -4,13 +4,13 @@ import 'package:flutter/material.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:provider/provider.dart';
 
-import '/Helpers/Channel.dart';
-import '/controllers/AppController.dart';
+import '/helpers/channel.dart';
+import '/controllers/app_controller.dart';
 import '/data/library_repository.dart';
 import '/models/recognition_result.dart';
 import '/pages/album_songs.dart';
 import '/pages/artist_songs.dart';
-import '/widgets/PlayListWidget.dart';
+import 'playlist_widget.dart';
 
 /// Bottom sheet with song actions: Identify track, Add to playlist, etc.
 class SongOptionsSheet extends StatefulWidget {
@@ -44,14 +44,16 @@ class _SongOptionsSheetState extends State<SongOptionsSheet> {
     final songs = await repo.watchArtistSongs(artist).first;
     if (!mounted) return;
     nav.pop();
-    nav.push(MaterialPageRoute(
-      builder: (_) => ArtistSongs(
-        artistId: widget.song.artistId,
-        artist: artist,
-        songs: songs.length,
-        albums: 0,
+    nav.push(
+      MaterialPageRoute(
+        builder: (_) => ArtistSongs(
+          artistId: widget.song.artistId,
+          artist: artist,
+          songs: songs.length,
+          albums: 0,
+        ),
       ),
-    ));
+    );
   }
 
   Future<void> _goToAlbum() async {
@@ -61,13 +63,15 @@ class _SongOptionsSheetState extends State<SongOptionsSheet> {
     final songs = await repo.watchAlbumSongs(album).first;
     if (!mounted) return;
     nav.pop();
-    nav.push(MaterialPageRoute(
-      builder: (_) => AlbumSongs(
-        albumId: widget.song.albumId,
-        album: album,
-        songs: songs.length,
+    nav.push(
+      MaterialPageRoute(
+        builder: (_) => AlbumSongs(
+          albumId: widget.song.albumId,
+          album: album,
+          songs: songs.length,
+        ),
       ),
-    ));
+    );
   }
 
   @override
@@ -95,7 +99,10 @@ class _SongOptionsSheetState extends State<SongOptionsSheet> {
                       color: theme.colorScheme.surfaceContainerHigh,
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: Icon(Icons.music_note, color: theme.colorScheme.onSurfaceVariant),
+                    child: Icon(
+                      Icons.music_note,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -112,7 +119,9 @@ class _SongOptionsSheetState extends State<SongOptionsSheet> {
                       Text(
                         widget.song.artist ?? 'Unknown artist',
                         style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                          color: theme.colorScheme.onSurface.withValues(
+                            alpha: 0.6,
+                          ),
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -153,7 +162,10 @@ class _SongOptionsSheetState extends State<SongOptionsSheet> {
               leading: const Icon(Icons.fingerprint),
               title: const Text("Identify track"),
               subtitle: _error != null
-                  ? Text(_error!, style: TextStyle(color: theme.colorScheme.error))
+                  ? Text(
+                      _error!,
+                      style: TextStyle(color: theme.colorScheme.error),
+                    )
                   : const Text("Recognize song using audio fingerprint"),
               onTap: _identifyTrack,
             ),
@@ -238,8 +250,10 @@ class _SongOptionsSheetState extends State<SongOptionsSheet> {
         }
       }
 
-      final result = await controller.fingerprintService
-          .identifySong(widget.song, fingerprintPath: fingerprintPath);
+      final result = await controller.fingerprintService.identifySong(
+        widget.song,
+        fingerprintPath: fingerprintPath,
+      );
 
       if (!mounted) return;
 
@@ -321,17 +335,18 @@ class _SongOptionsSheetState extends State<SongOptionsSheet> {
       if (tagMap.isEmpty) {
         if (!mounted) return;
         setState(() => _applying = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("No tags to write")),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text("No tags to write")));
         return;
       }
 
       // Fetch cover art if available
       String? artworkPath;
       if (_result!.musicBrainzReleaseId != null) {
-        artworkPath = await controller.fingerprintService
-            .fetchCoverArt(_result!.musicBrainzReleaseId!);
+        artworkPath = await controller.fingerprintService.fetchCoverArt(
+          _result!.musicBrainzReleaseId!,
+        );
       }
 
       // Write tags to file (local files only — can't write to remote URLs)
@@ -345,13 +360,15 @@ class _SongOptionsSheetState extends State<SongOptionsSheet> {
         if (!ok) {
           // Clean up temp artwork on failure
           if (artworkPath != null) {
-            try { File(artworkPath).deleteSync(); } catch (_) {}
+            try {
+              File(artworkPath).deleteSync();
+            } catch (_) {}
           }
           if (!mounted) return;
           setState(() => _applying = false);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Failed to write tags")),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text("Failed to write tags")));
           return;
         }
 
@@ -360,26 +377,31 @@ class _SongOptionsSheetState extends State<SongOptionsSheet> {
       }
 
       // Update in-memory state + save artwork to UI cache
-      await controller.updateSongMetadata(widget.song, _result!,
-          newArtworkPath: artworkPath);
+      await controller.updateSongMetadata(
+        widget.song,
+        _result!,
+        newArtworkPath: artworkPath,
+      );
 
       // Clean up temp artwork after it's been copied to cache
       if (artworkPath != null) {
-        try { File(artworkPath).deleteSync(); } catch (_) {}
+        try {
+          File(artworkPath).deleteSync();
+        } catch (_) {}
       }
 
       if (!mounted) return;
 
       Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Tags and artwork updated")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Tags and artwork updated")));
     } catch (e) {
       if (!mounted) return;
       setState(() => _applying = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Failed to write tags")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Failed to write tags")));
     }
   }
 }

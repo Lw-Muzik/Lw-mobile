@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../Helpers/Channel.dart';
-import '../controllers/AppController.dart';
+import '../controllers/app_controller.dart';
 import '../models/recognition_result.dart';
 
 /// Bottom sheet that identifies the currently playing track via fingerprinting.
@@ -73,8 +73,10 @@ class _ListenSheetState extends State<ListenSheet>
         }
       }
 
-      final result = await controller.fingerprintService
-          .identifySong(song, fingerprintPath: fingerprintPath);
+      final result = await controller.fingerprintService.identifySong(
+        song,
+        fingerprintPath: fingerprintPath,
+      );
       if (!mounted) return;
 
       if (result == null || !result.hasUsefulData) {
@@ -88,8 +90,9 @@ class _ListenSheetState extends State<ListenSheet>
       // Pre-fetch cover art if available
       String? artPath;
       if (result.musicBrainzReleaseId != null) {
-        artPath = await controller.fingerprintService
-            .fetchCoverArt(result.musicBrainzReleaseId!);
+        artPath = await controller.fingerprintService.fetchCoverArt(
+          result.musicBrainzReleaseId!,
+        );
       }
       if (!mounted) return;
 
@@ -128,8 +131,11 @@ class _ListenSheetState extends State<ListenSheet>
       if (!mounted) return;
 
       // Update in-memory state + save artwork to UI cache
-      await controller.updateSongMetadata(song, _result!,
-          newArtworkPath: _artworkPath);
+      await controller.updateSongMetadata(
+        song,
+        _result!,
+        newArtworkPath: _artworkPath,
+      );
 
       // Clean up temp artwork after it's been copied to cache
       if (_artworkPath != null) {
@@ -142,9 +148,7 @@ class _ListenSheetState extends State<ListenSheet>
       Navigator.of(context).pop();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(isCloud
-              ? 'Track info updated'
-              : 'Track info updated'),
+          content: Text(isCloud ? 'Track info updated' : 'Track info updated'),
           duration: const Duration(seconds: 2),
         ),
       );
@@ -204,9 +208,7 @@ class _ListenSheetState extends State<ListenSheet>
               animation: _pulseController,
               builder: (context, _) {
                 return CustomPaint(
-                  painter: _PulseRingsPainter(
-                    progress: _pulseController.value,
-                  ),
+                  painter: _PulseRingsPainter(progress: _pulseController.value),
                   child: const Center(
                     child: Icon(
                       Icons.hearing_rounded,

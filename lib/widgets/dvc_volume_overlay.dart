@@ -3,7 +3,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../controllers/AppController.dart';
+import '../controllers/app_controller.dart';
 
 class DvcVolumeOverlay extends StatelessWidget {
   const DvcVolumeOverlay({super.key});

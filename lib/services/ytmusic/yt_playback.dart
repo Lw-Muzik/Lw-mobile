@@ -27,8 +27,8 @@ import 'package:on_audio_query/on_audio_query.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../../Routes/routes.dart';
-import '../../controllers/AppController.dart';
+import '../../routes/routes.dart';
+import '../../controllers/app_controller.dart';
 import '../../models/track_extras.dart';
 import '../video/video_registry.dart';
 import 'parse/yt_json.dart';
@@ -126,6 +126,7 @@ class YtPlayback {
   static Future<void> watch(
     BuildContext context,
     YtTrack track, {
+
     /// The rest of the list [track] was tapped in.
     ///
     /// Queued behind it as videos, the way tapping a song queues the songs
@@ -140,7 +141,8 @@ class YtPlayback {
           .videoTarget(track.videoId)
           .timeout(const Duration(seconds: 25));
     } on TimeoutException {
-      if (context.mounted) _complain(context, 'YouTube took too long to answer.');
+      if (context.mounted)
+        _complain(context, 'YouTube took too long to answer.');
       return;
     } catch (e) {
       // A dead target is worth forgetting so a retry re-resolves rather than
@@ -187,7 +189,9 @@ class YtPlayback {
     if (!context.mounted) return;
 
     final controller = context.read<AppController>();
-    controller.playSongFromList([videoModelOf(track, expiresAt: target.expiresAt)], 0);
+    controller.playSongFromList([
+      videoModelOf(track, expiresAt: target.expiresAt),
+    ], 0);
     Routes.playerTo(context);
 
     // Attached before the radio is asked to fill, for the same reason
@@ -243,10 +247,12 @@ class YtPlayback {
   ///
   /// Shared with the station, so a radio running in video mode produces the same
   /// kind of entry as a tapped list does.
-  static Future<List<SongModel>> resolveVideoModels(List<YtTrack> tracks) async {
-    final targets = await YtMusicRepository.instance.videoTargets(
-      [for (final track in tracks) track.videoId],
-    );
+  static Future<List<SongModel>> resolveVideoModels(
+    List<YtTrack> tracks,
+  ) async {
+    final targets = await YtMusicRepository.instance.videoTargets([
+      for (final track in tracks) track.videoId,
+    ]);
     await Future.wait([for (final track in tracks) cacheArtwork(track)]);
 
     final models = <SongModel>[];
@@ -276,24 +282,24 @@ class YtPlayback {
   /// that inspects it — the artwork layer, the cloud cache, the radio's check
   /// for whether YouTube is still what's playing.
   static SongModel videoModelOf(YtTrack track, {int? expiresAt}) => SongModel({
-        '_id': _songIdOf(track),
-        '_data': 'https://music.youtube.com/watch?v=${track.videoId}',
-        'title': track.title,
-        'artist': track.artist ?? 'YouTube Music',
-        'album': track.thumbnail,
-        'duration': ((track.durationSecs ?? 0) * 1000).round(),
-        '_display_name': '${track.title}.mp4',
-        '_display_name_wo_ext': track.title,
-        '_size': 0,
-        'file_extension': 'mp4',
-        'is_music': true,
-        // A restored session finds the manifest gone — they are swept at every
-        // launch — so a video entry has to say that it *is* one, or it comes
-        // back as audio.
-        TrackKeys.videoId: track.videoId,
-        TrackKeys.isVideo: true,
-        TrackKeys.expiresAt: expiresAt,
-      });
+    '_id': _songIdOf(track),
+    '_data': 'https://music.youtube.com/watch?v=${track.videoId}',
+    'title': track.title,
+    'artist': track.artist ?? 'YouTube Music',
+    'album': track.thumbnail,
+    'duration': ((track.durationSecs ?? 0) * 1000).round(),
+    '_display_name': '${track.title}.mp4',
+    '_display_name_wo_ext': track.title,
+    '_size': 0,
+    'file_extension': 'mp4',
+    'is_music': true,
+    // A restored session finds the manifest gone — they are swept at every
+    // launch — so a video entry has to say that it *is* one, or it comes
+    // back as audio.
+    TrackKeys.videoId: track.videoId,
+    TrackKeys.isVideo: true,
+    TrackKeys.expiresAt: expiresAt,
+  });
 
   /// Starts a station built from one song — YouTube's "Start radio".
   ///
@@ -334,10 +340,9 @@ class YtPlayback {
     final station = YtRadioQueue.instance.station;
     for (var i = 0; i < rest.length; i += _resolveConcurrency) {
       final batch = rest.skip(i).take(_resolveConcurrency).toList();
-      final targets = await YtMusicRepository.instance.audioTargets(
-        [for (final track in batch) track.videoId],
-        concurrency: _resolveConcurrency,
-      );
+      final targets = await YtMusicRepository.instance.audioTargets([
+        for (final track in batch) track.videoId,
+      ], concurrency: _resolveConcurrency);
       await Future.wait([for (final track in batch) cacheArtwork(track)]);
       final models = <SongModel>[
         for (final track in batch)
@@ -375,7 +380,9 @@ class YtPlayback {
     if (url == null || url.isEmpty) return;
     final id = _songIdOf(track);
     try {
-      final file = File('${(await getTemporaryDirectory()).path}/cloud_art_$id.png');
+      final file = File(
+        '${(await getTemporaryDirectory()).path}/cloud_art_$id.png',
+      );
       if (file.existsSync() && await file.length() > 0) return;
       // Asked for at a size worth showing full-screen without being the 544 px
       // original for a track that may never be looked at.
@@ -395,7 +402,8 @@ class YtPlayback {
   /// Follows the convention the rest of this app already uses for streamed
   /// tracks: `_data` is the URL to play and the artwork URL rides in `album`,
   /// which is what `loadAudioSource` reads it out of.
-  static SongModel songModelOf(YtTrack track, StreamTarget target) => SongModel({
+  static SongModel songModelOf(YtTrack track, StreamTarget target) =>
+      SongModel({
         '_id': _songIdOf(track),
         '_data': target.url,
         'title': track.title,
@@ -431,7 +439,8 @@ class YtPlayback {
           .audioTarget(track.videoId)
           .timeout(const Duration(seconds: 25));
     } on TimeoutException {
-      if (context.mounted) _complain(context, 'YouTube took too long to answer.');
+      if (context.mounted)
+        _complain(context, 'YouTube took too long to answer.');
       return null;
     } on YtException catch (e) {
       if (context.mounted) _complain(context, e.message);
@@ -618,12 +627,12 @@ class YtRadioQueue {
 
   /// Resolves [tracks] as audio and returns the queue entries that worked.
   Future<List<SongModel>> _resolveAudioModels(List<YtTrack> tracks) async {
-    final targets = await YtMusicRepository.instance.audioTargets(
-      [for (final track in tracks) track.videoId],
-    );
-    await Future.wait(
-      [for (final track in tracks) YtPlayback.cacheArtwork(track)],
-    );
+    final targets = await YtMusicRepository.instance.audioTargets([
+      for (final track in tracks) track.videoId,
+    ]);
+    await Future.wait([
+      for (final track in tracks) YtPlayback.cacheArtwork(track),
+    ]);
     return [
       for (final track in tracks)
         if (targets[track.videoId] case final target?)
@@ -678,8 +687,7 @@ class YtRadioQueue {
     int station,
     RadioBatch batch, {
     required int limit,
-  }) =>
-      _acceptPage(station, batch, limit: limit);
+  }) => _acceptPage(station, batch, limit: limit);
 
   @visibleForTesting
   String? get tokenForTest => _token;
@@ -814,4 +822,3 @@ class YtRadioQueue {
     return false;
   }
 }
-

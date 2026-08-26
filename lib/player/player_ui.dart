@@ -7,14 +7,13 @@ import 'package:provider/provider.dart';
 
 import '/services/player_reveal_bus.dart';
 
-import '/Global/index.dart';
+import '../global/index.dart';
 import '/Routes/routes.dart';
 import 'player_body.dart';
-import '/player/widgets/Controls.dart';
-import '/player/widgets/Header.dart';
-import '/controllers/AppController.dart';
-import '/Helpers/AudioVisualizer.dart';
-import '/Helpers/index.dart';
+import 'widgets/controls.dart';
+import 'widgets/header.dart';
+import '../controllers/app_controller.dart';
+import '../helpers/index.dart';
 import '/widgets/common.dart';
 import 'swipe_animation.dart';
 import 'lyrics_view.dart';
@@ -116,8 +115,8 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
   /// Returns false for an upward/neutral gesture so the caller can open lyrics.
   bool _handleDismissDragEnd(DragEndDetails details) {
     final vy = details.velocity.pixelsPerSecond.dy;
-    final commit = _dragDy > MediaQuery.of(context).size.height * 0.18 ||
-        vy > 700;
+    final commit =
+        _dragDy > MediaQuery.of(context).size.height * 0.18 || vy > 700;
     final wasDownward = _dragDy > 8 || vy > 200;
     _dragDy = 0;
     if (commit) {
@@ -271,7 +270,10 @@ class _PlayerLayout extends StatelessWidget {
           SizedBox(height: gap * 1.4),
           KeyedSubtree(
             key: controlsKey,
-            child: Controls(onNextPressed: onControlNext, onPrevPressed: onControlPrev),
+            child: Controls(
+              onNextPressed: onControlNext,
+              onPrevPressed: onControlPrev,
+            ),
           ),
           SizedBox(height: gap * 1.4),
           KeyedSubtree(
@@ -430,8 +432,11 @@ class _CardDeck extends StatelessWidget {
                   // user explicitly chose previous track
                   controller.songId = page;
                   controller.artWorkId = controller.songs[page].id;
-                  loadAudioSource(controller.handler, controller.songs[page],
-                      replayGain: controller.replayGain);
+                  loadAudioSource(
+                    controller.handler,
+                    controller.songs[page],
+                    replayGain: controller.replayGain,
+                  );
                 }
               },
               itemBuilder: (context, index, {bool isActive = false}) {
@@ -440,9 +445,9 @@ class _CardDeck extends StatelessWidget {
                 // being played, not a place to navigate to. Only the track
                 // actually playing gets it: there is one surface, and the cards
                 // either side are previews of things not yet started.
-                final isVideo = index == controller.songId &&
-                    VideoRegistry.instance
-                        .isVideo(controller.songs[index].id);
+                final isVideo =
+                    index == controller.songId &&
+                    VideoRegistry.instance.isVideo(controller.songs[index].id);
                 if (isVideo) {
                   return GestureDetector(
                     onTap: () => openFullscreenVideo(context),

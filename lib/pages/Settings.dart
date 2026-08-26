@@ -1,11 +1,11 @@
 import 'dart:io';
 import 'dart:typed_data';
 
-import '/Helpers/AudioVisualizer.dart';
-import '/Helpers/Channel.dart';
-import '/Routes/routes.dart';
-import '/controllers/AppController.dart';
-import '/widgets/Body.dart';
+import '/Helpers/audio_visualizer.dart';
+import '/Helpers/channel.dart';
+import '/routes/routes.dart';
+import '/controllers/app_controller.dart';
+import '/widgets/body.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -18,8 +18,8 @@ import '../services/streaming_data_guard.dart';
 import '../services/share_service.dart';
 import 'stream_server.dart';
 
-import '/Helpers/AudioHandler.dart';
-import '/widgets/BottomPlayer.dart';
+import '/Helpers/audio_handler.dart';
+import '/widgets/bottom_player.dart';
 import '../services/ytmusic/yt_playback.dart';
 
 class Settings extends StatefulWidget {

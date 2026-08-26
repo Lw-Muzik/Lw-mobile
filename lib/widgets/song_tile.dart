@@ -1,8 +1,8 @@
 import '/exports/exports.dart';
-import '/Helpers/index.dart';
-import '../controllers/AppController.dart';
+import '../helpers/index.dart';
+import '../controllers/app_controller.dart';
 import '../services/player_reveal_bus.dart';
-import '../widgets/ArtworkWidget.dart';
+import 'artwork_widget.dart';
 import '../widgets/alphabet_fast_scroll.dart';
 import '../widgets/pinch_zoom_grid.dart';
 
@@ -74,8 +74,11 @@ class SongTile extends StatelessWidget {
                   SizedBox(
                     width: 22,
                     child: isCurrentTrack
-                        ? Icon(Icons.bar_chart_rounded,
-                            color: accentColor, size: 18)
+                        ? Icon(
+                            Icons.bar_chart_rounded,
+                            color: accentColor,
+                            size: 18,
+                          )
                         : Text(
                             '${index + 1}',
                             textAlign: TextAlign.center,
@@ -128,12 +131,11 @@ class SongTile extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          color: isCurrentTrack
-                              ? accentColor
-                              : onSurface,
+                          color: isCurrentTrack ? accentColor : onSurface,
                           fontSize: 15,
-                          fontWeight:
-                              isCurrentTrack ? FontWeight.w600 : FontWeight.w500,
+                          fontWeight: isCurrentTrack
+                              ? FontWeight.w600
+                              : FontWeight.w500,
                         ),
                       ),
                       const SizedBox(height: 2),
@@ -279,8 +281,9 @@ class _SongGridTile extends StatelessWidget {
                 style: TextStyle(
                   color: isCurrentTrack ? accentColor : onSurface,
                   fontSize: 13,
-                  fontWeight:
-                      isCurrentTrack ? FontWeight.w600 : FontWeight.w500,
+                  fontWeight: isCurrentTrack
+                      ? FontWeight.w600
+                      : FontWeight.w500,
                 ),
               ),
             ),
@@ -370,8 +373,8 @@ class SongListView extends StatelessWidget {
   }
 
   Widget _buildList(BuildContext context) {
-    final currentSongId = controller.songId >= 0 &&
-            controller.songId < controller.songs.length
+    final currentSongId =
+        controller.songId >= 0 && controller.songId < controller.songs.length
         ? controller.songs[controller.songId].id
         : -1;
 
@@ -382,7 +385,8 @@ class SongListView extends StatelessWidget {
       // now-playing row (Poweramp behavior).
       revealTick: PlayerRevealBus.tick,
       revealIndex: () {
-        final current = controller.songId >= 0 &&
+        final current =
+            controller.songId >= 0 &&
                 controller.songId < controller.songs.length
             ? controller.songs[controller.songId].id
             : -1;
@@ -415,8 +419,8 @@ class SongListView extends StatelessWidget {
   }
 
   Widget _buildGrid(BuildContext context, double extent) {
-    final currentSongId = controller.songId >= 0 &&
-            controller.songId < controller.songs.length
+    final currentSongId =
+        controller.songId >= 0 && controller.songId < controller.songs.length
         ? controller.songs[controller.songId].id
         : -1;
 

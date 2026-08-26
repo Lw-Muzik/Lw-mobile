@@ -1,11 +1,11 @@
 import '/exports/exports.dart';
 import '/data/library_repository.dart';
-import '/controllers/LibraryController.dart';
+import '/controllers/library_controller.dart';
 import '/Routes/routes.dart';
 import '/extensions/index.dart';
 import '/pages/album_songs.dart';
 
-import '../widgets/ArtworkWidget.dart';
+import '../widgets/artwork_widget.dart';
 import '../widgets/library_list_row.dart';
 import '../widgets/pinch_zoom_grid.dart';
 

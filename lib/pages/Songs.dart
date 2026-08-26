@@ -6,9 +6,9 @@ import '/widgets/song_options_sheet.dart';
 import '/widgets/song_sort_button.dart';
 import '/widgets/song_list_skeleton.dart';
 import '/data/library_repository.dart';
-import '/Routes/routes.dart';
-import '/controllers/AppController.dart';
-import '/controllers/LibraryController.dart';
+import '/routes/routes.dart';
+import '/controllers/app_controller.dart';
+import '/controllers/library_controller.dart';
 import '/services/local_music_scanner.dart';
 
 class AllSongs extends StatefulWidget {
@@ -46,16 +46,16 @@ class _AllSongsState extends State<AllSongs> {
       if (count > 0) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-              content:
-                  Text('Imported $count file${count == 1 ? '' : 's'}')),
+            content: Text('Imported $count file${count == 1 ? '' : 's'}'),
+          ),
         );
         await context.read<LibraryController>().rescan();
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Import failed: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Import failed: $e')));
       }
     } finally {
       _importing = false;
@@ -73,7 +73,10 @@ class _AllSongsState extends State<AllSongs> {
   Widget build(BuildContext context) {
     final library = context.watch<LibraryController>();
     return StreamBuilder<List<SongModel>>(
-      stream: library.repo.watchSongs(sort: library.songSort, dir: library.songDir),
+      stream: library.repo.watchSongs(
+        sort: library.songSort,
+        dir: library.songDir,
+      ),
       builder: (context, snap) {
         final songs = snap.data;
 
@@ -128,9 +131,11 @@ class _AllSongsState extends State<AllSongs> {
           if (Platform.isIOS) ...[
             GestureDetector(
               onTap: () => context.read<LibraryController>().rescan(),
-              child: Icon(Icons.refresh_rounded,
-                  size: 20,
-                  color: theme.colorScheme.onSurface.withValues(alpha: 0.4)),
+              child: Icon(
+                Icons.refresh_rounded,
+                size: 20,
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
+              ),
             ),
             const SizedBox(width: 12),
             GestureDetector(
@@ -138,12 +143,18 @@ class _AllSongsState extends State<AllSongs> {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.add_rounded,
-                      size: 18, color: theme.colorScheme.primary),
+                  Icon(
+                    Icons.add_rounded,
+                    size: 18,
+                    color: theme.colorScheme.primary,
+                  ),
                   const SizedBox(width: 4),
-                  Text("Import",
-                      style: theme.textTheme.bodySmall
-                          ?.copyWith(color: theme.colorScheme.primary)),
+                  Text(
+                    "Import",
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.primary,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -165,9 +176,11 @@ class _AllSongsState extends State<AllSongs> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.music_off,
-              size: 64,
-              color: theme.colorScheme.onSurface.withValues(alpha: 0.3)),
+          Icon(
+            Icons.music_off,
+            size: 64,
+            color: theme.colorScheme.onSurface.withValues(alpha: 0.3),
+          ),
           const SizedBox(height: 12),
           Text(
             Platform.isIOS ? "No songs found" : "No songs available.",

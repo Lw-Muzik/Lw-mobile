@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 
-import 'ArtworkWidget.dart';
+import 'artwork_widget.dart';
 
 /// Fixed row height so list-mode category pages can use `itemExtent` (cheap
 /// scroll math, same as the songs list).
@@ -48,7 +48,9 @@ class LibraryListRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final onSurface = theme.colorScheme.onSurface;
-    final radius = circular ? BorderRadius.circular(28) : BorderRadius.circular(10);
+    final radius = circular
+        ? BorderRadius.circular(28)
+        : BorderRadius.circular(10);
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -79,9 +81,12 @@ class LibraryListRow extends StatelessWidget {
                             borderRadius: radius,
                           )
                         : Container(
-                            color: (leadingColor ??
-                                    theme.colorScheme.surfaceContainerHighest)
-                                .withValues(alpha: 0.6),
+                            color:
+                                (leadingColor ??
+                                        theme
+                                            .colorScheme
+                                            .surfaceContainerHighest)
+                                    .withValues(alpha: 0.6),
                             child: Icon(
                               fallbackIcon,
                               size: 26,

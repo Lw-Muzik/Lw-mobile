@@ -194,16 +194,14 @@ class LocalMusicScanner {
         allowMultiple: true,
       );
 
-      debugPrint(
-        'LocalMusicScanner: Picker result: ${result?.files.length ?? 'cancelled'}',
-      );
+      debugPrint('LocalMusicScanner: Picker result: ${result.length}');
 
-      if (result == null || result.files.isEmpty) return 0;
+      if (result.isEmpty) return 0;
 
       final musicDir = await getMusicDirectory();
       int imported = 0;
 
-      for (final file in result.files) {
+      for (final file in result) {
         debugPrint(
           'LocalMusicScanner: Processing ${file.name}, path=${file.path}',
         );

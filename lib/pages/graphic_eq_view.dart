@@ -4,7 +4,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../controllers/AppController.dart';
+import '../controllers/app_controller.dart';
 import '../models/eq_models.dart';
 import 'audio_fx.dart';
 
@@ -56,11 +56,7 @@ class _GraphicEqViewState extends State<GraphicEqView> {
                   const SizedBox(height: 2),
                   Expanded(
                     flex: 4,
-                    child: _buildBandSliders(
-                      controller,
-                      displayGains,
-                      mapping,
-                    ),
+                    child: _buildBandSliders(controller, displayGains, mapping),
                   ),
                 ],
               ),
@@ -83,10 +79,9 @@ class _GraphicEqViewState extends State<GraphicEqView> {
       children: [
         Text(
           "Graphic EQ",
-          style: Theme.of(context)
-              .textTheme
-              .titleMedium
-              ?.copyWith(fontWeight: FontWeight.w600),
+          style: Theme.of(
+            context,
+          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
         ),
         const Spacer(),
         // Flatten all bands to 0 dB
@@ -297,8 +292,11 @@ class _GraphicEqViewState extends State<GraphicEqView> {
     // Real-time audio only — persisted once on pan-end (same pattern as the
     // band sliders); the debounced safety net in the controller covers any
     // path that never reaches pan-end.
-    controller.setDisplayBandGain(band, rounded.clamp(_kMinGain, _kMaxGain),
-        persist: false);
+    controller.setDisplayBandGain(
+      band,
+      rounded.clamp(_kMinGain, _kMaxGain),
+      persist: false,
+    );
     controller.activePresetName = 'Custom';
     setState(() {});
   }
@@ -402,30 +400,42 @@ class _GraphicEqViewState extends State<GraphicEqView> {
         ),
         child: Row(
           children: [
-            Icon(Icons.tune_rounded, size: 18,
-                color: _kAccent.withValues(alpha: 0.8)),
+            Icon(
+              Icons.tune_rounded,
+              size: 18,
+              color: _kAccent.withValues(alpha: 0.8),
+            ),
             const SizedBox(width: 10),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text("Preset",
-                      style: TextStyle(fontSize: 11,
-                          color: Colors.white.withValues(alpha: 0.45))),
+                  Text(
+                    "Preset",
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Colors.white.withValues(alpha: 0.45),
+                    ),
+                  ),
                   const SizedBox(height: 1),
                   Text(
                     controller.activePresetName.isEmpty
                         ? 'Custom'
                         : controller.activePresetName,
                     style: const TextStyle(
-                        fontSize: 14, fontWeight: FontWeight.w600,
-                        color: Colors.white),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
                   ),
                 ],
               ),
             ),
-            Icon(Icons.keyboard_arrow_down_rounded, size: 22,
-                color: Colors.white.withValues(alpha: 0.4)),
+            Icon(
+              Icons.keyboard_arrow_down_rounded,
+              size: 22,
+              color: Colors.white.withValues(alpha: 0.4),
+            ),
           ],
         ),
       ),
@@ -527,7 +537,9 @@ class _PresetBottomSheetState extends State<_PresetBottomSheet> {
     final all = [...builtIn, ...saved];
     final filtered = _query.isEmpty
         ? all
-        : all.where((n) => n.toLowerCase().contains(_query.toLowerCase())).toList();
+        : all
+              .where((n) => n.toLowerCase().contains(_query.toLowerCase()))
+              .toList();
     final active = widget.controller.activePresetName;
     final screenH = MediaQuery.of(context).size.height;
 
@@ -544,7 +556,8 @@ class _PresetBottomSheetState extends State<_PresetBottomSheet> {
           Center(
             child: Container(
               margin: const EdgeInsets.only(top: 10, bottom: 6),
-              width: 36, height: 4,
+              width: 36,
+              height: 4,
               decoration: BoxDecoration(
                 color: Colors.white24,
                 borderRadius: BorderRadius.circular(2),
@@ -558,9 +571,14 @@ class _PresetBottomSheetState extends State<_PresetBottomSheet> {
               children: [
                 const Icon(Icons.tune_rounded, color: _kAccent, size: 20),
                 const SizedBox(width: 8),
-                const Text("EQ Presets",
-                    style: TextStyle(color: Colors.white, fontSize: 16,
-                        fontWeight: FontWeight.w600)),
+                const Text(
+                  "EQ Presets",
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
                 const Spacer(),
                 // Save button
                 TextButton.icon(
@@ -588,9 +606,14 @@ class _PresetBottomSheetState extends State<_PresetBottomSheet> {
                 style: const TextStyle(color: Colors.white, fontSize: 14),
                 decoration: InputDecoration(
                   hintText: 'Search presets...',
-                  hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.3)),
-                  prefixIcon: Icon(Icons.search_rounded, size: 20,
-                      color: Colors.white.withValues(alpha: 0.3)),
+                  hintStyle: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.3),
+                  ),
+                  prefixIcon: Icon(
+                    Icons.search_rounded,
+                    size: 20,
+                    color: Colors.white.withValues(alpha: 0.3),
+                  ),
                   filled: true,
                   fillColor: Colors.white.withValues(alpha: 0.08),
                   contentPadding: const EdgeInsets.symmetric(horizontal: 16),
@@ -606,7 +629,8 @@ class _PresetBottomSheetState extends State<_PresetBottomSheet> {
             child: ListView.builder(
               shrinkWrap: true,
               padding: EdgeInsets.only(
-                  bottom: MediaQuery.of(context).padding.bottom + 16),
+                bottom: MediaQuery.of(context).padding.bottom + 16,
+              ),
               itemCount: filtered.length,
               itemBuilder: (context, index) {
                 final name = filtered[index];
@@ -624,10 +648,12 @@ class _PresetBottomSheetState extends State<_PresetBottomSheet> {
                     }
                     Navigator.pop(context);
                   },
-                  onDelete: isUser ? () {
-                    widget.controller.deletePreset(name);
-                    setState(() {});
-                  } : null,
+                  onDelete: isUser
+                      ? () {
+                          widget.controller.deletePreset(name);
+                          setState(() {});
+                        }
+                      : null,
                 );
               },
             ),
@@ -660,8 +686,10 @@ class _PresetTile extends StatelessWidget {
     if (lower.contains('pop')) return Icons.stars_rounded;
     if (lower.contains('jazz')) return Icons.piano_rounded;
     if (lower.contains('classical')) return Icons.music_note_rounded;
-    if (lower.contains('vocal') || lower.contains('voice')) return Icons.mic_rounded;
-    if (lower.contains('dance') || lower.contains('edm')) return Icons.nightlife_rounded;
+    if (lower.contains('vocal') || lower.contains('voice'))
+      return Icons.mic_rounded;
+    if (lower.contains('dance') || lower.contains('edm'))
+      return Icons.nightlife_rounded;
     if (lower.contains('flat')) return Icons.horizontal_rule_rounded;
     if (lower.contains('treble')) return Icons.graphic_eq_rounded;
     if (lower.contains('loudness')) return Icons.volume_up_rounded;
@@ -679,31 +707,45 @@ class _PresetTile extends StatelessWidget {
         child: Row(
           children: [
             Container(
-              width: 36, height: 36,
+              width: 36,
+              height: 36,
               decoration: BoxDecoration(
                 color: isActive
                     ? _kAccent.withValues(alpha: 0.2)
                     : Colors.white.withValues(alpha: 0.06),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: Icon(_icon, size: 18,
-                  color: isActive ? _kAccent : Colors.white.withValues(alpha: 0.4)),
+              child: Icon(
+                _icon,
+                size: 18,
+                color: isActive
+                    ? _kAccent
+                    : Colors.white.withValues(alpha: 0.4),
+              ),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(name,
-                      style: TextStyle(
-                        color: isActive ? _kAccent : Colors.white.withValues(alpha: 0.85),
-                        fontSize: 14,
-                        fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
-                      )),
+                  Text(
+                    name,
+                    style: TextStyle(
+                      color: isActive
+                          ? _kAccent
+                          : Colors.white.withValues(alpha: 0.85),
+                      fontSize: 14,
+                      fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
+                    ),
+                  ),
                   if (isUser)
-                    Text("Custom preset",
-                        style: TextStyle(fontSize: 11,
-                            color: Colors.white.withValues(alpha: 0.35))),
+                    Text(
+                      "Custom preset",
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.white.withValues(alpha: 0.35),
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -714,8 +756,11 @@ class _PresetTile extends StatelessWidget {
                 onTap: onDelete,
                 child: Padding(
                   padding: const EdgeInsets.only(left: 8),
-                  child: Icon(Icons.delete_outline_rounded, size: 18,
-                      color: Colors.white.withValues(alpha: 0.25)),
+                  child: Icon(
+                    Icons.delete_outline_rounded,
+                    size: 18,
+                    color: Colors.white.withValues(alpha: 0.25),
+                  ),
                 ),
               ),
           ],

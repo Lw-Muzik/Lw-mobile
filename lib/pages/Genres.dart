@@ -3,7 +3,7 @@ import 'package:eq_app/extensions/index.dart';
 import 'package:eq_app/pages/genre_songs.dart';
 import '/exports/exports.dart';
 import '/data/library_repository.dart';
-import '/controllers/LibraryController.dart';
+import '/controllers/library_controller.dart';
 
 import '../widgets/library_list_row.dart';
 import '../widgets/pinch_zoom_grid.dart';
@@ -87,84 +87,89 @@ class _GenresState extends State<Genres> {
             maxExtent: 300.0,
             onExtentChanged: (e) => library.setGridExtent('genres', e),
             gridBuilder: (extent) => GridView.builder(
-            itemCount: genres.length,
-            gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-              maxCrossAxisExtent: extent,
-              crossAxisSpacing: 8,
-              mainAxisSpacing: 8,
-            ),
-            itemBuilder: (context, index) {
-              final genre = genres[index];
-              final baseColor = _genreColor(genre.genre);
-              return InkWell(
-                onTap: () => Routes.scaleTo(
-                  GenreSongs(
-                    genreId: genre.id,
-                    genre: genre.genre,
-                    songs: genre.numOfSongs,
-                  ),
-                  context,
-                ),
-                child: Hero(
-                  tag: 'genre_${genre.id}',
-                  child: Card(
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+              itemCount: genres.length,
+              gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+                maxCrossAxisExtent: extent,
+                crossAxisSpacing: 8,
+                mainAxisSpacing: 8,
+              ),
+              itemBuilder: (context, index) {
+                final genre = genres[index];
+                final baseColor = _genreColor(genre.genre);
+                return InkWell(
+                  onTap: () => Routes.scaleTo(
+                    GenreSongs(
+                      genreId: genre.id,
+                      genre: genre.genre,
+                      songs: genre.numOfSongs,
                     ),
-                    clipBehavior: Clip.antiAlias,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [baseColor, baseColor.withValues(alpha: 0.7)],
+                    context,
+                  ),
+                  child: Hero(
+                    tag: 'genre_${genre.id}',
+                    child: Card(
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      clipBehavior: Clip.antiAlias,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              baseColor,
+                              baseColor.withValues(alpha: 0.7),
+                            ],
+                          ),
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(
+                              Icons.music_note,
+                              size: 36,
+                              color: Colors.white70,
+                            ),
+                            const SizedBox(height: 8),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                              ),
+                              child: Text(
+                                genre.genre,
+                                maxLines: 2,
+                                textAlign: TextAlign.center,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context).textTheme.titleMedium
+                                    ?.copyWith(color: Colors.white),
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.2),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                genre.numOfSongs.nSongs,
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(color: Colors.white70),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(
-                            Icons.music_note,
-                            size: 36,
-                            color: Colors.white70,
-                          ),
-                          const SizedBox(height: 8),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 8),
-                            child: Text(
-                              genre.genre,
-                              maxLines: 2,
-                              textAlign: TextAlign.center,
-                              overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context).textTheme.titleMedium
-                                  ?.copyWith(color: Colors.white),
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.2),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              genre.numOfSongs.nSongs,
-                              style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(color: Colors.white70),
-                            ),
-                          ),
-                        ],
-                      ),
                     ),
                   ),
-                ),
-              );
-            },
-          ),
+                );
+              },
+            ),
             listBuilder: ListView.builder(
               itemExtent: kLibraryRowExtent,
               addAutomaticKeepAlives: false,

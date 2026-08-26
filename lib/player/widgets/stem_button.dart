@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import '../../controllers/AppController.dart';
+import '../../controllers/app_controller.dart';
 import '../../controllers/stem_controller.dart';
 import '../../pages/stem_mixer_view.dart';
 import '../../pages/stem_processing_view.dart';
-import '../../Routes/routes.dart';
+import '../../routes/routes.dart';
 
 class StemButton extends StatelessWidget {
   final AppController controller;

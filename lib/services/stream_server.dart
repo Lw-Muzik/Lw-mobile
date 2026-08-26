@@ -12,7 +12,7 @@ import 'package:shelf/shelf.dart';
 import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'package:shelf_router/shelf_router.dart';
 
-import '../controllers/AppController.dart';
+import '../controllers/app_controller.dart';
 import 'native_mdns.dart';
 import 'native_media_store.dart';
 
@@ -33,10 +33,10 @@ class PairedDesktop {
   Map<String, dynamic> toJson() => {'id': id, 'name': name, 'token': token};
 
   factory PairedDesktop.fromJson(Map<String, dynamic> j) => PairedDesktop(
-        id: j['id'] as String,
-        name: j['name'] as String,
-        token: j['token'] as String,
-      );
+    id: j['id'] as String,
+    name: j['name'] as String,
+    token: j['token'] as String,
+  );
 }
 
 /// Phone Link — serves this phone's music library to paired desktops over the
@@ -106,13 +106,12 @@ class StreamServerController extends ChangeNotifier {
   /// A JSON-serialisable snapshot of the runtime state, for relaying from the
   /// foreground-service isolate to the UI isolate (tokens are NOT included).
   Map<String, dynamic> stateSnapshot() => {
-        'running': running,
-        'pin': _pin,
-        'ip': _ip,
-        'port': _server?.port,
-        'paired':
-            _paired.values.map((d) => {'id': d.id, 'name': d.name}).toList(),
-      };
+    'running': running,
+    'pin': _pin,
+    'ip': _ip,
+    'port': _server?.port,
+    'paired': _paired.values.map((d) => {'id': d.id, 'name': d.name}).toList(),
+  };
 
   Future<void> _ensureLoaded() async {
     if (_prefs != null) return;
@@ -129,7 +128,9 @@ class StreamServerController extends ChangeNotifier {
           final d = PairedDesktop.fromJson(Map<String, dynamic>.from(j as Map));
           _paired[d.id] = d;
         }
-      } catch (_) {/* ignore corrupt store */}
+      } catch (_) {
+        /* ignore corrupt store */
+      }
     }
   }
 
@@ -157,11 +158,19 @@ class StreamServerController extends ChangeNotifier {
     if (preferred != null && preferred > 0) {
       try {
         return await shelf_io.serve(
-            _router().call, InternetAddress.anyIPv4, preferred);
-      } catch (_) {/* port taken — fall back to an ephemeral one */}
+          _router().call,
+          InternetAddress.anyIPv4,
+          preferred,
+        );
+      } catch (_) {
+        /* port taken — fall back to an ephemeral one */
+      }
     }
-    final server =
-        await shelf_io.serve(_router().call, InternetAddress.anyIPv4, 0);
+    final server = await shelf_io.serve(
+      _router().call,
+      InternetAddress.anyIPv4,
+      0,
+    );
     await prefs.setInt(_kPort, server.port);
     return server;
   }
@@ -174,7 +183,9 @@ class StreamServerController extends ChangeNotifier {
       try {
         await NativeMdns.unregister();
         await NativeMdns.releaseMulticastLock();
-      } catch (_) {/* best effort — the process may be tearing down */}
+      } catch (_) {
+        /* best effort — the process may be tearing down */
+      }
     }
     await _server?.close(force: true);
     _server = null;
@@ -212,7 +223,9 @@ class StreamServerController extends ChangeNotifier {
           _paired[d.id] = d;
         }
       }
-    } catch (_) {/* keep the in-memory set on a read error */}
+    } catch (_) {
+      /* keep the in-memory set on a read error */
+    }
   }
 
   /// Reload pairings from disk and notify. Invoked in the service isolate when
@@ -270,8 +283,11 @@ class StreamServerController extends ChangeNotifier {
     final deviceName = '${data['deviceName'] ?? 'Desktop'}';
     final token = _randomHex(32);
     await _reloadPaired(); // don't clobber pairings written by the other isolate
-    _paired[deviceId] =
-        PairedDesktop(id: deviceId, name: deviceName, token: token);
+    _paired[deviceId] = PairedDesktop(
+      id: deviceId,
+      name: deviceName,
+      token: token,
+    );
     await _savePaired();
     notifyListeners();
     return _json({
@@ -326,7 +342,9 @@ class StreamServerController extends ChangeNotifier {
         _library = songs;
         return songs;
       }
-    } catch (_) {/* fall through to fallbacks */}
+    } catch (_) {
+      /* fall through to fallbacks */
+    }
     if (_library.isNotEmpty) return _library;
     final fromPlayer = AppController.instance.songs;
     if (fromPlayer.isNotEmpty) _library = fromPlayer;
@@ -397,7 +415,9 @@ class StreamServerController extends ChangeNotifier {
           final text = await f.readAsString();
           if (text.trim().isNotEmpty) return text;
         }
-      } catch (_) {/* unreadable — try the next casing */}
+      } catch (_) {
+        /* unreadable — try the next casing */
+      }
     }
     return null;
   }
@@ -537,7 +557,9 @@ class StreamServerController extends ChangeNotifier {
       // down; the caller deletes the `.part`.
       try {
         await sink.close();
-      } catch (_) {/* already failing */}
+      } catch (_) {
+        /* already failing */
+      }
       rethrow;
     }
     // On the success path a close() failure is fatal rather than ignorable: it
@@ -556,7 +578,10 @@ class StreamServerController extends ChangeNotifier {
   /// closed to us) the file lands in the app's own documents directory and
   /// reports no id.
   Future<Map<String, dynamic>> _publishUpload(
-      File staged, String name, String ext) async {
+    File staged,
+    String name,
+    String ext,
+  ) async {
     if (NativeMediaStore.supported) {
       final imported = await NativeMediaStore.importAudio(
         sourcePath: staged.path,
@@ -594,7 +619,9 @@ class StreamServerController extends ChangeNotifier {
   Future<void> _deleteQuietly(File f) async {
     try {
       if (await f.exists()) await f.delete();
-    } catch (_) {/* best effort — the OS reclaims the cache dir anyway */}
+    } catch (_) {
+      /* best effort — the OS reclaims the cache dir anyway */
+    }
   }
 
   /// Whether the user has opted in to receiving files from a paired desktop.
@@ -610,7 +637,9 @@ class StreamServerController extends ChangeNotifier {
     await _ensureLoaded();
     try {
       await _prefs?.reload();
-    } catch (_) {/* fall back on whatever this isolate last read */}
+    } catch (_) {
+      /* fall back on whatever this isolate last read */
+    }
     return _prefs?.getBool(_kAllowUploads) ?? false;
   }
 
@@ -634,7 +663,9 @@ class StreamServerController extends ChangeNotifier {
     var name = raw;
     try {
       name = Uri.decodeComponent(raw);
-    } catch (_) {/* not valid percent-encoding — sanitize the raw value */}
+    } catch (_) {
+      /* not valid percent-encoding — sanitize the raw value */
+    }
     // Keep only the last path segment, so `../../evil` and `C:\dir\evil` can't
     // smuggle a traversal (or an absolute path) past the target directory.
     name = name.replaceAll('\\', '/');
@@ -758,9 +789,9 @@ class StreamServerController extends ChangeNotifier {
   }
 
   Response _json(Object data) => Response.ok(
-        jsonEncode(data),
-        headers: {'Content-Type': 'application/json'},
-      );
+    jsonEncode(data),
+    headers: {'Content-Type': 'application/json'},
+  );
 
   /// on_audio_query reports unknown tags with a placeholder; surface null so the
   /// desktop can show its own "Unknown artist" instead.
@@ -784,8 +815,11 @@ class StreamServerController extends ChangeNotifier {
   /// The immediate parent folder name of a file path (so the desktop can group
   /// the phone's music by the folders it came from). Null when undeterminable.
   String? _folderName(String path) {
-    final parts =
-        path.replaceAll('\\', '/').split('/').where((p) => p.isNotEmpty).toList();
+    final parts = path
+        .replaceAll('\\', '/')
+        .split('/')
+        .where((p) => p.isNotEmpty)
+        .toList();
     if (parts.length < 2) return null;
     final folder = parts[parts.length - 2];
     return folder.isEmpty ? null : folder;
@@ -811,13 +845,15 @@ class StreamServerController extends ChangeNotifier {
     }
   }
 
-  String _generatePin() => (Random.secure().nextInt(900000) + 100000).toString();
+  String _generatePin() =>
+      (Random.secure().nextInt(900000) + 100000).toString();
 
   String _randomHex(int bytes) {
     final r = Random.secure();
-    return List<int>.generate(bytes, (_) => r.nextInt(256))
-        .map((b) => b.toRadixString(16).padLeft(2, '0'))
-        .join();
+    return List<int>.generate(
+      bytes,
+      (_) => r.nextInt(256),
+    ).map((b) => b.toRadixString(16).padLeft(2, '0')).join();
   }
 
   Future<String?> _wifiIpv4() async {
@@ -831,7 +867,9 @@ class StreamServerController extends ChangeNotifier {
           if (!addr.isLoopback) return addr.address;
         }
       }
-    } catch (_) {/* fall through */}
+    } catch (_) {
+      /* fall through */
+    }
     return null;
   }
 }

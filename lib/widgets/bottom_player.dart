@@ -1,11 +1,11 @@
 import 'dart:ui';
 
 import 'package:eq_app/Routes/routes.dart';
-import 'package:eq_app/widgets/ArtworkWidget.dart';
-import 'package:eq_app/widgets/Globals.dart';
+import 'package:eq_app/widgets/artwork_widget.dart';
+import 'package:eq_app/widgets/globals.dart';
 import 'package:flutter/material.dart';
 
-import '../controllers/AppController.dart';
+import '../controllers/app_controller.dart';
 import '../player/player_ui.dart';
 
 class BottomPlayer extends StatefulWidget {

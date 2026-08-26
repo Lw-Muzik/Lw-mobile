@@ -1,8 +1,8 @@
 import 'package:eq_app/Global/index.dart';
 import '/exports/exports.dart';
-import '../controllers/AppController.dart';
+import '../controllers/app_controller.dart';
 import '../data/library_repository.dart';
-import '../widgets/BottomPlayer.dart';
+import '../widgets/bottom_player.dart';
 import '/widgets/song_options_sheet.dart';
 import '/widgets/song_tile.dart';
 import '/Routes/routes.dart';
@@ -19,8 +19,9 @@ class _FolderSongsState extends State<FolderSongs> {
   // Single reactive query feeding both the header and the list — the page used
   // to run the folder query three separate times (init + two FutureBuilders in
   // build()).
-  late final Stream<List<SongModel>> _songsStream =
-      context.read<LibraryRepository>().watchFolderSongs(widget.path);
+  late final Stream<List<SongModel>> _songsStream = context
+      .read<LibraryRepository>()
+      .watchFolderSongs(widget.path);
 
   @override
   Widget build(BuildContext context) {
@@ -52,7 +53,11 @@ class _FolderSongsState extends State<FolderSongs> {
       elevation: 0,
       flexibleSpace: FlexibleSpaceBar(
         centerTitle: true,
-        background: _buildFlexibleSpaceBackground(context, appController, songs),
+        background: _buildFlexibleSpaceBackground(
+          context,
+          appController,
+          songs,
+        ),
       ),
     );
   }
@@ -66,8 +71,7 @@ class _FolderSongsState extends State<FolderSongs> {
       tag: 'folder_${widget.path}',
       child: Stack(
         children: [
-          if (songs.isNotEmpty)
-            headerWidget(controller, context, data: songs),
+          if (songs.isNotEmpty) headerWidget(controller, context, data: songs),
           Positioned(
             bottom: 45,
             left: 10,
@@ -93,9 +97,7 @@ class _FolderSongsState extends State<FolderSongs> {
             ),
           ),
           TextSpan(
-            text: songCount == 1
-                ? " Available Track\n"
-                : " Available Tracks\n",
+            text: songCount == 1 ? " Available Track\n" : " Available Tracks\n",
             style: textTheme.headlineSmall?.copyWith(
               fontWeight: FontWeight.w300,
             ),

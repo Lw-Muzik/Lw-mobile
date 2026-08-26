@@ -2,7 +2,7 @@
 
 // import 'package:provider/provider.dart';
 // import '../Helpers/Eq.dart';
-// import '../controllers/AppController.dart';
+// import '../controllers/app_controller.dart';
 // import '/widgets/EqPresets.dart';
 // import 'package:flutter/material.dart';
 // import 'bass_control.dart';

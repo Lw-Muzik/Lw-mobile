@@ -1,8 +1,8 @@
 import 'dart:ui';
 
 import '/exports/exports.dart';
-import '../controllers/AppController.dart';
-import '../widgets/ArtworkWidget.dart';
+import '../controllers/app_controller.dart';
+import '../widgets/artwork_widget.dart';
 
 class PlayerBody extends StatefulWidget {
   final AppController controller;

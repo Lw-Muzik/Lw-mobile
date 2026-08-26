@@ -2,11 +2,11 @@ import 'dart:ui';
 
 import 'package:eq_app/Helpers/Channel.dart';
 import 'package:eq_app/extensions/index.dart';
-import 'package:eq_app/widgets/HorizontalSlider.dart';
+import 'package:eq_app/widgets/horizontal_slider.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../controllers/AppController.dart';
+import '../controllers/app_controller.dart';
 
 class AudioFx extends StatefulWidget {
   const AudioFx({super.key});
@@ -97,7 +97,7 @@ class SettingsHeader extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(title, style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox()
+            const SizedBox(),
           ],
         ),
       ),
@@ -119,11 +119,10 @@ class FancyCard extends StatelessWidget {
       clipBehavior: Clip.hardEdge,
       child: BackdropFilter(
         filter: ImageFilter.blur(
-            sigmaX: isFancy ? 20 : 0, sigmaY: isFancy ? 20 : 0),
-        child: Padding(
-          padding: const EdgeInsets.all(8.0),
-          child: child,
+          sigmaX: isFancy ? 20 : 0,
+          sigmaY: isFancy ? 20 : 0,
         ),
+        child: Padding(padding: const EdgeInsets.all(8.0), child: child),
       ),
     );
   }

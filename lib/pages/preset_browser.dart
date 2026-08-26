@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '/Helpers/ProjectMController.dart';
+import '/helpers/project_mcontroller.dart';
 
 class PresetBrowser extends StatefulWidget {
   const PresetBrowser({super.key});
@@ -81,59 +81,58 @@ class _PresetBrowserState extends State<PresetBrowser> {
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _filtered.isEmpty
-              ? Center(
-                  child: Text(
-                    _searchQuery.isEmpty
-                        ? 'No presets available'
-                        : 'No matches for "$_searchQuery"',
+          ? Center(
+              child: Text(
+                _searchQuery.isEmpty
+                    ? 'No presets available'
+                    : 'No matches for "$_searchQuery"',
+                style: TextStyle(
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurface.withValues(alpha: 0.5),
+                ),
+              ),
+            )
+          : ListView.builder(
+              itemCount: _filtered.length,
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              itemBuilder: (context, index) {
+                final name = _filtered[index];
+                final isActive = name == _currentPreset;
+
+                return ListTile(
+                  leading: Icon(
+                    isActive ? Icons.play_circle_filled : Icons.blur_on_rounded,
+                    color: isActive ? accent : null,
+                  ),
+                  title: Text(
+                    name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      color: Theme.of(context)
-                          .colorScheme
-                          .onSurface
-                          .withValues(alpha: 0.5),
+                      fontWeight: isActive
+                          ? FontWeight.w600
+                          : FontWeight.normal,
+                      color: isActive ? accent : null,
                     ),
                   ),
-                )
-              : ListView.builder(
-                  itemCount: _filtered.length,
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  itemBuilder: (context, index) {
-                    final name = _filtered[index];
-                    final isActive = name == _currentPreset;
-
-                    return ListTile(
-                      leading: Icon(
-                        isActive
-                            ? Icons.play_circle_filled
-                            : Icons.blur_on_rounded,
-                        color: isActive ? accent : null,
-                      ),
-                      title: Text(
-                        name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontWeight:
-                              isActive ? FontWeight.w600 : FontWeight.normal,
-                          color: isActive ? accent : null,
-                        ),
-                      ),
-                      trailing: isActive
-                          ? Icon(Icons.check_circle, color: accent, size: 20)
-                          : null,
-                      onTap: () {
-                        // Find index in full list and load
-                        final fullIndex = _presets.indexOf(name);
-                        if (fullIndex >= 0) {
-                          setState(() => _currentPreset = name);
-                          // Use the preset's cached path from native side
-                          _projectM.nextPreset(); // This is a workaround — ideally we'd load by index
-                        }
-                        Navigator.pop(context, name);
-                      },
-                    );
+                  trailing: isActive
+                      ? Icon(Icons.check_circle, color: accent, size: 20)
+                      : null,
+                  onTap: () {
+                    // Find index in full list and load
+                    final fullIndex = _presets.indexOf(name);
+                    if (fullIndex >= 0) {
+                      setState(() => _currentPreset = name);
+                      // Use the preset's cached path from native side
+                      _projectM
+                          .nextPreset(); // This is a workaround — ideally we'd load by index
+                    }
+                    Navigator.pop(context, name);
                   },
-                ),
+                );
+              },
+            ),
     );
   }
 }

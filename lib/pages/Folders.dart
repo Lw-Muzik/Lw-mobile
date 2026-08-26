@@ -3,7 +3,7 @@ import '../Routes/routes.dart';
 import '/exports/exports.dart';
 
 import '../Global/index.dart';
-import '../controllers/LibraryController.dart';
+import '../controllers/library_controller.dart';
 import '../data/library_repository.dart';
 import '../widgets/library_list_row.dart';
 import '../widgets/pinch_zoom_grid.dart';
@@ -17,8 +17,9 @@ class Folders extends StatefulWidget {
 }
 
 class _FoldersState extends State<Folders> {
-  late final Stream<List<FolderEntry>> _foldersStream =
-      context.read<LibraryRepository>().watchFolders();
+  late final Stream<List<FolderEntry>> _foldersStream = context
+      .read<LibraryRepository>()
+      .watchFolders();
 
   @override
   Widget build(BuildContext context) {

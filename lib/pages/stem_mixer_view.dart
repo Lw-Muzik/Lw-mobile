@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../controllers/AppController.dart';
+import '../controllers/app_controller.dart';
 import '../controllers/stem_controller.dart';
 import '../models/stem_model.dart';
 
@@ -96,7 +96,10 @@ class _PresetChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ActionChip(
-      label: Text(label, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+      label: Text(
+        label,
+        style: const TextStyle(color: Colors.white70, fontSize: 12),
+      ),
       backgroundColor: Colors.white.withValues(alpha: 0.08),
       side: BorderSide.none,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -113,18 +116,22 @@ class _MixerChannels extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: Stem.values.map((s) => Expanded(
-        child: _MixerChannel(
-          stem: s,
-          state: stem.stateFor(s),
-          color: StemMixerView._stemColors[s]!,
-          icon: StemMixerView._stemIcons[s]!,
-          label: StemMixerView._stemLabels[s]!,
-          onVolumeChanged: (v) => stem.setVolume(s, v),
-          onMuteToggle: () => stem.toggleMute(s),
-          onSoloToggle: () => stem.toggleSolo(s),
-        ),
-      )).toList(),
+      children: Stem.values
+          .map(
+            (s) => Expanded(
+              child: _MixerChannel(
+                stem: s,
+                state: stem.stateFor(s),
+                color: StemMixerView._stemColors[s]!,
+                icon: StemMixerView._stemIcons[s]!,
+                label: StemMixerView._stemLabels[s]!,
+                onVolumeChanged: (v) => stem.setVolume(s, v),
+                onMuteToggle: () => stem.toggleMute(s),
+                onSoloToggle: () => stem.toggleSolo(s),
+              ),
+            ),
+          )
+          .toList(),
     );
   }
 }
@@ -160,8 +167,14 @@ class _MixerChannel extends StatelessWidget {
         // Stem icon
         Icon(icon, color: effectiveColor, size: 28),
         const SizedBox(height: 4),
-        Text(label, style: TextStyle(
-          color: effectiveColor, fontSize: 11, fontWeight: FontWeight.w500)),
+        Text(
+          label,
+          style: TextStyle(
+            color: effectiveColor,
+            fontSize: 11,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
         const SizedBox(height: 8),
         // Volume fader
         Expanded(
@@ -182,11 +195,7 @@ class _MixerChannel extends StatelessWidget {
         Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            _MuteButton(
-              active: state.muted,
-              color: color,
-              onTap: onMuteToggle,
-            ),
+            _MuteButton(active: state.muted, color: color, onTap: onMuteToggle),
             const SizedBox(width: 4),
             _SoloButton(
               active: state.soloed,
@@ -288,7 +297,8 @@ class _FaderPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_FaderPainter old) => old.value != value || old.color != color;
+  bool shouldRepaint(_FaderPainter old) =>
+      old.value != value || old.color != color;
 }
 
 class _MuteButton extends StatelessWidget {
@@ -296,7 +306,11 @@ class _MuteButton extends StatelessWidget {
   final Color color;
   final VoidCallback onTap;
 
-  const _MuteButton({required this.active, required this.color, required this.onTap});
+  const _MuteButton({
+    required this.active,
+    required this.color,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -314,9 +328,14 @@ class _MuteButton extends StatelessWidget {
           ),
         ),
         alignment: Alignment.center,
-        child: Text('M', style: TextStyle(
-          color: active ? Colors.white : Colors.white54,
-          fontSize: 11, fontWeight: FontWeight.bold)),
+        child: Text(
+          'M',
+          style: TextStyle(
+            color: active ? Colors.white : Colors.white54,
+            fontSize: 11,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
       ),
     );
   }
@@ -327,7 +346,11 @@ class _SoloButton extends StatelessWidget {
   final Color color;
   final VoidCallback onTap;
 
-  const _SoloButton({required this.active, required this.color, required this.onTap});
+  const _SoloButton({
+    required this.active,
+    required this.color,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -345,9 +368,14 @@ class _SoloButton extends StatelessWidget {
           ),
         ),
         alignment: Alignment.center,
-        child: Text('S', style: TextStyle(
-          color: active ? Colors.white : Colors.white54,
-          fontSize: 11, fontWeight: FontWeight.bold)),
+        child: Text(
+          'S',
+          style: TextStyle(
+            color: active ? Colors.white : Colors.white54,
+            fontSize: 11,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
       ),
     );
   }
@@ -369,7 +397,10 @@ class _PlaybackBar extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Text('Stem Mode', style: TextStyle(color: Colors.white54, fontSize: 12)),
+              const Text(
+                'Stem Mode',
+                style: TextStyle(color: Colors.white54, fontSize: 12),
+              ),
               const SizedBox(width: 8),
               Switch(
                 value: stem.stemModeActive,

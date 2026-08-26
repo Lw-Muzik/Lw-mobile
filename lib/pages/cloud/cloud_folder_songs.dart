@@ -4,9 +4,9 @@ import 'dart:math' as math;
 import '/exports/exports.dart';
 import '/Routes/routes.dart';
 import '../../Helpers/Channel.dart';
-import '../../controllers/AppController.dart';
+import '../../controllers/app_controller.dart';
 import '../../models/cloud_file.dart';
-import '../../widgets/BottomPlayer.dart';
+import '../../widgets/bottom_player.dart';
 import '../../widgets/song_tile.dart';
 
 class CloudFolderSongs extends StatefulWidget {

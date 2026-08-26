@@ -1,15 +1,13 @@
 import 'dart:io';
-import 'package:flutter/material.dart';
 import '/exports/exports.dart';
-import 'package:provider/provider.dart';
-import '../Visualizers/wave-visualizer.dart';
-import '/controllers/AppController.dart';
-import '/Helpers/AudioVisualizer.dart';
-import '/Helpers/ProjectMController.dart';
-import '/Helpers/VisualizerWidget.dart';
-import '/Routes/routes.dart';
-import '/widgets/Body.dart';
-import '/widgets/ArtworkWidget.dart';
+import '../visualizers/wave-visualizer.dart';
+import '../controllers/app_controller.dart';
+import '/helpers/audio_visualizer.dart';
+import '/helpers/project_mcontroller.dart';
+import '/helpers/visualizer_widget.dart';
+import '/routes/routes.dart';
+import '/widgets/body.dart';
+import '../widgets/artwork_widget.dart';
 import '/pages/settings.dart';
 
 class VisualUI extends StatefulWidget {
@@ -157,11 +155,12 @@ class _VisualUIState extends State<VisualUI>
       icon: Icons.auto_awesome_rounded,
       description: 'IFS fractal flame',
     ),
-    if (!Platform.isIOS) 'milkdrop': const _VisualPreset(
-      name: 'MilkDrop',
-      icon: Icons.blur_on_rounded,
-      description: 'MilkDrop presets',
-    ),
+    if (!Platform.isIOS)
+      'milkdrop': const _VisualPreset(
+        name: 'MilkDrop',
+        icon: Icons.blur_on_rounded,
+        description: 'MilkDrop presets',
+      ),
   };
 
   static const _colorPalette = [
@@ -187,7 +186,10 @@ class _VisualUIState extends State<VisualUI>
     );
     final ctrl = context.read<AppController>();
     Visualizers.setFrameRate(ctrl.visualizerFrameRate);
-    Visualizers.setSmoothing(ctrl.visualizerReactivity, ctrl.visualizerReactivity * 0.7);
+    Visualizers.setSmoothing(
+      ctrl.visualizerReactivity,
+      ctrl.visualizerReactivity * 0.7,
+    );
     Visualizers.setGain(ctrl.visualizerBeatSensitivity);
     Visualizers.scaleVisualizer(true);
   }
@@ -236,10 +238,10 @@ class _VisualUIState extends State<VisualUI>
 
   // Quality tier → (max longest edge in px, mesh width, mesh height)
   static const _qualityTiers = [
-    (480, 24, 18),  // Low — battery saver, low-end devices
-    (720, 32, 24),  // Medium — balanced (default)
+    (480, 24, 18), // Low — battery saver, low-end devices
+    (720, 32, 24), // Medium — balanced (default)
     (1080, 48, 36), // High — mid-to-high-end
-    (0, 64, 48),    // Ultra — full resolution, flagship GPUs
+    (0, 64, 48), // Ultra — full resolution, flagship GPUs
   ];
 
   Future<void> _initProjectM() async {
@@ -303,9 +305,8 @@ class _VisualUIState extends State<VisualUI>
         // The page may have been disposed (or the style switched away) while
         // we were awaiting — if so, tear the renderer down NOW; nobody else
         // will, and the GL loop would otherwise run orphaned forever.
-        final abandoned = !mounted ||
-            _projectMDisposed ||
-            ctrl.visualizerStyle != 'milkdrop';
+        final abandoned =
+            !mounted || _projectMDisposed || ctrl.visualizerStyle != 'milkdrop';
         if (abandoned) {
           await _projectM.release();
           return;
@@ -405,8 +406,8 @@ class _VisualUIState extends State<VisualUI>
                   behavior: HitTestBehavior.opaque,
                   child: mounted
                       ? isMilkDrop
-                          ? _buildMilkDropVisualizer()
-                          : _buildVisualizer(size.width, size.height)
+                            ? _buildMilkDropVisualizer()
+                            : _buildVisualizer(size.width, size.height)
                       : const SizedBox(),
                 ),
 
@@ -439,9 +440,9 @@ class _VisualUIState extends State<VisualUI>
                   top: MediaQuery.of(context).padding.top + 12,
                   right: 12,
                   child: GestureDetector(
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const Settings()),
-                    ),
+                    onTap: () => Navigator.of(
+                      context,
+                    ).push(MaterialPageRoute(builder: (_) => const Settings())),
                     child: Icon(
                       Icons.settings_rounded,
                       color: Colors.white.withValues(alpha: 0.35),
@@ -718,25 +719,40 @@ class _SettingsPanel extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  Icon(activeStyle?.icon ?? Icons.equalizer_rounded,
-                      size: 18, color: _accentColor.withValues(alpha: 0.8)),
+                  Icon(
+                    activeStyle?.icon ?? Icons.equalizer_rounded,
+                    size: 18,
+                    color: _accentColor.withValues(alpha: 0.8),
+                  ),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Style',
-                            style: TextStyle(fontSize: 11,
-                                color: Colors.white.withValues(alpha: 0.45))),
+                        Text(
+                          'Style',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.white.withValues(alpha: 0.45),
+                          ),
+                        ),
                         const SizedBox(height: 1),
-                        Text(activeStyle?.name ?? 'Select',
-                            style: const TextStyle(fontSize: 14,
-                                fontWeight: FontWeight.w600, color: Colors.white)),
+                        Text(
+                          activeStyle?.name ?? 'Select',
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
+                        ),
                       ],
                     ),
                   ),
-                  Icon(Icons.keyboard_arrow_down_rounded, size: 22,
-                      color: Colors.white.withValues(alpha: 0.4)),
+                  Icon(
+                    Icons.keyboard_arrow_down_rounded,
+                    size: 22,
+                    color: Colors.white.withValues(alpha: 0.4),
+                  ),
                 ],
               ),
             ),
@@ -872,12 +888,19 @@ class _SettingsPanel extends StatelessWidget {
                       child: const Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.skip_previous_rounded,
-                              color: Colors.white54, size: 18),
+                          Icon(
+                            Icons.skip_previous_rounded,
+                            color: Colors.white54,
+                            size: 18,
+                          ),
                           SizedBox(width: 4),
-                          Text('Prev',
-                              style: TextStyle(
-                                  color: Colors.white54, fontSize: 12)),
+                          Text(
+                            'Prev',
+                            style: TextStyle(
+                              color: Colors.white54,
+                              fontSize: 12,
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -899,12 +922,19 @@ class _SettingsPanel extends StatelessWidget {
                       child: const Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Text('Next',
-                              style: TextStyle(
-                                  color: Colors.white54, fontSize: 12)),
+                          Text(
+                            'Next',
+                            style: TextStyle(
+                              color: Colors.white54,
+                              fontSize: 12,
+                            ),
+                          ),
                           SizedBox(width: 4),
-                          Icon(Icons.skip_next_rounded,
-                              color: Colors.white54, size: 18),
+                          Icon(
+                            Icons.skip_next_rounded,
+                            color: Colors.white54,
+                            size: 18,
+                          ),
                         ],
                       ),
                     ),
@@ -1065,8 +1095,11 @@ class _PresetPickerSheetState extends State<_PresetPickerSheet> {
             padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
             child: Row(
               children: [
-                const Icon(Icons.blur_on_rounded,
-                    color: _accentColor, size: 20),
+                const Icon(
+                  Icons.blur_on_rounded,
+                  color: _accentColor,
+                  size: 20,
+                ),
                 const SizedBox(width: 8),
                 const Text(
                   'MilkDrop Presets',
@@ -1098,18 +1131,25 @@ class _PresetPickerSheetState extends State<_PresetPickerSheet> {
               decoration: InputDecoration(
                 hintText: 'Search presets...',
                 hintStyle: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.3), fontSize: 14),
-                prefixIcon: Icon(Icons.search_rounded,
-                    color: Colors.white.withValues(alpha: 0.3), size: 20),
+                  color: Colors.white.withValues(alpha: 0.3),
+                  fontSize: 14,
+                ),
+                prefixIcon: Icon(
+                  Icons.search_rounded,
+                  color: Colors.white.withValues(alpha: 0.3),
+                  size: 20,
+                ),
                 suffixIcon: _query.isNotEmpty
                     ? GestureDetector(
                         onTap: () {
                           _searchController.clear();
                           _onSearch('');
                         },
-                        child: Icon(Icons.close_rounded,
-                            color: Colors.white.withValues(alpha: 0.3),
-                            size: 18),
+                        child: Icon(
+                          Icons.close_rounded,
+                          color: Colors.white.withValues(alpha: 0.3),
+                          size: 18,
+                        ),
                       )
                     : null,
                 filled: true,
@@ -1127,74 +1167,80 @@ class _PresetPickerSheetState extends State<_PresetPickerSheet> {
             child: _loading
                 ? const Center(
                     child: CircularProgressIndicator(
-                        color: _accentColor, strokeWidth: 2))
+                      color: _accentColor,
+                      strokeWidth: 2,
+                    ),
+                  )
                 : _filtered.isEmpty
-                    ? Center(
-                        child: Text(
-                          _query.isEmpty
-                              ? 'No presets available'
-                              : 'No matches',
-                          style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.4)),
-                        ),
-                      )
-                    : ListView.builder(
-                        controller: _scrollController,
-                        itemCount: _filtered.length,
-                        padding: EdgeInsets.only(bottom: bottomInset + 16),
-                        itemBuilder: (context, index) {
-                          final name = _filtered[index];
-                          final isActive = name == _activePreset;
+                ? Center(
+                    child: Text(
+                      _query.isEmpty ? 'No presets available' : 'No matches',
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.4),
+                      ),
+                    ),
+                  )
+                : ListView.builder(
+                    controller: _scrollController,
+                    itemCount: _filtered.length,
+                    padding: EdgeInsets.only(bottom: bottomInset + 16),
+                    itemBuilder: (context, index) {
+                      final name = _filtered[index];
+                      final isActive = name == _activePreset;
 
-                          return InkWell(
-                            onTap: () async {
-                              await _selectPreset(name);
-                              if (mounted) Navigator.pop(context);
-                            },
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 16, vertical: 12),
-                              color: isActive
-                                  ? _accentColor.withValues(alpha: 0.1)
-                                  : null,
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    isActive
-                                        ? Icons.play_circle_filled_rounded
-                                        : Icons.blur_on_rounded,
+                      return InkWell(
+                        onTap: () async {
+                          await _selectPreset(name);
+                          if (mounted) Navigator.pop(context);
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                          color: isActive
+                              ? _accentColor.withValues(alpha: 0.1)
+                              : null,
+                          child: Row(
+                            children: [
+                              Icon(
+                                isActive
+                                    ? Icons.play_circle_filled_rounded
+                                    : Icons.blur_on_rounded,
+                                color: isActive
+                                    ? _accentColor
+                                    : Colors.white.withValues(alpha: 0.25),
+                                size: 20,
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  name,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
                                     color: isActive
                                         ? _accentColor
-                                        : Colors.white.withValues(alpha: 0.25),
-                                    size: 20,
+                                        : Colors.white.withValues(alpha: 0.8),
+                                    fontSize: 13,
+                                    fontWeight: isActive
+                                        ? FontWeight.w600
+                                        : FontWeight.normal,
                                   ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Text(
-                                      name,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: TextStyle(
-                                        color: isActive
-                                            ? _accentColor
-                                            : Colors.white.withValues(
-                                                alpha: 0.8),
-                                        fontSize: 13,
-                                        fontWeight: isActive
-                                            ? FontWeight.w600
-                                            : FontWeight.normal,
-                                      ),
-                                    ),
-                                  ),
-                                  if (isActive)
-                                    const Icon(Icons.check_rounded,
-                                        color: _accentColor, size: 18),
-                                ],
+                                ),
                               ),
-                            ),
-                          );
-                        },
-                      ),
+                              if (isActive)
+                                const Icon(
+                                  Icons.check_rounded,
+                                  color: _accentColor,
+                                  size: 18,
+                                ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
           ),
         ],
       ),
@@ -1223,7 +1269,8 @@ class _StylePickerSheet extends StatelessWidget {
 
     return Container(
       constraints: BoxConstraints(
-          maxHeight: MediaQuery.of(context).size.height * 0.5),
+        maxHeight: MediaQuery.of(context).size.height * 0.5,
+      ),
       decoration: const BoxDecoration(
         color: Color(0xFF1A1A1A),
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
@@ -1235,7 +1282,8 @@ class _StylePickerSheet extends StatelessWidget {
           Center(
             child: Container(
               margin: const EdgeInsets.only(top: 10, bottom: 6),
-              width: 36, height: 4,
+              width: 36,
+              height: 4,
               decoration: BoxDecoration(
                 color: Colors.white24,
                 borderRadius: BorderRadius.circular(2),
@@ -1249,13 +1297,22 @@ class _StylePickerSheet extends StatelessWidget {
               children: [
                 const Icon(Icons.equalizer_rounded, color: _accent, size: 20),
                 const SizedBox(width: 8),
-                const Text('Visualizer Style',
-                    style: TextStyle(color: Colors.white, fontSize: 16,
-                        fontWeight: FontWeight.w600)),
+                const Text(
+                  'Visualizer Style',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
                 const Spacer(),
-                Text('${entries.length} styles',
-                    style: TextStyle(fontSize: 12,
-                        color: Colors.white.withValues(alpha: 0.4))),
+                Text(
+                  '${entries.length} styles',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.white.withValues(alpha: 0.4),
+                  ),
+                ),
               ],
             ),
           ),
@@ -1264,7 +1321,8 @@ class _StylePickerSheet extends StatelessWidget {
             child: ListView.builder(
               shrinkWrap: true,
               padding: EdgeInsets.only(
-                  bottom: MediaQuery.of(context).padding.bottom + 16),
+                bottom: MediaQuery.of(context).padding.bottom + 16,
+              ),
               itemCount: entries.length,
               itemBuilder: (context, index) {
                 final key = entries[index].key;
@@ -1278,48 +1336,62 @@ class _StylePickerSheet extends StatelessWidget {
                   },
                   child: Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 12),
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
                     color: isActive ? _accent.withValues(alpha: 0.1) : null,
                     child: Row(
                       children: [
                         Container(
-                          width: 36, height: 36,
+                          width: 36,
+                          height: 36,
                           decoration: BoxDecoration(
                             color: isActive
                                 ? _accent.withValues(alpha: 0.2)
                                 : Colors.white.withValues(alpha: 0.06),
                             borderRadius: BorderRadius.circular(10),
                           ),
-                          child: Icon(preset.icon, size: 18,
-                              color: isActive
-                                  ? _accent
-                                  : Colors.white.withValues(alpha: 0.4)),
+                          child: Icon(
+                            preset.icon,
+                            size: 18,
+                            color: isActive
+                                ? _accent
+                                : Colors.white.withValues(alpha: 0.4),
+                          ),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(preset.name,
-                                  style: TextStyle(
-                                    color: isActive
-                                        ? _accent
-                                        : Colors.white.withValues(alpha: 0.85),
-                                    fontSize: 14,
-                                    fontWeight: isActive
-                                        ? FontWeight.w600
-                                        : FontWeight.w400,
-                                  )),
-                              Text(preset.description,
-                                  style: TextStyle(fontSize: 11,
-                                      color: Colors.white
-                                          .withValues(alpha: 0.35))),
+                              Text(
+                                preset.name,
+                                style: TextStyle(
+                                  color: isActive
+                                      ? _accent
+                                      : Colors.white.withValues(alpha: 0.85),
+                                  fontSize: 14,
+                                  fontWeight: isActive
+                                      ? FontWeight.w600
+                                      : FontWeight.w400,
+                                ),
+                              ),
+                              Text(
+                                preset.description,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.white.withValues(alpha: 0.35),
+                                ),
+                              ),
                             ],
                           ),
                         ),
                         if (isActive)
-                          const Icon(Icons.check_rounded,
-                              color: _accent, size: 20),
+                          const Icon(
+                            Icons.check_rounded,
+                            color: _accent,
+                            size: 20,
+                          ),
                       ],
                     ),
                   ),

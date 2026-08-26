@@ -3,7 +3,7 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:eq_app/Helpers/index.dart';
+import 'package:eq_app/helpers/index.dart';
 import 'package:eq_app/config/app_config.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart';

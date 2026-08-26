@@ -1,15 +1,14 @@
-
-import '/Global/index.dart';
+import '../global/index.dart';
 import '/Routes/routes.dart';
-import '/controllers/AppController.dart';
+import '../controllers/app_controller.dart';
 import '/extensions/index.dart';
 import '/widgets/Body.dart';
 import '/widgets/song_options_sheet.dart';
 import '/widgets/song_tile.dart';
 import '/exports/exports.dart';
 
-import '../widgets/ArtworkWidget.dart';
-import '../widgets/BottomPlayer.dart';
+import '../widgets/artwork_widget.dart';
+import '../widgets/bottom_player.dart';
 import '/data/library_repository.dart';
 
 class ArtistSongs extends StatefulWidget {
@@ -31,8 +30,9 @@ class ArtistSongs extends StatefulWidget {
 }
 
 class _ArtistSongsState extends State<ArtistSongs> {
-  late final Stream<List<SongModel>> _songsStream =
-      context.read<LibraryRepository>().watchArtistSongs(widget.artist);
+  late final Stream<List<SongModel>> _songsStream = context
+      .read<LibraryRepository>()
+      .watchArtistSongs(widget.artist);
 
   @override
   Widget build(BuildContext context) {

@@ -1,10 +1,10 @@
 import 'dart:io';
 import '/extensions/index.dart';
-import '/Helpers/index.dart';
-import '/Routes/routes.dart';
+import '../helpers/index.dart';
+import '/routes/routes.dart';
 import '/exports/exports.dart';
 
-import '../controllers/AppController.dart';
+import '../controllers/app_controller.dart';
 
 class PlaylistWidget extends StatefulWidget {
   final int audioId;
@@ -67,7 +67,8 @@ class _PlaylistWidgetState extends State<PlaylistWidget> {
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
                       return const Center(
-                          child: CircularProgressIndicator.adaptive());
+                        child: CircularProgressIndicator.adaptive(),
+                      );
                     } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
                       return Center(
                         child: Text(
@@ -87,16 +88,15 @@ class _PlaylistWidgetState extends State<PlaylistWidget> {
                           subtitle: Text(list[index].numOfSongs.nSongs),
                           onTap: () {
                             controller.audioQuery
-                                .addToPlaylist(
-                                    list[index].id, widget.audioId)
+                                .addToPlaylist(list[index].id, widget.audioId)
                                 .then((value) {
-                              showMessage(
-                                context: context,
-                                msg:
-                                    '${widget.song} added to ${list[index].playlist} successfully',
-                              );
-                              Routes.pop(context);
-                            });
+                                  showMessage(
+                                    context: context,
+                                    msg:
+                                        '${widget.song} added to ${list[index].playlist} successfully',
+                                  );
+                                  Routes.pop(context);
+                                });
                           },
                         );
                       },

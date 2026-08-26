@@ -5,11 +5,11 @@ import 'package:vector_math/vector_math_64.dart' show Vector3;
 import '/exports/exports.dart';
 import 'package:rxdart/rxdart.dart';
 
-import '../controllers/AppController.dart';
+import '../controllers/app_controller.dart';
 import '../models/lyrics_model.dart';
-import '../widgets/ArtworkWidget.dart';
+import '../widgets/artwork_widget.dart';
 import '../widgets/common.dart';
-import 'widgets/LyricsEditor.dart';
+import 'widgets/lyrics_editor.dart';
 import '/pages/settings.dart';
 
 class LyricsView extends StatefulWidget {
@@ -19,7 +19,8 @@ class LyricsView extends StatefulWidget {
   State<LyricsView> createState() => _LyricsViewState();
 }
 
-class _LyricsViewState extends State<LyricsView> with SingleTickerProviderStateMixin {
+class _LyricsViewState extends State<LyricsView>
+    with SingleTickerProviderStateMixin {
   late final AnimationController _entranceController;
   late final Animation<Offset> _slideAnimation;
   late final Animation<double> _fadeAnimation;
@@ -37,13 +38,13 @@ class _LyricsViewState extends State<LyricsView> with SingleTickerProviderStateM
       vsync: this,
       duration: const Duration(milliseconds: 400),
     );
-    _slideAnimation = Tween<Offset>(
-      begin: const Offset(0, 0.15),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(
-      parent: _entranceController,
-      curve: Curves.easeOutCubic,
-    ));
+    _slideAnimation =
+        Tween<Offset>(begin: const Offset(0, 0.15), end: Offset.zero).animate(
+          CurvedAnimation(
+            parent: _entranceController,
+            curve: Curves.easeOutCubic,
+          ),
+        );
     _fadeAnimation = CurvedAnimation(
       parent: _entranceController,
       curve: Curves.easeOut,
@@ -88,15 +89,16 @@ class _LyricsViewState extends State<LyricsView> with SingleTickerProviderStateM
     if (idx >= 0) {
       final lineStart = lyrics.lines[idx].timestamp!;
       final nextIdx = idx + 1;
-      final lineEnd = (nextIdx < lyrics.lines.length &&
+      final lineEnd =
+          (nextIdx < lyrics.lines.length &&
               lyrics.lines[nextIdx].timestamp != null)
           ? lyrics.lines[nextIdx].timestamp!
           : lineStart + const Duration(seconds: 5);
       final totalMs = lineEnd.inMilliseconds - lineStart.inMilliseconds;
       if (totalMs > 0) {
-        progress = ((adjusted.inMilliseconds - lineStart.inMilliseconds) /
-                totalMs)
-            .clamp(0.0, 1.0);
+        progress =
+            ((adjusted.inMilliseconds - lineStart.inMilliseconds) / totalMs)
+                .clamp(0.0, 1.0);
       }
     }
 
@@ -264,9 +266,7 @@ class _LyricsViewState extends State<LyricsView> with SingleTickerProviderStateM
                     padding: EdgeInsets.only(right: rightPad),
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        _MiniControls(controller: controller),
-                      ],
+                      children: [_MiniControls(controller: controller)],
                     ),
                   ),
                 ),
@@ -344,8 +344,11 @@ class _Header extends StatelessWidget {
           // Close button
           GestureDetector(
             onTap: () => Navigator.of(context).pop(),
-            child: const Icon(Icons.keyboard_arrow_down_rounded,
-                color: Colors.white70, size: 32),
+            child: const Icon(
+              Icons.keyboard_arrow_down_rounded,
+              color: Colors.white70,
+              size: 32,
+            ),
           ),
           const SizedBox(width: 12),
           // Small artwork
@@ -379,10 +382,7 @@ class _Header extends StatelessWidget {
                 if (song.artist != null)
                   Text(
                     song.artist!,
-                    style: const TextStyle(
-                      color: Colors.white54,
-                      fontSize: 12,
-                    ),
+                    style: const TextStyle(color: Colors.white54, fontSize: 12),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -400,15 +400,22 @@ class _Header extends StatelessWidget {
                   builder: (_) => LyricsEditor(controller: controller),
                 );
               },
-              child: const Icon(Icons.edit_rounded, color: Colors.white54, size: 22),
+              child: const Icon(
+                Icons.edit_rounded,
+                color: Colors.white54,
+                size: 22,
+              ),
             ),
           const SizedBox(width: 12),
           GestureDetector(
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const Settings()),
+            onTap: () => Navigator.of(
+              context,
+            ).push(MaterialPageRoute(builder: (_) => const Settings())),
+            child: Icon(
+              Icons.settings_rounded,
+              color: Colors.white.withValues(alpha: 0.4),
+              size: 20,
             ),
-            child: Icon(Icons.settings_rounded,
-                color: Colors.white.withValues(alpha: 0.4), size: 20),
           ),
         ],
       ),
@@ -449,10 +456,7 @@ class _SyncedLyricsState extends State<_SyncedLyrics> {
   @override
   void initState() {
     super.initState();
-    _lineKeys = List.generate(
-      widget.lyrics.lines.length,
-      (_) => GlobalKey(),
-    );
+    _lineKeys = List.generate(widget.lyrics.lines.length, (_) => GlobalKey());
   }
 
   @override
@@ -460,10 +464,7 @@ class _SyncedLyricsState extends State<_SyncedLyrics> {
     super.didUpdateWidget(oldWidget);
     // Recreate keys when lyrics change (different song)
     if (widget.lyrics.lines.length != _lineKeys.length) {
-      _lineKeys = List.generate(
-        widget.lyrics.lines.length,
-        (_) => GlobalKey(),
-      );
+      _lineKeys = List.generate(widget.lyrics.lines.length, (_) => GlobalKey());
     }
     // Auto-scroll when current line changes
     if (widget.currentLineIndex != oldWidget.currentLineIndex &&
@@ -537,7 +538,8 @@ class _SyncedLyricsState extends State<_SyncedLyrics> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: List.generate(widget.lyrics.lines.length, (index) {
               final isCurrent = index == widget.currentLineIndex;
-              final isPast = widget.currentLineIndex >= 0 &&
+              final isPast =
+                  widget.currentLineIndex >= 0 &&
                   index < widget.currentLineIndex;
               final distance = widget.currentLineIndex >= 0
                   ? (index - widget.currentLineIndex).abs()
@@ -552,8 +554,8 @@ class _SyncedLyricsState extends State<_SyncedLyrics> {
                 alpha = distance <= 1
                     ? 0.55
                     : distance <= 3
-                        ? 0.35
-                        : 0.2;
+                    ? 0.35
+                    : 0.2;
               }
 
               return _LyricLine(
@@ -630,7 +632,7 @@ class _LyricLine extends StatelessWidget {
                       Shadow(
                         color: Colors.white.withValues(alpha: 0.25),
                         blurRadius: 24,
-                      )
+                      ),
                     ]
                   : [const Shadow(color: Colors.transparent, blurRadius: 0)],
             ),
@@ -730,7 +732,11 @@ class _EmptyState extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.lyrics_rounded, size: 64, color: Colors.white.withValues(alpha: 0.15)),
+          Icon(
+            Icons.lyrics_rounded,
+            size: 64,
+            color: Colors.white.withValues(alpha: 0.15),
+          ),
           const SizedBox(height: 16),
           const Text(
             'No lyrics available',
@@ -744,7 +750,9 @@ class _EmptyState extends StatelessWidget {
             style: TextButton.styleFrom(
               foregroundColor: Colors.white70,
               backgroundColor: Colors.white.withValues(alpha: 0.08),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
             ),
           ),
@@ -777,12 +785,19 @@ class _MiniControls extends StatelessWidget {
             builder: (context, playingSnap) {
               final isPlaying = playingSnap.data ?? false;
               return StreamBuilder<PositionData>(
-                stream: Rx.combineLatest3<Duration, Duration, Duration?, PositionData>(
-                  player.positionStream,
-                  player.bufferedPositionStream,
-                  player.durationStream,
-                  (pos, buf, dur) => PositionData(pos, buf, dur ?? Duration.zero),
-                ),
+                stream:
+                    Rx.combineLatest3<
+                      Duration,
+                      Duration,
+                      Duration?,
+                      PositionData
+                    >(
+                      player.positionStream,
+                      player.bufferedPositionStream,
+                      player.durationStream,
+                      (pos, buf, dur) =>
+                          PositionData(pos, buf, dur ?? Duration.zero),
+                    ),
                 builder: (context, snapshot) {
                   final data = snapshot.data;
                   return WaveformSeekBar(
@@ -802,7 +817,11 @@ class _MiniControls extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               IconButton(
-                icon: const Icon(Icons.skip_previous_rounded, color: Colors.white, size: 28),
+                icon: const Icon(
+                  Icons.skip_previous_rounded,
+                  color: Colors.white,
+                  size: 28,
+                ),
                 onPressed: controller.prev,
               ),
               const SizedBox(width: 16),
@@ -822,7 +841,11 @@ class _MiniControls extends StatelessWidget {
               ),
               const SizedBox(width: 16),
               IconButton(
-                icon: const Icon(Icons.skip_next_rounded, color: Colors.white, size: 28),
+                icon: const Icon(
+                  Icons.skip_next_rounded,
+                  color: Colors.white,
+                  size: 28,
+                ),
                 onPressed: controller.next,
               ),
             ],
@@ -831,7 +854,6 @@ class _MiniControls extends StatelessWidget {
       ),
     );
   }
-
 }
 
 class _LyricsSkeleton extends StatefulWidget {
@@ -846,7 +868,18 @@ class _LyricsSkeletonState extends State<_LyricsSkeleton>
   late final AnimationController _shimmer;
 
   // Widths as fractions to mimic varied lyric line lengths
-  static const _lines = [0.75, 0.55, 0.85, 0.6, 0.7, 0.5, 0.8, 0.45, 0.65, 0.55];
+  static const _lines = [
+    0.75,
+    0.55,
+    0.85,
+    0.6,
+    0.7,
+    0.5,
+    0.8,
+    0.45,
+    0.65,
+    0.55,
+  ];
 
   @override
   void initState() {
@@ -906,4 +939,3 @@ class _LyricsSkeletonState extends State<_LyricsSkeleton>
     );
   }
 }
-

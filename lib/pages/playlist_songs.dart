@@ -5,9 +5,9 @@ import 'package:eq_app/Routes/routes.dart';
 import 'package:eq_app/extensions/index.dart';
 import '/exports/exports.dart';
 
-import '../Helpers/AudioHandler.dart';
-import '../controllers/AppController.dart';
-import '../widgets/BottomPlayer.dart';
+import '../helpers/audio_handler.dart';
+import '../controllers/app_controller.dart';
+import '../widgets/bottom_player.dart';
 import '../widgets/song_tile.dart';
 
 class PlaylistSongs extends StatefulWidget {
@@ -75,26 +75,26 @@ class _PlaylistSongsState extends State<PlaylistSongs> {
                       bottom: 45,
                       left: 10,
                       child: RichText(
-                      text: TextSpan(
-                        children: [
-                          TextSpan(
-                            text: "${widget.playlist}\n",
-                            style: Theme.of(context).textTheme.displayMedium,
-                          ),
-                          TextSpan(
-                            text: "${widget.songs}",
-                            style: Theme.of(context).textTheme.headlineLarge!
-                                .copyWith(fontWeight: FontWeight.w300),
-                          ),
-                          TextSpan(
-                            text: widget.songs.aTracks,
-                            style: Theme.of(context).textTheme.headlineSmall!
-                                .copyWith(fontWeight: FontWeight.w300),
-                          ),
-                        ],
+                        text: TextSpan(
+                          children: [
+                            TextSpan(
+                              text: "${widget.playlist}\n",
+                              style: Theme.of(context).textTheme.displayMedium,
+                            ),
+                            TextSpan(
+                              text: "${widget.songs}",
+                              style: Theme.of(context).textTheme.headlineLarge!
+                                  .copyWith(fontWeight: FontWeight.w300),
+                            ),
+                            TextSpan(
+                              text: widget.songs.aTracks,
+                              style: Theme.of(context).textTheme.headlineSmall!
+                                  .copyWith(fontWeight: FontWeight.w300),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
                   ],
                 ),
               ),

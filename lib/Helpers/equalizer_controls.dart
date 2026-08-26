@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:provider/provider.dart';
-import '../controllers/AppController.dart';
-import '/Helpers/Channel.dart';
+import '../controllers/app_controller.dart';
+import '/helpers/channel.dart';
 import '/extensions/index.dart';
 
 class EqualizerControls extends StatefulWidget {

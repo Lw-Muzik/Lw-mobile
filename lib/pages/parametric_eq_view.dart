@@ -3,7 +3,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '/controllers/AppController.dart';
+import '/controllers/app_controller.dart';
 import '/models/eq_models.dart';
 
 /// Accent color used throughout the parametric EQ view.
@@ -26,7 +26,16 @@ const List<Color> _kPointColors = [
 
 /// Frequency labels for the X-axis grid.
 const List<double> _kFreqLabels = [
-  20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000,
+  20,
+  50,
+  100,
+  200,
+  500,
+  1000,
+  2000,
+  5000,
+  10000,
+  20000,
 ];
 
 /// dB tick marks for the Y-axis grid.
@@ -90,16 +99,10 @@ class _ParametricEqViewState extends State<ParametricEqView> {
             ),
 
             // -- Point editor panel with Q control --
-            Expanded(
-              flex: 30,
-              child: _buildEditorPanel(controller, points),
-            ),
+            Expanded(flex: 30, child: _buildEditorPanel(controller, points)),
 
             // -- Quick actions --
-            Expanded(
-              flex: 20,
-              child: _buildQuickActions(controller, points),
-            ),
+            Expanded(flex: 20, child: _buildQuickActions(controller, points)),
           ],
         );
       },
@@ -125,8 +128,7 @@ class _ParametricEqViewState extends State<ParametricEqView> {
               _handleDragStart(points, details, canvasWidth, canvasHeight);
             },
             onPanUpdate: (details) {
-              _handleDragUpdate(
-                  controller, details, canvasWidth, canvasHeight);
+              _handleDragUpdate(controller, details, canvasWidth, canvasHeight);
             },
             onPanEnd: (_) {
               setState(() {
@@ -137,7 +139,12 @@ class _ParametricEqViewState extends State<ParametricEqView> {
             child: GestureDetector(
               onDoubleTapDown: (details) {
                 _handleDoubleTap(
-                    controller, points, details, canvasWidth, canvasHeight);
+                  controller,
+                  points,
+                  details,
+                  canvasWidth,
+                  canvasHeight,
+                );
               },
               onDoubleTap: () {},
               child: CustomPaint(
@@ -216,11 +223,7 @@ class _ParametricEqViewState extends State<ParametricEqView> {
     final freq = _normToFreq(normX).clamp(20.0, 20000.0);
     final gain = _normToGain(normY).clamp(_kMinGain, _kMaxGain);
 
-    controller.updateParametricPoint(
-      _dragIndex,
-      frequency: freq,
-      gain: gain,
-    );
+    controller.updateParametricPoint(_dragIndex, frequency: freq, gain: gain);
     setState(() {
       _dragPosition = details.localPosition;
     });
@@ -250,7 +253,9 @@ class _ParametricEqViewState extends State<ParametricEqView> {
   // -------------------------------------------------------------------------
 
   Widget _buildEditorPanel(
-      AppController controller, List<ParametricPoint> points) {
+    AppController controller,
+    List<ParametricPoint> points,
+  ) {
     if (points.isEmpty) {
       return Center(
         child: Text(
@@ -310,7 +315,8 @@ class _ParametricEqViewState extends State<ParametricEqView> {
     final freqLabel = point.frequency >= 1000
         ? "${(point.frequency / 1000).toStringAsFixed(1)} kHz"
         : "${point.frequency.toStringAsFixed(0)} Hz";
-    final gainLabel = "${point.gain >= 0 ? "+" : ""}${point.gain.toStringAsFixed(1)} dB";
+    final gainLabel =
+        "${point.gain >= 0 ? "+" : ""}${point.gain.toStringAsFixed(1)} dB";
 
     return Column(
       children: [
@@ -319,7 +325,10 @@ class _ParametricEqViewState extends State<ParametricEqView> {
             // Frequency readout
             Expanded(
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.07),
                   borderRadius: BorderRadius.circular(8),
@@ -354,7 +363,10 @@ class _ParametricEqViewState extends State<ParametricEqView> {
             // Gain readout
             Expanded(
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.07),
                   borderRadius: BorderRadius.circular(8),
@@ -378,8 +390,8 @@ class _ParametricEqViewState extends State<ParametricEqView> {
                         color: point.gain > 0
                             ? _kAccent
                             : point.gain < 0
-                                ? const Color(0xFF5EC4D4)
-                                : Colors.white,
+                            ? const Color(0xFF5EC4D4)
+                            : Colors.white,
                         fontSize: 14,
                         fontWeight: FontWeight.w500,
                       ),
@@ -405,7 +417,10 @@ class _ParametricEqViewState extends State<ParametricEqView> {
                   size: 20,
                 ),
                 onPressed: () {
-                  controller.updateParametricPoint(index, enabled: !point.enabled);
+                  controller.updateParametricPoint(
+                    index,
+                    enabled: !point.enabled,
+                  );
                 },
                 tooltip: point.enabled ? "Disable point" : "Enable point",
               ),
@@ -442,7 +457,9 @@ class _ParametricEqViewState extends State<ParametricEqView> {
                   inactiveTrackColor: Colors.white12,
                   thumbColor: _kAccent,
                   overlayColor: _kAccent.withValues(alpha: 0.1),
-                  thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+                  thumbShape: const RoundSliderThumbShape(
+                    enabledThumbRadius: 6,
+                  ),
                 ),
                 child: Slider(
                   value: point.q.clamp(0.3, 10.0),
@@ -460,7 +477,11 @@ class _ParametricEqViewState extends State<ParametricEqView> {
             SizedBox(
               width: 50,
               child: Text(
-                point.q < 1.0 ? "Wide" : point.q > 5.0 ? "Narrow" : "",
+                point.q < 1.0
+                    ? "Wide"
+                    : point.q > 5.0
+                    ? "Narrow"
+                    : "",
                 style: TextStyle(
                   color: Colors.white.withValues(alpha: 0.3),
                   fontSize: 10,
@@ -479,7 +500,9 @@ class _ParametricEqViewState extends State<ParametricEqView> {
   // -------------------------------------------------------------------------
 
   Widget _buildQuickActions(
-      AppController controller, List<ParametricPoint> points) {
+    AppController controller,
+    List<ParametricPoint> points,
+  ) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       child: Row(
@@ -810,7 +833,11 @@ class _ParametricEqPainter extends CustomPainter {
       final cy = _gainToNorm(pt.gain) * size.height;
       final isSelected = i == selectedIndex;
       final isDragging = i == dragIndex;
-      final radius = isDragging ? 13.0 : isSelected ? 11.0 : 9.0;
+      final radius = isDragging
+          ? 13.0
+          : isSelected
+          ? 11.0
+          : 9.0;
 
       if (isSelected || isDragging) {
         canvas.drawCircle(
@@ -837,7 +864,9 @@ class _ParametricEqPainter extends CustomPainter {
         text: TextSpan(
           text: "${i + 1}",
           style: TextStyle(
-            color: pt.enabled ? Colors.white : Colors.white.withValues(alpha: 0.4),
+            color: pt.enabled
+                ? Colors.white
+                : Colors.white.withValues(alpha: 0.4),
             fontSize: 10,
             fontWeight: FontWeight.w700,
           ),
@@ -895,7 +924,9 @@ class _ParametricEqPainter extends CustomPainter {
   void _drawFrequencyLabels(Canvas canvas, Size size) {
     for (final freq in _kFreqLabels) {
       final x = _freqToNorm(freq) * size.width;
-      final label = freq >= 1000 ? "${(freq / 1000).toStringAsFixed(0)}k" : freq.toStringAsFixed(0);
+      final label = freq >= 1000
+          ? "${(freq / 1000).toStringAsFixed(0)}k"
+          : freq.toStringAsFixed(0);
       final tp = TextPainter(
         text: TextSpan(
           text: label,
@@ -913,7 +944,9 @@ class _ParametricEqPainter extends CustomPainter {
   void _drawDbLabels(Canvas canvas, Size size) {
     for (final db in _kDbTicks) {
       final y = _gainToNorm(db) * size.height;
-      final label = db > 0 ? "+${db.toStringAsFixed(0)}" : db.toStringAsFixed(0);
+      final label = db > 0
+          ? "+${db.toStringAsFixed(0)}"
+          : db.toStringAsFixed(0);
       final tp = TextPainter(
         text: TextSpan(
           text: label,
@@ -933,7 +966,11 @@ class _ParametricEqPainter extends CustomPainter {
   /// Higher Q = narrower bell, lower Q = wider bell.
   /// bandwidth (in octaves) = 1 / Q approximately.
   static double _bellGain(
-      double centerFreq, double peakGain, double q, double queryFreq) {
+    double centerFreq,
+    double peakGain,
+    double q,
+    double queryFreq,
+  ) {
     final logDist = log(queryFreq / centerFreq) / ln2;
     final bandwidth = 1.0 / q;
     final exponent = -(logDist * logDist) / (2.0 * bandwidth * bandwidth);

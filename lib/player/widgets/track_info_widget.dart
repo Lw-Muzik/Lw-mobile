@@ -3,14 +3,14 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:eq_app/Routes/routes.dart';
 import 'package:eq_app/pages/artist_songs.dart';
-import 'package:eq_app/widgets/ArtworkWidget.dart';
+import '/widgets/artwork_widget.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 
-import '../../controllers/AppController.dart';
+import '../../controllers/app_controller.dart';
 import '../../pages/album_songs.dart';
-import '../../widgets/PlayListWidget.dart';
+import '../../widgets/playlist_widget.dart';
 import '../../widgets/song_options_sheet.dart';
-import 'ArtworkFetch.dart';
+import 'artwork_fetch.dart';
 
 class TrackInfoWidget extends StatelessWidget {
   final AppController controller;

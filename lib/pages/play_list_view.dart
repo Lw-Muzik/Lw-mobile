@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'package:eq_app/Helpers/index.dart';
 import 'package:eq_app/Routes/routes.dart';
-import 'package:eq_app/controllers/AppController.dart';
+import 'package:eq_app/controllers/app_controller.dart';
 import 'package:eq_app/extensions/index.dart';
 import 'package:eq_app/pages/playlist_songs.dart';
 import '/exports/exports.dart';

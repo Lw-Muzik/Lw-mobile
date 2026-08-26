@@ -1,13 +1,13 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:eq_app/Global/index.dart';
+import 'package:eq_app/global/index.dart';
 import '/exports/exports.dart';
 
 import '../data/library_repository.dart';
-import '../Helpers/AudioHandler.dart';
+import '../helpers/audio_handler.dart';
 import '../Helpers/Channel.dart';
-import '../Helpers/index.dart';
+import '../helpers/index.dart';
 import '../models/eq_models.dart';
 import '../models/room_preset.dart';
 import 'dart:io';
@@ -38,7 +38,7 @@ import '../models/track_extras.dart';
 import '../services/playback_session.dart';
 import 'queue_order.dart';
 import 'visualizer_tap.dart';
-import '../Helpers/AudioVisualizer.dart';
+import '../helpers/audio_visualizer.dart';
 import 'stem_controller.dart';
 
 enum AppMode { musicPlayer, equalizer }
@@ -241,8 +241,10 @@ class AppController with ChangeNotifier {
         // onChangeStart/onChangeEnd (flutter/flutter#123315), so a drag-end
         // commit never comes. Debounce a persist so those edits aren't lost.
         _graphicGainsPersistTimer?.cancel();
-        _graphicGainsPersistTimer =
-            Timer(const Duration(seconds: 1), _persistGraphicGains);
+        _graphicGainsPersistTimer = Timer(
+          const Duration(seconds: 1),
+          _persistGraphicGains,
+        );
       }
       notifyListeners();
     }
@@ -878,55 +880,57 @@ class AppController with ChangeNotifier {
   /// Called once at init and again after every crossfade swap.
   void _bindProcessingState() {
     _processingSub?.cancel();
-    _processingSub = handler.player.processingStateStream.listen((event) {
-      if (event == ProcessingState.ready) {
-        // Something opened. Whatever was rescued is no longer the failure being
-        // guarded against, and the next one — hours later, on a URL that has
-        // since expired — deserves its own second chance.
-        _rescuingSongId = null;
-        _rescueAttempts = 0;
-        preCacheNextCloudTracks();
-        // On iOS, the MTAudioProcessingTap calls dsp_reinit() when a new
-        // AVPlayerItem starts, resetting all DSP filters to defaults.
-        // Re-apply all EQ/reverb/tone settings to the native engine.
-        if (Platform.isIOS) {
-          _applyAllDspParams();
-        }
-      }
-      if (event == ProcessingState.completed) {
-        // Repeat-all wraps instead of stopping. `next()` has always done this
-        // for the skip button, but a track ending on its own reached here and
-        // stopped — so the setting appeared to work right up until the user put
-        // the phone down, which is the only time it matters.
-        final repeatAll = handler.loopMode == LoopMode.all;
-        if (_gaplessPlayback && handler.player.audioSources.length > 1) {
-          final idx = handler.player.currentIndex ?? 0;
-          if (idx >= songs.length - 1 && !repeatAll) {
-            handler.player.stop();
+    _processingSub = handler.player.processingStateStream.listen(
+      (event) {
+        if (event == ProcessingState.ready) {
+          // Something opened. Whatever was rescued is no longer the failure being
+          // guarded against, and the next one — hours later, on a URL that has
+          // since expired — deserves its own second chance.
+          _rescuingSongId = null;
+          _rescueAttempts = 0;
+          preCacheNextCloudTracks();
+          // On iOS, the MTAudioProcessingTap calls dsp_reinit() when a new
+          // AVPlayerItem starts, resetting all DSP filters to defaults.
+          // Re-apply all EQ/reverb/tone settings to the native engine.
+          if (Platform.isIOS) {
+            _applyAllDspParams();
           }
-        } else if (!_isCrossfading) {
-          if (songId >= songs.length - 1) {
-            if (repeatAll && songs.isNotEmpty) {
-              songId = 0;
-              artWorkId = songs[0].id;
-              unawaited(loadTrackAt(0));
-            } else {
+        }
+        if (event == ProcessingState.completed) {
+          // Repeat-all wraps instead of stopping. `next()` has always done this
+          // for the skip button, but a track ending on its own reached here and
+          // stopped — so the setting appeared to work right up until the user put
+          // the phone down, which is the only time it matters.
+          final repeatAll = handler.loopMode == LoopMode.all;
+          if (_gaplessPlayback && handler.player.audioSources.length > 1) {
+            final idx = handler.player.currentIndex ?? 0;
+            if (idx >= songs.length - 1 && !repeatAll) {
               handler.player.stop();
             }
-          } else {
-            // Both branches assign through the `songId` setter, which tops the
-            // radio up for every path at once.
-            songId += 1;
-            artWorkId = songs[songId].id;
-            unawaited(loadTrackAt(songId));
+          } else if (!_isCrossfading) {
+            if (songId >= songs.length - 1) {
+              if (repeatAll && songs.isNotEmpty) {
+                songId = 0;
+                artWorkId = songs[0].id;
+                unawaited(loadTrackAt(0));
+              } else {
+                handler.player.stop();
+              }
+            } else {
+              // Both branches assign through the `songId` setter, which tops the
+              // radio up for every path at once.
+              songId += 1;
+              artWorkId = songs[songId].id;
+              unawaited(loadTrackAt(songId));
+            }
           }
         }
-      }
-    },
-        // Same reasoning as [_bindCurrentIndex]: this stream carries the
-        // player's errors as well as its states, and one place recovers from
-        // them.
-        onError: (Object _) {});
+      },
+      // Same reasoning as [_bindCurrentIndex]: this stream carries the
+      // player's errors as well as its states, and one place recovers from
+      // them.
+      onError: (Object _) {},
+    );
   }
 
   /// Subscribe to currentIndexStream for gapless mode index tracking.
@@ -936,30 +940,32 @@ class AppController with ChangeNotifier {
   /// incorrectly overwrite the real songId.
   void _bindCurrentIndex() {
     _indexSub?.cancel();
-    _indexSub = handler.player.currentIndexStream.listen((index) {
-      if (index != null &&
-          _gaplessPlayback &&
-          songs.isNotEmpty &&
-          index < songs.length &&
-          handler.player.audioSources.length > 1) {
-        _songId = index;
-        _artWorkId = songs[index].id;
-        _updateMediaItemForIndex(index);
-        // The gapless path advances the index here rather than through the
-        // setter, so this is where a session learns the track changed.
-        _saveSession();
-        notifyListeners();
-        _loadLyricsForCurrentSong();
-        // Endless radio: tops the queue up before it runs out. A no-op unless a
-        // YouTube queue is playing and Autoplay is on.
-        unawaited(YtRadioQueue.instance.onIndexChanged(this, index));
-      }
-    },
-        // Derived from the same event stream as the handler's, so a dead track
-        // surfaces here too. Recovery belongs in one place — see
-        // [_recoverFromPlaybackError] — and this listener only has to decline
-        // to become a second, unhandled copy of the same error.
-        onError: (Object _) {});
+    _indexSub = handler.player.currentIndexStream.listen(
+      (index) {
+        if (index != null &&
+            _gaplessPlayback &&
+            songs.isNotEmpty &&
+            index < songs.length &&
+            handler.player.audioSources.length > 1) {
+          _songId = index;
+          _artWorkId = songs[index].id;
+          _updateMediaItemForIndex(index);
+          // The gapless path advances the index here rather than through the
+          // setter, so this is where a session learns the track changed.
+          _saveSession();
+          notifyListeners();
+          _loadLyricsForCurrentSong();
+          // Endless radio: tops the queue up before it runs out. A no-op unless a
+          // YouTube queue is playing and Autoplay is on.
+          unawaited(YtRadioQueue.instance.onIndexChanged(this, index));
+        }
+      },
+      // Derived from the same event stream as the handler's, so a dead track
+      // surfaces here too. Recovery belongs in one place — see
+      // [_recoverFromPlaybackError] — and this listener only has to decline
+      // to become a second, unhandled copy of the same error.
+      onError: (Object _) {},
+    );
   }
 
   /// Called by HypeAudioHandler after crossfade completes and players are swapped.
@@ -1227,7 +1233,9 @@ class AppController with ChangeNotifier {
   /// Build and load a queue for gapless playback.
   /// Cached cloud tracks play from disk; uncached ones stream with auth headers.
   bool _loadingQueue = false;
-  Future<void> loadGaplessQueue(int startIndex, {
+  Future<void> loadGaplessQueue(
+    int startIndex, {
+
     /// Where the track at [startIndex] should resume from.
     ///
     /// Reloading is the only way to change a gapless queue's order, and
@@ -1235,6 +1243,7 @@ class AppController with ChangeNotifier {
     /// position is carried across explicitly. Null starts from the beginning,
     /// which is what every caller other than a reorder wants.
     Duration? initialPosition,
+
     /// Whether to start playing once loaded. False preserves a paused player
     /// through a reorder.
     bool autoPlay = true,
@@ -1260,10 +1269,12 @@ class AppController with ChangeNotifier {
         // the client that resolved it. Never cached: the target is single-use
         // and carries its own expiry.
         if (YtInnerTube.isStreamUrl(s.data)) {
-          sources.add(AudioSource.uri(
-            Uri.parse(s.data),
-            headers: YtInnerTube.audioPlaybackHeaders,
-          ));
+          sources.add(
+            AudioSource.uri(
+              Uri.parse(s.data),
+              headers: YtInnerTube.audioPlaybackHeaders,
+            ),
+          );
         } else {
           final fileId = s.id.toString();
           if (cloudCache.isCached(fileId)) {
@@ -1316,9 +1327,11 @@ class AppController with ChangeNotifier {
     // nothing is obeying. Stored as the enum index, clamped in case a future
     // version removes a mode and an old value outlives it.
     final storedLoop = _prefs.getInt("loopMode") ?? LoopMode.off.index;
-    unawaited(handler.setLoopMode(
-      LoopMode.values[storedLoop.clamp(0, LoopMode.values.length - 1)],
-    ));
+    unawaited(
+      handler.setLoopMode(
+        LoopMode.values[storedLoop.clamp(0, LoopMode.values.length - 1)],
+      ),
+    );
     // Restore both visualizer surfaces, then tell the native tap once. The
     // player visual used to be the odd one out: its setter never wrote to prefs
     // and nothing read it back, so it silently reset to off on every launch.
@@ -1460,7 +1473,9 @@ class AppController with ChangeNotifier {
     // Mirror into the library DB (fire-and-forget) so discovery surfaces read
     // from the same source of truth as the rest of the library.
     libraryRepo?.incrementPlayCount(
-        songId, DateTime.now().millisecondsSinceEpoch ~/ 1000);
+      songId,
+      DateTime.now().millisecondsSinceEpoch ~/ 1000,
+    );
     // Debounce disk persistence. Encoding the whole map + setString used to run
     // synchronously on the UI isolate on EVERY track change (plus a redundant
     // notifyListeners) — a hitch at the exact moment of the transition that
@@ -1468,8 +1483,10 @@ class AppController with ChangeNotifier {
     // only the write is coalesced (and flushed on background via
     // flushPendingWrites()). No notify here — the songId setter already fires one.
     _playCountPersistTimer?.cancel();
-    _playCountPersistTimer =
-        Timer(const Duration(seconds: 3), _persistPlayCounts);
+    _playCountPersistTimer = Timer(
+      const Duration(seconds: 3),
+      _persistPlayCounts,
+    );
   }
 
   void _persistPlayCounts() {
@@ -1499,14 +1516,12 @@ class AppController with ChangeNotifier {
       songMap[s.id] = s;
     }
     // Sort by play count descending
-    final sorted = _playCounts.entries
-        .where((e) => e.value > 0 && songMap.containsKey(e.key))
-        .toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
-    return sorted
-        .take(limit)
-        .map((e) => songMap[e.key]!)
-        .toList();
+    final sorted =
+        _playCounts.entries
+            .where((e) => e.value > 0 && songMap.containsKey(e.key))
+            .toList()
+          ..sort((a, b) => b.value.compareTo(a.value));
+    return sorted.take(limit).map((e) => songMap[e.key]!).toList();
   }
 
   List<SongModel> getRecentlyAdded({int limit = 50}) {
@@ -1973,16 +1988,20 @@ class AppController with ChangeNotifier {
   /// a few seconds while playing costs one write.
   void _saveSession() {
     if (_songs.isEmpty) return;
-    PlaybackSessionStore.instance.save(PlaybackSession(
-      songs: _songs,
-      shuffledOrder: _isShuffled ? [for (final s in _shuffledSongs) s.id] : null,
-      shuffled: _isShuffled,
-      index: _songId,
-      // While a resume is still pending the player is empty and would report
-      // zero, which would overwrite the very position being restored.
-      position: _pendingResume ?? handler.player.position,
-      loopMode: handler.loopMode.index,
-    ));
+    PlaybackSessionStore.instance.save(
+      PlaybackSession(
+        songs: _songs,
+        shuffledOrder: _isShuffled
+            ? [for (final s in _shuffledSongs) s.id]
+            : null,
+        shuffled: _isShuffled,
+        index: _songId,
+        // While a resume is still pending the player is empty and would report
+        // zero, which would overwrite the very position being restored.
+        position: _pendingResume ?? handler.player.position,
+        loopMode: handler.loopMode.index,
+      ),
+    );
   }
 
   /// Writes the session immediately. For the app going to the background, which
@@ -2042,7 +2061,11 @@ class AppController with ChangeNotifier {
     // refreshed on the way in, until nothing stale is left.
     final anyStale = songs.any((song) => !song.hasFreshTarget);
     if (_gaplessPlayback && _crossfadeDuration == 0 && !anyStale) {
-      await loadGaplessQueue(_songId, initialPosition: position, autoPlay: false);
+      await loadGaplessQueue(
+        _songId,
+        initialPosition: position,
+        autoPlay: false,
+      );
     } else {
       await loadAudioSource(
         handler,
@@ -2256,8 +2279,9 @@ class AppController with ChangeNotifier {
 
     // Before anything moves. Everything below depends on this being the track
     // that is actually playing.
-    final playing =
-        (_songId >= 0 && _songId < songs.length) ? songs[_songId] : null;
+    final playing = (_songId >= 0 && _songId < songs.length)
+        ? songs[_songId]
+        : null;
 
     _shuffledSongs = value
         ? QueueOrder.shuffle(_songs, playing)

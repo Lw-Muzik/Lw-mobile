@@ -1,4 +1,4 @@
-import 'package:eq_app/controllers/AppController.dart';
+import '/controllers/app_controller.dart';
 import 'package:eq_app/models/room_preset.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -330,30 +330,42 @@ class _SpaceViewState extends State<SpaceView> {
           ),
           child: Row(
             children: [
-              Icon(Icons.spatial_audio_rounded, size: 18,
-                  color: accent.withValues(alpha: 0.8)),
+              Icon(
+                Icons.spatial_audio_rounded,
+                size: 18,
+                color: accent.withValues(alpha: 0.8),
+              ),
               const SizedBox(width: 10),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text("Preset",
-                        style: TextStyle(fontSize: 11,
-                            color: Colors.white.withValues(alpha: 0.45))),
+                    Text(
+                      "Preset",
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.white.withValues(alpha: 0.45),
+                      ),
+                    ),
                     const SizedBox(height: 1),
                     Text(
                       controller.activeRoomPresetName.isEmpty
                           ? 'Custom'
                           : controller.activeRoomPresetName,
                       style: const TextStyle(
-                          fontSize: 14, fontWeight: FontWeight.w600,
-                          color: Colors.white),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
                     ),
                   ],
                 ),
               ),
-              Icon(Icons.keyboard_arrow_down_rounded, size: 22,
-                  color: Colors.white.withValues(alpha: 0.4)),
+              Icon(
+                Icons.keyboard_arrow_down_rounded,
+                size: 22,
+                color: Colors.white.withValues(alpha: 0.4),
+              ),
             ],
           ),
         ),
@@ -516,13 +528,13 @@ class _RoomPresetBottomSheet extends StatelessWidget {
     final sizeLabel = p.roomSize < 0.3
         ? 'Tight'
         : p.roomSize < 0.6
-            ? 'Medium'
-            : 'Spacious';
+        ? 'Medium'
+        : 'Spacious';
     final decayLabel = p.decay < 0.3
         ? 'short decay'
         : p.decay < 0.6
-            ? 'moderate decay'
-            : 'long decay';
+        ? 'moderate decay'
+        : 'long decay';
     return '$sizeLabel, $decayLabel, ${(p.wetDry * 100).round()}% wet';
   }
 
@@ -533,7 +545,8 @@ class _RoomPresetBottomSheet extends StatelessWidget {
 
     return Container(
       constraints: BoxConstraints(
-          maxHeight: MediaQuery.of(context).size.height * 0.55),
+        maxHeight: MediaQuery.of(context).size.height * 0.55,
+      ),
       decoration: const BoxDecoration(
         color: Color(0xFF1A1A1A),
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
@@ -545,7 +558,8 @@ class _RoomPresetBottomSheet extends StatelessWidget {
           Center(
             child: Container(
               margin: const EdgeInsets.only(top: 10, bottom: 6),
-              width: 36, height: 4,
+              width: 36,
+              height: 4,
               decoration: BoxDecoration(
                 color: Colors.white24,
                 borderRadius: BorderRadius.circular(2),
@@ -557,16 +571,28 @@ class _RoomPresetBottomSheet extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
             child: Row(
               children: [
-                const Icon(Icons.spatial_audio_rounded,
-                    color: _accent, size: 20),
+                const Icon(
+                  Icons.spatial_audio_rounded,
+                  color: _accent,
+                  size: 20,
+                ),
                 const SizedBox(width: 8),
-                const Text("Room Presets",
-                    style: TextStyle(color: Colors.white, fontSize: 16,
-                        fontWeight: FontWeight.w600)),
+                const Text(
+                  "Room Presets",
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
                 const Spacer(),
-                Text("${presets.length} presets",
-                    style: TextStyle(fontSize: 12,
-                        color: Colors.white.withValues(alpha: 0.4))),
+                Text(
+                  "${presets.length} presets",
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.white.withValues(alpha: 0.4),
+                  ),
+                ),
               ],
             ),
           ),
@@ -575,7 +601,8 @@ class _RoomPresetBottomSheet extends StatelessWidget {
             child: ListView.builder(
               shrinkWrap: true,
               padding: EdgeInsets.only(
-                  bottom: MediaQuery.of(context).padding.bottom + 16),
+                bottom: MediaQuery.of(context).padding.bottom + 16,
+              ),
               itemCount: presets.length,
               itemBuilder: (context, index) {
                 final preset = presets[index];
@@ -587,12 +614,15 @@ class _RoomPresetBottomSheet extends StatelessWidget {
                   },
                   child: Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 12),
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
                     color: isActive ? _accent.withValues(alpha: 0.1) : null,
                     child: Row(
                       children: [
                         Container(
-                          width: 36, height: 36,
+                          width: 36,
+                          height: 36,
                           decoration: BoxDecoration(
                             color: isActive
                                 ? _accent.withValues(alpha: 0.2)
@@ -600,7 +630,8 @@ class _RoomPresetBottomSheet extends StatelessWidget {
                             borderRadius: BorderRadius.circular(10),
                           ),
                           child: Icon(
-                            _iconForPreset(preset.name), size: 18,
+                            _iconForPreset(preset.name),
+                            size: 18,
                             color: isActive
                                 ? _accent
                                 : Colors.white.withValues(alpha: 0.4),
@@ -611,26 +642,34 @@ class _RoomPresetBottomSheet extends StatelessWidget {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(preset.name,
-                                  style: TextStyle(
-                                    color: isActive
-                                        ? _accent
-                                        : Colors.white.withValues(alpha: 0.85),
-                                    fontSize: 14,
-                                    fontWeight: isActive
-                                        ? FontWeight.w600
-                                        : FontWeight.w400,
-                                  )),
-                              Text(_description(preset),
-                                  style: TextStyle(fontSize: 11,
-                                      color: Colors.white
-                                          .withValues(alpha: 0.35))),
+                              Text(
+                                preset.name,
+                                style: TextStyle(
+                                  color: isActive
+                                      ? _accent
+                                      : Colors.white.withValues(alpha: 0.85),
+                                  fontSize: 14,
+                                  fontWeight: isActive
+                                      ? FontWeight.w600
+                                      : FontWeight.w400,
+                                ),
+                              ),
+                              Text(
+                                _description(preset),
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.white.withValues(alpha: 0.35),
+                                ),
+                              ),
                             ],
                           ),
                         ),
                         if (isActive)
-                          const Icon(Icons.check_rounded,
-                              color: _accent, size: 20),
+                          const Icon(
+                            Icons.check_rounded,
+                            color: _accent,
+                            size: 20,
+                          ),
                       ],
                     ),
                   ),

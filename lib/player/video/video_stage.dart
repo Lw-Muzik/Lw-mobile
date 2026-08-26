@@ -9,7 +9,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:just_audio/video.dart';
 
-import '../../controllers/AppController.dart';
+import '../../controllers/app_controller.dart';
 import 'video_surface.dart';
 
 class VideoStage extends StatefulWidget {

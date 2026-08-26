@@ -1,9 +1,9 @@
 import 'package:eq_app/extensions/index.dart';
-import 'package:eq_app/widgets/HorizontalSlider.dart';
+import 'package:eq_app/widgets/horizontal_slider.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../controllers/AppController.dart';
+import '../controllers/app_controller.dart';
 import 'audio_fx.dart';
 
 class DynamicsView extends StatelessWidget {

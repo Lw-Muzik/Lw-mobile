@@ -1,12 +1,14 @@
 // ignore_for_file: constant_identifier_names
-import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 class Channel {
   static MethodChannel channel = const MethodChannel("eq_app");
 
-  static Future<T?> _invoke<T>(String method, [Map<String, dynamic>? args]) async {
+  static Future<T?> _invoke<T>(
+    String method, [
+    Map<String, dynamic>? args,
+  ]) async {
     try {
       return await channel.invokeMethod<T>(method, args);
     } on PlatformException catch (e) {
@@ -18,7 +20,11 @@ class Channel {
     }
   }
 
-  static Future<T> _invokeRequired<T>(String method, T fallback, [Map<String, dynamic>? args]) async {
+  static Future<T> _invokeRequired<T>(
+    String method,
+    T fallback, [
+    Map<String, dynamic>? args,
+  ]) async {
     final result = await _invoke<T>(method, args);
     return result ?? fallback;
   }
@@ -37,7 +43,9 @@ class Channel {
     if (result == null) return [];
     List<String> p = (result as List).cast<String>();
     return List.generate(
-        p.length, (index) => {"id": index, "preset": p[index]});
+      p.length,
+      (index) => {"id": index, "preset": p[index]},
+    );
   }
 
   static void setPreset(String p) async {
@@ -155,20 +163,22 @@ class Channel {
 
   /// EventChannel for hardware volume button events when DVC is active.
   /// Emits "up" or "down" strings.
-  static const EventChannel _dvcVolumeButtonChannel =
-      EventChannel("eq_app/dvc_volume_button");
+  static const EventChannel _dvcVolumeButtonChannel = EventChannel(
+    "eq_app/dvc_volume_button",
+  );
 
-  static Stream<String> get dvcVolumeButtonStream =>
-      _dvcVolumeButtonChannel
-          .receiveBroadcastStream()
-          .map((event) => event.toString());
+  static Stream<String> get dvcVolumeButtonStream => _dvcVolumeButtonChannel
+      .receiveBroadcastStream()
+      .map((event) => event.toString());
 
   // ==================== Global EQ (System-Wide) ====================
 
   /// Enable or disable global EQ (applies EQ to all apps).
   /// Returns true if the command was accepted, false if API < 28.
   static Future<bool> enableGlobalEq(bool enable) async {
-    return await _invokeRequired<bool>("enableGlobalEq", false, {"enable": enable});
+    return await _invokeRequired<bool>("enableGlobalEq", false, {
+      "enable": enable,
+    });
   }
 
   /// Check if global EQ is currently running.
@@ -185,9 +195,7 @@ class Channel {
   static Future<List<Map<String, String>>> getPlayingApps() async {
     final result = await _invoke<List<dynamic>>("getPlayingApps");
     if (result == null) return [];
-    return result
-        .map((e) => Map<String, String>.from(e as Map))
-        .toList();
+    return result.map((e) => Map<String, String>.from(e as Map)).toList();
   }
 
   /// Returns the PNG icon bytes for a given package name, or null if unavailable.
@@ -202,14 +210,19 @@ class Channel {
 
   /// Request the user to disable battery optimization for this app.
   static Future<bool> requestDisableBatteryOptimization() async {
-    return await _invokeRequired<bool>("requestDisableBatteryOptimization", false);
+    return await _invokeRequired<bool>(
+      "requestDisableBatteryOptimization",
+      false,
+    );
   }
 
   // ==================== EQ Mode Notification ====================
 
   /// Start the EQ mode foreground service with persistent notification.
   static Future<bool> startEqModeService(String preset) async {
-    return await _invokeRequired<bool>("startEqModeService", false, {"preset": preset});
+    return await _invokeRequired<bool>("startEqModeService", false, {
+      "preset": preset,
+    });
   }
 
   /// Stop the EQ mode foreground service.
@@ -219,7 +232,9 @@ class Channel {
 
   /// Update the preset name shown in the EQ mode notification.
   static Future<bool> updateEqModePreset(String preset) async {
-    return await _invokeRequired<bool>("updateEqModePreset", false, {"preset": preset});
+    return await _invokeRequired<bool>("updateEqModePreset", false, {
+      "preset": preset,
+    });
   }
 
   // ==================== Custom DSP Room Effects ====================
@@ -275,8 +290,14 @@ class Channel {
   }
 
   /// Set crossfeed filter params (cutoffHz: 100-2000, feedLevelDb: 1-15)
-  static Future<void> dspSetCrossfeedParams(double cutoffHz, double feedLevelDb) async {
-    await _invoke("dspSetCrossfeedParams", {"cutoff": cutoffHz, "feed": feedLevelDb});
+  static Future<void> dspSetCrossfeedParams(
+    double cutoffHz,
+    double feedLevelDb,
+  ) async {
+    await _invoke("dspSetCrossfeedParams", {
+      "cutoff": cutoffHz,
+      "feed": feedLevelDb,
+    });
   }
 
   // ==================== Tone Controls (Bass/Treble) ====================
@@ -344,7 +365,9 @@ class Channel {
     await _invoke("setSpeakerEqEnabled", {"enabled": enabled});
   }
 
-  static Future<void> setSpeakerEqBands(List<Map<String, dynamic>> bands) async {
+  static Future<void> setSpeakerEqBands(
+    List<Map<String, dynamic>> bands,
+  ) async {
     final freqs = bands.map((b) => (b['fc'] as num).toDouble()).toList();
     final gains = bands.map((b) => (b['gain'] as num).toDouble()).toList();
     final qs = bands.map((b) => (b['q'] as num).toDouble()).toList();
@@ -390,7 +413,9 @@ class Channel {
   }
 
   static Future<double> getGraphicBandGain(int band) async {
-    return await _invokeRequired<double>("getGraphicBandGain", 0.0, {"band": band});
+    return await _invokeRequired<double>("getGraphicBandGain", 0.0, {
+      "band": band,
+    });
   }
 
   static Future<void> setGraphicAllBands(List<double> gains) async {
@@ -405,18 +430,32 @@ class Channel {
 
   // ==================== 32-Band Parametric EQ (Post-EQ) ====================
 
-  static Future<void> setParametricBand(int band, double freq, double gain,
-      {double q = 1.4, int filterType = 0, bool enabled = true}) async {
+  static Future<void> setParametricBand(
+    int band,
+    double freq,
+    double gain, {
+    double q = 1.4,
+    int filterType = 0,
+    bool enabled = true,
+  }) async {
     await _invoke("setParametricBand", {
-      "band": band, "freq": freq, "gain": gain,
-      "q": q, "filterType": filterType, "enabled": enabled,
+      "band": band,
+      "freq": freq,
+      "gain": gain,
+      "q": q,
+      "filterType": filterType,
+      "enabled": enabled,
     });
   }
 
-  static Future<void> setParametricAllBands(List<double> freqs, List<double> gains,
-      {List<double>? qs}) async {
+  static Future<void> setParametricAllBands(
+    List<double> freqs,
+    List<double> gains, {
+    List<double>? qs,
+  }) async {
     await _invoke("setParametricAllBands", {
-      "freqs": freqs, "gains": gains,
+      "freqs": freqs,
+      "gains": gains,
       if (qs != null) "qs": qs,
     });
   }
@@ -441,7 +480,6 @@ class Channel {
     return await _invokeRequired<bool>("isMbcEnabled", false);
   }
 
-
   // ==================== Device Detection ====================
 
   static Future<bool> isDynamicsProcessingAvailable() async {
@@ -461,7 +499,9 @@ class Channel {
 
   /// Generates a Chromaprint fingerprint from an audio file.
   /// Returns {fingerprint: String, duration: int (seconds)} or null on failure.
-  static Future<Map<String, dynamic>?> generateFingerprint(String filePath) async {
+  static Future<Map<String, dynamic>?> generateFingerprint(
+    String filePath,
+  ) async {
     final result = await _invoke<Map>("generateFingerprint", {
       "filePath": filePath,
     });
@@ -472,17 +512,16 @@ class Channel {
   /// Writes metadata tags to an audio file (fill-empty policy).
   /// Supports MP3, M4A, FLAC, OGG, WMA via JAudioTagger.
   /// [artworkPath] optional local path to cover art image to embed.
-  static Future<bool> writeTags(String filePath, Map<String, String> tags,
-      {String? artworkPath}) async {
-    return await _invokeRequired<bool>(
-      "writeTags",
-      false,
-      {
-        "filePath": filePath,
-        "tags": tags,
-        if (artworkPath != null) "artworkPath": artworkPath,
-      },
-    );
+  static Future<bool> writeTags(
+    String filePath,
+    Map<String, String> tags, {
+    String? artworkPath,
+  }) async {
+    return await _invokeRequired<bool>("writeTags", false, {
+      "filePath": filePath,
+      "tags": tags,
+      if (artworkPath != null) "artworkPath": artworkPath,
+    });
   }
 
   /// Triggers Android MediaStore re-scan for the given file path.
@@ -573,13 +612,14 @@ class Channel {
     await _invoke("stemSeek", {"samplePosition": samplePosition});
   }
 
-  static const EventChannel _stemProgressChannel =
-      EventChannel("eq_app/stem_progress");
+  static const EventChannel _stemProgressChannel = EventChannel(
+    "eq_app/stem_progress",
+  );
 
   static Stream<Map<String, dynamic>> get stemProgressStream =>
-      _stemProgressChannel
-          .receiveBroadcastStream()
-          .map((event) => Map<String, dynamic>.from(event as Map));
+      _stemProgressChannel.receiveBroadcastStream().map(
+        (event) => Map<String, dynamic>.from(event as Map),
+      );
 
   // ==================== Lyrics ====================
 
@@ -590,10 +630,9 @@ class Channel {
 
   /// Writes lyrics text into the ID3v2 USLT frame of an MP3 file.
   static Future<bool> writeLyrics(String filePath, String lyrics) async {
-    return await _invokeRequired<bool>(
-      "writeLyrics",
-      false,
-      {"filePath": filePath, "lyrics": lyrics},
-    );
+    return await _invokeRequired<bool>("writeLyrics", false, {
+      "filePath": filePath,
+      "lyrics": lyrics,
+    });
   }
 }

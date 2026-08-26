@@ -1,11 +1,11 @@
 import 'dart:math' as math;
 import 'dart:ui';
 
-import 'package:eq_app/controllers/AppController.dart';
+import '/controllers/app_controller.dart';
 import '/exports/exports.dart';
-import '../Helpers/VisualizerWidget.dart';
-import '../Visualizers/CircularBarVisualizer.dart';
-import 'ArtworkWidget.dart';
+import '../helpers/visualizer_widget.dart';
+import '../visualizers/circular_bar_visualizer.dart';
+import 'artwork_widget.dart';
 
 /// The extra blur that used to be a second, stacked backdrop filter.
 const double kWashSigma = 200;
@@ -155,9 +155,9 @@ class _BodyBackground extends StatelessWidget {
                   builder: (context, fft, _, rate) {
                     return CustomPaint(
                       painter: CircularBarVisualizer(
-                        color: Theme.of(context)
-                            .primaryColorLight
-                            .withValues(alpha: 0.1),
+                        color: Theme.of(
+                          context,
+                        ).primaryColorLight.withValues(alpha: 0.1),
                         waveData: fft,
                         width: size.width,
                         height: size.height,

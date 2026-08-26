@@ -3,7 +3,7 @@ import 'dart:io';
 import '/exports/exports.dart';
 
 import '../Routes/routes.dart';
-import '../controllers/AppController.dart';
+import '../controllers/app_controller.dart';
 import '../controllers/drawer_controller.dart';
 import 'equalizer.dart';
 import 'Settings.dart';
@@ -84,18 +84,18 @@ class _MenuScreenState extends State<MenuScreen> {
                                   opaque: false,
                                   pageBuilder: (_, __, ___) =>
                                       const LyricsView(),
-                                  transitionsBuilder:
-                                      (_, anim, __, child) {
+                                  transitionsBuilder: (_, anim, __, child) {
                                     return SlideTransition(
-                                      position: Tween<Offset>(
-                                        begin: const Offset(0, 1),
-                                        end: Offset.zero,
-                                      ).animate(
-                                        CurvedAnimation(
-                                          parent: anim,
-                                          curve: Curves.easeOutCubic,
-                                        ),
-                                      ),
+                                      position:
+                                          Tween<Offset>(
+                                            begin: const Offset(0, 1),
+                                            end: Offset.zero,
+                                          ).animate(
+                                            CurvedAnimation(
+                                              parent: anim,
+                                              curve: Curves.easeOutCubic,
+                                            ),
+                                          ),
                                       child: child,
                                     );
                                   },
@@ -131,8 +131,7 @@ class _MenuScreenState extends State<MenuScreen> {
                             label: 'Rescan Library',
                             subtitle: 'Reload local music files',
                             onTap: () => _closeAndRun(
-                              () =>
-                                  Navigator.pushNamed(context, Routes.loader),
+                              () => Navigator.pushNamed(context, Routes.loader),
                             ),
                           ),
                         ],

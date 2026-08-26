@@ -1,13 +1,12 @@
-
 import 'package:eq_app/Global/index.dart';
 import 'package:eq_app/Routes/routes.dart';
-import 'package:eq_app/controllers/AppController.dart';
+import 'package:eq_app/controllers/app_controller.dart';
 import 'package:eq_app/extensions/index.dart';
 import 'package:eq_app/widgets/Body.dart';
 import '/exports/exports.dart';
 
-import '/widgets/ArtworkWidget.dart';
-import '/widgets/BottomPlayer.dart';
+import '/widgets/artwork_widget.dart';
+import '/widgets/bottom_player.dart';
 import '/widgets/song_options_sheet.dart';
 import '/widgets/song_tile.dart';
 import '/data/library_repository.dart';
@@ -28,8 +27,9 @@ class GenreSongs extends StatefulWidget {
 }
 
 class _GenreSongsState extends State<GenreSongs> {
-  late final Stream<List<SongModel>> _songsStream =
-      context.read<LibraryRepository>().watchGenreSongs(widget.genre);
+  late final Stream<List<SongModel>> _songsStream = context
+      .read<LibraryRepository>()
+      .watchGenreSongs(widget.genre);
 
   @override
   Widget build(BuildContext context) {

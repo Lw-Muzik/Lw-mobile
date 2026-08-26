@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../controllers/AppController.dart';
+import '../../controllers/app_controller.dart';
 import '../../Helpers/index.dart';
 import '../../models/lyrics_model.dart';
 
@@ -51,7 +51,8 @@ class _LyricsEditorState extends State<LyricsEditor> {
     }
 
     // Insert timestamp at line start
-    final newText = text.substring(0, lineStart) + ts + text.substring(lineStart);
+    final newText =
+        text.substring(0, lineStart) + ts + text.substring(lineStart);
     _textController.value = TextEditingValue(
       text: newText,
       selection: TextSelection.collapsed(offset: lineStart + ts.length),
@@ -61,7 +62,9 @@ class _LyricsEditorState extends State<LyricsEditor> {
     // Move cursor to next line
     final nextNewline = newText.indexOf('\n', lineStart + ts.length);
     if (nextNewline >= 0 && nextNewline + 1 < newText.length) {
-      _textController.selection = TextSelection.collapsed(offset: nextNewline + 1);
+      _textController.selection = TextSelection.collapsed(
+        offset: nextNewline + 1,
+      );
     }
   }
 
@@ -87,7 +90,10 @@ class _LyricsEditorState extends State<LyricsEditor> {
     bool success = true;
 
     if (toLrc) {
-      success &= await controller.lyricsService.saveLyricsToLrc(song, lyricsData);
+      success &= await controller.lyricsService.saveLyricsToLrc(
+        song,
+        lyricsData,
+      );
     }
     if (toId3) {
       final isLocal = !song.data.startsWith('http');
@@ -151,7 +157,10 @@ class _LyricsEditorState extends State<LyricsEditor> {
                 ),
                 TextButton(
                   onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Cancel', style: TextStyle(color: Colors.white54)),
+                  child: const Text(
+                    'Cancel',
+                    style: TextStyle(color: Colors.white54),
+                  ),
                 ),
               ],
             ),
@@ -173,7 +182,9 @@ class _LyricsEditorState extends State<LyricsEditor> {
                   ),
                   backgroundColor: Colors.transparent,
                   side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
                 ),
                 const SizedBox(width: 8),
                 ChoiceChip(
@@ -187,7 +198,9 @@ class _LyricsEditorState extends State<LyricsEditor> {
                   ),
                   backgroundColor: Colors.transparent,
                   side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
                 ),
                 const Spacer(),
                 if (_synced)
@@ -198,8 +211,13 @@ class _LyricsEditorState extends State<LyricsEditor> {
                     style: FilledButton.styleFrom(
                       backgroundColor: Colors.white.withValues(alpha: 0.12),
                       foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
                     ),
                   ),
               ],
@@ -221,15 +239,22 @@ class _LyricsEditorState extends State<LyricsEditor> {
                   fontFamily: 'monospace',
                 ),
                 decoration: InputDecoration(
-                  hintText: 'Paste or type lyrics here...\n\nFor synced lyrics, use the Stamp button\nto add timestamps while the song plays.',
-                  hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.2)),
+                  hintText:
+                      'Paste or type lyrics here...\n\nFor synced lyrics, use the Stamp button\nto add timestamps while the song plays.',
+                  hintStyle: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.2),
+                  ),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+                    borderSide: BorderSide(
+                      color: Colors.white.withValues(alpha: 0.1),
+                    ),
                   ),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+                    borderSide: BorderSide(
+                      color: Colors.white.withValues(alpha: 0.1),
+                    ),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
@@ -244,16 +269,25 @@ class _LyricsEditorState extends State<LyricsEditor> {
           ),
           // Save buttons
           Padding(
-            padding: EdgeInsets.fromLTRB(16, 12, 16, bottomInset > 0 ? 12 : bottomPad + 12),
+            padding: EdgeInsets.fromLTRB(
+              16,
+              12,
+              16,
+              bottomInset > 0 ? 12 : bottomPad + 12,
+            ),
             child: Row(
               children: [
                 Expanded(
                   child: OutlinedButton(
-                    onPressed: _saving ? null : () => _save(toLrc: true, toId3: false),
+                    onPressed: _saving
+                        ? null
+                        : () => _save(toLrc: true, toId3: false),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: Colors.white70,
                       side: const BorderSide(color: Colors.white24),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                       padding: const EdgeInsets.symmetric(vertical: 14),
                     ),
                     child: const Text('Save .lrc'),
@@ -262,11 +296,15 @@ class _LyricsEditorState extends State<LyricsEditor> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: OutlinedButton(
-                    onPressed: _saving ? null : () => _save(toLrc: false, toId3: true),
+                    onPressed: _saving
+                        ? null
+                        : () => _save(toLrc: false, toId3: true),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: Colors.white70,
                       side: const BorderSide(color: Colors.white24),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                       padding: const EdgeInsets.symmetric(vertical: 14),
                     ),
                     child: const Text('Embed'),
@@ -275,11 +313,15 @@ class _LyricsEditorState extends State<LyricsEditor> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: FilledButton(
-                    onPressed: _saving ? null : () => _save(toLrc: true, toId3: true),
+                    onPressed: _saving
+                        ? null
+                        : () => _save(toLrc: true, toId3: true),
                     style: FilledButton.styleFrom(
                       backgroundColor: Colors.white.withValues(alpha: 0.15),
                       foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                       padding: const EdgeInsets.symmetric(vertical: 14),
                     ),
                     child: _saving

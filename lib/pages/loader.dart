@@ -6,9 +6,9 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../Routes/routes.dart';
-import '../controllers/PlayerController.dart';
-import '../controllers/AppController.dart';
-import '../controllers/LibraryController.dart';
+import '../controllers/player_controller.dart';
+import '../controllers/app_controller.dart';
+import '../controllers/library_controller.dart';
 import '../onboarding/mode_chooser.dart';
 import '../onboarding/onboarding_screen.dart';
 
@@ -49,7 +49,7 @@ class _AssetLoaderState extends State<AssetLoader>
     'Loading Audio Files',
     'Organizing Playlists',
     'Processing Metadata',
-    'Almost Ready...'
+    'Almost Ready...',
   ];
 
   @override
@@ -165,8 +165,9 @@ class _AssetLoaderState extends State<AssetLoader>
               builder: (ctx) => OnboardingScreen(
                 mode: AppMode.musicPlayer,
                 onComplete: () {
-                  Navigator.of(ctx).pushNamedAndRemoveUntil(
-                      Routes.loader, (route) => false);
+                  Navigator.of(
+                    ctx,
+                  ).pushNamedAndRemoveUntil(Routes.loader, (route) => false);
                 },
               ),
             ),
@@ -176,8 +177,10 @@ class _AssetLoaderState extends State<AssetLoader>
             MaterialPageRoute(
               builder: (ctx) => ModeChooser(
                 onComplete: (AppMode mode) {
-                  final controller =
-                      Provider.of<AppController>(ctx, listen: false);
+                  final controller = Provider.of<AppController>(
+                    ctx,
+                    listen: false,
+                  );
                   controller.appMode = mode;
 
                   Navigator.of(ctx).pushReplacement(
@@ -186,7 +189,9 @@ class _AssetLoaderState extends State<AssetLoader>
                         mode: mode,
                         onComplete: () {
                           Navigator.of(ctx2).pushNamedAndRemoveUntil(
-                              Routes.loader, (route) => false);
+                            Routes.loader,
+                            (route) => false,
+                          );
                         },
                       ),
                     ),
@@ -207,9 +212,11 @@ class _AssetLoaderState extends State<AssetLoader>
         // lists. No blocking full re-import, no per-launch artwork extraction.
         final library = Provider.of<LibraryController>(context, listen: false);
         final app = Provider.of<AppController>(context, listen: false);
-        unawaited(library.start().then((_) {
-          return library.importLegacyPlayCounts(app.playCounts);
-        }));
+        unawaited(
+          library.start().then((_) {
+            return library.importLegacyPlayCounts(app.playCounts);
+          }),
+        );
       }
 
       Future.delayed(
@@ -220,7 +227,10 @@ class _AssetLoaderState extends State<AssetLoader>
           if (mounted && !_isNavigating) {
             _isNavigating = true;
             Navigator.pushNamedAndRemoveUntil(
-                context, Routes.home, (route) => false);
+              context,
+              Routes.home,
+              (route) => false,
+            );
           }
         },
       );
@@ -332,7 +342,7 @@ class _AssetLoaderState extends State<AssetLoader>
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: _accent.withValues(alpha:0.06 - (index * 0.015)),
+                      color: _accent.withValues(alpha: 0.06 - (index * 0.015)),
                       width: 1,
                     ),
                   ),
@@ -367,12 +377,12 @@ class _AssetLoaderState extends State<AssetLoader>
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               border: Border.all(
-                color: _accent.withValues(alpha:0.12),
+                color: _accent.withValues(alpha: 0.12),
                 width: 1.5,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: _accent.withValues(alpha:0.04),
+                  color: _accent.withValues(alpha: 0.04),
                   blurRadius: 40,
                   spreadRadius: 8,
                 ),
@@ -380,10 +390,7 @@ class _AssetLoaderState extends State<AssetLoader>
             ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(size * 0.45),
-              child: Image.asset(
-                "assets/audio.jpeg",
-                fit: BoxFit.cover,
-              ),
+              child: Image.asset("assets/audio.jpeg", fit: BoxFit.cover),
             ),
           ),
         ),
@@ -416,7 +423,7 @@ class _AssetLoaderState extends State<AssetLoader>
                 text: Provider.of<PlayerController>(context).textHeader,
                 controller: _shimmerController,
                 style: TextStyle(
-                  color: _accent.withValues(alpha:0.4),
+                  color: _accent.withValues(alpha: 0.4),
                   fontSize: 14 * textScale,
                   fontWeight: FontWeight.w300,
                   letterSpacing: 0.3,
@@ -433,60 +440,60 @@ class _AssetLoaderState extends State<AssetLoader>
     return ValueListenableBuilder<double>(
       valueListenable: _progress,
       builder: (context, progress, _) => Column(
-      children: [
-        Container(
-          width: width,
-          height: 2,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(1),
-            color: _accent.withValues(alpha:0.08),
-          ),
-          child: Stack(
-            children: [
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 500),
-                width: width * progress,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(1),
-                  color: _accent.withValues(alpha:0.6),
+        children: [
+          Container(
+            width: width,
+            height: 2,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(1),
+              color: _accent.withValues(alpha: 0.08),
+            ),
+            child: Stack(
+              children: [
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 500),
+                  width: width * progress,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(1),
+                    color: _accent.withValues(alpha: 0.6),
+                  ),
                 ),
-              ),
-              // Shimmer sweep
-              AnimatedBuilder(
-                animation: _shimmerController,
-                builder: (context, child) {
-                  return Positioned(
-                    left: width * _shimmerController.value - 40,
-                    child: Container(
-                      width: 40,
-                      height: 2,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            _accent.withValues(alpha:0),
-                            _accent.withValues(alpha:0.9),
-                            _accent.withValues(alpha:0),
-                          ],
+                // Shimmer sweep
+                AnimatedBuilder(
+                  animation: _shimmerController,
+                  builder: (context, child) {
+                    return Positioned(
+                      left: width * _shimmerController.value - 40,
+                      child: Container(
+                        width: 40,
+                        height: 2,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              _accent.withValues(alpha: 0),
+                              _accent.withValues(alpha: 0.9),
+                              _accent.withValues(alpha: 0),
+                            ],
+                          ),
                         ),
                       ),
-                    ),
-                  );
-                },
-              ),
-            ],
+                    );
+                  },
+                ),
+              ],
+            ),
           ),
-        ),
-        const SizedBox(height: 12),
-        Text(
-          '${(progress * 100).toInt()}%',
-          style: TextStyle(
-            color: _accent.withValues(alpha:0.3),
-            fontSize: 11,
-            fontWeight: FontWeight.w400,
-            letterSpacing: 1,
+          const SizedBox(height: 12),
+          Text(
+            '${(progress * 100).toInt()}%',
+            style: TextStyle(
+              color: _accent.withValues(alpha: 0.3),
+              fontSize: 11,
+              fontWeight: FontWeight.w400,
+              letterSpacing: 1,
+            ),
           ),
-        ),
-      ],
+        ],
       ),
     );
   }
@@ -535,7 +542,7 @@ class RipplePainter extends CustomPainter {
       final opacity = (1 - value).clamp(0.0, 1.0);
 
       final paint = Paint()
-        ..color = _AssetLoaderState._accent.withValues(alpha:opacity * 0.08)
+        ..color = _AssetLoaderState._accent.withValues(alpha: opacity * 0.08)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1;
 
@@ -568,9 +575,9 @@ class ShimmerText extends StatelessWidget {
           shaderCallback: (bounds) {
             return LinearGradient(
               colors: [
-                _AssetLoaderState._accent.withValues(alpha:0.3),
+                _AssetLoaderState._accent.withValues(alpha: 0.3),
                 _AssetLoaderState._accent,
-                _AssetLoaderState._accent.withValues(alpha:0.3),
+                _AssetLoaderState._accent.withValues(alpha: 0.3),
               ],
               stops: const [0.0, 0.5, 1.0],
               begin: Alignment.topLeft,
@@ -578,11 +585,7 @@ class ShimmerText extends StatelessWidget {
               transform: GradientRotation(controller.value * 2 * math.pi),
             ).createShader(bounds);
           },
-          child: Text(
-            text,
-            style: style,
-            textAlign: TextAlign.center,
-          ),
+          child: Text(text, style: style, textAlign: TextAlign.center),
         );
       },
     );

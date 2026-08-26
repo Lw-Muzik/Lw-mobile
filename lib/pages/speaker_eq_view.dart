@@ -1,4 +1,4 @@
-import 'package:eq_app/controllers/AppController.dart';
+import '/controllers/app_controller.dart';
 import 'package:eq_app/models/speaker_profile.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -24,11 +24,15 @@ class _SpeakerEqViewState extends State<SpeakerEqView> {
   List<SpeakerProfile> _filteredProfiles(AppController controller) {
     var profiles = controller.speakerProfiles;
     if (_selectedCategory != 'all') {
-      profiles = profiles.where((p) => p.category == _selectedCategory).toList();
+      profiles = profiles
+          .where((p) => p.category == _selectedCategory)
+          .toList();
     }
     if (_searchQuery.isNotEmpty) {
       final lower = _searchQuery.toLowerCase();
-      profiles = profiles.where((p) => p.name.toLowerCase().contains(lower)).toList();
+      profiles = profiles
+          .where((p) => p.name.toLowerCase().contains(lower))
+          .toList();
     }
     return profiles;
   }
@@ -53,7 +57,10 @@ class _SpeakerEqViewState extends State<SpeakerEqView> {
               hintText: 'Search headphones...',
               prefixIcon: const Icon(Icons.search, size: 20),
               isDense: true,
-              contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+              contentPadding: const EdgeInsets.symmetric(
+                vertical: 10,
+                horizontal: 12,
+              ),
               filled: true,
               fillColor: theme.colorScheme.surfaceContainerLow,
               border: OutlineInputBorder(
@@ -150,7 +157,10 @@ class _SpeakerEqViewState extends State<SpeakerEqView> {
   }
 
   Widget _buildProfileTile(
-      SpeakerProfile profile, AppController controller, ThemeData theme) {
+    SpeakerProfile profile,
+    AppController controller,
+    ThemeData theme,
+  ) {
     final isActive = controller.activeSpeakerProfile == profile.name;
     return Card(
       elevation: 0,
@@ -161,7 +171,9 @@ class _SpeakerEqViewState extends State<SpeakerEqView> {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(10),
         side: isActive
-            ? BorderSide(color: theme.colorScheme.primary.withValues(alpha: 0.4))
+            ? BorderSide(
+                color: theme.colorScheme.primary.withValues(alpha: 0.4),
+              )
             : BorderSide.none,
       ),
       child: ListTile(
@@ -190,7 +202,11 @@ class _SpeakerEqViewState extends State<SpeakerEqView> {
           ),
         ),
         trailing: isActive
-            ? Icon(Icons.check_circle, color: theme.colorScheme.primary, size: 20)
+            ? Icon(
+                Icons.check_circle,
+                color: theme.colorScheme.primary,
+                size: 20,
+              )
             : null,
         onTap: () {
           if (isActive) {

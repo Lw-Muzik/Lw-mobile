@@ -1,13 +1,10 @@
 import 'package:flutter/material.dart';
-import '/controllers/AppController.dart';
+import '/controllers/app_controller.dart';
 
 class MusicInfo extends StatefulWidget {
   final AppController controller;
 
-  const MusicInfo({
-    super.key,
-    required this.controller,
-  });
+  const MusicInfo({super.key, required this.controller});
 
   @override
   State<MusicInfo> createState() => _MusicInfoState();
@@ -52,8 +49,9 @@ class _MusicInfoState extends State<MusicInfo>
 
   void _handleScroll(ScrollController controller, String text) {
     if (controller.hasClients) {
-      final offset =
-          text.length > _longTextThreshold ? _titleAnimation.value : 0.0;
+      final offset = text.length > _longTextThreshold
+          ? _titleAnimation.value
+          : 0.0;
       controller.jumpTo(offset);
     }
   }
@@ -114,12 +112,7 @@ class _MusicInfoState extends State<MusicInfo>
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 30.0, vertical: 30),
-      child: Row(
-        children: [
-          const SizedBox(width: 20),
-          _buildMusicDetails(),
-        ],
-      ),
+      child: Row(children: [const SizedBox(width: 20), _buildMusicDetails()]),
     );
   }
 

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../controllers/AppController.dart';
-import '../extensions/build_context_extension.dart';
-import '../widgets/ToneKnob.dart';
+import '/controllers/app_controller.dart';
+import '/extensions/build_context_extension.dart';
+import '/widgets/tone_knob.dart';
 import 'audio_fx.dart';
 
 const Color _kAccent = Color(0xFFD4A825);

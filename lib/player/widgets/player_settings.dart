@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../controllers/AppController.dart';
+import '../../controllers/app_controller.dart';
 
 class PlayerSettings extends StatefulWidget {
   final AppController controller;

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:eq_app/controllers/AppController.dart';
-import 'package:eq_app/widgets/ArtworkWidget.dart';
+import '/controllers/app_controller.dart';
+import '/widgets/artwork_widget.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 
 class NowPlaying extends StatefulWidget {
@@ -70,8 +70,10 @@ class _NowPlayingState extends State<NowPlaying> {
                 ),
                 const SizedBox(width: 8),
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: theme.colorScheme.primary.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(10),
@@ -162,7 +164,9 @@ class _SheetHandle extends StatelessWidget {
           width: 40,
           height: 4,
           decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.2),
+            color: Theme.of(
+              context,
+            ).colorScheme.onSurface.withValues(alpha: 0.2),
             borderRadius: BorderRadius.circular(2),
           ),
         ),
@@ -201,8 +205,11 @@ class _QueueItem extends StatelessWidget {
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: 24),
         color: Colors.redAccent.withValues(alpha: 0.2),
-        child: const Icon(Icons.delete_outline_rounded,
-            color: Colors.redAccent, size: 24),
+        child: const Icon(
+          Icons.delete_outline_rounded,
+          color: Colors.redAccent,
+          size: 24,
+        ),
       ),
       child: Material(
         color: isCurrent
@@ -228,14 +235,18 @@ class _QueueItem extends StatelessWidget {
                 SizedBox(
                   width: 28,
                   child: isCurrent
-                      ? Icon(Icons.bar_chart_rounded,
-                          color: accentColor, size: 20)
+                      ? Icon(
+                          Icons.bar_chart_rounded,
+                          color: accentColor,
+                          size: 20,
+                        )
                       : Text(
                           '${index + 1}',
                           textAlign: TextAlign.center,
                           style: TextStyle(
-                            color: theme.colorScheme.onSurface
-                                .withValues(alpha: 0.35),
+                            color: theme.colorScheme.onSurface.withValues(
+                              alpha: 0.35,
+                            ),
                             fontSize: 13,
                             fontWeight: FontWeight.w500,
                           ),
@@ -275,8 +286,9 @@ class _QueueItem extends StatelessWidget {
                               ? accentColor
                               : theme.colorScheme.onSurface,
                           fontSize: 15,
-                          fontWeight:
-                              isCurrent ? FontWeight.w600 : FontWeight.w500,
+                          fontWeight: isCurrent
+                              ? FontWeight.w600
+                              : FontWeight.w500,
                         ),
                       ),
                       const SizedBox(height: 2),
@@ -287,8 +299,9 @@ class _QueueItem extends StatelessWidget {
                         style: TextStyle(
                           color: isCurrent
                               ? accentColor.withValues(alpha: 0.6)
-                              : theme.colorScheme.onSurface
-                                  .withValues(alpha: 0.5),
+                              : theme.colorScheme.onSurface.withValues(
+                                  alpha: 0.5,
+                                ),
                           fontSize: 13,
                         ),
                       ),
@@ -296,10 +309,11 @@ class _QueueItem extends StatelessWidget {
                   ),
                 ),
                 // Drag handle
-                Icon(Icons.drag_handle_rounded,
-                    color:
-                        theme.colorScheme.onSurface.withValues(alpha: 0.2),
-                    size: 20),
+                Icon(
+                  Icons.drag_handle_rounded,
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.2),
+                  size: 20,
+                ),
               ],
             ),
           ),

@@ -1,10 +1,10 @@
-import 'package:eq_app/Routes/routes.dart';
-import 'package:eq_app/extensions/index.dart';
+import '/Routes/routes.dart';
+import '/extensions/index.dart';
 import '/exports/exports.dart';
 import '/data/library_repository.dart';
-import '/controllers/LibraryController.dart';
+import '/controllers/library_controller.dart';
 
-import '../widgets/ArtworkWidget.dart';
+import '../widgets/artwork_widget.dart';
 import '../widgets/library_list_row.dart';
 import '../widgets/pinch_zoom_grid.dart';
 import 'artist_songs.dart';

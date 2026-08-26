@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:connectivity_plus/connectivity_plus.dart';
-import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Manages data-conscious cloud streaming behavior.
@@ -90,7 +89,8 @@ class StreamingDataGuard {
 
   void _updateFromResults(List<ConnectivityResult> results) {
     _isOffline = results.contains(ConnectivityResult.none) || results.isEmpty;
-    _isWifi = results.contains(ConnectivityResult.wifi) ||
+    _isWifi =
+        results.contains(ConnectivityResult.wifi) ||
         results.contains(ConnectivityResult.ethernet);
   }
 

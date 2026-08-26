@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
-import 'CircularBarVisualizer.dart';
 import 'spectrum-visualiser.dart';
 import 'poweramp_visualizers.dart';
 import '3d_visualizers.dart';
@@ -10,8 +9,8 @@ import '3d_visualizers_tier2.dart';
 import '3d_visualizers_tier3.dart';
 
 class WaveVisualizer extends StatefulWidget {
-  final List<int> audioData;   // waveform: unsigned bytes 0-255, center 128
-  final List<int> fftData;     // FFT: byte pairs [mag, phase], from native
+  final List<int> audioData; // waveform: unsigned bytes 0-255, center 128
+  final List<int> fftData; // FFT: byte pairs [mag, phase], from native
   final double width;
   final String selector;
   final double height;
@@ -168,7 +167,10 @@ class _WaveVisualizerState extends State<WaveVisualizer>
       for (int i = 0; i < _freqBands.length; i++) {
         final t = i / _freqBands.length;
         // Log frequency mapping: more resolution for bass
-        final binIdx = (math.pow(t, 1.6) * numBins).floor().clamp(0, numBins - 1);
+        final binIdx = (math.pow(t, 1.6) * numBins).floor().clamp(
+          0,
+          numBins - 1,
+        );
 
         // Average a small neighborhood for smoother bands
         double sum = 0;
@@ -208,8 +210,14 @@ class _WaveVisualizerState extends State<WaveVisualizer>
       for (int i = 0; i < _freqBands.length; i++) {
         final t = i / _freqBands.length;
         // Log-scaled window: bass bands use large windows, treble uses small
-        final windowSize = math.max(2, (inputLen * math.pow(1.0 - t, 2.0)).round());
-        final start = ((t * 0.8) * inputLen).round().clamp(0, inputLen - windowSize);
+        final windowSize = math.max(
+          2,
+          (inputLen * math.pow(1.0 - t, 2.0)).round(),
+        );
+        final start = ((t * 0.8) * inputLen).round().clamp(
+          0,
+          inputLen - windowSize,
+        );
 
         // Compute RMS energy in this window
         double sum = 0;
@@ -242,11 +250,15 @@ class _WaveVisualizerState extends State<WaveVisualizer>
 
     final inputLen = widget.audioData.length;
     for (int i = 0; i < _waveform.length; i++) {
-      final rawIdx = (i * inputLen / _waveform.length).floor()
-          .clamp(0, inputLen - 1);
+      final rawIdx = (i * inputLen / _waveform.length).floor().clamp(
+        0,
+        inputLen - 1,
+      );
       // Signed: -1.0 to 1.0
       final target = (widget.audioData[rawIdx] - 128) / 128.0;
-      final factor = target.abs() > _waveform[i].abs() ? _attackRate : _decayRate;
+      final factor = target.abs() > _waveform[i].abs()
+          ? _attackRate
+          : _decayRate;
       _waveform[i] += (target - _waveform[i]) * factor;
     }
   }

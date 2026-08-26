@@ -5,7 +5,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../controllers/AppController.dart';
+import '../controllers/app_controller.dart';
 
 class ModeChooser extends StatefulWidget {
   final void Function(AppMode mode) onComplete;
@@ -98,13 +98,20 @@ class _ModeChooserState extends State<ModeChooser>
                       curve: const Interval(0.0, 0.5, curve: Curves.easeOut),
                     ),
                     child: SlideTransition(
-                      position: Tween<Offset>(
-                        begin: const Offset(0, 0.3),
-                        end: Offset.zero,
-                      ).animate(CurvedAnimation(
-                        parent: _entryController,
-                        curve: const Interval(0.0, 0.5, curve: Curves.easeOut),
-                      )),
+                      position:
+                          Tween<Offset>(
+                            begin: const Offset(0, 0.3),
+                            end: Offset.zero,
+                          ).animate(
+                            CurvedAnimation(
+                              parent: _entryController,
+                              curve: const Interval(
+                                0.0,
+                                0.5,
+                                curve: Curves.easeOut,
+                              ),
+                            ),
+                          ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -141,13 +148,20 @@ class _ModeChooserState extends State<ModeChooser>
                       curve: const Interval(0.3, 0.8, curve: Curves.easeOut),
                     ),
                     child: SlideTransition(
-                      position: Tween<Offset>(
-                        begin: const Offset(0, 0.2),
-                        end: Offset.zero,
-                      ).animate(CurvedAnimation(
-                        parent: _entryController,
-                        curve: const Interval(0.3, 0.8, curve: Curves.easeOut),
-                      )),
+                      position:
+                          Tween<Offset>(
+                            begin: const Offset(0, 0.2),
+                            end: Offset.zero,
+                          ).animate(
+                            CurvedAnimation(
+                              parent: _entryController,
+                              curve: const Interval(
+                                0.3,
+                                0.8,
+                                curve: Curves.easeOut,
+                              ),
+                            ),
+                          ),
                       child: Column(
                         children: [
                           _ModeCard(
@@ -210,10 +224,12 @@ class _ModeChooserState extends State<ModeChooser>
                                   ? const Color(0xFF5EC4D4)
                                   : const Color(0xFFD4A825),
                               foregroundColor: Colors.black,
-                              disabledBackgroundColor:
-                                  Colors.white.withValues(alpha: 0.08),
-                              disabledForegroundColor:
-                                  Colors.white.withValues(alpha: 0.25),
+                              disabledBackgroundColor: Colors.white.withValues(
+                                alpha: 0.08,
+                              ),
+                              disabledForegroundColor: Colors.white.withValues(
+                                alpha: 0.25,
+                              ),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(16),
                               ),
@@ -297,8 +313,9 @@ class _ModeCard extends StatelessWidget {
             AnimatedBuilder(
               animation: pulseAnimation,
               builder: (context, child) {
-                final glowAlpha =
-                    selected ? 0.12 + pulseAnimation.value * 0.08 : 0.06;
+                final glowAlpha = selected
+                    ? 0.12 + pulseAnimation.value * 0.08
+                    : 0.06;
                 return Container(
                   width: 56,
                   height: 56,
@@ -318,9 +335,7 @@ class _ModeCard extends StatelessWidget {
                   child: Icon(
                     icon,
                     size: 26,
-                    color: selected
-                        ? accent
-                        : accent.withValues(alpha: 0.6),
+                    color: selected ? accent : accent.withValues(alpha: 0.6),
                   ),
                 );
               },
@@ -337,7 +352,9 @@ class _ModeCard extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w700,
-                      color: selected ? Colors.white : Colors.white.withValues(alpha: 0.8),
+                      color: selected
+                          ? Colors.white
+                          : Colors.white.withValues(alpha: 0.8),
                       letterSpacing: -0.3,
                     ),
                   ),
@@ -353,34 +370,38 @@ class _ModeCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 10),
-                  ...features.map((f) => Padding(
-                        padding: const EdgeInsets.only(bottom: 4),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 4,
-                              height: 4,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: selected
-                                    ? accent.withValues(alpha: 0.6)
-                                    : Colors.white.withValues(alpha: 0.2),
-                              ),
+                  ...features.map(
+                    (f) => Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 4,
+                            height: 4,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: selected
+                                  ? accent.withValues(alpha: 0.6)
+                                  : Colors.white.withValues(alpha: 0.2),
                             ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                f,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.white.withValues(alpha: selected ? 0.55 : 0.3),
-                                  height: 1.3,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              f,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.white.withValues(
+                                  alpha: selected ? 0.55 : 0.3,
                                 ),
+                                height: 1.3,
                               ),
                             ),
-                          ],
-                        ),
-                      )),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -393,13 +414,19 @@ class _ModeCard extends StatelessWidget {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: selected ? accent : Colors.white.withValues(alpha: 0.15),
+                  color: selected
+                      ? accent
+                      : Colors.white.withValues(alpha: 0.15),
                   width: selected ? 2 : 1.5,
                 ),
                 color: selected ? accent : Colors.transparent,
               ),
               child: selected
-                  ? const Icon(Icons.check_rounded, size: 14, color: Colors.black)
+                  ? const Icon(
+                      Icons.check_rounded,
+                      size: 14,
+                      color: Colors.black,
+                    )
                   : null,
             ),
           ],
@@ -422,16 +449,19 @@ class _BgPainter extends CustomPainter {
     final paint = Paint()
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 100);
 
-    final x1 = size.width * 0.7 +
-        math.sin(progress * math.pi * 2) * size.width * 0.15;
-    final y1 = size.height * 0.3 +
+    final x1 =
+        size.width * 0.7 + math.sin(progress * math.pi * 2) * size.width * 0.15;
+    final y1 =
+        size.height * 0.3 +
         math.cos(progress * math.pi * 2) * size.height * 0.1;
     paint.color = accent.withValues(alpha: 0.06);
     canvas.drawCircle(Offset(x1, y1), size.width * 0.4, paint);
 
-    final x2 = size.width * 0.3 +
+    final x2 =
+        size.width * 0.3 +
         math.cos(progress * math.pi * 2 + 1) * size.width * 0.1;
-    final y2 = size.height * 0.7 +
+    final y2 =
+        size.height * 0.7 +
         math.sin(progress * math.pi * 2 + 1) * size.height * 0.08;
     paint.color = accent.withValues(alpha: 0.04);
     canvas.drawCircle(Offset(x2, y2), size.width * 0.35, paint);

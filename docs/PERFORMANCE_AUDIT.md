@@ -203,7 +203,7 @@ Plus one **compounding leak (F3)** that explains the "worse over time" complaint
 | Heaviest painters | `3d_visualizers_tier3.dart:310`, `3d_visualizers_tier2.dart:276`, `sphere_visualizer.dart:4` |
 | Visualizer sub leak | `lib/Helpers/VisualizerWidget.dart:52-59,29`, `lib/Helpers/AudioVisualizer.dart:90,113,137-153` |
 | Player keyed on songId | `lib/player/player_ui.dart:149-171` |
-| EQ drag storm | `lib/pages/graphic_eq_view.dart:28,333`, `lib/controllers/AppController.dart:208-218,364-372` |
+| EQ drag storm | `lib/pages/graphic_eq_view.dart:28,333`, `lib/controllers/app_controller.dart:208-218,364-372` |
 | Double blur Consumer | `lib/widgets/Body.dart:15-104` |
 | RT heap alloc (MBC / tap) | `multiband_compressor.h:157-167`, `VisualizerTapProcessor.java:131-157` |
 | FTZ (only in reverb) | `fdn_reverb.cpp:137`; chain in `room_dsp_engine.cpp:124-234` |
@@ -211,7 +211,7 @@ Plus one **compounding leak (F3)** that explains the "worse over time" complaint
 | FFT twiddle recompute | `fft_visualizer.h:221-228` |
 | Limiter forced-on | `RoomEffectsProcessor.java:82` |
 | Indefinite wake lock | `GlobalEqService.java:74-79` |
-| Play-count UI-isolate write | `lib/controllers/AppController.dart:1193-1200` |
+| Play-count UI-isolate write | `lib/controllers/app_controller.dart:1193-1200` |
 | Cloud existsSync sweep | `lib/services/cloud_metadata_service.dart:56-74` |
 
 ---

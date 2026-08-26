@@ -26,7 +26,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 
-import '../../controllers/AppController.dart';
+import '../../controllers/app_controller.dart';
 import '../../services/screen_brightness.dart';
 import 'picture_in_picture.dart';
 
@@ -165,8 +165,7 @@ class VideoSurface extends ChangeNotifier with WidgetsBindingObserver {
   /// The mini player asks this to decide whether to appear at all: it is for
   /// the times the player screen is not on top, and a floating copy of a video
   /// the user is already watching full-size is clutter.
-  bool claimedByOther(VideoHost host) =>
-      _claims.any((claim) => claim != host);
+  bool claimedByOther(VideoHost host) => _claims.any((claim) => claim != host);
 
   /// The texture to draw, or null while nothing is attached.
   ValueListenable<int?> get texture =>

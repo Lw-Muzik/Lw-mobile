@@ -4,7 +4,7 @@ import '../data/library_repository.dart';
 import '/widgets/song_tile.dart';
 import '/widgets/song_options_sheet.dart';
 import '/Routes/routes.dart';
-import '/controllers/AppController.dart';
+import '/controllers/app_controller.dart';
 
 class Recents extends StatefulWidget {
   const Recents({super.key});
