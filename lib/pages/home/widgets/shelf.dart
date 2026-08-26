@@ -54,11 +54,17 @@ class MixShelf extends StatelessWidget {
     required this.title,
     required this.mixes,
     required this.onTap,
+    this.onSave,
   });
 
   final String title;
   final List<ResolvedMix> mixes;
   final void Function(ResolvedMix) onTap;
+
+  /// Long-press keeps a mix as a playlist. A long press rather than a visible
+  /// button because the card's job is to be tapped and played; keeping one is
+  /// the rarer intent and does not deserve to compete for the same space.
+  final void Function(ResolvedMix)? onSave;
 
   static const _cardSize = 168.0;
 
@@ -83,6 +89,8 @@ class MixShelf extends StatelessWidget {
                   padding: const EdgeInsets.only(right: 14),
                   child: GestureDetector(
                     onTap: () => onTap(mix),
+                    onLongPress:
+                        onSave == null ? null : () => onSave!(mix),
                     child: SizedBox(
                       width: _cardSize,
                       child: Column(

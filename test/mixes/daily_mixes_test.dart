@@ -128,7 +128,7 @@ void main() {
       ];
       expect(
         buildDailyMixes(library: library, now: _afternoon).length,
-        lessThanOrEqualTo(6),
+        lessThanOrEqualTo(8),
       );
     });
 
@@ -139,6 +139,51 @@ void main() {
       ];
       final mixes = buildDailyMixes(library: library, now: _afternoon);
       expect(mixes.first.descriptor, 'Loved');
+    });
+  });
+
+  group('more categories', () {
+    // A library of many small artists used to produce almost nothing: every
+    // group was under the eight-track floor, which exists to stop a mix running
+    // out. When a drive or YouTube can fill it out, it cannot run out.
+    test('a seed too small to stand alone is enough when it can be filled', () {
+      final library = [
+        for (var a = 0; a < 6; a++)
+          for (var i = 0; i < 4; i++) track('a${a}t$i', artist: 'Artist $a'),
+      ];
+      expect(buildDailyMixes(library: library, now: _afternoon), isEmpty,
+          reason: 'four tracks alone would be a mix that ends in a quarter hour');
+      final supplemented = buildDailyMixes(
+          library: library, now: _afternoon, canSupplement: true);
+      expect(supplemented.length, greaterThanOrEqualTo(5));
+    });
+
+    test('genre and artist groupings both compete, rather than one or other',
+        () {
+      final library = [
+        // One genre spanning several artists, and one artist prolific enough
+        // to be its own taste inside a different genre.
+        ...taste('Afrobeat', 'a', count: 20),
+        for (var i = 0; i < 20; i++)
+          track('s$i', genre: 'Soul', artist: 'Solo Star'),
+      ];
+      final descriptors =
+          buildDailyMixes(library: library, now: _afternoon)
+              .map((m) => m.descriptor)
+              .toSet();
+      expect(descriptors, contains('Afrobeat'));
+      expect(descriptors, contains('Solo Star'),
+          reason: 'the artist is a taste even though the genre it fills is not');
+    });
+
+    test('a genre and the one artist filling it are not offered twice', () {
+      final library = [
+        for (var i = 0; i < 20; i++)
+          track('o$i', genre: 'Ambient', artist: 'One Person'),
+      ];
+      final mixes = buildDailyMixes(library: library, now: _afternoon);
+      expect(mixes, hasLength(1),
+          reason: 'the same twenty tracks under two names is one mix, twice');
     });
   });
 

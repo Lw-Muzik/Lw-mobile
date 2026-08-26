@@ -24,9 +24,17 @@ import '../../controllers/app_controller.dart';
 import '../../models/cloud_file.dart';
 import '../ytmusic/yt_playback.dart';
 import '../ytmusic/yt_repository.dart';
-import 'daily_mix_service.dart';
 import 'daily_mixes.dart';
 import 'mix_track_ref.dart';
+
+/// Anything that is a list of references worth playing in order.
+///
+/// A generated mix is one; a saved playlist is another. Playback does not need
+/// to know which, and giving it the concrete mix type would have forced the
+/// playlist page to impersonate one.
+abstract class ResolvedMixSource {
+  List<MixTrackRef> get tracks;
+}
 
 /// Mints a playable link for a drive file, or null when it cannot.
 typedef CloudLinkResolver = Future<String?> Function(CloudFile file);
@@ -43,7 +51,7 @@ class MixPlayback {
   /// Returns once the first track is playing; the rest arrive behind it.
   static Future<void> play(
     AppController controller,
-    ResolvedMix mix, {
+    ResolvedMixSource mix, {
     required CloudLinkResolver resolveCloud,
   }) async {
     if (mix.tracks.isEmpty) return;
@@ -103,6 +111,15 @@ class MixPlayback {
         case MixSource.youtube:
           final track = ref.track;
           if (track == null) return null;
+
+          if (ref.isVideo) {
+            // Goes through the existing video path, which writes the DASH
+            // manifest and registers it — a video's `data` is an identity, and
+            // what the player opens lives in the registry.
+            final models = await YtPlayback.resolveVideoModels([track]);
+            return models.isEmpty ? null : models.first;
+          }
+
           final targets = await YtMusicRepository.instance
               .audioTargets([track.videoId]);
           final target = targets[track.videoId];

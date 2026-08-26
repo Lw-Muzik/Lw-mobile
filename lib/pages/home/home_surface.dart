@@ -29,7 +29,7 @@ import '../../services/ytmusic/yt_models.dart';
 import '../../services/ytmusic/yt_repository.dart';
 import '../../services/radio/library_station.dart';
 import '../../themes/ember.dart';
-import '../playlist_songs.dart';
+import 'mix_playlist_page.dart';
 import 'widgets/shelf.dart';
 
 class HomeSurface extends StatefulWidget {
@@ -70,12 +70,20 @@ class _HomeSurfaceState extends State<HomeSurface> {
       // Songs that go with a taste the library already has. Fails silently —
       // offline costs the variety and nothing else.
       youTube: (descriptor) async {
-        final shelves = await YtMusicRepository.instance
-            .search(descriptor, SearchFilter.songs);
+        // Songs and music videos both. A mix of one artist's catalogue is
+        // better for having the video of the single in it, and the Videos tab
+        // is otherwise the only place footage ever appears.
+        final results = await Future.wait([
+          YtMusicRepository.instance.search(descriptor, SearchFilter.songs),
+          YtMusicRepository.instance.search(descriptor, SearchFilter.videos),
+        ]);
         return [
-          for (final shelf in shelves)
+          for (final shelf in results.first)
             for (final item in shelf.items)
               if (item.kind == ExploreKind.song) item.asTrack(),
+          for (final shelf in results.last)
+            for (final item in shelf.items)
+              if (item.kind == ExploreKind.video) item.asTrack(),
         ];
       },
     );
@@ -109,6 +117,7 @@ class _HomeSurfaceState extends State<HomeSurface> {
           title: 'MADE FOR YOU',
           mixes: _mixes,
           onTap: (mix) => _playMix(controller, mix),
+          onSave: _saveMixAsPlaylist,
         ),
       if (_playlists.isNotEmpty)
         PlaylistShelf(
@@ -243,14 +252,45 @@ class _HomeSurfaceState extends State<HomeSurface> {
     );
   }
 
+  /// Opens an **app-owned** playlist.
+  ///
+  /// Deliberately not `PlaylistSongs`, which reads MediaStore: these rows can
+  /// hold a drive file and a YouTube track, and their ids mean nothing there.
   void _openPlaylist(PlaylistSummary playlist) {
-    Routes.scaleTo(
-      PlaylistSongs(
-        playlistId: playlist.id,
-        playlist: playlist.name,
-        songs: playlist.trackCount,
-      ),
-      context,
+    Routes.scaleTo(MixPlaylistPage(playlist: playlist), context);
+  }
+
+  /// Keeps a mix, exactly as it stands, as a playlist.
+  ///
+  /// A mix is rebuilt tomorrow by design — which is the point of it, and also
+  /// why there has to be a way to say "not this one, I want to keep it". The
+  /// entries carry their source, so a saved mix keeps its drive and YouTube
+  /// tracks rather than collapsing to the local ones.
+  Future<void> _saveMixAsPlaylist(ResolvedMix mix) async {
+    final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    final id = await _repo.createPlaylist(mix.name, now);
+    await _repo.addToPlaylist(
+      id,
+      [
+        for (final ref in mix.tracks)
+          PlaylistItem(
+            source: switch (ref.source) {
+              MixSource.cloud => 'cloud',
+              MixSource.youtube => 'youtube',
+              MixSource.local => 'local',
+            },
+            songId: ref.song?.id,
+            externalId: ref.file?.fileId ?? ref.track?.videoId,
+            title: ref.title,
+            artist: ref.artist,
+          ),
+      ],
+      now,
     );
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Saved "${mix.name}" to your playlists')),
+    );
+    await _load();
   }
 }

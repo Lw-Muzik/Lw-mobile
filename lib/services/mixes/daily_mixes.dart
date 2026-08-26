@@ -134,15 +134,30 @@ class DailyMix {
 class MixRules {
   const MixRules._();
 
-  /// Below this a group is not a taste, it is a handful of files. Emitting a
-  /// mix for it produces a card that runs out in four minutes.
+  /// Below this a purely local group is not a taste, it is a handful of files.
+  /// Emitting a mix for it produces a card that runs out in four minutes.
   static const minClusterSize = 8;
+
+  /// The same threshold when a drive or YouTube can fill the mix out.
+  ///
+  /// The eight above exists to stop a mix running out, not because seven tracks
+  /// is not a taste. When there is somewhere to draw the rest from, three
+  /// tracks is enough to *mean* something — and this is what turns a library of
+  /// many small artists from three categories into a dozen.
+  static const minSeedSize = 3;
 
   /// A mix of one artist is a discography, not a mix.
   static const minDistinctArtists = 2;
 
+  /// How much two clusters may share before the second is a near-duplicate.
+  ///
+  /// Genre and artist groupings overlap: everything by one artist is usually
+  /// also all of one genre. Offering both is offering the same mix twice with
+  /// different names.
+  static const maxClusterOverlap = 0.6;
+
   static const tracksPerMix = 25;
-  static const maxMixes = 6;
+  static const maxMixes = 8;
 
   /// Share of each mix drawn from music with a listening record. The rest is
   /// rediscovery — see the note at the top of this file.
@@ -160,7 +175,7 @@ class MixRules {
   /// tracks for ever. But a mix that is mostly streamed is not *theirs* any
   /// more — it is a recommendation feed wearing their library's name. Local
   /// music keeps the majority, always.
-  static const maxRemoteShare = 0.4;
+  static const maxRemoteShare = 0.5;
 }
 
 /// Builds the mixes for [now], newest-taste first.
@@ -173,11 +188,16 @@ List<DailyMix> buildDailyMixes({
   required DateTime now,
   int maxMixes = MixRules.maxMixes,
   int tracksPerMix = MixRules.tracksPerMix,
+  /// Whether a drive or YouTube can fill a mix out. Lowers how much local music
+  /// a taste needs before it is worth offering — see [MixRules.minSeedSize].
+  bool canSupplement = false,
 }) {
   if (library.isEmpty) return const [];
 
   final daypart = Daypart.of(now);
-  final clusters = _cluster(library);
+  final minSize =
+      canSupplement ? MixRules.minSeedSize : MixRules.minClusterSize;
+  final clusters = _cluster(library, minSize: minSize);
   if (clusters.isEmpty) return const [];
 
   final mixes = <DailyMix>[];
@@ -191,8 +211,8 @@ List<DailyMix> buildDailyMixes({
       random: random,
     );
     // A cluster that cannot fill even a short mix is one the library only
-    // looked like it had.
-    if (keys.length < MixRules.minClusterSize) continue;
+    // looked like it had — unless something else is expected to fill it.
+    if (keys.length < minSize) continue;
     mixes.add(DailyMix(
       name: '${cluster.descriptor.toLowerCase()} ${daypart.label}',
       descriptor: cluster.descriptor,
@@ -224,43 +244,65 @@ class _Cluster {
 
 /// Splits a library into the tastes it actually contains.
 ///
-/// Genre first, because that is what a cluster *means*. Falling back to artist
-/// when genres are missing or all the same is not a lesser answer for a scanned
-/// library — untagged collections are common, and "everything by this artist and
-/// the people near them" is still a taste.
-List<_Cluster> _cluster(List<MixCandidate> library) {
-  final byGenre = _group(library, (t) => t.genre);
-  final usable = [for (final c in byGenre) if (_isTaste(c)) c];
-  // Any usable genre grouping wins. Requiring two of them meant a library with
-  // one good genre fell through to the artist fallback and got mixes named
-  // after artists instead — "fall back when genre is absent" has to mean
-  // absent, not merely singular.
-  if (usable.isNotEmpty) return _ranked(usable);
-
-  // The variety rule does NOT apply here. An artist cluster contains one artist
-  // by construction, so requiring several would make this fallback dead code —
-  // which is exactly what it was until a device with an untagged library showed
-  // no mixes at all. What stops an artist cluster being a discography is that a
-  // station of one artist IS a reasonable thing to offer when the library gives
-  // nothing else to group on.
-  final byArtist = _group(library, (t) => t.artist);
-  final artistClusters = [
-    for (final c in byArtist)
-      if (_isTaste(c, requireVariety: false)) c,
+/// # Additive, not a fallback chain
+///
+/// This used to try genre and, failing that, artist. That produced very few
+/// categories: a library with no genre tags got artist mixes only, and one with
+/// genres got genre mixes only, when both are real ways to describe what
+/// someone listens to.
+///
+/// Now both groupings compete on equal footing and the best of them are taken,
+/// with near-duplicates dropped — because everything by one artist is usually
+/// also all of one genre, and offering both is offering one mix twice.
+List<_Cluster> _cluster(List<MixCandidate> library, {required int minSize}) {
+  final byGenre = [
+    for (final c in _group(library, (t) => t.genre))
+      if (c.tracks.length >= minSize && _hasVariety(c)) c,
   ];
-  return _ranked(artistClusters);
+  final byArtist = [
+    // No variety rule: an artist cluster has one artist by construction, and
+    // requiring several would make this half of the clustering dead code — which
+    // it was, until a device with an untagged library showed no mixes at all.
+    for (final c in _group(library, (t) => t.artist))
+      if (c.tracks.length >= minSize) c,
+  ];
+
+  return _distinct(_ranked([...byGenre, ...byArtist]));
 }
 
-/// A group is a taste when there is enough of it, and — for a *genre* group —
-/// enough variety in it.
+/// Takes clusters in order of listening mass, skipping any that mostly repeats
+/// one already taken.
+List<_Cluster> _distinct(List<_Cluster> ranked) {
+  final kept = <_Cluster>[];
+  final keptKeys = <Set<String>>[];
+
+  for (final cluster in ranked) {
+    final keys = {for (final t in cluster.tracks) t.key};
+    var duplicate = false;
+    for (final taken in keptKeys) {
+      final shared = keys.intersection(taken).length;
+      // Measured against the smaller of the two: a ten-track artist entirely
+      // inside a two-hundred-track genre is a duplicate of it, even though it
+      // is five per cent of the genre.
+      final smaller = keys.length < taken.length ? keys.length : taken.length;
+      if (smaller > 0 && shared / smaller > MixRules.maxClusterOverlap) {
+        duplicate = true;
+        break;
+      }
+    }
+    if (duplicate) continue;
+    kept.add(cluster);
+    keptKeys.add(keys);
+  }
+  return kept;
+}
+
+/// Whether a *genre* group has more than one artist in it.
 ///
-/// [requireVariety] is what stops a single well-tagged album becoming a "mix":
-/// twelve tracks, one artist, in order. It applies to genre clusters only.
-/// Passing it for an artist cluster would reject every one of them, since an
-/// artist cluster has exactly one artist.
-bool _isTaste(_Cluster cluster, {bool requireVariety = true}) {
-  if (cluster.tracks.length < MixRules.minClusterSize) return false;
-  if (!requireVariety) return true;
+/// What stops a single well-tagged album becoming a "mix": twelve tracks, one
+/// artist, in order. Applies to genre groupings only — an artist grouping has
+/// exactly one artist and would never pass.
+bool _hasVariety(_Cluster cluster) {
   final artists = <String>{};
   for (final track in cluster.tracks) {
     final artist = _normalise(track.artist);

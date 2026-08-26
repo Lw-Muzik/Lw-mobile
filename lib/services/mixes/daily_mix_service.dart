@@ -16,6 +16,7 @@ import '../../data/library_repository.dart';
 import '../../models/cloud_file.dart';
 import '../ytmusic/yt_models.dart';
 import 'daily_mixes.dart';
+import 'mix_playback.dart';
 import 'mix_track_ref.dart';
 
 /// Drive files the user has, or an empty list when no drive is linked.
@@ -29,7 +30,7 @@ typedef CloudLibrary = List<CloudFile> Function();
 typedef YouTubeForTaste = Future<List<YtTrack>> Function(String descriptor);
 
 /// A mix, as far as it can be prepared without spending a request per track.
-class ResolvedMix {
+class ResolvedMix implements ResolvedMixSource {
   const ResolvedMix({
     required this.name,
     required this.descriptor,
@@ -38,6 +39,7 @@ class ResolvedMix {
 
   final String name;
   final String descriptor;
+  @override
   final List<MixTrackRef> tracks;
 
   int get length => tracks.length;
@@ -93,7 +95,13 @@ class DailyMixService {
     // tracks are then fetched for those tastes and only those — which is what
     // stops a drive full of one genre inventing a mix the library has no
     // grounds for.
-    final shape = buildDailyMixes(library: local, now: moment);
+    final canSupplement =
+        (_cloudLibrary?.call().isNotEmpty ?? false) || _youTube != null;
+    final shape = buildDailyMixes(
+      library: local,
+      now: moment,
+      canSupplement: canSupplement,
+    );
     if (shape.isEmpty) {
       _cached = const [];
       _cachedFor = stamp;
@@ -113,7 +121,11 @@ class DailyMixService {
     // Pass two fills those same tastes from everything available.
     final built = remote.isEmpty
         ? shape
-        : buildDailyMixes(library: [...local, ...remote], now: moment);
+        : buildDailyMixes(
+            library: [...local, ...remote],
+            now: moment,
+            canSupplement: canSupplement,
+          );
 
     final resolved = <ResolvedMix>[];
     for (final mix in built) {
@@ -183,7 +195,9 @@ class DailyMixService {
               artist: track.artist,
               genre: descriptor,
             ),
-            MixTrackRef.youtube(track),
+            // Marked as video only when YouTube says there is real footage;
+            // MixTrackRef.youtube enforces that too.
+            MixTrackRef.youtube(track, asVideo: track.hasVideo),
           );
         }
       } catch (_) {
