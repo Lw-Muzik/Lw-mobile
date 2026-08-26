@@ -217,23 +217,37 @@ class _Cluster {
 /// the people near them" is still a taste.
 List<_Cluster> _cluster(List<MixCandidate> library) {
   final byGenre = _group(library, (t) => t.genre);
-  final usable = byGenre.where(_isTaste).toList();
-  if (usable.length >= 2) return _ranked(usable);
+  final usable = [for (final c in byGenre) if (_isTaste(c)) c];
+  // Any usable genre grouping wins. Requiring two of them meant a library with
+  // one good genre fell through to the artist fallback and got mixes named
+  // after artists instead — "fall back when genre is absent" has to mean
+  // absent, not merely singular.
+  if (usable.isNotEmpty) return _ranked(usable);
 
+  // The variety rule does NOT apply here. An artist cluster contains one artist
+  // by construction, so requiring several would make this fallback dead code —
+  // which is exactly what it was until a device with an untagged library showed
+  // no mixes at all. What stops an artist cluster being a discography is that a
+  // station of one artist IS a reasonable thing to offer when the library gives
+  // nothing else to group on.
   final byArtist = _group(library, (t) => t.artist);
-  final artistClusters = byArtist.where(_isTaste).toList();
-  if (artistClusters.isNotEmpty) return _ranked(artistClusters);
-
-  // One genre or none, and no artist has enough either.
-  return _ranked(usable);
+  final artistClusters = [
+    for (final c in byArtist)
+      if (_isTaste(c, requireVariety: false)) c,
+  ];
+  return _ranked(artistClusters);
 }
 
-/// A group is a taste when there is enough of it, and enough variety in it.
+/// A group is a taste when there is enough of it, and — for a *genre* group —
+/// enough variety in it.
 ///
-/// The artist check is what stops a single well-tagged album from becoming a
-/// "mix" — twelve tracks, one artist, in order.
-bool _isTaste(_Cluster cluster) {
+/// [requireVariety] is what stops a single well-tagged album becoming a "mix":
+/// twelve tracks, one artist, in order. It applies to genre clusters only.
+/// Passing it for an artist cluster would reject every one of them, since an
+/// artist cluster has exactly one artist.
+bool _isTaste(_Cluster cluster, {bool requireVariety = true}) {
   if (cluster.tracks.length < MixRules.minClusterSize) return false;
+  if (!requireVariety) return true;
   final artists = <String>{};
   for (final track in cluster.tracks) {
     final artist = _normalise(track.artist);

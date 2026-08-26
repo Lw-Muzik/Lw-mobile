@@ -420,6 +420,23 @@ class LibraryRepository {
     return _songs(rows);
   }
 
+  /// Music the user owns and has barely heard.
+  ///
+  /// The other half of a personal home page. "Most played" tells someone what
+  /// they already know; this is the shelf that can surprise them with something
+  /// they chose to keep and then forgot.
+  ///
+  /// Ordered by how long it has been sitting there, so the oldest neglect
+  /// surfaces first.
+  Future<List<SongModel>> rediscover({int limit = 20}) async {
+    final rows = await _db.customSelect(
+      'SELECT * FROM songs WHERE play_count = 0 '
+      'ORDER BY date_added ASC LIMIT ?',
+      variables: [Variable<int>(limit)],
+    ).get();
+    return _songs(rows);
+  }
+
   Future<List<SongModel>> recentlyAdded({int limit = 20}) async {
     final rows = await _db.customSelect(
       'SELECT * FROM songs ORDER BY date_added DESC LIMIT ?',

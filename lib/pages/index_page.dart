@@ -1,5 +1,5 @@
 import 'package:eq_app/exports/exports.dart';
-import 'package:eq_app/pages/home.dart';
+import 'package:eq_app/pages/home/home_shell.dart';
 import 'package:flutter_zoom_drawer/flutter_zoom_drawer.dart';
 
 import '../controllers/drawer_controller.dart';
@@ -32,7 +32,7 @@ class _IndexPageState extends State<IndexPage> {
       controller: _drawerController,
       menuScreen: MenuScreen(),
       menuBackgroundColor: Colors.black,
-      mainScreen: Home(),
+      mainScreen: HomeShell(),
       borderRadius: 24.0,
       showShadow: true,
       angle: -12.0,

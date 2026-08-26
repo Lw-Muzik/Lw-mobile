@@ -87,13 +87,16 @@ void main() {
       expect(mixes.map((m) => m.descriptor), isNot(contains('Jazz')));
     });
 
-    // Twelve tracks by one artist is an album, not a mix.
-    test('a group with only one artist gets none', () {
+    // Twelve tracks by one artist is not a *genre* mix. It may still be an
+    // artist mix, which is the fallback — so what is asserted here is that the
+    // genre never becomes the descriptor.
+    test('a genre filled by one artist does not become a genre mix', () {
       final library = [
         for (var i = 0; i < 20; i++)
           track('solo$i', genre: 'Ambient', artist: 'One Person'),
       ];
-      expect(buildDailyMixes(library: library, now: _afternoon), isEmpty);
+      final mixes = buildDailyMixes(library: library, now: _afternoon);
+      expect(mixes.map((m) => m.descriptor), isNot(contains('Ambient')));
     });
 
     test('untagged music does not become a mix of its own', () {
@@ -138,14 +141,36 @@ void main() {
   });
 
   group('clustering falls back when genres are missing', () {
+    // This asserted `isEmpty` when it was first written, which matched what the
+    // code did and not what it was for: the variety rule was being applied to
+    // artist clusters, which have one artist by construction, so the fallback
+    // could never fire. A device with an untagged library showed no mixes at
+    // all and gave it away.
     test('an untagged library still clusters by artist', () {
       final library = [
         for (var i = 0; i < 20; i++) track('x$i', artist: 'Band A'),
         for (var i = 0; i < 20; i++) track('y$i', artist: 'Band B'),
       ];
-      // Each artist group is one artist, so neither is a taste on its own —
-      // the point is that this does not throw and does not invent a mix.
+      final mixes = buildDailyMixes(library: library, now: _afternoon);
+      expect(mixes.map((m) => m.descriptor).toSet(), {'Band A', 'Band B'});
+    });
+
+    test('an artist group too small is still not a taste', () {
+      final library = [
+        for (var i = 0; i < 4; i++) track('x$i', artist: 'Band A'),
+      ];
       expect(buildDailyMixes(library: library, now: _afternoon), isEmpty);
+    });
+
+    // Genre clustering keeps its variety rule: this is the album case.
+    test('one artist filling a whole genre is still not a genre mix', () {
+      final library = [
+        for (var i = 0; i < 20; i++)
+          track('a$i', genre: 'Ambient', artist: 'One Person'),
+      ];
+      final mixes = buildDailyMixes(library: library, now: _afternoon);
+      expect(mixes.map((m) => m.descriptor), isNot(contains('Ambient')),
+          reason: 'twelve tracks by one artist is an album, not a genre mix');
     });
 
     test('one genre across many artists still produces its mix', () {
