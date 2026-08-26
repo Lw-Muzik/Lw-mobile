@@ -62,8 +62,15 @@ abstract class VideoSink {
   void attach();
   void detach();
 
-  /// Releases every surface, on any player. See [VideoSurface.rebind].
-  void detachAll();
+  /// Releases every surface *except* the one belonging to the player that is
+  /// audible now. See [VideoSurface.rebind].
+  ///
+  /// "Except" is the whole point, and it is why this is not `detachAll`. There
+  /// are two players and the surface has to end up on one particular one of
+  /// them; a detach that sweeps up all of them is asynchronous, so it arrives
+  /// after the attach that was supposed to follow it and takes the picture
+  /// straight back off the screen. Naming the survivor makes that unsayable.
+  Future<void> detachOthers();
 
   /// Whether leaving the app should float the video, and at what shape.
   void setFloatOnLeave(bool on);
@@ -88,7 +95,10 @@ class _PlayerVideoSink implements VideoSink {
   void detach() => AppController.instance.handler.video.detach();
 
   @override
-  void detachAll() => AppController.instance.handler.detachAllVideo();
+  Future<void> detachOthers() {
+    final handler = AppController.instance.handler;
+    return handler.detachAllVideo(except: handler.currentTrackPlayer);
+  }
 
   @override
   void setFloatOnLeave(bool on) {
@@ -212,10 +222,17 @@ class VideoSurface extends ChangeNotifier with WidgetsBindingObserver {
   /// There are two players and a surface belongs to exactly one of them, so
   /// without this the video would keep drawing from the player the fade is
   /// about to stop: a frozen last frame over the next track's soundtrack.
-  void rebind() {
-    _sink.detachAll();
+  ///
+  /// The incoming player is claimed *first* and the others released after.
+  /// Doing it the other way round leaves a moment with no surface anywhere,
+  /// which is a black flash at the exact instant the user is watching — and,
+  /// when the release is not awaited, worse than a flash: it lands on top of
+  /// the attach and cancels it, leaving the stage black until some host claims
+  /// the surface again. The order here is the fix, not a preference.
+  Future<void> rebind() async {
     if (owner != null) _sink.attach();
     _announce();
+    await _sink.detachOthers();
   }
 
   @override

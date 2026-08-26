@@ -71,17 +71,27 @@ void main() {
         reason: 'a mid-file seek must work, not just sequential reads');
   }, timeout: const Timeout(Duration(seconds: 90)));
 
-  /// The exact request ExoPlayer makes on first open. If this 403s, the app is
-  /// silent no matter how healthy every bounded probe looks.
+  /// The exact request ExoPlayer makes on first open, and the one this suite
+  /// used to look at and decline to judge.
+  ///
+  /// The old comment here said a chunking proxy stood between the player and
+  /// the CDN, so an open-ended refusal did not matter. There is no such proxy:
+  /// `AudioHandler` builds its players with `useProxyForRequestHeaders: false`
+  /// precisely so ExoPlayer talks to googlevideo directly. The player's first
+  /// act is one `Range: bytes=0-` for the whole file, and on 2026-08-14 that
+  /// request was being answered 403 for every IOS-resolved url — which is why
+  /// tapping a search result opened the player and played nothing at all.
+  ///
+  /// Nor would a proxy have saved it: the gate is on the *offset*, not the
+  /// request shape. Walked in bounded 512 KiB chunks, a gated url serves
+  /// exactly 1048576 bytes and then 403s. There is no way to play a gated url;
+  /// there is only not being handed one.
   test('an open-ended range — what ExoPlayer actually sends — is served',
       () async {
     final target = await resolve();
-    final code = await status(target.url, 'bytes=0-');
-    // Not asserted: some CDN edges refuse this even on ungood urls, which is
-    // precisely why playback goes through the chunking proxy rather than
-    // handing the raw url to the player. Recorded so the log shows the edge.
-    // ignore: avoid_print
-    print('open-ended range on this edge -> HTTP $code');
-    expect(code, isNotNull);
+
+    expect(await status(target.url, 'bytes=0-'), anyOf(200, 206),
+        reason: 'the whole-file request every player opens with. A 403 here '
+            'is a track that plays nothing, however well it probes in slices');
   }, timeout: const Timeout(Duration(seconds: 60)));
 }

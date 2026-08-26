@@ -171,6 +171,15 @@ class VideoOutput {
   bool _wanted = false;
   bool _disposed = false;
 
+  /// Whether a picture is wanted on this player right now.
+  ///
+  /// Exposed because this flag is the bug: a detach that lands on top of an
+  /// in-flight attach clears it, and the attach then undoes itself on arrival —
+  /// invisible from the outside, since the symptom is simply a texture that
+  /// never appears.
+  @visibleForTesting
+  bool get isWanted => _wanted;
+
   VideoOutput(this.player) {
     _platformIdSubscription = player.platformIdStream.listen((id) {
       // A new platform player is a new native surface. Rebind if the picture is

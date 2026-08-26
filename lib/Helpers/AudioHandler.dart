@@ -8,6 +8,7 @@ import 'package:just_audio/video.dart';
 import 'package:id3tag/id3tag.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 
+import '../player/fade_cancellation.dart';
 import 'index.dart';
 
 class HypeAudioHandler extends BaseAudioHandler {
@@ -61,7 +62,15 @@ class HypeAudioHandler extends BaseAudioHandler {
   /// Set while a crossfade is in flight; completed when it settles (normal
   /// completion, abort, or failure). Lets control paths await a fast settle.
   Completer<void>? _fadeDone;
-  bool _cancelCrossfade = false;
+
+  /// The current crossfade's cancel flag, or null when none is running.
+  ///
+  /// Deliberately not a plain bool. A crossfade spends most of its life in an
+  /// await — loading the next track off the network, fetching its artwork,
+  /// sleeping between volume steps — and a flag that is only *read* is noticed
+  /// whenever that await happens to finish. Waking the fade is what makes a
+  /// press of next act now rather than whenever the network comes back.
+  FadeCancellation? _cancellation;
 
   /// The primary player used for playback controls (play/pause/stop/seek).
   AudioPlayer get player => _activePlayer;
@@ -81,16 +90,28 @@ class HypeAudioHandler extends BaseAudioHandler {
   VideoOutput videoOutputFor(AudioPlayer player) =>
       _videoOutputs.putIfAbsent(player, () => VideoOutput(player));
 
-  /// Hands back every surface, whichever player holds it.
+  /// Hands back every surface except [except]'s.
   ///
   /// A crossfade ends by swapping which player is active, so the picture has to
-  /// move with it. Detaching all of them and re-attaching the current one is
-  /// the only way to be sure the surface is not still bound to the player the
-  /// fade just stopped — which would leave the last frame of the previous video
-  /// frozen over the new one's soundtrack.
-  Future<void> detachAllVideo() async {
-    for (final output in _videoOutputs.values) {
-      await output.detach();
+  /// move with it, and the player the fade just stopped must not be left
+  /// holding a surface — that is the frozen last frame of the previous video
+  /// over the new one's soundtrack.
+  ///
+  /// [except] is the player that should keep what it has. Sweeping up *every*
+  /// surface and re-attaching afterwards reads more simply and is wrong twice
+  /// over: it tears the incoming player's texture down and rebuilds it for no
+  /// reason, and because both halves are asynchronous the sweep arrives after
+  /// the re-attach and undoes it, blacking out the video until a host claims
+  /// the surface again.
+  ///
+  /// The snapshot matters for the same reason: attaching creates a surface for
+  /// a player that may not have had one, and inserting into a map while
+  /// iterating it throws — a crossfade into the first video of a session hit
+  /// exactly that.
+  Future<void> detachAllVideo({AudioPlayer? except}) async {
+    for (final entry in _videoOutputs.entries.toList()) {
+      if (identical(entry.key, except)) continue;
+      await entry.value.detach();
     }
   }
 
@@ -135,12 +156,72 @@ class HypeAudioHandler extends BaseAudioHandler {
     _bindPlaybackState();
   }
 
-  void _bindPlaybackState() {
+  /// Called when the player rejects what it was given — a dead stream URL, a
+  /// file that has gone, a format it cannot open.
+  ///
+  /// Something has to be listening. An error on [AudioPlayer.playbackEventStream]
+  /// with no `onError` is an unhandled async error: it never reaches this class,
+  /// the queue stops where it stands, and the interface goes on showing a pause
+  /// button over a track at 00:00. That is the whole of "it just doesn't play".
+  void Function(Object error)? onPlaybackError;
+
+  /// The error already handed to [onPlaybackError], so one failure is reported
+  /// once rather than on every event that follows it.
+  int? _reportedErrorCode;
+
+  void _bindPlaybackState() => bindPlaybackEvents(_activePlayer.playbackEventStream);
+
+  /// Binds [events] as the source of playback state.
+  ///
+  /// Takes the stream rather than reading it off the active player so a test
+  /// can deliver a failure without a device, a network and a dead URL.
+  @visibleForTesting
+  void bindPlaybackEvents(Stream<PlaybackEvent> events) {
     _playbackSub?.cancel();
-    _playbackSub = _activePlayer.playbackEventStream.listen((event) {
-      playbackState.add(_transformEvent(event));
-    });
+    _reportedErrorCode = null;
+    _playbackSub = events.listen(
+      (event) {
+        playbackState.add(_transformEvent(event));
+        _reportError(event);
+      },
+      // Not the path Android takes — see [_reportError] — but the one an
+      // upstream just_audio and the darwin side use, and an unobserved error
+      // here would be an unhandled async error rather than a reported one.
+      onError: (Object error) => onPlaybackError?.call(error),
+      // The default would cancel the subscription on the first failure, so one
+      // dead track would take every later track's state reporting with it.
+      cancelOnError: false,
+    );
   }
+
+  /// Reports a track the player could not open.
+  ///
+  /// The error arrives as *data*, not as a stream error. `AudioPlayer.java`
+  /// calls `sendError`, which does two things: it raises an error on the event
+  /// channel — which this fork of just_audio swallows with an empty `onError`
+  /// handler — and it sets `errorCode`/`errorMessage` on the next ordinary
+  /// event, switching the processing state to idle. Only the second of those
+  /// survives to Dart, so this is where a dead track is actually detectable.
+  ///
+  /// Reported on the edge into an error, so a failure is acted on once. The
+  /// platform clears `errorCode` when it loads something new, which is what
+  /// re-arms this.
+  void _reportError(PlaybackEvent event) {
+    final code = event.errorCode;
+    if (code == null) {
+      _reportedErrorCode = null;
+      return;
+    }
+    if (code == _reportedErrorCode) return;
+    _reportedErrorCode = code;
+    onPlaybackError?.call(PlayerException(code, event.errorMessage, event.currentIndex));
+  }
+
+  /// Forgets the last reported error, so the next one is reported even if it is
+  /// identical. Called before loading a track that is being retried: two dead
+  /// urls in a row carry the same code, and without this the second would look
+  /// like an echo of the first.
+  void clearPlaybackError() => _reportedErrorCode = null;
 
   /// Run before playback starts, if set.
   ///
@@ -180,7 +261,7 @@ class HypeAudioHandler extends BaseAudioHandler {
   Future<void> abortCrossfade() async {
     final done = _fadeDone;
     if (done == null) return;
-    _cancelCrossfade = true;
+    _cancellation?.cancel();
     await done.future;
   }
 
@@ -210,7 +291,8 @@ class HypeAudioHandler extends BaseAudioHandler {
 
     final fadeDone = Completer<void>();
     _fadeDone = fadeDone;
-    _cancelCrossfade = false;
+    final cancellation = FadeCancellation();
+    _cancellation = cancellation;
     final origVolume = _activePlayer.volume;
     var incomingStarted = false;
 
@@ -218,14 +300,31 @@ class HypeAudioHandler extends BaseAudioHandler {
       final targetVolume = replayGain
           ? await computeReplayGainVolume(nextSong.data)
           : 1.0;
+      // The first of several. Everything above the fade loop is *setup* — a
+      // network load, an artwork fetch — and it used to be uninterruptible:
+      // `abortCrossfade` waited for all of it, so a press of next during a slow
+      // load did nothing at all until the load finished. Each await is followed
+      // by this question so the answer arrives while the user is still asking.
+      if (cancellation.isCancelled) {
+        await _abandonSetup(origVolume, incomingStarted);
+        return;
+      }
 
       await _inactivePlayer.setAudioSource(nextSource);
       _inactivePlayer.setVolume(0.0);
       _inactivePlayer.play();
       incomingStarted = true;
+      if (cancellation.isCancelled) {
+        await _abandonSetup(origVolume, incomingStarted);
+        return;
+      }
 
       // Update media item for the next track
       final image = await fetchArtworkUrl(nextSong.data, nextSong.id);
+      if (cancellation.isCancelled) {
+        await _abandonSetup(origVolume, incomingStarted);
+        return;
+      }
       final item = MediaItem(
         id: nextSong.data,
         album: nextSong.album,
@@ -249,10 +348,12 @@ class HypeAudioHandler extends BaseAudioHandler {
       final currentVolume = _activePlayer.volume;
 
       for (var i = 1; i <= steps; i++) {
-        await Future.delayed(stepDuration);
+        await cancellation.wait(stepDuration);
         // Abort requested (user skipped/paused/loaded a track): jump straight
-        // to the end state instead of finishing the audible fade.
-        if (_cancelCrossfade) break;
+        // to the end state instead of finishing the audible fade. The wait
+        // above returns the instant that happens, rather than at the end of a
+        // step — which at a 20 s crossfade is a whole second of dead button.
+        if (cancellation.isCancelled) break;
         final progress = i / steps;
         _activePlayer.setVolume(currentVolume * (1.0 - progress));
         _inactivePlayer.setVolume(targetVolume * progress);
@@ -287,8 +388,28 @@ class HypeAudioHandler extends BaseAudioHandler {
       // Whatever happened, the crossfade is settled: unblock abortCrossfade()
       // waiters and clear the guard so future crossfades can run.
       _isCrossfading = false;
+      _cancellation = null;
       _fadeDone = null;
       fadeDone.complete();
+    }
+  }
+
+  /// Gives up a crossfade that was cancelled before the fade began.
+  ///
+  /// Leaves the outgoing player exactly as it was found — it is still the
+  /// audible one, and the caller that cancelled is usually about to load
+  /// something onto it — and silences the incoming one, which may already be
+  /// playing at volume zero and would otherwise decode on for ever.
+  ///
+  /// Returns normally rather than throwing. A cancellation is not a failure: a
+  /// throw here reaches `AppController._beginCrossfade`'s catch, which rolls the
+  /// track index back — undoing the very skip the user asked for.
+  Future<void> _abandonSetup(double origVolume, bool incomingStarted) async {
+    _activePlayer.setVolume(origVolume);
+    if (incomingStarted) {
+      try {
+        await _inactivePlayer.stop();
+      } catch (_) {}
     }
   }
 

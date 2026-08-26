@@ -24,6 +24,8 @@ import '../services/lyrics_service.dart';
 import '../services/fingerprint_service.dart';
 import '../services/cast_controller.dart';
 import '../services/streaming_data_guard.dart';
+import '../player/crossfade_trigger.dart';
+import '../player/playback_recovery.dart';
 import '../player/video/video_surface.dart';
 import '../services/video/video_registry.dart';
 import '../services/ytmusic/yt_innertube.dart';
@@ -777,6 +779,7 @@ class AppController with ChangeNotifier {
     // Wire up notification skip controls
     _handler.onSkipToNext = next;
     _handler.onSkipToPrevious = prev;
+    _handler.onPlaybackError = _recoverFromPlaybackError;
 
     // The last session comes back as a queue and a position; the player stays
     // empty until the first press of play, which is what loads it.
@@ -790,7 +793,7 @@ class AppController with ChangeNotifier {
       // player at the same moment the audio starts fading over. The sound
       // dissolves; the picture cuts, because dissolving it would mean decoding
       // two videos at once.
-      VideoSurface.instance.rebind();
+      unawaited(VideoSurface.instance.rebind());
       notifyListeners();
     };
 
@@ -877,6 +880,11 @@ class AppController with ChangeNotifier {
     _processingSub?.cancel();
     _processingSub = handler.player.processingStateStream.listen((event) {
       if (event == ProcessingState.ready) {
+        // Something opened. Whatever was rescued is no longer the failure being
+        // guarded against, and the next one — hours later, on a URL that has
+        // since expired — deserves its own second chance.
+        _rescuingSongId = null;
+        _rescueAttempts = 0;
         preCacheNextCloudTracks();
         // On iOS, the MTAudioProcessingTap calls dsp_reinit() when a new
         // AVPlayerItem starts, resetting all DSP filters to defaults.
@@ -914,7 +922,11 @@ class AppController with ChangeNotifier {
           }
         }
       }
-    });
+    },
+        // Same reasoning as [_bindCurrentIndex]: this stream carries the
+        // player's errors as well as its states, and one place recovers from
+        // them.
+        onError: (Object _) {});
   }
 
   /// Subscribe to currentIndexStream for gapless mode index tracking.
@@ -942,7 +954,12 @@ class AppController with ChangeNotifier {
         // YouTube queue is playing and Autoplay is on.
         unawaited(YtRadioQueue.instance.onIndexChanged(this, index));
       }
-    });
+    },
+        // Derived from the same event stream as the handler's, so a dead track
+        // surfaces here too. Recovery belongs in one place — see
+        // [_recoverFromPlaybackError] — and this listener only has to decline
+        // to become a second, unhandled copy of the same error.
+        onError: (Object _) {});
   }
 
   /// Called by HypeAudioHandler after crossfade completes and players are swapped.
@@ -950,7 +967,7 @@ class AppController with ChangeNotifier {
   /// so StreamBuilders (waveform, playing state) reconnect to the new player.
   void _rebindPlayerStreams() {
     // The picture belongs to a player, and the players have just traded places.
-    VideoSurface.instance.rebind();
+    unawaited(VideoSurface.instance.rebind());
     _bindProcessingState();
     _bindCurrentIndex();
     _setupCrossfadeListener();
@@ -962,20 +979,25 @@ class AppController with ChangeNotifier {
     notifyListeners();
   }
 
+  /// Set while a track is being loaded into the player.
+  ///
+  /// Read by the crossfade trigger, which must not start a fade out of a track
+  /// that is in the middle of being replaced — see [shouldStartCrossfade].
+  bool _loadingTrack = false;
+
   void _setupCrossfadeListener() {
     _positionSub?.cancel();
     _positionSub = handler.player.positionStream.listen((position) {
-      final duration = handler.player.duration;
-      // Repeat-one and crossfade are contradictory instructions: the fade
-      // exists to reach the *next* track, which is the one thing repeat-one
-      // says not to do. The explicit setting wins.
-      if (_crossfadeDuration > 0 &&
-          handler.loopMode != LoopMode.one &&
-          !_isCrossfading &&
-          duration != null &&
-          duration.inSeconds > _crossfadeDuration &&
-          position >= duration - Duration(seconds: _crossfadeDuration) &&
-          songId < songs.length - 1) {
+      if (shouldStartCrossfade(
+        crossfadeSeconds: _crossfadeDuration,
+        repeatOne: handler.loopMode == LoopMode.one,
+        alreadyCrossfading: _isCrossfading,
+        loadingTrack: _loadingTrack,
+        duration: handler.player.duration,
+        position: position,
+        index: songId,
+        queueLength: songs.length,
+      )) {
         _beginCrossfade();
       }
     });
@@ -1052,9 +1074,16 @@ class AppController with ChangeNotifier {
       // index so the position listener doesn't hammer the dead URL every tick
       // — the normal end-of-track advance takes over instead.
       _crossfadeFailedIdx = nextIdx;
-      _songId = prevId;
-      _artWorkId = prevArtId;
-      _loadLyricsForCurrentSong();
+      // Only if this crossfade is still what the track state describes. Press
+      // next while the fade is loading and `next()` has already moved the index
+      // on; rolling back then would drag the user back to the track they just
+      // left, while the load they triggered plays on underneath — the queue
+      // looking stuck on the old track with the button doing nothing.
+      if (_songId == nextIdx) {
+        _songId = prevId;
+        _artWorkId = prevArtId;
+        _loadLyricsForCurrentSong();
+      }
       notifyListeners();
     } finally {
       // Without this a single failure left _isCrossfading stuck true and
@@ -2037,14 +2066,93 @@ class AppController with ChangeNotifier {
     // waiting to be resumed — and leaving the mark set would save the old
     // track's position against the new one.
     _pendingResume = null;
-    await _refreshTarget(index);
-    if (index >= songs.length) return;
-    await loadAudioSource(
-      handler,
-      songs[index],
-      replayGain: _replayGain,
-      initialPosition: position,
-    );
+    // Held across the whole load, not just the resolve: the outgoing track goes
+    // on playing — and goes on being near its end — until the new source is
+    // actually set, and that is the window the crossfade trigger must sit out.
+    _loadingTrack = true;
+    try {
+      await _refreshTarget(index);
+      if (index >= songs.length) return;
+      await loadAudioSource(
+        handler,
+        songs[index],
+        replayGain: _replayGain,
+        initialPosition: position,
+      );
+    } finally {
+      _loadingTrack = false;
+    }
+  }
+
+  /// The track currently being rescued, and how many fresh sessions have been
+  /// spent on it — so a track that is dead however it is asked for moves on
+  /// instead of being resolved for ever.
+  ///
+  /// Held by song id rather than index: the index of a track changes when the
+  /// queue is shuffled or appended to, and this has to name *this* track.
+  int? _rescuingSongId;
+  int _rescueAttempts = 0;
+
+  /// Answers a player that has refused the current track.
+  ///
+  /// The common cause is a stream URL that is no longer honoured — expired, or
+  /// gated by YouTube after being issued. Both are fixed by asking for another
+  /// one, which is why the first response is always to re-resolve rather than
+  /// to skip: skipping would silently drop a track that plays perfectly well on
+  /// a URL thirty seconds newer.
+  ///
+  /// Only the second failure of the same track advances the queue. Doing
+  /// nothing — which is what this app did before — leaves the player parked on
+  /// a track that will never start, and turns the end of every track into the
+  /// end of the session.
+  Future<void> _recoverFromPlaybackError(Object error) async {
+    if (songs.isEmpty) return;
+    final index = _songId.clamp(0, songs.length - 1);
+    final song = songs[index];
+    debugPrint('Playback error on "${song.title}": $error');
+
+    if (_rescuingSongId != song.id) {
+      _rescuingSongId = song.id;
+      _rescueAttempts = 0;
+    }
+
+    switch (recoveryFor(
+      isStream: song.ytVideoId != null,
+      attempts: _rescueAttempts,
+      hasNext: index < songs.length - 1,
+    )) {
+      case PlaybackRecovery.reResolve:
+        _rescueAttempts++;
+        // The next failure carries the same error code as this one, and the
+        // handler reports only changes — so without this a second dead url
+        // would look like an echo of the first and go unanswered.
+        handler.clearPlaybackError();
+        // A new session, not merely a new request. The url was not refused
+        // because it aged — it was minted by a session YouTube decided would
+        // need a proof-of-origin token, and every url that session mints will
+        // be refused the same way. Asking again on it produces another dead
+        // link; drawing a new one is the whole of the fix.
+        await YtMusicRepository.instance.resetSession();
+        // Everything the burned session minted is dead, not just this track, so
+        // the whole queue is marked for re-resolution — otherwise the next
+        // track looks fresh, is loaded unasked, and fails identically.
+        _staleAllStreamTargets();
+        await loadTrackAt(index);
+      case PlaybackRecovery.skip:
+        // Deliberately not `next()`. That honours the loop mode, and under
+        // repeat-one it would seek the very track that just refused to open
+        // back to zero and play it again — for ever, at one failed request per
+        // pass. "Repeat this track" cannot mean "retry a dead url until the
+        // battery is flat"; it is the one setting a broken track overrules.
+        songId = index + 1;
+        artWorkId = songs[songId].id;
+        unawaited(loadTrackAt(songId));
+      case PlaybackRecovery.stop:
+        // Not a wrap, even under repeat-all: a queue whose tracks have all
+        // expired would otherwise walk itself round and round, re-resolving
+        // and failing, with nothing audible to say what is happening.
+        await handler.player.stop();
+    }
   }
 
   /// Re-resolves the track at [index] when its stream URL has expired.
@@ -2077,6 +2185,24 @@ class AppController with ChangeNotifier {
       // playback error path takes it from here rather than this becoming a
       // second, competing failure mode.
       debugPrint('Re-resolve failed for $videoId: $e');
+    }
+  }
+
+  /// Marks every YouTube entry in the queue as needing a new URL.
+  ///
+  /// The entries have not expired — `expiresAt` is hours away — so nothing else
+  /// would ask for them again. But they were minted by a session that has just
+  /// been proved gated, which the entry itself has no way to represent. Clearing
+  /// the deadline is how that fact is written down: [_refreshTarget] treats the
+  /// track as stale and re-resolves it on the way in, one request per track,
+  /// which is what the queue fill would have spent anyway.
+  void _staleAllStreamTargets() {
+    for (final list in [_songs, _shuffledSongs]) {
+      for (var i = 0; i < list.length; i++) {
+        final song = list[i];
+        if (song.ytVideoId == null) continue;
+        list[i] = song.withTarget(song.data, null);
+      }
     }
   }
 

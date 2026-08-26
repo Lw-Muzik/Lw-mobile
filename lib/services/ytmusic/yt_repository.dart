@@ -360,6 +360,22 @@ class YtMusicRepository {
     _video.remove(videoId);
   }
 
+  /// Starts a new InnerTube session, and forgets every URL the old one minted.
+  ///
+  /// Called when playback proves the session is one of the gated ones: its urls
+  /// answer `OK` at resolve time and 403 the moment a player opens them, so the
+  /// only evidence arrives from ExoPlayer, and the only cure is a new session.
+  ///
+  /// Every cached target has to go with it. They were minted by the burned
+  /// session and are gated to a track; keeping them would serve the same dead
+  /// urls to the very retry that exists to escape them. The browse and search
+  /// caches stay: pages are not gated, and they are what makes Discover instant.
+  Future<void> resetSession() async {
+    _audio.clear();
+    _video.clear();
+    await YtWorker.instance.run<void>(YtOp.resetSession);
+  }
+
   /// Drops everything held for the session. The disk-cached categories stay:
   /// they are what makes the next cold open instant.
   void clearSession() {

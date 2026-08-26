@@ -86,9 +86,9 @@ class YtPlayback {
     controller.playSongFromList([songModelOf(first, target)], 0);
     Routes.playerTo(context);
 
-    // Attached before the fill starts, not after: `_fillQueue` checks `isLive`
-    // to decide whether the queue it is filling still exists, and that check
-    // has to be able to see this seed.
+    // Attached before the fill starts, not after: the fill takes the station it
+    // is filling on the way in and stops if it stops being the current one, so
+    // this station has to exist by then or the fill belongs to the last one.
     YtRadioQueue.instance.attach(seed: first.videoId);
     if (radio && YtRadioQueue.instance.enabled) {
       // Not `force`: this station is the app's idea, not one the user named, so
@@ -191,8 +191,8 @@ class YtPlayback {
     Routes.playerTo(context);
 
     // Attached before the radio is asked to fill, for the same reason
-    // [play] does it in that order: `fill` checks `isLive`, and that check has
-    // to be able to see this seed.
+    // [play] does it in that order: a fill takes the station it is filling on
+    // the way in, so this one has to exist before it starts.
     //
     // Unlike a tapped search result this is not gated on Autoplay: a queue of
     // exactly one video has nothing to follow it, and stopping dead after a
@@ -224,15 +224,17 @@ class YtPlayback {
     List<YtTrack> rest,
   ) async {
     const batchSize = 6;
+    // The queue these videos belong to; see [_fillQueue].
+    final station = YtRadioQueue.instance.station;
     for (var i = 0; i < rest.length; i += batchSize) {
       final batch = rest.skip(i).take(batchSize).toList();
       final models = await resolveVideoModels(batch);
       // The user may have started something else by now; appending to a queue
       // they have left would graft this list onto it.
-      if (models.isEmpty || !YtRadioQueue.instance.isLive) return;
+      if (models.isEmpty || !YtRadioQueue.instance.isStation(station)) return;
       await controller.appendToQueue(models);
     }
-    if (!YtRadioQueue.instance.isLive) return;
+    if (!YtRadioQueue.instance.isStation(station)) return;
     await YtRadioQueue.instance.onIndexChanged(controller, controller.songId);
   }
 
@@ -325,6 +327,11 @@ class YtPlayback {
     AppController controller,
     List<YtTrack> rest,
   ) async {
+    // The queue this list belongs to. Resolving takes seconds per batch, and
+    // what the user does in them decides whether any of this is still wanted:
+    // asking only whether *a* YouTube queue is playing would append this list
+    // to whatever they started instead.
+    final station = YtRadioQueue.instance.station;
     for (var i = 0; i < rest.length; i += _resolveConcurrency) {
       final batch = rest.skip(i).take(_resolveConcurrency).toList();
       final targets = await YtMusicRepository.instance.audioTargets(
@@ -339,7 +346,7 @@ class YtPlayback {
       ];
       // The user may have started something else entirely by now; appending to
       // a queue they've left would graft this playlist onto it.
-      if (!YtRadioQueue.instance.isLive) return;
+      if (!YtRadioQueue.instance.isStation(station)) return;
       await controller.appendToQueue(models);
     }
 
@@ -347,7 +354,7 @@ class YtPlayback {
     // short has no advance to wait for — play one song and nothing would ever
     // ask for more. Asking here covers it, and still honours both the Autoplay
     // preference and the headroom check.
-    if (!YtRadioQueue.instance.isLive) return;
+    if (!YtRadioQueue.instance.isStation(station)) return;
     await YtRadioQueue.instance.onIndexChanged(controller, controller.songId);
   }
 
@@ -497,7 +504,29 @@ class YtRadioQueue {
   bool _enabled = true;
   String? _seed;
   String? _token;
-  bool _fetching = false;
+
+  /// Which station is playing, counted rather than named.
+  ///
+  /// A fill spends seconds in the network, and the user can start a different
+  /// station in that time. Everything the reply wants to write back — the
+  /// continuation token, what has been offered, the tracks themselves — belongs
+  /// to the station that asked, so work carries this number and is dropped on
+  /// arrival if it no longer matches.
+  ///
+  /// The token is the reason this is not merely tidy. A continuation belongs to
+  /// a *playlist*, not to a seed: sending the old station's token with the new
+  /// station's seed returns the next page of the old station. One stale
+  /// write-back therefore poisoned every later top-up, and nothing short of
+  /// restarting the app undid it.
+  int _station = 0;
+
+  /// The station a fetch is in flight for, or null when none is.
+  ///
+  /// Deliberately not a plain `_fetching` flag: that made the *new* station's
+  /// first fill a no-op whenever the old one's fetch was still in the air —
+  /// which is exactly when a new station is started — so the queue kept the
+  /// only tracks it had, the previous station's.
+  int? _fetchingFor;
 
   /// Whether a YouTube queue is the thing currently playing.
   ///
@@ -505,6 +534,17 @@ class YtRadioQueue {
   /// stops a half-filled playlist from being grafted onto the local album the
   /// user has since started.
   bool get isLive => _seed != null;
+
+  /// The station running right now, to be handed back to [isStation] later.
+  int get station => _station;
+
+  /// Whether [station] is still the one playing.
+  ///
+  /// The question every piece of in-flight work has to ask before it writes
+  /// anything down. [isLive] answers a different and weaker question — whether
+  /// *a* station is playing — and answering that one is how a fill for the
+  /// station the user just left went on appending to the queue.
+  bool isStation(int station) => isLive && _station == station;
 
   bool get enabled => _enabled;
 
@@ -548,12 +588,17 @@ class YtRadioQueue {
     _enabled = true;
     _seed = null;
     _token = null;
-    _fetching = false;
+    _station = 0;
+    _fetchingFor = null;
     _offered.clear();
   }
 
   /// Starts watching the queue, seeded by the track that just began.
+  ///
+  /// This is a *new* station, so anything still in flight for the last one is
+  /// now unwanted — see [_station].
   void attach({required String seed}) {
+    _station++;
     _seed = seed;
     _token = null;
     // A track heard on the last station is fair game on this one, and the seed
@@ -565,6 +610,7 @@ class YtRadioQueue {
 
   /// Stops watching. Called when something that isn't YouTube starts playing.
   void detach() {
+    _station++;
     _seed = null;
     _token = null;
     _offered.clear();
@@ -605,6 +651,38 @@ class YtRadioQueue {
   @visibleForTesting
   List<YtTrack> freshTracksForTest(List<YtTrack> page, {required int limit}) =>
       _freshTracks(page, limit: limit);
+
+  /// Takes what is usable from [batch], provided [station] is still playing.
+  ///
+  /// The single place a fetch's answer is written back, so it is the single
+  /// place that has to ask whether the answer is still wanted. A page that
+  /// arrives for a station the user has left contributes nothing at all: not
+  /// its tracks, not its record of what has been offered, and above all not its
+  /// continuation token, which would turn the *next* page of the station they
+  /// walked away from into the next page of the one they are listening to.
+  List<YtTrack> _acceptPage(
+    int station,
+    RadioBatch batch, {
+    required int limit,
+  }) {
+    if (!isStation(station)) return const [];
+    // A radio that stops offering a token has not necessarily ended; the seed
+    // still produces a fresh panel, so forgetting the token re-seeds next time
+    // rather than ending the music.
+    _token = batch.continuation;
+    return _freshTracks(batch.tracks, limit: limit);
+  }
+
+  @visibleForTesting
+  List<YtTrack> acceptPageForTest(
+    int station,
+    RadioBatch batch, {
+    required int limit,
+  }) =>
+      _acceptPage(station, batch, limit: limit);
+
+  @visibleForTesting
+  String? get tokenForTest => _token;
 
   /// Whether a queue of [queueLength] playing [index] is close enough to its
   /// end to be worth fetching more.
@@ -662,28 +740,35 @@ class YtRadioQueue {
   /// the Autoplay preference says — that setting is about radio the app decides
   /// to start on its own.
   Future<void> fill(AppController controller, {bool force = false}) async {
-    if (_fetching) return;
     if (!_enabled && !force) return;
     if (_seed == null) return;
 
-    _fetching = true;
+    // One fetch at a time *per station*. A fetch still running for the station
+    // the user has left must not stand in for this one — that left a brand new
+    // station holding nothing but the old one's tracks.
+    final station = _station;
+    if (_fetchingFor == station) return;
+    _fetchingFor = station;
     try {
-      if (await _fillFromSeed(controller)) return;
+      if (await _fillFromSeed(controller, station)) return;
+      if (!isStation(station)) return;
       // This seed has nothing left that isn't already queued. Move the station
       // on rather than letting it stop — see [_reseed].
       if (!_reseed()) return;
-      await _fillFromSeed(controller);
+      await _fillFromSeed(controller, station);
     } catch (_) {
       // Radio is a courtesy. A batch that won't load costs nothing visible —
       // the queue simply ends where it would have anyway.
     } finally {
-      _fetching = false;
+      // Only if this fetch is still the one being waited on: a station started
+      // since owns the marker now.
+      if (_fetchingFor == station) _fetchingFor = null;
     }
   }
 
   /// Walks the current seed's pages, appending the first batch that has
   /// anything new. Returns whether it appended.
-  Future<bool> _fillFromSeed(AppController controller) async {
+  Future<bool> _fillFromSeed(AppController controller, int station) async {
     final seed = _seed;
     if (seed == null) return false;
 
@@ -695,17 +780,16 @@ class YtRadioQueue {
           ? await YtMusicRepository.instance.radio(seed)
           : await YtMusicRepository.instance.radioContinue(seed, token);
 
-      // A radio that stops offering a token has not necessarily ended; the
-      // seed still produces a fresh panel, so forgetting the token re-seeds
-      // next time rather than ending the music.
-      _token = batch.continuation;
-      if (batch.tracks.isEmpty) return false;
-
       // Videos are resolved a few at a time and each writes a manifest, so a
       // station showing pictures runs a shorter way ahead than one playing
       // songs.
       final limit = VideoRegistry.instance.videoMode ? 6 : _batchSize;
-      final fresh = _freshTracks(batch.tracks, limit: limit);
+      // Seconds have passed inside that fetch, and the user may have started a
+      // different station in them. [_acceptPage] is where that is decided.
+      final fresh = _acceptPage(station, batch, limit: limit);
+      if (!isStation(station)) return false;
+      if (batch.tracks.isEmpty) return false;
+
       // Every track on this page is already in the queue. Ask for the next
       // one rather than reporting a station that has run dry.
       if (fresh.isEmpty) {
@@ -721,8 +805,9 @@ class YtRadioQueue {
           : await _resolveAudioModels(fresh);
       // The user may have started something else entirely while those
       // resolved; appending to a queue they have left would graft this
-      // station onto it.
-      if (models.isEmpty || !isLive) return false;
+      // station onto it. `isLive` is not enough — a *different* station is
+      // also live, and that is the case this class kept getting wrong.
+      if (models.isEmpty || !isStation(station)) return false;
       await controller.appendToQueue(models);
       return true;
     }

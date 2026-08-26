@@ -43,6 +43,21 @@ enum YtOp {
   radioContinue,
   resolveAudio,
   resolveVideo,
+
+  /// Throw away the InnerTube session and start a new one.
+  ///
+  /// Measured 2026-08-14: a `visitorData` is bucketed **when it is minted**, and
+  /// roughly four sessions in ten are issued stream urls that refuse the
+  /// open-ended GET a player opens with. The verdict is a property of the
+  /// session, not of the video, the client, the CDN edge or the request rate —
+  /// ten fresh sessions asked for the same video gave 6 playable and 4 gated,
+  /// each answering the same way twice.
+  ///
+  /// That is fatal to a long-lived isolate holding one token: a bad draw means
+  /// every track fails until the app is killed, and re-resolving on the same
+  /// token only mints another dead url. So a session that playback has proved
+  /// gated is discarded and drawn again.
+  resetSession,
 }
 
 class _YtRequest {
@@ -237,6 +252,10 @@ Future<Object?> _handle(
 
     case YtOp.resolveVideo:
       return _resolveVideo(api, args['videoId'] as String);
+
+    case YtOp.resetSession:
+      api.resetSession();
+      return null;
   }
 }
 
@@ -295,17 +314,42 @@ Future<YtTrackList> _trackList(
   );
 }
 
-/// The clients to try, in order.
+/// The clients to try for audio, in order — which is to say: ANDROID_VR, alone.
 ///
-/// ANDROID_VR leads because its urls serve the **whole file**, where an IOS url
-/// is gated to its first ~1 MiB — about 64 seconds of audio, after which every
-/// request 403s. IOS is kept as a fallback because it still resolves when VR
-/// won't, and because it is the only client that offers HLS for video.
+/// IOS used to sit behind it as a fallback, on the reasoning that a client
+/// which still answers when VR is refused is better than nothing. Measured
+/// again on 2026-08-14, that reasoning is wrong twice over:
 ///
-/// This order was previously the other way round, on a measurement that was
-/// real but incomplete: ANDROID_VR *was* refusing six of seven videos — for want
-/// of a `visitorData`, which [YtInnerTube] now supplies. See its header.
-const _clientOrder = [YtPlayerClient.androidVr, YtPlayerClient.ios];
+/// | client     | playability | `Range: bytes=0-` | past 1 MiB |
+/// |------------|-------------|-------------------|------------|
+/// | ANDROID_VR | OK          | 206               | 206        |
+/// | IOS        | **OK**      | **403**           | **403**    |
+///
+/// An IOS url is PO-token gated to its first mebibyte, and the *first* request
+/// any player makes is a single open-ended `Range: bytes=0-` for the whole
+/// file. That request is refused outright. So IOS does not buy 64 seconds of
+/// audio; it buys **none** — and it buys it while answering `OK`, which is
+/// worse than a refusal, because the failure moves from the resolver (where it
+/// could be reported) to ExoPlayer (where it is a silent `Source error` over a
+/// track that looks like it is playing).
+///
+/// A client that cannot produce a playable url is not a fallback. When VR is
+/// refused the honest answer is to say so and let the caller retry, which
+/// [YtInnerTube.player] now makes rare by refreshing the `visitorData` a
+/// refusal turns on.
+///
+/// **Never widen this list without reading past 1 MiB with one unbounded GET.**
+/// Every bounded 64 KB probe in this project's history has passed on urls that
+/// could not play a note. See `test/ytmusic/yt_resolve_live_test.dart`.
+/// **Re-measured 2026-08-20**, when playback stopped everywhere and every
+/// track answered *"Sign in to confirm you're not a bot"*: ANDROID_VR is now
+/// refused on both sides of its 1.64 wall — bot-checked below it, gated at and
+/// above it — so the client that led this list can no longer play anything at
+/// all. VISIONOS takes the lead as the one client still serving a whole file
+/// to one open-ended GET. ANDROID_VR stays behind it rather than being
+/// deleted: it fails *loudly* (a refusal, not a gated url), so it costs one
+/// clean miss and remains the second axis if VISIONOS is ever refused.
+const audioClientOrder = [YtPlayerClient.visionOs, YtPlayerClient.androidVr];
 
 /// Video resolves in a different order on iOS, and only there.
 ///
@@ -313,9 +357,18 @@ const _clientOrder = [YtPlayerClient.androidVr, YtPlayerClient.ios];
 /// `hlsManifestUrl` — and IOS is the one client that ever offers one. On
 /// Android, ANDROID_VR leads as everywhere else: ExoPlayer plays the DASH
 /// manifest built from its adaptive renditions, and VR urls carry no gate.
+///
+/// IOS survives here, where it does not in [audioClientOrder], because a DASH
+/// or HLS player fetches *bounded* segment ranges rather than the one open-
+/// ended GET that a gated url refuses — and because on iOS there is no second
+/// answer: AVPlayer plays HLS or it plays nothing.
 final _videoClientOrder = Platform.isIOS
-    ? const [YtPlayerClient.ios, YtPlayerClient.androidVr]
-    : _clientOrder;
+    ? const [
+        YtPlayerClient.ios,
+        YtPlayerClient.visionOs,
+        YtPlayerClient.androidVr,
+      ]
+    : audioClientOrder;
 
 /// Asks each client in turn until one answers with a usable response.
 ///
@@ -327,7 +380,7 @@ Future<T> _viaAnyClient<T>(
   YtInnerTube api,
   String videoId,
   T Function(Map<String, dynamic> json, YtPlayerClient client) read, {
-  List<YtPlayerClient> order = _clientOrder,
+  List<YtPlayerClient> order = audioClientOrder,
 }) async {
   Object? lastError;
   for (final client in order) {

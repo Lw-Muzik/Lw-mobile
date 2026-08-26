@@ -8,6 +8,8 @@
 /// them.
 library;
 
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:eq_app/player/video/picture_in_picture.dart';
@@ -28,11 +30,11 @@ class _RecordingSink implements VideoSink {
     awakeChanges++;
   }
 
+  /// The other players' surfaces, of which this one-player fake has none.
+  int detachOtherCalls = 0;
+
   @override
-  void detachAll() {
-    detaches++;
-    attached = false;
-  }
+  Future<void> detachOthers() async => detachOtherCalls++;
 
   @override
   void setFloatOnLeave(bool on) => floats = on;
@@ -48,6 +50,71 @@ class _RecordingSink implements VideoSink {
     detaches++;
     attached = false;
   }
+}
+
+/// A sink that behaves the way the real one does, and fails the way it failed.
+///
+/// The real sink is not the pure function [_RecordingSink] pretends to be:
+/// there are two players, each with its own surface, and every attach and
+/// detach is a round trip to the platform. A rebind therefore issues two
+/// asynchronous operations over one shared set of surfaces, which is exactly
+/// the shape a race hides in. Modelling it — a map that both operations touch,
+/// a suspension in the middle of each — is what makes the crossfade bug
+/// reproducible in a test rather than only on a phone.
+class _TwoPlayerSink implements VideoSink {
+  /// The player that is audible now — the handler's `currentTrackPlayer`.
+  /// A crossfade moves this to the incoming player before the fade begins.
+  String current = 'A';
+
+  /// Whether a picture is wanted on each player, and the texture it has.
+  final Map<String, bool> wanted = {};
+  final Map<String, int?> textures = {};
+
+  /// The player whose surface is actually drawing, or null for a black screen.
+  String? get showing {
+    for (final entry in textures.entries) {
+      if (entry.value != null) return entry.key;
+    }
+    return null;
+  }
+
+  bool awake = false;
+  bool floats = false;
+
+  @override
+  void attach() => unawaited(_attach(current));
+
+  Future<void> _attach(String player) async {
+    wanted[player] = true;
+    final id = await Future(() => 1); // the platform round trip
+    // Detached while the attach was in flight: see VideoOutput._bind.
+    if (wanted[player] != true) return;
+    textures[player] = id;
+  }
+
+  /// Exactly what `HypeAudioHandler.detachAllVideo` does: walk the surfaces it
+  /// knows about, skipping the audible player's, suspending at each one.
+  @override
+  Future<void> detachOthers() async {
+    for (final player in wanted.keys.toList()) {
+      if (player == current) continue;
+      wanted[player] = false;
+      textures[player] = null;
+      await null; // cancelling the event channel subscription
+    }
+  }
+
+  @override
+  void detach() {
+    wanted[current] = false;
+    textures[current] = null;
+  }
+
+  @override
+  void keepAwake(bool on) => awake = on;
+
+  @override
+  void setFloatOnLeave(bool on) => floats = on;
 }
 
 void main() {
@@ -226,6 +293,58 @@ void main() {
     PictureInPicture.instance.isActive.value = false;
     expect(surface.owner, isNull);
     expect(sink.attached, isFalse);
+  });
+
+  group('a crossfade moves the picture without dropping it', () {
+    late _TwoPlayerSink players;
+
+    setUp(() {
+      players = _TwoPlayerSink();
+      surface.sink = players;
+    });
+
+    test('the picture follows the fade onto the incoming player', () async {
+      surface.claim(VideoHost.card);
+      await pumpEventQueue();
+      expect(players.showing, 'A', reason: 'the first video is on screen');
+
+      // What HypeAudioHandler does at onCrossfadeStarted: the incoming player
+      // is now the audible one, and the surface is asked to follow it.
+      players.current = 'B';
+      surface.rebind();
+      await pumpEventQueue();
+
+      expect(players.showing, 'B',
+          reason: 'the video is still on screen and playing, so the surface '
+              'must end up on the player that is now audible — anything else '
+              'is a black stage the user has to leave the page to fix');
+    });
+
+    test('the swap at the end of the fade rebinds again, harmlessly', () async {
+      surface.claim(VideoHost.card);
+      players.current = 'B';
+      surface.rebind(); // onCrossfadeStarted
+      await pumpEventQueue();
+      surface.rebind(); // onPlayerSwapped, same audible player
+      await pumpEventQueue();
+
+      expect(players.showing, 'B',
+          reason: 'the second rebind of a crossfade must not take back the '
+              'picture the first one just handed over');
+    });
+
+    test('rebinding with nobody watching attaches nothing', () async {
+      surface.claim(VideoHost.card);
+      await pumpEventQueue();
+      surface.release(VideoHost.card);
+      players.current = 'B';
+      surface.rebind();
+      await pumpEventQueue();
+
+      expect(players.showing, isNull,
+          reason: 'a queue playing on with no video host mounted should not '
+              'be decoding frames for nobody');
+    });
   });
 
   test('listeners hear about a change of owner', () {
