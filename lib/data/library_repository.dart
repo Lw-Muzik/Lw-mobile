@@ -61,13 +61,18 @@ class PlaylistSummary {
   final String? coverPath;
 }
 
-/// One track in a playlist.
+/// One track in a playlist, as the app talks about it.
+///
+/// Named `PlaylistItem` rather than `PlaylistEntry` because drift generates a
+/// row class of that name from the `PlaylistEntries` table, and two types with
+/// one name in the same import graph is a compile error waiting for whoever
+/// imports both.
 ///
 /// Carries its own title and artist so a playlist renders before any cloud link
 /// is minted or YouTube id resolved — a row that says nothing until the network
 /// answers is a row that looks broken offline.
-class PlaylistEntry {
-  const PlaylistEntry({
+class PlaylistItem {
+  const PlaylistItem({
     required this.source,
     required this.title,
     this.songId,
@@ -613,7 +618,7 @@ class LibraryRepository {
   /// Appends [entries] to the end of a playlist, keeping positions contiguous.
   Future<void> addToPlaylist(
     int playlistId,
-    List<PlaylistEntry> entries,
+    List<PlaylistItem> entries,
     int nowSec,
   ) async {
     if (entries.isEmpty) return;
@@ -643,14 +648,14 @@ class LibraryRepository {
       'UPDATE playlists SET updated_sec = ? WHERE id = ?', [nowSec, playlistId]);
   }
 
-  Future<List<PlaylistEntry>> playlistEntries(int playlistId) async {
+  Future<List<PlaylistItem>> playlistEntries(int playlistId) async {
     final rows = await _db.customSelect(
       'SELECT * FROM playlist_entries WHERE playlist_id = ? ORDER BY position',
       variables: [Variable<int>(playlistId)],
     ).get();
     return [
       for (final row in rows)
-        PlaylistEntry(
+        PlaylistItem(
           source: row.data['source'] as String? ?? 'local',
           songId: (row.data['song_id'] as num?)?.toInt(),
           externalId: row.data['external_id'] as String?,

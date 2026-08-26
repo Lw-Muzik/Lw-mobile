@@ -50,6 +50,12 @@ class LibraryController extends ChangeNotifier {
       _scanStatus = s;
       notifyListeners();
     });
+    // Listening history is bounded, and the cheapest moment to bound it is the
+    // one time per launch this runs. Unawaited: a launch must not wait on
+    // housekeeping, and a prune that fails costs disk, never correctness.
+    unawaited(
+      repo.prunePlayEvents(DateTime.now().millisecondsSinceEpoch ~/ 1000),
+    );
     await scan();
   }
 
