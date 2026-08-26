@@ -26,6 +26,63 @@ class FolderEntry {
   final int? sampleId;
 }
 
+/// How a track has actually been listened to.
+///
+/// Two counts rather than a ratio, because the ratio alone cannot tell "skipped
+/// once out of one play" from "skipped twelve times out of forty" — and only the
+/// second is evidence.
+class PlayStats {
+  const PlayStats({required this.plays, required this.skips});
+
+  final int plays;
+  final int skips;
+
+  /// Fraction of plays abandoned early, or null when there is too little
+  /// evidence to say. Null is not zero: never having been played is not the
+  /// same as never having been skipped.
+  double? get skipRate => plays < 2 ? null : skips / plays;
+
+  /// Whether this track has earned a place in a mix on its own record.
+  bool get isProven => plays >= 2 && (skipRate ?? 1) < 0.5;
+}
+
+/// A playlist as the browsing UI needs it: enough to draw a row, no tracks.
+class PlaylistSummary {
+  const PlaylistSummary({
+    required this.id,
+    required this.name,
+    required this.trackCount,
+    this.coverPath,
+  });
+
+  final int id;
+  final String name;
+  final int trackCount;
+  final String? coverPath;
+}
+
+/// One track in a playlist.
+///
+/// Carries its own title and artist so a playlist renders before any cloud link
+/// is minted or YouTube id resolved — a row that says nothing until the network
+/// answers is a row that looks broken offline.
+class PlaylistEntry {
+  const PlaylistEntry({
+    required this.source,
+    required this.title,
+    this.songId,
+    this.externalId,
+    this.artist,
+  });
+
+  /// `local`, `cloud` or `youtube`.
+  final String source;
+  final String title;
+  final int? songId;
+  final String? externalId;
+  final String? artist;
+}
+
 /// Reactive read/write access to the local library database.
 ///
 /// All list getters return `Stream`s backed by drift's `watch()`, so when
@@ -422,6 +479,185 @@ class LibraryRepository {
   Future<void> deleteSongs(List<int> ids) async {
     if (ids.isEmpty) return;
     await (_db.delete(_db.songs)..where((t) => t.id.isIn(ids))).go();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Listening history
+  // ---------------------------------------------------------------------------
+
+  /// Notes that a track was played.
+  ///
+  /// One insert per track change. [msPlayed] of zero is meaningful — it means
+  /// the track was started and left at once, the strongest negative signal
+  /// there is — so it is recorded rather than skipped.
+  Future<void> recordPlayEvent({
+    required int songId,
+    required int atSec,
+    required int msPlayed,
+    required bool completed,
+  }) =>
+      _db.customStatement(
+        'INSERT INTO play_events (song_id, at_sec, ms_played, completed) '
+        'VALUES (?, ?, ?, ?)',
+        [songId, atSec, msPlayed, completed ? 1 : 0],
+      );
+
+  /// Drops history older than [kPlayEventRetentionDays].
+  ///
+  /// [nowSec] is passed rather than read so the caller owns the clock and this
+  /// stays testable.
+  Future<void> prunePlayEvents(int nowSec) => _db.customStatement(
+        'DELETE FROM play_events WHERE at_sec < ?',
+        [nowSec - kPlayEventRetentionDays * 86400],
+      );
+
+  /// How each track has actually been listened to.
+  ///
+  /// Returns song id → ([plays], [skips]). A skip is a play that got less than
+  /// [kSkipFraction] of the way through and did not complete; anything with no
+  /// known duration cannot be judged and counts as neither.
+  Future<Map<int, PlayStats>> playStats() async {
+    final rows = await _db.customSelect(
+      'SELECT e.song_id AS song_id, '
+      '  COUNT(*) AS plays, '
+      '  SUM(CASE WHEN e.completed = 0 AND s.duration IS NOT NULL '
+      '           AND s.duration > 0 '
+      '           AND CAST(e.ms_played AS REAL) / s.duration < ? '
+      '      THEN 1 ELSE 0 END) AS skips '
+      'FROM play_events e JOIN songs s ON s.id = e.song_id '
+      'GROUP BY e.song_id',
+      variables: [Variable<double>(kSkipFraction)],
+    ).get();
+    return {
+      for (final row in rows)
+        row.data['song_id'] as int: PlayStats(
+          plays: (row.data['plays'] as num?)?.toInt() ?? 0,
+          skips: (row.data['skips'] as num?)?.toInt() ?? 0,
+        ),
+    };
+  }
+
+  /// Which hours of the day a track tends to be played in.
+  ///
+  /// Returns song id → set of local hours (0-23). Used to bias a mix towards
+  /// what the user actually reaches for at this time of day, which is the part
+  /// that stops every day's mix being the same one.
+  Future<Map<int, Set<int>>> playHours() async {
+    final rows = await _db
+        .customSelect(
+          "SELECT song_id, CAST(strftime('%H', at_sec, 'unixepoch', 'localtime') "
+          'AS INTEGER) AS hour FROM play_events GROUP BY song_id, hour',
+        )
+        .get();
+    final out = <int, Set<int>>{};
+    for (final row in rows) {
+      final id = row.data['song_id'] as int;
+      final hour = (row.data['hour'] as num?)?.toInt();
+      if (hour == null) continue;
+      (out[id] ??= <int>{}).add(hour);
+    }
+    return out;
+  }
+
+  Future<int> playEventCount() async {
+    final row =
+        await _db.customSelect('SELECT COUNT(*) AS c FROM play_events').getSingle();
+    return (row.data['c'] as int?) ?? 0;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Playlists (app-owned)
+  // ---------------------------------------------------------------------------
+
+  Future<int> createPlaylist(String name, int nowSec) async {
+    await _db.customStatement(
+      'INSERT INTO playlists (name, created_sec, updated_sec) VALUES (?, ?, ?)',
+      [name, nowSec, nowSec],
+    );
+    final row = await _db
+        .customSelect('SELECT last_insert_rowid() AS id')
+        .getSingle();
+    return (row.data['id'] as num).toInt();
+  }
+
+  Future<List<PlaylistSummary>> playlists() async {
+    final rows = await _db.customSelect(
+      'SELECT p.id, p.name, p.cover_path, p.updated_sec, '
+      '  (SELECT COUNT(*) FROM playlist_entries e WHERE e.playlist_id = p.id) '
+      '  AS track_count '
+      'FROM playlists p ORDER BY p.updated_sec DESC',
+    ).get();
+    return [
+      for (final row in rows)
+        PlaylistSummary(
+          id: (row.data['id'] as num).toInt(),
+          name: row.data['name'] as String? ?? '',
+          coverPath: row.data['cover_path'] as String?,
+          trackCount: (row.data['track_count'] as num?)?.toInt() ?? 0,
+        ),
+    ];
+  }
+
+  Future<void> renamePlaylist(int id, String name, int nowSec) =>
+      _db.customStatement(
+        'UPDATE playlists SET name = ?, updated_sec = ? WHERE id = ?',
+        [name, nowSec, id],
+      );
+
+  Future<void> deletePlaylist(int id) async {
+    await _db.customStatement(
+      'DELETE FROM playlist_entries WHERE playlist_id = ?', [id]);
+    await _db.customStatement('DELETE FROM playlists WHERE id = ?', [id]);
+  }
+
+  /// Appends [entries] to the end of a playlist, keeping positions contiguous.
+  Future<void> addToPlaylist(
+    int playlistId,
+    List<PlaylistEntry> entries,
+    int nowSec,
+  ) async {
+    if (entries.isEmpty) return;
+    final row = await _db.customSelect(
+      'SELECT COALESCE(MAX(position), -1) AS last FROM playlist_entries '
+      'WHERE playlist_id = ?',
+      variables: [Variable<int>(playlistId)],
+    ).getSingle();
+    var position = ((row.data['last'] as num?)?.toInt() ?? -1) + 1;
+    for (final entry in entries) {
+      await _db.customStatement(
+        'INSERT INTO playlist_entries '
+        '(playlist_id, position, source, song_id, external_id, title, artist) '
+        'VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [
+          playlistId,
+          position++,
+          entry.source,
+          entry.songId,
+          entry.externalId,
+          entry.title,
+          entry.artist,
+        ],
+      );
+    }
+    await _db.customStatement(
+      'UPDATE playlists SET updated_sec = ? WHERE id = ?', [nowSec, playlistId]);
+  }
+
+  Future<List<PlaylistEntry>> playlistEntries(int playlistId) async {
+    final rows = await _db.customSelect(
+      'SELECT * FROM playlist_entries WHERE playlist_id = ? ORDER BY position',
+      variables: [Variable<int>(playlistId)],
+    ).get();
+    return [
+      for (final row in rows)
+        PlaylistEntry(
+          source: row.data['source'] as String? ?? 'local',
+          songId: (row.data['song_id'] as num?)?.toInt(),
+          externalId: row.data['external_id'] as String?,
+          title: row.data['title'] as String? ?? '',
+          artist: row.data['artist'] as String?,
+        ),
+    ];
   }
 
   Future<String?> metaGet(String key) async {

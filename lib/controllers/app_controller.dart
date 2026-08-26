@@ -824,6 +824,7 @@ class AppController with ChangeNotifier implements StationSink {
     _bindDvcVolumeButtons();
     _bindProcessingState();
     _bindCurrentIndex();
+    _bindPositionSampling();
     _setupCrossfadeListener();
     _bindAudioSessionId();
 
@@ -954,6 +955,9 @@ class AppController with ChangeNotifier implements StationSink {
             handler.player.audioSources.length > 1) {
           _songId = index;
           _artWorkId = songs[index].id;
+          // Same history every other advance path records — see
+          // [_onTrackStarted] for why this cannot be left to the setter.
+          _onTrackStarted(index);
           _updateMediaItemForIndex(index);
           // The gapless path advances the index here rather than through the
           // setter, so this is where a session learns the track changed.
@@ -1035,6 +1039,9 @@ class AppController with ChangeNotifier implements StationSink {
       // crossfaded track never reaches the natural-end handler either.
       _songId = nextIdx;
       _artWorkId = nextSong.id;
+      // A crossfaded track is still a track that was listened to. This is the
+      // third of the three advance paths — see [_onTrackStarted].
+      _onTrackStarted(nextIdx);
       unawaited(RadioQueue.instance.onIndexChanged(this, nextIdx));
       _loadLyricsForCurrentSong();
 
@@ -1488,6 +1495,83 @@ class AppController with ChangeNotifier implements StationSink {
         _playCounts = {};
       }
     }
+  }
+
+  // ---- Listening history ----
+
+  /// The track being listened to right now, and when it started.
+  ///
+  /// Held so the *outgoing* track's event can be written when the next one
+  /// begins: how long something played is only known once it stops.
+  int? _markedSongId;
+  int _markedStartSec = 0;
+  int _markedDurationMs = 0;
+
+  /// The most recent position seen on the player.
+  ///
+  /// Sampled rather than read at flush time because the gapless path notices a
+  /// track change only *after* the player has moved on, by which point the
+  /// position has already reset to zero — and an outgoing track that reports
+  /// zero looks like a track abandoned instantly.
+  int _lastPositionMs = 0;
+  StreamSubscription<Duration>? _positionSampleSub;
+
+  /// Keeps [_lastPositionMs] current. Assigns an int and nothing else — no
+  /// notify, no disk — so this costs the same as the progress bar's own listen.
+  void _bindPositionSampling() {
+    _positionSampleSub?.cancel();
+    _positionSampleSub = handler.player.positionStream.listen(
+      (position) => _lastPositionMs = position.inMilliseconds,
+      onError: (Object _) {},
+    );
+  }
+
+  /// Called by every path that makes a different track current.
+  ///
+  /// There are three — the `songId` setter, the gapless index stream and the
+  /// crossfade — and until now only the first incremented the play count. So a
+  /// user with gapless or crossfade switched on accumulated almost no history,
+  /// and any feature built on that history quietly described somebody else's
+  /// listening. Same shape as the radio top-up that was wired to one of three
+  /// paths; the fix is the same, one method all three call.
+  void _onTrackStarted(int index) {
+    if (index < 0 || index >= songs.length) return;
+    _flushPlayEvent();
+    final song = songs[index];
+    _incrementPlayCount(song.id);
+    _markedSongId = song.id;
+    _markedDurationMs = song.duration ?? 0;
+    _markedStartSec = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    _lastPositionMs = 0;
+  }
+
+  /// Writes the outgoing track's listening event, if there is one.
+  ///
+  /// A track that played almost all the way through counts as completed even if
+  /// the last moment was a skip: the difference between finishing something and
+  /// leaving in the final seconds is not a difference in taste.
+  void _flushPlayEvent() {
+    final songId = _markedSongId;
+    if (songId == null) return;
+    _markedSongId = null;
+
+    // The setter path still has the outgoing track loaded, so the live position
+    // is the better answer there; the gapless path has already reset it, so the
+    // sample is. Whichever is larger is the one that saw more of the track.
+    final live = handler.player.position.inMilliseconds;
+    final played = live > _lastPositionMs ? live : _lastPositionMs;
+    final completed =
+        _markedDurationMs > 0 && played >= _markedDurationMs * 0.95;
+
+    unawaited(
+      libraryRepo?.recordPlayEvent(
+            songId: songId,
+            atSec: _markedStartSec,
+            msPlayed: played,
+            completed: completed,
+          ) ??
+          Future<void>.value(),
+    );
   }
 
   Timer? _playCountPersistTimer;
@@ -2045,6 +2129,10 @@ class AppController with ChangeNotifier implements StationSink {
   /// Writes the session immediately. For the app going to the background, which
   /// is the moment most likely to be followed by the process being killed.
   Future<void> flushSession() async {
+    // The track playing when the app is backgrounded may never get a "next
+    // track" to be flushed by, and a process that is killed never reaches any
+    // teardown. This is the last honest moment to record what was heard.
+    _flushPlayEvent();
     _saveSession();
     await PlaybackSessionStore.instance.flush();
   }
@@ -2377,7 +2465,7 @@ class AppController with ChangeNotifier implements StationSink {
     // single notifyListeners, so the track change is one synchronous rebuild
     // pass instead of the previous 2-3 (setter + play-count).
     if (songs.isNotEmpty && id >= 0 && id < songs.length) {
-      _incrementPlayCount(songs[id].id);
+      _onTrackStarted(id);
       stemController.onSongChanged(songs[id].data);
     }
     _saveSession();
