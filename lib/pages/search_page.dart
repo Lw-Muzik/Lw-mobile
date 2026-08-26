@@ -1,3 +1,28 @@
+/// One search box over everything the user can play.
+///
+/// Local files, a connected drive and YouTube, in one scrolling list. The asking
+/// lives in [UnifiedSearch]; this file is the view.
+///
+/// # Tapping a result starts a station
+///
+/// A page of search results is not a running order. It is twenty answers to one
+/// question, and following the song someone picked with the nineteen other
+/// things they were choosing between is not listening to music. So a tapped
+/// result plays alone and seeds a station — a rule YouTube search already
+/// followed here, now extended to the library and the drive.
+///
+/// Albums, playlists, folders, artists and the discovery rows below an empty
+/// query are untouched: those *are* running orders, or reports, and tapping into
+/// one means "play from here".
+///
+/// # The Autoplay preference applies to YouTube and not to the others
+///
+/// That setting exists to stop the app making network requests of its own
+/// accord. A local or cloud station makes none — it is a database query and some
+/// arithmetic — so there is nothing for the preference to protect, and
+/// [AppController.playStation] is not gated. YouTube keeps its existing gate.
+library;
+
 import 'dart:async';
 import 'dart:io';
 
@@ -7,12 +32,20 @@ import '/Routes/routes.dart';
 import '../controllers/app_controller.dart';
 import '../data/library_repository.dart';
 import '../models/cloud_file.dart';
+import '../services/radio/cloud_station.dart';
+import '../services/radio/library_station.dart';
+import '../services/ytmusic/yt_models.dart';
+import '../services/ytmusic/yt_playback.dart';
+import '../services/ytmusic/yt_repository.dart';
 import '../widgets/artwork_widget.dart';
 import '../widgets/song_tile.dart';
 import 'album_songs.dart';
 import 'artist_songs.dart';
+import 'discover/widgets/yt_widgets.dart';
+import 'discover/yt_search_page.dart';
 import 'folder_songs.dart';
 import 'playlist_songs.dart';
+import 'search/unified_search.dart';
 
 class SearchPage extends StatefulWidget {
   const SearchPage({super.key});
@@ -24,19 +57,15 @@ class SearchPage extends StatefulWidget {
 class _SearchPageState extends State<SearchPage> {
   final _searchController = TextEditingController();
   final _focusNode = FocusNode();
-  Timer? _debounce;
-  String _query = '';
 
-  // Lazy-loaded data sources (cached after first load)
-  List<ArtistModel>? _allArtists;
-  List<AlbumModel>? _allAlbums;
-  List<String>? _allFolders;
-  List<PlaylistModel>? _allPlaylists;
-  List<CloudFile>? _allCloudFiles;
-  bool _dataLoading = false;
+  /// Nullable + guarded rather than `late final`: [didChangeDependencies] runs
+  /// again on any inherited-widget change, and assigning a `late final` twice
+  /// throws at runtime — which the analyzer cannot see.
+  UnifiedSearch? _searchModel;
+  UnifiedSearch get _search => _searchModel!;
 
-  // Song search + discovery now read the library DB, not the playback queue.
-  List<SongModel> _songResults = [];
+  // Discovery (empty query) still reads the repository directly — it is not a
+  // search and shares none of the supersession rules.
   List<SongModel> _mostPlayed = [];
   List<SongModel> _recentlyAdded = [];
 
@@ -45,11 +74,30 @@ class _SearchPageState extends State<SearchPage> {
   @override
   void initState() {
     super.initState();
-    // Auto-focus the search field
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _focusNode.requestFocus();
     });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_searchModel != null) return;
+    _searchModel = UnifiedSearch(
+      repo: _repo,
+      loadCloudFiles: () async => _cachedCloudFiles(),
+      searchYouTube: (query) => youTubeSongs(
+        (q, filter) => YtMusicRepository.instance.search(q, filter),
+        query,
+      ),
+      loadPlaylists: Platform.isAndroid ? OnAudioQuery().queryPlaylists : null,
+    );
+    _searchModel!.addListener(_onSearchChanged);
     _loadDiscovery();
+  }
+
+  void _onSearchChanged() {
+    if (mounted) setState(() {});
   }
 
   Future<void> _loadDiscovery() async {
@@ -62,117 +110,23 @@ class _SearchPageState extends State<SearchPage> {
     });
   }
 
-  @override
-  void dispose() {
-    _debounce?.cancel();
-    _searchController.dispose();
-    _focusNode.dispose();
-    super.dispose();
-  }
-
-  void _onQueryChanged(String value) {
-    _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 300), () async {
-      if (!mounted) return;
-      final q = value.trim();
-      // Song results come straight from a DB LIKE query — the whole library,
-      // not just the last-played queue.
-      final results = q.isEmpty ? <SongModel>[] : await _repo.searchSongs(q);
-      if (!mounted) return;
-      setState(() {
-        _query = q;
-        _songResults = results;
-      });
-      // Lazy-load supplemental data (artists/albums/folders) on first real query
-      if (_query.isNotEmpty && !_dataLoading && _allArtists == null) {
-        _loadSupplementalData();
-      }
-    });
-  }
-
-  Future<void> _loadSupplementalData() async {
-    _dataLoading = true;
-    final artists = await _repo.artistsOnce();
-    final albums = await _repo.albumsOnce();
-    final folders = Platform.isAndroid ? await _repo.foldersOnce() : null;
-    final playlists = Platform.isAndroid
-        ? await OnAudioQuery().queryPlaylists()
-        : null;
-
-    if (!mounted) return;
-
-    _allArtists = artists;
-    _allAlbums = albums;
-    if (Platform.isAndroid) {
-      _allFolders = folders!.map((f) => f.path).toList();
-      _allPlaylists = playlists;
-    }
-
-    // Load cloud files from cache
+  List<CloudFile> _cachedCloudFiles() {
     final controller = context.read<AppController>();
-    _allCloudFiles = _loadCachedCloudFiles(controller);
-
-    _dataLoading = false;
-    if (mounted) setState(() {});
-  }
-
-  List<CloudFile> _loadCachedCloudFiles(AppController controller) {
     final files = <CloudFile>[];
-    final gdriveList = controller.cloudCache.loadFileList(
-      CloudProvider.googleDrive,
-    );
-    if (gdriveList != null) files.addAll(gdriveList);
-    final dropboxList = controller.cloudCache.loadFileList(
-      CloudProvider.dropbox,
-    );
-    if (dropboxList != null) files.addAll(dropboxList);
+    for (final provider in CloudProvider.values) {
+      final list = controller.cloudCache.loadFileList(provider);
+      if (list != null) files.addAll(list);
+    }
     return files;
   }
 
-  // ---------------------------------------------------------------------------
-  // Filtering
-  // ---------------------------------------------------------------------------
-
-  List<ArtistModel> _filterArtists() {
-    if (_allArtists == null) return [];
-    final lq = _query.toLowerCase();
-    return _allArtists!
-        .where((a) => (a.artist).toLowerCase().contains(lq))
-        .toList();
-  }
-
-  List<AlbumModel> _filterAlbums() {
-    if (_allAlbums == null) return [];
-    final lq = _query.toLowerCase();
-    return _allAlbums!
-        .where((a) => (a.album).toLowerCase().contains(lq))
-        .toList();
-  }
-
-  List<String> _filterFolders() {
-    if (_allFolders == null) return [];
-    final lq = _query.toLowerCase();
-    return _allFolders!
-        .where((p) => p.split('/').last.toLowerCase().contains(lq))
-        .toList();
-  }
-
-  List<PlaylistModel> _filterPlaylists() {
-    if (_allPlaylists == null) return [];
-    final lq = _query.toLowerCase();
-    return _allPlaylists!
-        .where((p) => (p.playlist).toLowerCase().contains(lq))
-        .toList();
-  }
-
-  List<CloudFile> _filterCloud() {
-    if (_allCloudFiles == null || _allCloudFiles!.isEmpty) return [];
-    final lq = _query.toLowerCase();
-    return _allCloudFiles!.where((f) {
-      return f.name.toLowerCase().contains(lq) ||
-          (f.trackTitle?.toLowerCase().contains(lq) ?? false) ||
-          (f.trackArtist?.toLowerCase().contains(lq) ?? false);
-    }).toList();
+  @override
+  void dispose() {
+    _searchModel?.removeListener(_onSearchChanged);
+    _searchModel?.dispose();
+    _searchController.dispose();
+    _focusNode.dispose();
+    super.dispose();
   }
 
   // ---------------------------------------------------------------------------
@@ -198,10 +152,12 @@ class _SearchPageState extends State<SearchPage> {
         title: TextField(
           controller: _searchController,
           focusNode: _focusNode,
-          onChanged: _onQueryChanged,
+          onChanged: _search.onQueryChanged,
+          onSubmitted: _search.search,
+          textInputAction: TextInputAction.search,
           style: theme.textTheme.bodyLarge,
           decoration: InputDecoration(
-            hintText: 'Songs, artists, albums...',
+            hintText: 'Songs, artists, YouTube, your drive...',
             hintStyle: theme.textTheme.bodyLarge?.copyWith(
               color: colorScheme.onSurface.withValues(alpha: 0.4),
             ),
@@ -218,14 +174,14 @@ class _SearchPageState extends State<SearchPage> {
               icon: const Icon(Icons.close_rounded, size: 20),
               onPressed: () {
                 _searchController.clear();
-                setState(() => _query = '');
+                _search.onQueryChanged('');
               },
             ),
         ],
       ),
       body: Consumer<AppController>(
         builder: (context, controller, _) {
-          if (_query.isEmpty) {
+          if (_search.query.isEmpty) {
             return _buildDiscoveryView(controller, theme, colorScheme);
           }
           return _buildSearchResults(controller, theme, colorScheme);
@@ -243,10 +199,7 @@ class _SearchPageState extends State<SearchPage> {
     ThemeData theme,
     ColorScheme colorScheme,
   ) {
-    final mostPlayed = _mostPlayed;
-    final recentlyAdded = _recentlyAdded;
-
-    if (mostPlayed.isEmpty && recentlyAdded.isEmpty) {
+    if (_mostPlayed.isEmpty && _recentlyAdded.isEmpty) {
       return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -258,14 +211,14 @@ class _SearchPageState extends State<SearchPage> {
             ),
             const SizedBox(height: 16),
             Text(
-              'Search your library',
+              'Search everything',
               style: theme.textTheme.titleMedium?.copyWith(
                 color: colorScheme.onSurface.withValues(alpha: 0.5),
               ),
             ),
             const SizedBox(height: 6),
             Text(
-              'Find songs, artists, albums, and more',
+              'Your library, your drive, and YouTube',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: colorScheme.onSurface.withValues(alpha: 0.35),
               ),
@@ -278,11 +231,11 @@ class _SearchPageState extends State<SearchPage> {
     return ListView(
       padding: const EdgeInsets.only(top: 8, bottom: 100),
       children: [
-        if (mostPlayed.isNotEmpty) ...[
+        if (_mostPlayed.isNotEmpty) ...[
           _buildSectionHeader('Most Played', theme, colorScheme),
           const SizedBox(height: 8),
           _buildHorizontalSongCards(
-            mostPlayed,
+            _mostPlayed,
             controller,
             theme,
             colorScheme,
@@ -290,11 +243,11 @@ class _SearchPageState extends State<SearchPage> {
           ),
           const SizedBox(height: 24),
         ],
-        if (recentlyAdded.isNotEmpty) ...[
+        if (_recentlyAdded.isNotEmpty) ...[
           _buildSectionHeader('Recently Added', theme, colorScheme),
           const SizedBox(height: 8),
           _buildHorizontalSongCards(
-            recentlyAdded,
+            _recentlyAdded,
             controller,
             theme,
             colorScheme,
@@ -341,13 +294,14 @@ class _SearchPageState extends State<SearchPage> {
           return Padding(
             padding: const EdgeInsets.only(right: 12),
             child: GestureDetector(
-              onTap: () => _playSong(controller, songs, song),
+              // A discovery row is a report, not a search result — tapping it
+              // plays from there through the rest of the row, as it always has.
+              onTap: () => _playFromList(controller, songs, song),
               child: SizedBox(
                 width: 130,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Artwork card with optional play count badge
                     Stack(
                       children: [
                         ClipRRect(
@@ -399,7 +353,6 @@ class _SearchPageState extends State<SearchPage> {
                       ],
                     ),
                     const SizedBox(height: 8),
-                    // Title
                     Text(
                       song.title,
                       maxLines: 1,
@@ -409,7 +362,6 @@ class _SearchPageState extends State<SearchPage> {
                         fontSize: 12,
                       ),
                     ),
-                    // Artist
                     Text(
                       song.artist ?? 'Unknown',
                       maxLines: 1,
@@ -438,22 +390,9 @@ class _SearchPageState extends State<SearchPage> {
     ThemeData theme,
     ColorScheme colorScheme,
   ) {
-    final songs = _songResults;
-    final artists = _filterArtists();
-    final albums = _filterAlbums();
-    final folders = _filterFolders();
-    final playlists = _filterPlaylists();
-    final cloudFiles = _filterCloud();
-
-    final hasResults =
-        songs.isNotEmpty ||
-        artists.isNotEmpty ||
-        albums.isNotEmpty ||
-        folders.isNotEmpty ||
-        playlists.isNotEmpty ||
-        cloudFiles.isNotEmpty;
-
-    if (!hasResults) {
+    // Deliberately not `!hasResults`: while YouTube is still answering, "no
+    // results" is a claim the page cannot yet make.
+    if (_search.isEmptyAndSettled) {
       return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -465,11 +404,20 @@ class _SearchPageState extends State<SearchPage> {
             ),
             const SizedBox(height: 12),
             Text(
-              'No results for "$_query"',
+              'No results for "${_search.query}"',
               style: theme.textTheme.titleMedium?.copyWith(
                 color: colorScheme.onSurface.withValues(alpha: 0.5),
               ),
             ),
+            if (_search.ytFailed) ...[
+              const SizedBox(height: 6),
+              Text(
+                "YouTube couldn't be reached",
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: colorScheme.onSurface.withValues(alpha: 0.35),
+                ),
+              ),
+            ],
           ],
         ),
       );
@@ -478,34 +426,33 @@ class _SearchPageState extends State<SearchPage> {
     return ListView(
       padding: const EdgeInsets.only(top: 4, bottom: 100),
       children: [
-        // Songs section
-        if (songs.isNotEmpty)
-          _buildSongsSection(songs, controller, theme, colorScheme),
-
-        // Artists section
-        if (artists.isNotEmpty)
-          _buildArtistsSection(artists, theme, colorScheme),
-
-        // Albums section
-        if (albums.isNotEmpty) _buildAlbumsSection(albums, theme, colorScheme),
-
-        // Folders section (Android only)
-        if (folders.isNotEmpty)
-          _buildFoldersSection(folders, theme, colorScheme),
-
-        // Playlists section
-        if (playlists.isNotEmpty)
-          _buildPlaylistsSection(playlists, theme, colorScheme),
-
-        // Cloud section
-        if (cloudFiles.isNotEmpty)
-          _buildCloudSection(cloudFiles, theme, colorScheme),
+        if (_search.songs.isNotEmpty)
+          _buildSongsSection(_search.songs, controller, theme, colorScheme),
+        if (_search.artists.isNotEmpty)
+          _buildArtistsSection(_search.artists, theme, colorScheme),
+        if (_search.albums.isNotEmpty)
+          _buildAlbumsSection(_search.albums, theme, colorScheme),
+        if (_search.folders.isNotEmpty)
+          _buildFoldersSection(_search.folders, theme, colorScheme),
+        if (_search.playlists.isNotEmpty)
+          _buildPlaylistsSection(_search.playlists, theme, colorScheme),
+        if (_search.cloudFiles.isNotEmpty)
+          _buildCloudSection(
+            _search.cloudFiles,
+            controller,
+            theme,
+            colorScheme,
+          ),
+        // Last, and the only section that can be busy: everything above it is
+        // already on screen while this one is still in the air.
+        if (_search.ytLoading || _search.ytTracks.isNotEmpty)
+          _buildYouTubeSection(theme, colorScheme),
       ],
     );
   }
 
   // ---------------------------------------------------------------------------
-  // Songs section
+  // Songs section (local library)
   // ---------------------------------------------------------------------------
 
   Widget _buildSongsSection(
@@ -537,7 +484,7 @@ class _SearchPageState extends State<SearchPage> {
             isCurrentTrack: isPlaying,
             showTrackNumber: false,
             showOptionsIcon: false,
-            onTap: () => _playSong(controller, songs, song),
+            onTap: () => _startLibraryStation(controller, song),
           );
         }),
         if (songs.length > 5)
@@ -546,6 +493,45 @@ class _SearchPageState extends State<SearchPage> {
             theme,
             colorScheme,
             onTap: () => _showAllSongs(songs, controller),
+          ),
+        const SizedBox(height: 16),
+      ],
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // YouTube section
+  // ---------------------------------------------------------------------------
+
+  Widget _buildYouTubeSection(ThemeData theme, ColorScheme colorScheme) {
+    final tracks = _search.ytTracks.take(6).toList();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildResultSectionHeader(
+          'YouTube',
+          Icons.play_circle_outline_rounded,
+          _search.ytLoading ? '···' : '${_search.ytTracks.length}',
+          theme,
+          colorScheme,
+        ),
+        if (_search.ytLoading)
+          // A skeleton, not a spinner: the section's shape is known before its
+          // contents are, and showing that shape is the more honest wait.
+          ...List.generate(3, (_) => const YtTrackSkeleton())
+        else
+          ...tracks.map(
+            (track) => YtTrackRow(
+              track: track,
+              onTap: () => _startYouTubeStation(track),
+            ),
+          ),
+        if (!_search.ytLoading && _search.ytTracks.length > tracks.length)
+          _buildSeeAllButton(
+            'See all on YouTube',
+            theme,
+            colorScheme,
+            onTap: () => Routes.routeTo(const YtSearchPage(), context),
           ),
         const SizedBox(height: 16),
       ],
@@ -812,6 +798,7 @@ class _SearchPageState extends State<SearchPage> {
 
   Widget _buildCloudSection(
     List<CloudFile> cloudFiles,
+    AppController controller,
     ThemeData theme,
     ColorScheme colorScheme,
   ) {
@@ -861,6 +848,9 @@ class _SearchPageState extends State<SearchPage> {
                 fontSize: 11,
               ),
             ),
+            // These rows used to have no onTap at all — cloud results were
+            // decorative.
+            onTap: () => _startCloudStation(controller, file),
           );
         }),
         const SizedBox(height: 16),
@@ -938,18 +928,75 @@ class _SearchPageState extends State<SearchPage> {
   }
 
   // ---------------------------------------------------------------------------
-  // Navigation / Actions
+  // Playing
   // ---------------------------------------------------------------------------
 
-  void _playSong(
+  /// A search result: play it alone and build a station from the library.
+  Future<void> _startLibraryStation(
+    AppController controller,
+    SongModel song,
+  ) async {
+    Routes.playerTo(context);
+    await controller.playStation(
+      song,
+      LibraryStation(repo: _repo, seed: song),
+    );
+  }
+
+  /// A cloud result: mint a link, play it alone, build a station from the drive.
+  Future<void> _startCloudStation(
+    AppController controller,
+    CloudFile file,
+  ) async {
+    final url = await _cloudStreamUrl(controller, file);
+    if (!mounted) return;
+    if (url == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("That file couldn't be opened.")),
+      );
+      return;
+    }
+    Routes.playerTo(context);
+    await controller.playStation(
+      file.toSongModel(url),
+      CloudStation(
+        // The whole drive, not just what matched — a station seeded from a
+        // result is about the song, not about the word that found it.
+        files: _search.allCloudFiles.isEmpty
+            ? [file]
+            : _search.allCloudFiles,
+        seed: file,
+        resolve: (f) => _cloudStreamUrl(controller, f),
+      ),
+    );
+  }
+
+  Future<String?> _cloudStreamUrl(
+    AppController controller,
+    CloudFile file,
+  ) async {
+    if (file.provider == CloudProvider.googleDrive) {
+      return controller.googleDriveService.getStreamUrl(file.fileId);
+    }
+    return controller.dropboxService.getTemporaryLink(file.fileId);
+  }
+
+  /// A YouTube result. Routed through the existing path, which resolves the
+  /// stream, caches the artwork, reports its own failures and attaches a
+  /// `YouTubeStation` — and which honours the Autoplay preference, because
+  /// unlike the other two this station costs requests.
+  void _startYouTubeStation(YtTrack track) {
+    YtPlayback.play(context, [track], 0, radio: true);
+  }
+
+  /// Plays from a surfaced list — a discovery row, or "see all". Falls back to a
+  /// single-track queue so a tap always plays.
+  void _playFromList(
     AppController controller,
     List<SongModel> list,
     SongModel song,
   ) {
     var index = list.indexWhere((s) => s.id == song.id);
-    // Play from the surfaced list (search results / discovery row). Falls back
-    // to a single-track queue so a tap ALWAYS plays — the old code searched the
-    // last-played queue and silently did nothing when the song wasn't in it.
     List<SongModel> queue = list;
     if (index == -1) {
       queue = [song];
@@ -964,7 +1011,7 @@ class _SearchPageState extends State<SearchPage> {
       MaterialPageRoute(
         builder: (_) => Scaffold(
           appBar: AppBar(
-            title: Text('Songs matching "$_query"'),
+            title: Text('Songs matching "${_search.query}"'),
             leading: IconButton(
               icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
               onPressed: () => Navigator.of(context).pop(),
@@ -975,6 +1022,8 @@ class _SearchPageState extends State<SearchPage> {
             controller: controller,
             showTrackNumbers: false,
             showOptionsIcon: false,
+            // A full list of matches reads as a list to play through, so this
+            // one queues rather than starting a station.
             onTap: (song, index) {
               controller.playSongFromList(songs, index);
               Routes.playerTo(context);
@@ -985,23 +1034,25 @@ class _SearchPageState extends State<SearchPage> {
     );
   }
 
+  // ---------------------------------------------------------------------------
+  // Navigation
+  // ---------------------------------------------------------------------------
+
   void _navigateToArtist(ArtistModel artist) {
-    final artistName = artist.artist;
     Routes.scaleTo(
       ArtistSongs(
         songs: artist.numberOfTracks ?? 0,
         albums: artist.numberOfAlbums ?? 0,
         artistId: artist.id,
-        artist: artistName,
+        artist: artist.artist,
       ),
       context,
     );
   }
 
   void _navigateToAlbum(AlbumModel album) {
-    final albumName = album.album;
     Routes.scaleTo(
-      AlbumSongs(albumId: album.id, album: albumName, songs: album.numOfSongs),
+      AlbumSongs(albumId: album.id, album: album.album, songs: album.numOfSongs),
       context,
     );
   }
