@@ -308,7 +308,7 @@ class _SettingsState extends State<Settings> {
   Widget _buildSearchResult(SettingsEntry entry) {
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 8),
-      leading: Icon(entry.category.icon, color: Ember.ember400, size: 22),
+      leading: Icon(entry.category.icon, color: Ember.accent, size: 22),
       title: Text(entry.label,
           style: const TextStyle(
               color: Ember.textPrimary,
@@ -341,10 +341,10 @@ class _SettingsState extends State<Settings> {
                   width: 38,
                   height: 38,
                   decoration: BoxDecoration(
-                    color: Ember.ember400.withValues(alpha: 0.14),
+                    color: Ember.accent.withValues(alpha: 0.14),
                     borderRadius: BorderRadius.circular(Ember.radiusControl),
                   ),
-                  child: Icon(category.icon, color: Ember.ember400, size: 20),
+                  child: Icon(category.icon, color: Ember.accent, size: 20),
                 ),
                 const SizedBox(width: 14),
                 Expanded(

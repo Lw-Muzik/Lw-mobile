@@ -2,13 +2,25 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../controllers/app_controller.dart';
 import '../models/eq_models.dart';
 import 'audio_fx.dart';
+import '../themes/ember.dart';
 
-const Color _kAccent = Color(0xFFD4A825);
+/// The app's one accent, not a fifth colour invented for this screen.
+///
+/// This page used to carry four: a red tab indicator from the theme, a muted
+/// gold for boost, a cyan for cut, and white knobs. None of them was the logo's.
+const Color _kAccent = Ember.accent;
+
+/// A cut is the same colour as a boost, dimmed — not a second hue.
+///
+/// Cyan against gold read as two unrelated controls rather than one control
+/// pushed either side of flat.
+const Color _kCut = Color(0xFFB08A2E);
 const double _kMinGain = -15.0;
 const double _kMaxGain = 15.0;
 
@@ -56,7 +68,16 @@ class _GraphicEqViewState extends State<GraphicEqView> {
                   const SizedBox(height: 2),
                   Expanded(
                     flex: 4,
-                    child: _buildBandSliders(controller, displayGains, mapping),
+                    // Capped, then centred. Stretched to fill a tall phone the
+                    // faders ran to ~450px against an 11px cap, which reads as
+                    // a bar chart rather than something to grip.
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxHeight: 300),
+                        child: _buildBandSliders(
+                            controller, displayGains, mapping),
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -774,7 +795,19 @@ class _PresetTile extends StatelessWidget {
 // Band Slider
 // =============================================================================
 
-class _BandSlider extends StatelessWidget {
+/// A fader that grows out of 0 dB.
+///
+/// The old one was a Material [Slider] in a `RotatedBox`, fed `(gain - min) /
+/// (max - min)`. That maps −15 dB to an empty bar and 0 dB to a half-full one,
+/// so the fill measured *distance from the floor* — a volume level. A band at
+/// flat looked half-boosted, a deep cut looked like "almost nothing" rather
+/// than "pulled well down", and there was no mark on the track saying where
+/// flat was.
+///
+/// Gain is signed, so the fill starts at the centre and runs up for a boost or
+/// down for a cut, against a rule drawn at 0. Flat now reads as flat: no fill
+/// at all, just the rule.
+class _BandSlider extends StatefulWidget {
   final double frequency;
   final double gain;
   final double width;
@@ -795,86 +828,136 @@ class _BandSlider extends StatelessWidget {
     required this.onDragEnd,
   });
 
+  @override
+  State<_BandSlider> createState() => _BandSliderState();
+}
+
+class _BandSliderState extends State<_BandSlider> {
+  /// Height of the last laid-out track, so a tap can be turned into a gain.
+  double _trackHeight = 0;
+
+  /// Whether the last reported gain was above flat, so the detent fires once
+  /// per crossing instead of on every pixel of a drag that sits near zero.
+  bool? _wasPositive;
+
   String get _freqLabel {
-    if (frequency >= 1000) {
-      final k = frequency / 1000;
+    final f = widget.frequency;
+    if (f >= 1000) {
+      final k = f / 1000;
       return k == k.roundToDouble()
           ? '${k.round()}k'
           : '${k.toStringAsFixed(1)}k';
     }
-    return frequency >= 100
-        ? '${frequency.round()}'
-        : frequency.toStringAsFixed(1);
+    return f >= 100 ? '${f.round()}' : f.toStringAsFixed(1);
+  }
+
+  /// Turns a y inside the track into a gain, centre-out.
+  double _gainAt(double localY) {
+    if (_trackHeight <= 0) return widget.gain;
+    final half = _trackHeight / 2;
+    final raw = (half - localY) / half * _kMaxGain;
+    final rounded = (raw * 10).roundToDouble() / 10;
+    return rounded.clamp(_kMinGain, _kMaxGain);
+  }
+
+  void _report(double gain) {
+    // A detent at flat: the one value a person is most often trying to hit,
+    // and the hardest to land on by dragging.
+    final positive = gain > 0;
+    if (_wasPositive != null && positive != _wasPositive && gain.abs() < 1.5) {
+      HapticFeedback.selectionClick();
+    }
+    _wasPositive = positive;
+    widget.onChanged(gain);
   }
 
   @override
   Widget build(BuildContext context) {
-    final normalized = (gain - _kMinGain) / (_kMaxGain - _kMinGain);
-    final glowIntensity = (gain.abs() / _kMaxGain).clamp(0.0, 1.0);
-    final trackColor = gain > 0
-        ? _kAccent
-        : gain < 0
-        ? const Color(0xFF5EC4D4)
-        : Colors.white38;
+    final active = widget.isActive;
+    final boost = widget.gain > 0;
+    final fillColor = boost ? _kAccent : _kCut;
 
     return SizedBox(
-      width: width,
+      width: widget.width,
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.end,
         children: [
-          if (isActive)
-            Text(
-              '${gain.toStringAsFixed(1)} dB',
-              style: TextStyle(
-                fontSize: 9,
-                fontWeight: FontWeight.w600,
-                color: trackColor,
-              ),
-            ),
-          if (!isActive) const SizedBox(height: 14),
-          Expanded(
-            child: RotatedBox(
-              quarterTurns: 3,
-              child: SliderTheme(
-                data: SliderThemeData(
-                  trackHeight: 3,
-                  activeTrackColor: trackColor.withValues(
-                    alpha: 0.5 + glowIntensity * 0.5,
+          // Reserved whether or not it is showing, so nothing below it moves
+          // when a drag starts.
+          SizedBox(
+            height: 16,
+            child: AnimatedOpacity(
+              duration: const Duration(milliseconds: 120),
+              opacity: active ? 1 : 0,
+              child: FittedBox(
+                child: Text(
+                  '${widget.gain > 0 ? '+' : ''}${widget.gain.toStringAsFixed(1)}',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: widget.gain == 0 ? Ember.textSecondary : fillColor,
                   ),
-                  inactiveTrackColor: Colors.white.withValues(alpha: 0.08),
-                  thumbColor: isActive ? trackColor : Colors.white70,
-                  overlayColor: trackColor.withValues(alpha: 0.12),
-                  thumbShape: const RoundSliderThumbShape(
-                    enabledThumbRadius: 6,
-                  ),
-                  overlayShape: const RoundSliderOverlayShape(
-                    overlayRadius: 14,
-                  ),
-                ),
-                child: Slider(
-                  value: normalized,
-                  onChangeStart: (_) => onDragStart(),
-                  onChanged: (v) {
-                    final newGain = _kMinGain + v * (_kMaxGain - _kMinGain);
-                    final rounded = (newGain * 10).roundToDouble() / 10;
-                    onChanged(rounded.clamp(_kMinGain, _kMaxGain));
-                  },
-                  onChangeEnd: (_) => onDragEnd(),
                 ),
               ),
             ),
           ),
-          SizedBox(
-            height: 16,
-            child: showLabel
-                ? Text(
-                    _freqLabel,
-                    style: TextStyle(
-                      fontSize: 8.5,
-                      color: Colors.white.withValues(alpha: 0.5),
+          const SizedBox(height: 6),
+          Expanded(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                _trackHeight = constraints.maxHeight;
+                return GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  // The whole column is the target, not a 12px-wide rail.
+                  onVerticalDragStart: (d) {
+                    _wasPositive = widget.gain > 0;
+                    widget.onDragStart();
+                    _report(_gainAt(d.localPosition.dy));
+                  },
+                  onVerticalDragUpdate: (d) =>
+                      _report(_gainAt(d.localPosition.dy)),
+                  onVerticalDragEnd: (_) {
+                    _wasPositive = null;
+                    widget.onDragEnd();
+                  },
+                  onTapDown: (d) {
+                    widget.onDragStart();
+                    _report(_gainAt(d.localPosition.dy));
+                  },
+                  onTapUp: (_) => widget.onDragEnd(),
+                  onTapCancel: widget.onDragEnd,
+                  // Flat is a destination, so give it a gesture of its own
+                  // rather than making someone drag for it.
+                  onDoubleTap: () {
+                    HapticFeedback.mediumImpact();
+                    widget.onDragStart();
+                    widget.onChanged(0);
+                    widget.onDragEnd();
+                  },
+                  child: CustomPaint(
+                    size: Size(widget.width, constraints.maxHeight),
+                    painter: _FaderPainter(
+                      gain: widget.gain,
+                      fill: fillColor,
+                      active: active,
                     ),
-                    textAlign: TextAlign.center,
-                    overflow: TextOverflow.ellipsis,
+                  ),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            height: 14,
+            child: widget.showLabel
+                ? FittedBox(
+                    child: Text(
+                      _freqLabel,
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+                        color: active ? _kAccent : Ember.textTertiary,
+                      ),
+                    ),
                   )
                 : const SizedBox.shrink(),
           ),
@@ -882,6 +965,108 @@ class _BandSlider extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Rail, the rule at flat, the signed fill, and the cap.
+class _FaderPainter extends CustomPainter {
+  final double gain;
+  final Color fill;
+  final bool active;
+
+  const _FaderPainter({
+    required this.gain,
+    required this.fill,
+    required this.active,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final cx = size.width / 2;
+    final centre = size.height / 2;
+    final half = size.height / 2;
+    const railW = 5.0;
+
+    // Rail.
+    final railRect = RRect.fromLTRBR(
+      cx - railW / 2,
+      0,
+      cx + railW / 2,
+      size.height,
+      const Radius.circular(railW / 2),
+    );
+    canvas.drawRRect(
+      railRect,
+      Paint()..color = Colors.white.withValues(alpha: 0.07),
+    );
+
+    // The rule at flat. Wider than the rail so it reads as a datum the fills
+    // are measured from rather than as part of the track.
+    canvas.drawLine(
+      Offset(cx - 9, centre),
+      Offset(cx + 9, centre),
+      Paint()
+        ..color = Colors.white.withValues(alpha: 0.20)
+        ..strokeWidth = 1,
+    );
+
+    final y = centre - (gain / _kMaxGain) * half;
+
+    // Signed fill, centre-out.
+    if (gain.abs() > 0.05) {
+      canvas.drawRRect(
+        RRect.fromLTRBR(
+          cx - railW / 2,
+          math.min(centre, y),
+          cx + railW / 2,
+          math.max(centre, y),
+          const Radius.circular(railW / 2),
+        ),
+        Paint()..color = fill.withValues(alpha: active ? 1.0 : 0.85),
+      );
+    }
+
+    // Cap. A wide flat bar, the way a fader cap sits across its slot — a round
+    // knob reads as a dot floating on the line.
+    final capW = math.min(size.width - 10, 26.0);
+    final capH = active ? 13.0 : 11.0;
+    final capRect = RRect.fromLTRBR(
+      cx - capW / 2,
+      y - capH / 2,
+      cx + capW / 2,
+      y + capH / 2,
+      const Radius.circular(3.5),
+    );
+    if (active) {
+      canvas.drawRRect(
+        RRect.fromLTRBR(
+          cx - capW / 2 - 3,
+          y - capH / 2 - 3,
+          cx + capW / 2 + 3,
+          y + capH / 2 + 3,
+          const Radius.circular(6.5),
+        ),
+        Paint()
+          ..color = fill.withValues(alpha: 0.28)
+          ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 6),
+      );
+    }
+    canvas.drawRRect(
+      capRect,
+      Paint()..color = gain.abs() > 0.05 ? fill : const Color(0xFF6E6E76),
+    );
+    // A notch, so the cap has a readable centre line at a glance.
+    canvas.drawLine(
+      Offset(cx - capW / 4, y),
+      Offset(cx + capW / 4, y),
+      Paint()
+        ..color = Ember.ground.withValues(alpha: 0.55)
+        ..strokeWidth = 1.5,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_FaderPainter old) =>
+      old.gain != gain || old.fill != fill || old.active != active;
 }
 
 // =============================================================================
@@ -929,17 +1114,32 @@ class _FrequencyCurvePainter extends CustomPainter {
 
     final curvePath = _catmullRomPath(points);
 
-    // Gradient fill under curve
+    // The fill is bounded by the 0 dB line, not the floor of the plot.
+    //
+    // Closing it to the floor shaded everything between the curve and −15 dB,
+    // so a modest boost painted three quarters of the chart and the picture
+    // said "lots of everything" rather than "this much above flat". Bounded at
+    // zero, the shaded area *is* the deviation — and a cut fills upward to the
+    // same line without any extra code, because the path closes either way.
+    final zeroY = padTop + plotH / 2;
     final fillPath = Path.from(curvePath)
-      ..lineTo(points.last.dx, padTop + plotH)
-      ..lineTo(points.first.dx, padTop + plotH)
+      ..lineTo(points.last.dx, zeroY)
+      ..lineTo(points.first.dx, zeroY)
       ..close();
 
+    // Densest at the extremes and almost gone at the line, so the gradient
+    // reinforces the same reading from both directions.
     final fillPaint = Paint()
       ..shader = ui.Gradient.linear(
         Offset(size.width / 2, padTop),
         Offset(size.width / 2, padTop + plotH),
-        [accent.withValues(alpha: 0.35), accent.withValues(alpha: 0.02)],
+        [
+          accent.withValues(alpha: 0.30),
+          accent.withValues(alpha: 0.03),
+          accent.withValues(alpha: 0.03),
+          accent.withValues(alpha: 0.30),
+        ],
+        const [0.0, 0.47, 0.53, 1.0],
       );
     canvas.drawPath(fillPath, fillPaint);
 
@@ -960,7 +1160,7 @@ class _FrequencyCurvePainter extends CustomPainter {
       final glowIntensity = (g.abs() / _kMaxGain).clamp(0.0, 1.0);
 
       if (glowIntensity > 0.05) {
-        final glowColor = g > 0 ? accent : const Color(0xFF5EC4D4);
+        final glowColor = g > 0 ? accent : _kCut;
         canvas.drawCircle(
           pt,
           4 + glowIntensity * 4,

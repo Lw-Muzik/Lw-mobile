@@ -10,8 +10,19 @@ import 'tone_view.dart';
 import 'parametric_eq_view.dart';
 import 'space_view.dart';
 import 'speaker_eq_view.dart';
+import '../themes/ember.dart';
 
-const Color _kAccent = Color(0xFFD4A825);
+/// The app's one accent, not a fifth colour invented for this screen.
+///
+/// This page used to carry four: a red tab indicator from the theme, a muted
+/// gold for boost, a cyan for cut, and white knobs. None of them was the logo's.
+const Color _kAccent = Ember.accent;
+
+/// A cut is the same colour as a boost, dimmed — not a second hue.
+///
+/// Cyan against gold read as two unrelated controls rather than one control
+/// pushed either side of flat.
+const Color _kCut = Color(0xFFB08A2E);
 
 class Equalizer extends StatefulWidget {
   const Equalizer({super.key});
@@ -123,9 +134,9 @@ class _EqualizerState extends State<Equalizer> with TickerProviderStateMixin {
       dividerColor: Colors.transparent,
       indicatorSize: TabBarIndicatorSize.tab,
       indicator: BoxDecoration(
-        borderRadius: BorderRadius.circular(24),
-        color: accent.withValues(alpha: 0.15),
-        border: Border.all(color: accent.withValues(alpha: 0.03), width: 1),
+        borderRadius: BorderRadius.circular(14),
+        color: accent.withValues(alpha: 0.16),
+        border: Border.all(color: accent.withValues(alpha: 0.34)),
       ),
       labelColor: accent,
       unselectedLabelColor: Theme.of(
@@ -133,12 +144,12 @@ class _EqualizerState extends State<Equalizer> with TickerProviderStateMixin {
       ).colorScheme.onSurface.withValues(alpha: 0.6),
       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
       tabs: [
-        const Tab(icon: Icon(Icons.equalizer, size: 35)),
-        const Tab(icon: Icon(Icons.tune, size: 35)),
+        const Tab(icon: Icon(Icons.equalizer_rounded, size: 22)),
+        const Tab(icon: Icon(Icons.tune_rounded, size: 22)),
         if (!_isEqMode) ...[
-          const Tab(icon: Icon(Icons.show_chart, size: 35)),
-          const Tab(icon: Icon(Icons.surround_sound, size: 35)),
-          const Tab(icon: Icon(Icons.headphones, size: 35)),
+          const Tab(icon: Icon(Icons.show_chart_rounded, size: 22)),
+          const Tab(icon: Icon(Icons.surround_sound_rounded, size: 22)),
+          const Tab(icon: Icon(Icons.headphones_rounded, size: 22)),
         ],
       ],
     );

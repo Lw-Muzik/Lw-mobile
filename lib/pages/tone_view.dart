@@ -5,8 +5,19 @@ import '/controllers/app_controller.dart';
 import '/extensions/build_context_extension.dart';
 import '/widgets/tone_knob.dart';
 import 'audio_fx.dart';
+import '../themes/ember.dart';
 
-const Color _kAccent = Color(0xFFD4A825);
+/// The app's one accent, not a fifth colour invented for this screen.
+///
+/// This page used to carry four: a red tab indicator from the theme, a muted
+/// gold for boost, a cyan for cut, and white knobs. None of them was the logo's.
+const Color _kAccent = Ember.accent;
+
+/// A cut is the same colour as a boost, dimmed — not a second hue.
+///
+/// Cyan against gold read as two unrelated controls rather than one control
+/// pushed either side of flat.
+const Color _kCut = Color(0xFFB08A2E);
 
 class ToneView extends StatelessWidget {
   const ToneView({super.key});
@@ -49,7 +60,7 @@ class ToneView extends StatelessWidget {
                               ToneKnob(
                                 label: "TREBLE",
                                 value: controller.trebleGain,
-                                activeColor: const Color(0xFF5EC4D4),
+                                activeColor: _kCut,
                                 size: knobSize,
                                 onChanged: controller.toneEnabled
                                     ? (v) => controller.trebleGain = v

@@ -5,9 +5,20 @@ import 'package:provider/provider.dart';
 
 import '/controllers/app_controller.dart';
 import '/models/eq_models.dart';
+import '../themes/ember.dart';
 
 /// Accent color used throughout the parametric EQ view.
-const Color _kAccent = Color(0xFFD4A825);
+/// The app's one accent, not a fifth colour invented for this screen.
+///
+/// This page used to carry four: a red tab indicator from the theme, a muted
+/// gold for boost, a cyan for cut, and white knobs. None of them was the logo's.
+const Color _kAccent = Ember.accent;
+
+/// A cut is the same colour as a boost, dimmed — not a second hue.
+///
+/// Cyan against gold read as two unrelated controls rather than one control
+/// pushed either side of flat.
+const Color _kCut = Color(0xFFB08A2E);
 
 const double _kMinGain = -15.0;
 const double _kMaxGain = 15.0;
@@ -15,7 +26,7 @@ const double _kMaxGain = 15.0;
 /// A set of distinct hue-shifted colors for individual control points.
 const List<Color> _kPointColors = [
   Color(0xFFD4A825),
-  Color(0xFF5EC4D4),
+  _kCut,
   Color(0xFFD45E7A),
   Color(0xFF7AD45E),
   Color(0xFFB05ED4),
@@ -390,7 +401,7 @@ class _ParametricEqViewState extends State<ParametricEqView> {
                         color: point.gain > 0
                             ? _kAccent
                             : point.gain < 0
-                            ? const Color(0xFF5EC4D4)
+                            ? _kCut
                             : Colors.white,
                         fontSize: 14,
                         fontWeight: FontWeight.w500,

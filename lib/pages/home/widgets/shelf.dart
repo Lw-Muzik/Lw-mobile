@@ -233,7 +233,7 @@ class PlaylistShelf extends StatelessWidget {
                               border: Border.all(color: Ember.outline),
                             ),
                             child: Icon(Icons.queue_music_rounded,
-                                size: 34, color: Ember.ember400),
+                                size: 34, color: Ember.accent),
                           ),
                           const SizedBox(height: 10),
                           Text(

@@ -98,7 +98,7 @@ class _LibrarySurfaceState extends State<LibrarySurface> {
               Icon(
                 mode.icon,
                 size: 16,
-                color: selected ? Ember.ember400 : Ember.textTertiary,
+                color: selected ? Ember.accent : Ember.textTertiary,
               ),
               const SizedBox(width: 6),
               Text(

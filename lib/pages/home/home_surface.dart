@@ -145,7 +145,7 @@ class _HomeSurfaceState extends State<HomeSurface> {
     final isBare = shelves.length == 1;
 
     return RefreshIndicator(
-      color: Ember.ember400,
+      color: Ember.accent,
       backgroundColor: Ember.surface,
       onRefresh: () => _load(force: true),
       child: ListView(

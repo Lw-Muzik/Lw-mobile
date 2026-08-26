@@ -223,15 +223,16 @@ class _HomeShellState extends State<HomeShell> {
               padding:
                   const EdgeInsets.symmetric(horizontal: 18, vertical: 4),
               decoration: BoxDecoration(
-                // A filled pill, which is what ember600 is for — the label
-                // below carries the readable colour.
-                color: selected ? Ember.ember600 : Colors.transparent,
+                // A tinted plate, not solid gold: the icon on it is gold too,
+                // and gold-on-gold is invisible. White on gold is 1.63:1, so
+                // inverting the icon instead would not have saved it either.
+                color: selected ? Ember.accentWash : Colors.transparent,
                 borderRadius: BorderRadius.circular(14),
               ),
               child: Icon(
                 selected ? destination.selectedIcon : destination.icon,
                 size: 22,
-                color: selected ? Colors.white : Ember.textTertiary,
+                color: selected ? Ember.accent : Ember.textTertiary,
               ),
             ),
             const SizedBox(height: 4),
@@ -240,7 +241,7 @@ class _HomeShellState extends State<HomeShell> {
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-                color: selected ? Ember.ember400 : Ember.textTertiary,
+                color: selected ? Ember.accent : Ember.textTertiary,
               ),
             ),
           ],

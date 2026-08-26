@@ -3,19 +3,22 @@
 /// Dark-first, editorial, artwork-led. Applies to Home, Library and Settings.
 /// The player is deliberately untouched.
 ///
-/// # Two reds, and why
+/// # One colour, taken from the logo
 ///
-/// The app's brand colour is `#9C0F05`. Measured against this palette's ground
-/// it is **2.28:1** — below the 3:1 floor for UI components and nowhere near
-/// the 4.5:1 floor for text. So it is a **fill** colour and only ever a fill:
-/// white on it is 8.45:1, which is comfortable. Anything that has to be *read*
-/// — an icon, a label, a border — uses [ember400] at **5.18:1**.
+/// The mark is a gold spiral around a green note. The palette used to be red,
+/// which appeared nowhere in it. [accent] is the spiral's own `#FFC107`.
 ///
-/// One token would have forced a choice between an unreadable accent and
-/// abandoning the brand colour. Two tokens keep both.
+/// Gold rather than the green because it is the dominant half of the mark and
+/// the stronger colour here: **11.87:1** on this ground against the green's
+/// 7.16:1.
 ///
-/// (Figures are sRGB relative luminance per WCAG 2.1, computed rather than
-/// eyeballed.)
+/// Being that light inverts the usual dark-theme rule. Gold is superb to
+/// *read* — an icon, a label, a border — but as a **solid fill it must carry
+/// dark content**: white on it is 1.63:1, while the ground on it is 11.87:1.
+/// So solid gold is reserved for small elements that carry no text, and
+/// anything pill-shaped uses [accentWash] with gold content on top.
+///
+/// (sRGB relative luminance per WCAG 2.1, computed rather than eyeballed.)
 ///
 /// # No live blur
 ///
@@ -52,11 +55,18 @@ class Ember {
 
   // --- Brand ---------------------------------------------------------------
 
-  /// Fills only — filled buttons, the active nav pill. White text on it.
-  static const ember600 = Color(0xFF9C0F05);
+  /// The one accent: the logo spiral's gold. 11.87:1 on [ground].
+  ///
+  /// Safe for anything that must be read, and for solid fills that carry no
+  /// text (a knob, a bar, a 2px rule). For a filled *pill*, use [accentWash].
+  static const accent = Color(0xFFFFC107);
 
-  /// Everything that has to be read on a dark ground: icons, labels, borders.
-  static const ember400 = Color(0xFFE8503A);
+  /// A tinted plate for filled pills, so gold content stays legible on it.
+  ///
+  /// Solid gold would need near-black content; every other selected state in
+  /// the app is gold-on-dark, and one inverted pill in the middle of that
+  /// reads as a different control rather than the same one, selected.
+  static Color get accentWash => accent.withValues(alpha: 0.16);
 
   // --- Shape and rhythm ----------------------------------------------------
 

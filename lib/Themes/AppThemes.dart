@@ -13,18 +13,18 @@ import '../themes/ember.dart';
 /// nine chances to disagree later. Handing the palette to the theme means they
 /// pick it up and cannot drift.
 ///
-/// # `primary` is the readable red, not the brand red
+/// # `onPrimary` is dark, because the accent is light
 ///
-/// `#9C0F05` measures **2.28:1** on this ground — below the 3:1 floor for UI
-/// components. `colorScheme.primary` is what widgets use to *draw* things, so
-/// it gets [Ember.ember400] at 5.18:1. The brand red stays a fill, where white
-/// on it measures 8.45:1, and is available as [Ember.ember600] for anything
-/// that wants a filled surface.
+/// [Ember.accent] is the logo's gold, 11.87:1 on this ground, so it is what
+/// widgets draw with. It is light enough that Material's usual white-on-primary
+/// would measure **1.63:1** — so `onPrimary` is the ground itself, at 11.87:1.
+/// Every filled switch, slider thumb and button in the app rests on that one
+/// line being right.
 class AppThemes {
   static ThemeData lightTheme = ThemeData(
     useMaterial3: true,
     colorScheme: ColorScheme.fromSeed(
-      seedColor: Ember.ember600,
+      seedColor: Ember.accent,
       brightness: Brightness.light,
       surface: Colors.white,
     ),
@@ -35,13 +35,13 @@ class AppThemes {
   );
 
   static final ColorScheme _emberDark = ColorScheme.fromSeed(
-    seedColor: Ember.ember600,
+    seedColor: Ember.accent,
     brightness: Brightness.dark,
     surface: Ember.ground,
   ).copyWith(
     // Drawn with, so it must be legible rather than on-brand.
-    primary: Ember.ember400,
-    onPrimary: Colors.white,
+    primary: Ember.accent,
+    onPrimary: Ember.ground,
     surface: Ember.ground,
     onSurface: Ember.textPrimary,
     // Raised surfaces: cards, sheets, the selected segment.

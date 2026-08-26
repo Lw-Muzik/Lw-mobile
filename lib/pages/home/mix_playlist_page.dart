@@ -98,7 +98,7 @@ class _MixPlaylistPageState extends State<MixPlaylistPage> {
       onTap: () => _playFrom(controller, index),
       leading: SizedBox(
         width: 34,
-        child: Icon(_iconFor(item.source), size: 20, color: Ember.ember400),
+        child: Icon(_iconFor(item.source), size: 20, color: Ember.accent),
       ),
       title: Text(
         item.title,
