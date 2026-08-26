@@ -45,7 +45,6 @@ class CardAnimationConfig {
   /// travels-per-second, so it takes the same time on any screen.
   static const double syntheticVelocity = 2.3;
 
-  static const Duration dissolveDuration = Duration(milliseconds: 260);
 
   /// Carries a thrown card off the screen. Critically damped: a card that
   /// bounces on its way out is a spring, not a card.
@@ -114,9 +113,6 @@ class AnimatedPlayerCardState extends State<AnimatedPlayerCard>
   /// Signed progress of the move in flight. See the class comment.
   late final AnimationController _motion;
 
-  /// Cross-fade for a jump of more than one track.
-  late final AnimationController _dissolve;
-
   /// The track whose card is currently the front of the deck.
   int _index = 0;
 
@@ -125,9 +121,6 @@ class AnimatedPlayerCardState extends State<AnimatedPlayerCard>
   /// still flying — and so a `currentSongId` that arrives mid-flight is
   /// recognised as the move already under way rather than a new one.
   int? _pending;
-
-  /// The index being faded out during a jump.
-  int? _dissolvingFrom;
 
   bool _dragging = false;
   double _rawDrag = 0;
@@ -147,16 +140,11 @@ class AnimatedPlayerCardState extends State<AnimatedPlayerCard>
     _index = widget.currentSongId;
     _motion = AnimationController.unbounded(vsync: this)
       ..addListener(_onMotionTick);
-    _dissolve = AnimationController(
-      vsync: this,
-      duration: CardAnimationConfig.dissolveDuration,
-    )..addStatusListener(_onDissolveDone);
   }
 
   @override
   void dispose() {
     _motion.dispose();
-    _dissolve.dispose();
     super.dispose();
   }
 
@@ -194,8 +182,6 @@ class AnimatedPlayerCardState extends State<AnimatedPlayerCard>
       case DeckStep.previous:
         _launch(
             DeckStep.previous, -CardAnimationConfig.syntheticVelocity, target);
-      case DeckStep.jump:
-        _startDissolve(target);
     }
   }
 
@@ -210,7 +196,6 @@ class AnimatedPlayerCardState extends State<AnimatedPlayerCard>
   /// [destination] is passed rather than derived because a repeat-all wrap is
   /// one card's worth of movement to somewhere that is not one index away.
   void _launch(DeckStep step, double velocity, int destination) {
-    if (_dissolve.isAnimating) return;
     _pending = destination;
 
     // Aim past the commit point so the card is still moving when it gets
@@ -244,30 +229,13 @@ class AnimatedPlayerCardState extends State<AnimatedPlayerCard>
     setState(() {});
   }
 
-  void _startDissolve(int target) {
-    _motion.stop();
-    _motion.value = 0;
-    setState(() {
-      _dissolvingFrom = _index;
-      _pending = null;
-      _index = target;
-    });
-    _dissolve.forward(from: 0);
-  }
-
-  void _onDissolveDone(AnimationStatus status) {
-    if (status != AnimationStatus.completed) return;
-    setState(() => _dissolvingFrom = null);
-    _reconcile();
-  }
-
   // ── Gestures ──
 
   bool get _canNext => _destination < widget.itemCount - 1;
   bool get _canPrevious => _destination > 0;
 
   void _onDragStart(DragStartDetails details, Size size) {
-    if (_pending != null || _dissolve.isAnimating) return;
+    if (_pending != null) return;
     _dragging = true;
     _rawDrag = 0;
     _motion.stop();
@@ -405,20 +373,6 @@ class AnimatedPlayerCardState extends State<AnimatedPlayerCard>
             : depth == -1
                 ? _buildArrivingCard(itemIndex, shift)
                 : _buildStackedCard(itemIndex, depth, shift),
-      );
-    }
-
-    if (_dissolvingFrom case final from?
-        when from >= 0 && from < widget.itemCount) {
-      cards.add(
-        IgnorePointer(
-          child: Opacity(
-            opacity: (1.0 - _dissolve.value).clamp(0.0, 1.0),
-            child: RepaintBoundary(
-              child: widget.itemBuilder(context, from, isActive: false),
-            ),
-          ),
-        ),
       );
     }
 

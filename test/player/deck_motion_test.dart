@@ -29,11 +29,14 @@ void main() {
       expect(reconcile(shown: 5, target: 4), DeckStep.previous);
     });
 
-    test('a jump of more than one is not a card move', () {
-      expect(reconcile(shown: 0, target: 40), DeckStep.jump);
-      expect(reconcile(shown: 40, target: 0), DeckStep.jump);
-      expect(reconcile(shown: 5, target: 7), DeckStep.jump);
-      expect(reconcile(shown: 5, target: 3), DeckStep.jump);
+    // A cross-fade of two album covers does not read as distance; it reads as
+    // a flicker. Distance now decides where the deck lands, never how it moves.
+    test('a jump of more than one is still a card move, in the right direction',
+        () {
+      expect(reconcile(shown: 0, target: 40), DeckStep.next);
+      expect(reconcile(shown: 40, target: 0), DeckStep.previous);
+      expect(reconcile(shown: 5, target: 7), DeckStep.next);
+      expect(reconcile(shown: 5, target: 3), DeckStep.previous);
     });
 
     test('a repeat-all wrap is one card, not a jump across the queue', () {
@@ -49,14 +52,14 @@ void main() {
       );
     });
 
-    test('without a queue length a wrap cannot be told from a jump', () {
-      expect(reconcile(shown: 40, target: 0), DeckStep.jump);
+    test('without a queue length a wrap reads as a long move backwards', () {
+      expect(reconcile(shown: 40, target: 0), DeckStep.previous);
     });
 
-    test('a real jump to the ends is still a jump', () {
+    test('a real jump to the ends moves in the direction of travel', () {
       // Tapping the last track in a 60-item queue from track 5.
-      expect(reconcile(shown: 5, target: 59, itemCount: 60), DeckStep.jump);
-      expect(reconcile(shown: 5, target: 0, itemCount: 60), DeckStep.jump);
+      expect(reconcile(shown: 5, target: 59, itemCount: 60), DeckStep.next);
+      expect(reconcile(shown: 5, target: 0, itemCount: 60), DeckStep.previous);
     });
 
     test('a two-track queue reads the move by its delta', () {
@@ -237,7 +240,7 @@ void main() {
 
     test('a step that is not running moves nothing', () {
       expect(stackShift(DeckStep.none, 0.7), 0.0);
-      expect(stackShift(DeckStep.jump, 0.7), 0.0);
+      expect(stackShift(DeckStep.none, 0.7), 0.0);
     });
   });
 }

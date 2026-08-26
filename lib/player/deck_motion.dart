@@ -17,10 +17,6 @@ enum DeckStep {
 
   /// One track back: bring the previous card home.
   previous,
-
-  /// Somewhere else entirely (a queue tap, a shuffle). No card metaphor fits
-  /// travelling forty tracks, so this cross-fades instead of throwing.
-  jump,
 }
 
 /// What the deck must do to show [target] when it is currently showing [shown].
@@ -34,6 +30,19 @@ enum DeckStep {
 /// track's "next" sets the index to 0, which by arithmetic alone looks like a
 /// forty-track jump; to the person who pressed the button it is one track
 /// forward and has to look like it.
+/// # Every move is a card move
+///
+/// A jump of forty tracks used to cross-fade instead of throwing, on the
+/// reasoning that no card metaphor fits travelling that far. In practice a
+/// cross-fade of two album covers does not read as distance — it reads as a
+/// flicker, two pictures briefly superimposed, which is the one thing a deck
+/// of cards should never do.
+///
+/// So distance decides *where* the deck lands and never *how* it moves. A jump
+/// throws one card and brings the destination in behind it, which is what
+/// moving a card by hand looks like however far you reached. `_trackAt` already
+/// draws the arriving card from the destination rather than from
+/// `_index ± 1`, so the card that lands is the right one.
 DeckStep reconcile({
   required int shown,
   required int target,
@@ -41,15 +50,16 @@ DeckStep reconcile({
 }) {
   final delta = target - shown;
   if (delta == 0) return DeckStep.none;
-  if (delta == 1) return DeckStep.next;
-  if (delta == -1) return DeckStep.previous;
 
   if (itemCount != null && itemCount > 2) {
+    // A repeat-all wrap is one track forward to someone pressing the button,
+    // even though the arithmetic says it is the length of the queue backwards.
     final last = itemCount - 1;
     if (shown == last && target == 0) return DeckStep.next;
     if (shown == 0 && target == last) return DeckStep.previous;
   }
-  return DeckStep.jump;
+
+  return delta > 0 ? DeckStep.next : DeckStep.previous;
 }
 
 /// What a released drag means.
@@ -125,5 +135,5 @@ CardLayout layoutAt(
 double stackShift(DeckStep step, double progress) => switch (step) {
       DeckStep.next => -progress,
       DeckStep.previous => progress,
-      _ => 0.0,
+      DeckStep.none => 0.0,
     };
