@@ -5,6 +5,7 @@ import '../services/player_reveal_bus.dart';
 import 'artwork_widget.dart';
 import '../widgets/alphabet_fast_scroll.dart';
 import '../widgets/pinch_zoom_grid.dart';
+import '../themes/ember.dart';
 
 /// Fixed row height so the songs list can use `itemExtent` (O(1) scroll math
 /// for very large libraries) and the alphabet rail can jump precisely.
@@ -45,14 +46,17 @@ class SongTile extends StatelessWidget {
     final onSurface = theme.colorScheme.onSurface;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.symmetric(horizontal: Ember.gutter - 6),
       child: Material(
+        // The playing row is tinted rather than outlined: a border on one row
+        // of a long list reads as a selection the user made, and this is the
+        // app telling them where they are.
         color: isCurrentTrack
-            ? accentColor.withValues(alpha: 0.08)
+            ? accentColor.withValues(alpha: 0.10)
             : Colors.transparent,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(Ember.radiusTile),
         child: InkWell(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(Ember.radiusTile),
           onTap: onTap,
           onLongPress: onLongPress,
           child: Padding(

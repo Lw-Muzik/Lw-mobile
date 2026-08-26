@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 
+import '../themes/ember.dart';
 import 'artwork_widget.dart';
 
 /// Fixed row height so list-mode category pages can use `itemExtent` (cheap
@@ -48,17 +49,19 @@ class LibraryListRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final onSurface = theme.colorScheme.onSurface;
+    // Ember's tile radius, so a row's leading art and a grid card's art are
+    // visibly the same object at two sizes rather than two different shapes.
     final radius = circular
         ? BorderRadius.circular(28)
-        : BorderRadius.circular(10);
+        : BorderRadius.circular(Ember.radiusTile);
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.symmetric(horizontal: Ember.gutter - 6),
       child: Material(
         color: Colors.transparent,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(Ember.radiusTile),
         child: InkWell(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(Ember.radiusTile),
           onTap: onTap,
           onLongPress: onLongPress,
           child: Padding(
@@ -107,7 +110,8 @@ class LibraryListRow extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           fontSize: 15,
-                          fontWeight: FontWeight.w500,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: -0.2,
                         ),
                       ),
                       const SizedBox(height: 2),
@@ -116,8 +120,8 @@ class LibraryListRow extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          fontSize: 13,
-                          color: onSurface.withValues(alpha: 0.5),
+                          fontSize: 12.5,
+                          color: onSurface.withValues(alpha: 0.45),
                         ),
                       ),
                     ],

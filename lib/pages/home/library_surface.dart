@@ -49,14 +49,18 @@ class _LibrarySurfaceState extends State<LibrarySurface> {
     return Column(
       children: [
         SizedBox(
-          height: 44,
+          height: 46,
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 14),
+            padding: const EdgeInsets.symmetric(
+                horizontal: Ember.gutter - 6),
             itemCount: _modes.length,
             itemBuilder: (context, index) => _chip(index),
           ),
         ),
+        // A hairline under the control, so the modes read as a header over the
+        // list rather than as the first row of it.
+        Container(height: 0.5, color: Ember.outline),
         const SizedBox(height: 4),
         // IndexedStack rather than swapping children: switching back to a mode
         // should return to where it was scrolled, not to the top of a list
@@ -83,7 +87,7 @@ class _LibrarySurfaceState extends State<LibrarySurface> {
           padding: const EdgeInsets.symmetric(horizontal: 14),
           decoration: BoxDecoration(
             color: selected ? Ember.surfaceHigh : Colors.transparent,
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(Ember.radiusControl + 6),
             border: Border.all(
               color: selected ? Ember.outline : Colors.transparent,
             ),
