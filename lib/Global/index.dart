@@ -278,33 +278,19 @@ Widget _artworkHero({
   required Widget child,
 }) {
   if (!enabled) return child;
-  return Hero(
-    tag: kNowPlayingHeroTag,
-    // One authoritative image for the whole flight, built from the playing
-    // track rather than from whichever end happens to supply the shuttle.
-    //
-    // Without this the flight showed a *different album* than the one it landed
-    // on: the deck has not settled on the playing card while the route is
-    // opening, so the widget the default shuttle picks up is whatever card is
-    // in front at that instant. Naming the song here removes the dependency on
-    // deck state entirely.
-    flightShuttleBuilder: (_, __, ___, ____, _____) => nowPlayingFlightCover(song),
-    child: child,
-  );
+  // NO custom flightShuttleBuilder, deliberately.
+  //
+  // A shuttle builds a fresh subtree, and `ArtworkWidget` resolves its image
+  // through a Future — showing `assets/audio.jpeg` until that lands. A new one
+  // asks for a decode size neither end has cached, so it decodes from scratch
+  // and has nothing to show for the whole flight; what appears instead is the
+  // deck's own cards through an empty shuttle, which reads as the wrong album
+  // flying.
+  //
+  // Flutter's default shuttle reuses the destination hero's own subtree, whose
+  // image is already being resolved for the page it is landing on.
+  return Hero(tag: kNowPlayingHeroTag, child: child);
 }
-
-/// The cover as it appears in flight: no shadow, no deck, just the art.
-Widget nowPlayingFlightCover(SongModel song) => ClipRRect(
-      borderRadius: BorderRadius.circular(14),
-      child: ArtworkWidget(
-        quality: 100,
-        size: 1000,
-        songId: song.id,
-        type: ArtworkType.AUDIO,
-        path: song.data,
-        borderRadius: BorderRadius.circular(14),
-      ),
-    );
 
 /// Folder thumbnail. The representative track is now supplied by the caller
 /// (from a single grouped DB query), replacing the old per-card `querySongs()`
