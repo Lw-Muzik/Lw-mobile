@@ -470,24 +470,13 @@ class _CardDeck extends StatelessWidget {
                     Routes.pop(context);
                   },
                   onLongPress: () => showTrackInfo(context, controller),
-                  // The hero wraps the switcher, not the card inside it. An
-                  // AnimatedSwitcher holds both children for the length of its
-                  // transition, so a tag placed within one could exist twice in
-                  // this route during a track change — and two heroes sharing a
-                  // tag is an assertion failure, not a worse animation.
-                  //
-                  // Only the card actually playing carries it: the deck builds
-                  // the tracks either side as well.
-                  child: _NowPlayingHero(
-                    enabled: index == controller.songId,
-                    child: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 300),
-                      child: playerCard(
-                        animation,
-                        context,
-                        controller,
-                        songIndex: index,
-                      ),
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 300),
+                    child: playerCard(
+                      animation,
+                      context,
+                      controller,
+                      songIndex: index,
                     ),
                   ),
                 );
@@ -565,22 +554,41 @@ class _TrackInfo extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _MarqueeText(
-            text: song.title,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 20,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.2,
+          // The details fly too, or the cover moves while the words it belongs
+          // to blink into place — which is the half-finished look that gives a
+          // transition away. `Material` transparency because a bare `Text` in
+          // flight has no `DefaultTextStyle` ancestor and renders with the
+          // debug underline.
+          Hero(
+            tag: kNowPlayingTitleHeroTag,
+              flightShuttleBuilder: fadeThroughShuttle,
+            child: Material(
+              type: MaterialType.transparency,
+              child: _MarqueeText(
+                text: song.title,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.2,
+                ),
+              ),
             ),
           ),
           const SizedBox(height: 4),
-          _MarqueeText(
-            text: song.artist ?? 'Unknown artist',
-            style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.6),
-              fontSize: 14,
-              fontWeight: FontWeight.w400,
+          Hero(
+            tag: kNowPlayingArtistHeroTag,
+              flightShuttleBuilder: fadeThroughShuttle,
+            child: Material(
+              type: MaterialType.transparency,
+              child: _MarqueeText(
+                text: song.artist ?? 'Unknown artist',
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.6),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w400,
+                ),
+              ),
             ),
           ),
           const SizedBox(height: 4),
@@ -772,23 +780,5 @@ class _WaveformProgress extends StatelessWidget {
         );
       },
     );
-  }
-}
-
-/// Ties the playing card's cover to the mini player's, or does nothing.
-///
-/// Wrapping rather than a bare `Hero` so the enabled/disabled decision reads at
-/// the call site — the condition is the interesting part, and the crash it
-/// prevents is invisible in a diff that only shows a `Hero(` appearing.
-class _NowPlayingHero extends StatelessWidget {
-  const _NowPlayingHero({required this.enabled, required this.child});
-
-  final bool enabled;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    if (!enabled) return child;
-    return Hero(tag: kNowPlayingHeroTag, child: child);
   }
 }

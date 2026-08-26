@@ -70,8 +70,8 @@ class Routes {
   static void playerTo(BuildContext context) {
     Navigator.of(context).push(
       PageRouteBuilder(
-        transitionDuration: const Duration(milliseconds: 350),
-        reverseTransitionDuration: const Duration(milliseconds: 280),
+        transitionDuration: const Duration(milliseconds: 2200), // TEMP-VERIFY
+        reverseTransitionDuration: const Duration(milliseconds: 2200), // TEMP-VERIFY
         pageBuilder: (context, animation, secondaryAnimation) =>
             const Player(),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {

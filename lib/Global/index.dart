@@ -23,6 +23,7 @@ import '../widgets/artwork_widget.dart';
 import '../widgets/listen_sheet.dart';
 import '../services/video/video_registry.dart';
 import '../services/ytmusic/yt_innertube.dart';
+import '../player/now_playing_hero.dart';
 
 SystemUiOverlayStyle overlay = const SystemUiOverlayStyle(
   systemNavigationBarDividerColor: Colors.transparent,
@@ -224,7 +225,16 @@ Widget playerCard(
               constraints: const BoxConstraints(maxWidth: 420, maxHeight: 420),
               child: AspectRatio(
                 aspectRatio: 1.0,
-                child: Container(
+                // The hero wraps the cover and NOTHING else. Wrapping the card
+                // slot instead — the Align, the padding, the constraints — made
+                // the flight run from a 42px thumbnail to a full-width box with
+                // the artwork sitting somewhere inside it, which is why it read
+                // as a jump rather than as the cover moving. Source and
+                // destination have to be the same visible object.
+                child: _artworkHero(
+                  enabled: idx == controller.songId,
+                  song: song,
+                  child: Container(
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(18),
                     boxShadow: [
@@ -247,6 +257,7 @@ Widget playerCard(
                     ),
                   ),
                 ),
+                ),
               ),
             ),
           ),
@@ -255,6 +266,45 @@ Widget playerCard(
     ),
   );
 }
+
+/// Ties this cover to the mini player's, or leaves it alone.
+///
+/// Only the card actually playing may carry the tag: the deck builds the tracks
+/// either side too, and two heroes sharing a tag in one route is an assertion
+/// failure rather than a worse animation.
+Widget _artworkHero({
+  required bool enabled,
+  required SongModel song,
+  required Widget child,
+}) {
+  if (!enabled) return child;
+  return Hero(
+    tag: kNowPlayingHeroTag,
+    // One authoritative image for the whole flight, built from the playing
+    // track rather than from whichever end happens to supply the shuttle.
+    //
+    // Without this the flight showed a *different album* than the one it landed
+    // on: the deck has not settled on the playing card while the route is
+    // opening, so the widget the default shuttle picks up is whatever card is
+    // in front at that instant. Naming the song here removes the dependency on
+    // deck state entirely.
+    flightShuttleBuilder: (_, __, ___, ____, _____) => nowPlayingFlightCover(song),
+    child: child,
+  );
+}
+
+/// The cover as it appears in flight: no shadow, no deck, just the art.
+Widget nowPlayingFlightCover(SongModel song) => ClipRRect(
+      borderRadius: BorderRadius.circular(14),
+      child: ArtworkWidget(
+        quality: 100,
+        size: 1000,
+        songId: song.id,
+        type: ArtworkType.AUDIO,
+        path: song.data,
+        borderRadius: BorderRadius.circular(14),
+      ),
+    );
 
 /// Folder thumbnail. The representative track is now supplied by the caller
 /// (from a single grouped DB query), replacing the old per-card `querySongs()`

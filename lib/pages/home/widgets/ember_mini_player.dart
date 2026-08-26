@@ -63,25 +63,42 @@ class EmberMiniPlayer extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      song.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Ember.textPrimary,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: -0.2,
+                    // The other end of the details' flight. Material
+                    // transparency for the same reason as the player's side: a
+                    // bare Text in flight has no DefaultTextStyle ancestor.
+                    Hero(
+                      tag: kNowPlayingTitleHeroTag,
+              flightShuttleBuilder: fadeThroughShuttle,
+                      child: Material(
+                        type: MaterialType.transparency,
+                        child: Text(
+                          song.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Ember.textPrimary,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: -0.2,
+                          ),
+                        ),
                       ),
                     ),
                     const SizedBox(height: 2),
-                    Text(
-                      song.artist ?? 'Unknown artist',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: Ember.textSecondary,
-                        fontSize: 12,
+                    Hero(
+                      tag: kNowPlayingArtistHeroTag,
+              flightShuttleBuilder: fadeThroughShuttle,
+                      child: Material(
+                        type: MaterialType.transparency,
+                        child: Text(
+                          song.artist ?? 'Unknown artist',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: Ember.textSecondary,
+                            fontSize: 12,
+                          ),
+                        ),
                       ),
                     ),
                   ],
