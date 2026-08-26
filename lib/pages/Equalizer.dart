@@ -83,6 +83,12 @@ class _EqualizerState extends State<Equalizer> with TickerProviderStateMixin {
     final appController = context.watch<AppController>();
     return Body(
       child: Scaffold(
+        // The body is a column of Expanded flexes, so shrinking it does not
+        // scroll — it crushes. When the preset sheet's search field raises the
+        // keyboard, the curve collapses to a line and the faders to a row of
+        // bare caps. Nothing on this page needs to dodge the keyboard, so it
+        // keeps its height and the sheet floats over it.
+        resizeToAvoidBottomInset: false,
         backgroundColor: appController.isFancy
             ? Colors.transparent
             : Theme.of(context).scaffoldBackgroundColor,
