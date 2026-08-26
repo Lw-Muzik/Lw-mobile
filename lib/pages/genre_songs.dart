@@ -137,7 +137,7 @@ class _GenreSongsState extends State<GenreSongs> {
                       );
                     },
                   ),
-                  bottomNavigationBar: service.data ?? false
+                  bottomNavigationBar: controller.hasNowPlaying
                       ? BottomPlayer(controller: controller)
                       : null,
                 );

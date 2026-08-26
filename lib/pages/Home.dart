@@ -257,7 +257,7 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
                   children: _tabViews,
                 ),
               ),
-              bottomNavigationBar: controller.handler.player.playing
+              bottomNavigationBar: controller.hasNowPlaying
                   ? BottomPlayer(controller: controller)
                   : null,
             );

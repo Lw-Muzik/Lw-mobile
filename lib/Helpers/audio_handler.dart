@@ -242,8 +242,19 @@ class HypeAudioHandler extends BaseAudioHandler {
     await currentTrackPlayer.play();
   }
 
+  /// Run after playback pauses, if set.
+  ///
+  /// The mirror of [onBeforePlay], and here for the same reason: this is the one
+  /// place every pause funnels through — the app's own transport, the lock
+  /// screen and a headset button alike — so it is the only place that can note
+  /// the position without being wired into each of them separately.
+  void Function()? onPaused;
+
   @override
-  Future<void> pause() => currentTrackPlayer.pause();
+  Future<void> pause() async {
+    await currentTrackPlayer.pause();
+    onPaused?.call();
+  }
 
   @override
   Future<void> stop() async {

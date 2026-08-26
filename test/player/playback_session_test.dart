@@ -67,6 +67,36 @@ void main() {
       expect(ids(roundTrip(session)!.effectiveQueue), order);
     });
 
+    test('watching survives the disk, so a restored station keeps its picture', () {
+      final restored = roundTrip(PlaybackSession(
+        songs: queue,
+        index: 3,
+        position: const Duration(seconds: 12),
+        videoMode: true,
+      ));
+      expect(restored!.videoMode, isTrue);
+    });
+
+    test('a session written before videoMode existed reads as audio', () {
+      final json = PlaybackSession(
+        songs: queue,
+        index: 0,
+        position: Duration.zero,
+      ).toJson()..remove('videoMode');
+      expect(PlaybackSession.fromJson(json)!.videoMode, isFalse);
+    });
+
+    test('windowing a watched queue keeps it watched', () {
+      final long = [for (var i = 0; i < kMaxSessionTracks + 40; i++) song(i)];
+      final windowed = PlaybackSession(
+        songs: long,
+        index: 300,
+        position: Duration.zero,
+        videoMode: true,
+      ).windowed();
+      expect(windowed.videoMode, isTrue);
+    });
+
     test('a streamed track keeps what it needs to be resolved again', () {
       final yt = SongModel({
         ...song(1).getMap,

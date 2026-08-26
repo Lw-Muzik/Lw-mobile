@@ -20,6 +20,7 @@ class _BottomPlayerState extends State<BottomPlayer>
     with TickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
+    if (!widget.controller.hasNowPlaying) return const SizedBox.shrink();
     final song = widget.controller.songs[widget.controller.songId];
 
     return Padding(

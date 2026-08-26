@@ -63,6 +63,14 @@ class PlaybackSession {
   /// player package.
   final int loopMode;
 
+  /// Whether the queue was being *watched* rather than heard.
+  ///
+  /// Watching is a mode the queue stays in, not a property of one track: while
+  /// it is on, the tracks that follow resolve as video too and a station keeps
+  /// showing pictures. Losing it across a restart turns a restored video queue
+  /// into an audio one from the second track onward.
+  final bool videoMode;
+
   const PlaybackSession({
     required this.songs,
     required this.index,
@@ -70,6 +78,7 @@ class PlaybackSession {
     this.shuffledOrder,
     this.shuffled = false,
     this.loopMode = 0,
+    this.videoMode = false,
   });
 
   /// The queue in the order it should play.
@@ -101,6 +110,7 @@ class PlaybackSession {
         'positionMs': position.inMilliseconds,
         'shuffled': shuffled,
         'loopMode': loopMode,
+        'videoMode': videoMode,
         'songs': [for (final song in songs) song.getMap],
         if (shuffledOrder != null) 'shuffledOrder': shuffledOrder,
       };
@@ -134,6 +144,7 @@ class PlaybackSession {
       index: 0,
       position: Duration(milliseconds: (json['positionMs'] as num?)?.toInt() ?? 0),
       loopMode: (json['loopMode'] as num?)?.toInt() ?? 0,
+      videoMode: json['videoMode'] == true,
     );
     // Clamped against the queue actually recovered, which may be shorter than
     // the one that was saved.
@@ -145,6 +156,7 @@ class PlaybackSession {
       index: rawIndex.clamp(0, length - 1),
       position: session.position.isNegative ? Duration.zero : session.position,
       loopMode: session.loopMode,
+      videoMode: session.videoMode,
     );
   }
 
@@ -172,6 +184,7 @@ class PlaybackSession {
       index: index - start,
       position: position,
       loopMode: loopMode,
+      videoMode: videoMode,
     );
   }
 }

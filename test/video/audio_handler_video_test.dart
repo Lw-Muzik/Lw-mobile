@@ -9,7 +9,7 @@ library;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:just_audio/just_audio.dart';
 
-import 'package:eq_app/Helpers/AudioHandler.dart';
+import 'package:eq_app/Helpers/audio_handler.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

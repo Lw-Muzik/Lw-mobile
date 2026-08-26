@@ -786,6 +786,10 @@ class AppController with ChangeNotifier {
     // The last session comes back as a queue and a position; the player stays
     // empty until the first press of play, which is what loads it.
     _handler.onBeforePlay = _resumePendingSession;
+    // The ticker only runs while playing, so without this a pause followed by a
+    // swipe-kill loses up to its whole interval. The store debounces, so this
+    // costs one write.
+    _handler.onPaused = _saveSession;
     unawaited(_restoreSession());
     _startSessionTicker();
 
@@ -1967,6 +1971,19 @@ class AppController with ChangeNotifier {
   /// started. The UI can show the track and its position; the player is empty.
   bool get hasPendingResume => _pendingResume != null;
 
+  /// Whether there is a current track to put in front of the user.
+  ///
+  /// This is the gate for the bottom player, and it deliberately does NOT ask
+  /// whether audio is coming out. The bar is a handle on the current track, not
+  /// an indicator that it is sounding — gating it on `playing` took the only
+  /// visible transport away at exactly the two moments it is wanted: after a
+  /// pause, and on a session restored from disk, which starts paused by design
+  /// and so could never be resumed from the UI at all.
+  bool get hasNowPlaying {
+    final queue = songs;
+    return queue.isNotEmpty && _songId >= 0 && _songId < queue.length;
+  }
+
   Timer? _sessionTicker;
 
   /// Notes the position periodically while something is playing.
@@ -2000,6 +2017,7 @@ class AppController with ChangeNotifier {
         // zero, which would overwrite the very position being restored.
         position: _pendingResume ?? handler.player.position,
         loopMode: handler.loopMode.index,
+        videoMode: VideoRegistry.instance.videoMode,
       ),
     );
   }
@@ -2028,6 +2046,9 @@ class AppController with ChangeNotifier {
     _songId = session.index.clamp(0, songs.length - 1);
     if (songs.isNotEmpty) _artWorkId = songs[_songId].id;
     _pendingResume = session.position;
+    // Set before anything re-resolves, so a queue that was being watched keeps
+    // resolving as video from the first track the resume touches.
+    VideoRegistry.instance.videoMode = session.videoMode;
 
     await handler.setLoopMode(
       LoopMode.values[session.loopMode.clamp(0, LoopMode.values.length - 1)],
@@ -2186,7 +2207,13 @@ class AppController with ChangeNotifier {
     if (index < 0 || index >= songs.length) return;
     final song = songs[index];
     final videoId = song.ytVideoId;
-    if (videoId == null || song.hasFreshTarget) return;
+    // A video needs a staged manifest as well as a live deadline: manifests are
+    // swept at every launch, so a fresh deadline is not evidence the file the
+    // player would open still exists.
+    if (!song.needsRefresh(staged: VideoRegistry.instance.isVideo(song.id))) {
+      return;
+    }
+    if (videoId == null) return;
 
     try {
       if (song.isYtVideo) {

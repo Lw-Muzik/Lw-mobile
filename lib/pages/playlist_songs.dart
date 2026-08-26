@@ -141,7 +141,7 @@ class _PlaylistSongsState extends State<PlaylistSongs> {
                     );
                   },
                 ),
-                bottomNavigationBar: service.data ?? false
+                bottomNavigationBar: controller.hasNowPlaying
                     ? BottomPlayer(controller: controller)
                     : null,
               );

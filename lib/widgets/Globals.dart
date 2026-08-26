@@ -4,6 +4,10 @@ import '../controllers/app_controller.dart';
 import 'artwork_widget.dart';
 
 Widget bottomPlayer(AppController controller, BuildContext context) {
+  // Callers gate on `hasNowPlaying`, but a queue can be replaced between that
+  // check and this build, and an out-of-range read here throws on a surface the
+  // user is only looking at.
+  if (!controller.hasNowPlaying) return const SizedBox.shrink();
   final song = controller.songs[controller.songId];
 
   return Container(
@@ -73,9 +77,13 @@ Widget bottomPlayer(AppController controller, BuildContext context) {
                   icon: isPlaying
                       ? Icons.pause_rounded
                       : Icons.play_arrow_rounded,
+                  // Through the handler, not straight at the player. The handler
+                  // is where `onBeforePlay` lives, and a session restored from
+                  // disk holds its queue with the player still empty — so going
+                  // straight to the player here started nothing at all.
                   onPressed: () => isPlaying
-                      ? controller.handler.player.pause()
-                      : controller.handler.player.play(),
+                      ? controller.handler.pause()
+                      : controller.handler.play(),
                   size: 28,
                   prominent: true,
                 );

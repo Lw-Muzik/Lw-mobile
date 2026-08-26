@@ -106,7 +106,7 @@ class _SettingsState extends State<Settings> {
                   ],
                 ),
                 bottomNavigationBar:
-                    !controller.isEqMode && (service.data ?? false)
+                    !controller.isEqMode && controller.hasNowPlaying
                     ? BottomPlayer(controller: controller)
                     : null,
               ),

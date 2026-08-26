@@ -54,6 +54,26 @@ extension TrackExtras on SongModel {
     return DateTime.now().millisecondsSinceEpoch ~/ 1000 < deadline - 60;
   }
 
+  /// Whether this entry must be resolved again before it can be handed to a
+  /// player.
+  ///
+  /// [staged] is whether a video's DASH manifest is currently registered. It is
+  /// a parameter rather than a lookup so this stays a pure function of the
+  /// track and one fact about it.
+  ///
+  /// A video needs both halves to be true. Its deadline says only that the URLs
+  /// *inside* the manifest are still honoured; it says nothing about whether the
+  /// manifest itself is still on disk. Manifests are swept at every launch — one
+  /// left by a previous run has no queue entry pointing at it — so a video the
+  /// process died two minutes after resolving comes back with a live deadline
+  /// and no file behind it. Trusting the deadline alone hands the player a path
+  /// to something that is not there.
+  bool needsRefresh({required bool staged}) {
+    if (ytVideoId == null) return false;
+    if (!hasFreshTarget) return true;
+    return isYtVideo && !staged;
+  }
+
   /// A copy of this track pointing at [url], valid until [expiresAt].
   ///
   /// Used when a stale entry has been resolved again: everything the user sees —
