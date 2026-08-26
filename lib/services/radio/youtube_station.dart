@@ -10,6 +10,7 @@
 /// That used to be a guard; now it is the shape of the thing.
 library;
 
+import 'package:flutter/foundation.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 
 import '../../services/video/video_registry.dart';
@@ -127,6 +128,14 @@ class YouTubeStation implements StationSource {
     }
     return fresh;
   }
+
+  @visibleForTesting
+  List<YtTrack> freshTracksForTest(
+    List<YtTrack> page, {
+    required Set<String> exclude,
+    required int limit,
+  }) =>
+      _freshTracks(page, exclude: exclude, limit: limit);
 
   /// Resolves [tracks] as audio and returns the entries that worked.
   ///
