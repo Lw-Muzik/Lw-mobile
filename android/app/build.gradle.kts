@@ -85,13 +85,20 @@ android {
 // Evidence: the graph was resolving CameraX 1.3.3 and ML Kit barcode 17.2.0,
 // both 4 KB-aligned. These pins move them to the aligned releases. DataStore is
 // pinned to 1.1.7 because its newer 1.2.x line regressed 16 KB alignment.
+//
+// CameraX must stay >= 1.6.1: mobile_scanner 7.2.0 is compiled against it, and
+// in 1.6.x `Camera2Config` became a Kotlin class with a companion object. Forcing
+// it back to 1.5.3 — where that field does not exist — resolves and compiles
+// cleanly and then throws NoSuchFieldError for Camera2Config$Companion the moment
+// the plugin attaches to the activity, i.e. at launch. A `force` that lowers a
+// version below what a dependency was compiled against is invisible until runtime.
 configurations.all {
     resolutionStrategy {
         force(
-            "androidx.camera:camera-core:1.5.3",
-            "androidx.camera:camera-camera2:1.5.3",
-            "androidx.camera:camera-lifecycle:1.5.3",
-            "androidx.camera:camera-view:1.5.3",
+            "androidx.camera:camera-core:1.6.1",
+            "androidx.camera:camera-camera2:1.6.1",
+            "androidx.camera:camera-lifecycle:1.6.1",
+            "androidx.camera:camera-view:1.6.1",
             "com.google.mlkit:barcode-scanning:17.3.0",
             "com.google.android.gms:play-services-mlkit-barcode-scanning:18.3.1",
             "androidx.datastore:datastore:1.1.7",
