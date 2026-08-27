@@ -47,3 +47,7 @@ app.*.map.json
 
 # Kotlin 2.2+ build artefacts (appeared with the KGP bump)
 android/.kotlin/
+
+# claude
+/.claude/
+/.remember/
