@@ -12,8 +12,10 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../../Routes/routes.dart';
+import '../../controllers/library_controller.dart';
 import '../../services/ytmusic/yt_download.dart';
 import '../../services/ytmusic/yt_models.dart';
 import '../../services/ytmusic/yt_playback.dart';
@@ -83,8 +85,9 @@ Future<void> showTrackActions(BuildContext context, YtTrack track) async {
               track.title,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.titleSmall
-                  ?.copyWith(fontWeight: FontWeight.w700),
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
           ListTile(
@@ -159,8 +162,19 @@ void startDownload(BuildContext context, YtTrack track) {
     ),
   );
 
-  YtDownloader.download(track, onProgress: (value) => progress.value = value)
-      .then((result) {
+  // Captured before the await: the widget that started this may well be gone
+  // by the time the download finishes, and reading a provider off a dead
+  // context throws.
+  final library = context.read<LibraryController>();
+
+  YtDownloader.download(
+    track,
+    onProgress: (value) => progress.value = value,
+  ).then((result) async {
+    // A saved track that the Library does not list has not, as far as the user
+    // is concerned, been saved. Android's MediaStore insert and iOS's write
+    // into Documents/Music both need a scan before the row exists.
+    if (result is YtDownloadSaved) await library.rescan();
     messenger.hideCurrentSnackBar();
     messenger.showSnackBar(
       SnackBar(
@@ -176,5 +190,81 @@ void startDownload(BuildContext context, YtTrack track) {
     // is still listening well past this point, and disposing underneath it
     // throws. Nothing else holds the notifier once that widget is gone, so it
     // is collected on its own — which is the cheaper of the two mistakes.
+  });
+}
+
+/// Downloads every track in a list.
+///
+/// Shows one snack bar for the whole run rather than one per track: fifty
+/// stacked notifications would bury the app, and the only thing worth saying
+/// while it works is which track and how far through.
+///
+/// The summary distinguishes "all saved" from "some saved" and names the count,
+/// because a playlist where three videos are unavailable is the normal case
+/// rather than an error, and reporting it as a flat success would be a lie.
+void startPlaylistDownload(BuildContext context, List<YtTrack> tracks) {
+  if (tracks.isEmpty) return;
+
+  final messenger = ScaffoldMessenger.of(context);
+  final library = context.read<LibraryController>();
+  final progress = ValueNotifier<double>(0);
+  final label = ValueNotifier<String>('Starting…');
+  var cancelled = false;
+
+  messenger.showSnackBar(
+    SnackBar(
+      duration: const Duration(days: 1),
+      behavior: SnackBarBehavior.floating,
+      content: Row(
+        children: [
+          SizedBox(
+            width: 60,
+            child: ValueListenableBuilder<double>(
+              valueListenable: progress,
+              builder: (context, value, _) => LinearProgressIndicator(
+                value: value,
+                minHeight: 4,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: ValueListenableBuilder<String>(
+              valueListenable: label,
+              builder: (context, value, _) =>
+                  Text(value, maxLines: 1, overflow: TextOverflow.ellipsis),
+            ),
+          ),
+        ],
+      ),
+      action: SnackBarAction(label: 'Stop', onPressed: () => cancelled = true),
+    ),
+  );
+
+  YtDownloader.downloadAll(
+    tracks,
+    isCancelled: () => cancelled,
+    onTrack: (index, total, title) {
+      label.value = '${index + 1} of $total · $title';
+      progress.value = index / total;
+    },
+    onProgress: (_) {},
+  ).then((results) async {
+    final saved = results.whereType<YtDownloadSaved>().length;
+    if (saved > 0) await library.rescan();
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        content: Text(switch ((saved, results.length)) {
+          (0, _) => 'Nothing could be downloaded',
+          final s when s.$1 == tracks.length => 'Saved all ${s.$1} tracks',
+          final s =>
+            'Saved ${s.$1} of ${tracks.length} '
+                '(${tracks.length - s.$1} unavailable)',
+        }),
+      ),
+    );
   });
 }

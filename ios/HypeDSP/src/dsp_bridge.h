@@ -82,6 +82,13 @@ void  dsp_set_stereo_width(void* handle, float width);
 void  dsp_set_crossfeed_enabled(void* handle, bool enabled);
 void  dsp_set_crossfeed_params(void* handle, float cutoffHz, float feedLevelDb);
 
+// 3D Surround (port of the desktop stage; see surround3d.h)
+void  dsp_set_surround3d_enabled(void* handle, bool enabled);
+void  dsp_set_surround3d_params(void* handle, float intensity, float subwoofer);
+void  dsp_set_surround3d_speakers(void* handle, bool frontL, bool frontR,
+                                  bool sideL, bool sideR,
+                                  bool surroundL, bool surroundR);
+
 // Stem mixer
 void  dsp_set_stem_mode_active(void* handle, bool active);
 bool  dsp_load_stems(void* handle, const char* vocals, const char* drums,

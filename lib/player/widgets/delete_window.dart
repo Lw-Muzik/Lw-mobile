@@ -1,6 +1,9 @@
-import '/Helpers/Channel.dart';
-import '/Routes/routes.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import '/controllers/library_controller.dart';
+import '/helpers/channel.dart';
+import '/Routes/routes.dart';
 
 class DeleteWindow extends StatefulWidget {
   final String folder;
@@ -39,9 +42,8 @@ class _DeleteWindowState extends State<DeleteWindow> {
                     text: widget.folder.split('/').last.endsWith(".mp3")
                         ? widget.folder.split('/').last.replaceAll(".mp3", "")
                         : widget.folder.split('/').last,
-                    style: Theme.of(context).textTheme.titleMedium!.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: Theme.of(context).textTheme.titleMedium!
+                        .copyWith(fontWeight: FontWeight.bold),
                   ),
                 ],
               ),
@@ -55,9 +57,24 @@ class _DeleteWindowState extends State<DeleteWindow> {
                   mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: [
                     TextButton(
-                      onPressed: () {
-                        Channel.deleteManager(widget.folder);
+                      onPressed: () async {
+                        // Captured before the await; the sheet is closed below
+                        // and its context goes with it.
+                        final messenger = ScaffoldMessenger.of(context);
+                        final library = context.read<LibraryController>();
                         Routes.pop(context);
+                        final ok = await Channel.deleteManager(widget.folder);
+                        if (ok) await library.rescan();
+                        messenger.showSnackBar(
+                          SnackBar(
+                            behavior: SnackBarBehavior.floating,
+                            content: Text(
+                              ok
+                                  ? 'Deleted ${widget.folder.split('/').last}'
+                                  : 'Could not delete that folder',
+                            ),
+                          ),
+                        );
                       },
                       child: const Text("Delete"),
                     ),

@@ -455,6 +455,25 @@ import AVFoundation
             dsp.setCrossfeedParams(cutoff: cutoff, feed: feed)
             result(nil)
 
+        case "dspSetSurround3dEnabled":
+            dsp.setSurround3dEnabled(args?["enabled"] as? Bool ?? false)
+            result(nil)
+
+        case "dspSetSurround3dParams":
+            dsp.setSurround3dParams(intensity: floatArg(args, "intensity"),
+                                    subwoofer: floatArg(args, "subwoofer"))
+            result(nil)
+
+        case "dspSetSurround3dSpeakers":
+            dsp.setSurround3dSpeakers(
+                frontL: args?["frontL"] as? Bool ?? true,
+                frontR: args?["frontR"] as? Bool ?? true,
+                sideL: args?["sideL"] as? Bool ?? true,
+                sideR: args?["sideR"] as? Bool ?? true,
+                surroundL: args?["surroundL"] as? Bool ?? true,
+                surroundR: args?["surroundR"] as? Bool ?? true)
+            result(nil)
+
         // ==================== Stem Separation ====================
         case "separateStems":
             result(false)
@@ -705,10 +724,51 @@ import AVFoundation
 
         // ==================== Delete Manager ====================
         case "deleteManager":
+            // Reports whether it worked. It used to swallow the error with
+            // `try?` and answer nil either way, so a delete that failed — a
+            // file outside the sandbox, a path that no longer existed — was
+            // indistinguishable from one that succeeded, and the caller
+            // cheerfully removed the row from the library.
             if let path = args?["filePath"] as? String {
-                try? FileManager.default.removeItem(atPath: path)
+                do {
+                    try FileManager.default.removeItem(atPath: path)
+                    result(true)
+                } catch {
+                    NSLog("deleteManager failed for \(path): \(error)")
+                    result(false)
+                }
+            } else {
+                result(false)
             }
-            result(nil)
+
+        // Deleting ONE track. Separate from the folder case above so the two
+        // platforms present the same channel surface — Android needs its own
+        // method there because a track and a directory take entirely different
+        // routes through scoped storage.
+        case "deleteAudio":
+            if let path = args?["filePath"] as? String {
+                let fm = FileManager.default
+                if !fm.fileExists(atPath: path) {
+                    // Already gone. The caller wanted it absent, and it is.
+                    result(true)
+                } else if !fm.isDeletableFile(atPath: path) {
+                    // Anything the Music app owns lives outside this sandbox and
+                    // cannot be removed by us. Saying so is better than a silent
+                    // no-op that leaves the track in the library.
+                    NSLog("deleteAudio refused, not deletable: \(path)")
+                    result(false)
+                } else {
+                    do {
+                        try fm.removeItem(atPath: path)
+                        result(true)
+                    } catch {
+                        NSLog("deleteAudio failed for \(path): \(error)")
+                        result(false)
+                    }
+                }
+            } else {
+                result(false)
+            }
 
         case "showNativeMessage":
             result(nil)

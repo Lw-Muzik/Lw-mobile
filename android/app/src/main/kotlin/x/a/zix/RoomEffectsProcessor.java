@@ -47,6 +47,17 @@ public class RoomEffectsProcessor extends BaseAudioProcessor {
     private static volatile boolean cachedCrossfeedEnabled = false;
     private static volatile float cachedCrossfeedCutoff = 700f;
     private static volatile float cachedCrossfeedFeed = 4.5f;
+    // 3D Surround. Defaults mirror the desktop panel: off, and a moderate
+    // intensity so switching it on is audible without being a cliff.
+    private static volatile boolean cachedSurround3dEnabled = false;
+    private static volatile float cachedSurround3dIntensity = 0.6f;
+    private static volatile float cachedSurround3dSubwoofer = 0.35f;
+    private static volatile boolean cachedS3dFrontL = true;
+    private static volatile boolean cachedS3dFrontR = true;
+    private static volatile boolean cachedS3dSideL = true;
+    private static volatile boolean cachedS3dSideR = true;
+    private static volatile boolean cachedS3dSurroundL = true;
+    private static volatile boolean cachedS3dSurroundR = true;
 
     // Cached EQ params
     private static volatile boolean cachedEqEnabled = false;
@@ -238,6 +249,13 @@ public class RoomEffectsProcessor extends BaseAudioProcessor {
         nativeSetStereoWidth(nativeHandle, cachedStereoWidth);
         nativeSetCrossfeedEnabled(nativeHandle, cachedCrossfeedEnabled);
         nativeSetCrossfeedParams(nativeHandle, cachedCrossfeedCutoff, cachedCrossfeedFeed);
+        // Re-applied on every (re)attach, like every other cached stage: a new
+        // player instance starts with a fresh native engine that knows nothing.
+        nativeSetSurround3dEnabled(nativeHandle, cachedSurround3dEnabled);
+        nativeSetSurround3dParams(nativeHandle, cachedSurround3dIntensity,
+                cachedSurround3dSubwoofer);
+        nativeSetSurround3dSpeakers(nativeHandle, cachedS3dFrontL, cachedS3dFrontR,
+                cachedS3dSideL, cachedS3dSideR, cachedS3dSurroundL, cachedS3dSurroundR);
         // EQ state (bypass own-app EQ when global EQ service is active)
         nativeSetEqEnabled(nativeHandle, cachedEqEnabled && !cachedGlobalEqActive);
         nativeSetPreampGain(nativeHandle, cachedPreampGain);
@@ -337,6 +355,22 @@ public class RoomEffectsProcessor extends BaseAudioProcessor {
 
     public void setCrossfeedParams(float cutoffHz, float feedLevelDb) {
         if (nativeHandle != 0) nativeSetCrossfeedParams(nativeHandle, cutoffHz, feedLevelDb);
+    }
+
+    public void setSurround3dEnabled(boolean enabled) {
+        if (nativeHandle != 0) nativeSetSurround3dEnabled(nativeHandle, enabled);
+    }
+
+    public void setSurround3dParams(float intensity, float subwoofer) {
+        if (nativeHandle != 0) nativeSetSurround3dParams(nativeHandle, intensity, subwoofer);
+    }
+
+    public void setSurround3dSpeakers(boolean frontL, boolean frontR, boolean sideL,
+                                      boolean sideR, boolean surroundL, boolean surroundR) {
+        if (nativeHandle != 0) {
+            nativeSetSurround3dSpeakers(nativeHandle, frontL, frontR, sideL, sideR,
+                    surroundL, surroundR);
+        }
     }
 
     // EQ instance methods
@@ -533,6 +567,28 @@ public class RoomEffectsProcessor extends BaseAudioProcessor {
     public static void broadcastCrossfeedEnabled(boolean enabled) {
         cachedCrossfeedEnabled = enabled;
         for (RoomEffectsProcessor p : playerInstances) p.setCrossfeedEnabled(enabled);
+    }
+
+    public static void broadcastSurround3dEnabled(boolean enabled) {
+        cachedSurround3dEnabled = enabled;
+        for (RoomEffectsProcessor p : playerInstances) p.setSurround3dEnabled(enabled);
+    }
+
+    public static void broadcastSurround3dParams(float intensity, float subwoofer) {
+        cachedSurround3dIntensity = intensity;
+        cachedSurround3dSubwoofer = subwoofer;
+        for (RoomEffectsProcessor p : playerInstances) p.setSurround3dParams(intensity, subwoofer);
+    }
+
+    public static void broadcastSurround3dSpeakers(boolean frontL, boolean frontR, boolean sideL,
+                                                   boolean sideR, boolean surroundL,
+                                                   boolean surroundR) {
+        cachedS3dFrontL = frontL;   cachedS3dFrontR = frontR;
+        cachedS3dSideL = sideL;     cachedS3dSideR = sideR;
+        cachedS3dSurroundL = surroundL; cachedS3dSurroundR = surroundR;
+        for (RoomEffectsProcessor p : playerInstances) {
+            p.setSurround3dSpeakers(frontL, frontR, sideL, sideR, surroundL, surroundR);
+        }
     }
 
     public static void broadcastCrossfeedParams(float cutoffHz, float feedLevelDb) {
@@ -865,6 +921,12 @@ public class RoomEffectsProcessor extends BaseAudioProcessor {
 
     private native void nativeSetCrossfeedEnabled(long handle, boolean enabled);
     private native void nativeSetCrossfeedParams(long handle, float cutoffHz, float feedLevelDb);
+
+    private native void nativeSetSurround3dEnabled(long handle, boolean enabled);
+    private native void nativeSetSurround3dParams(long handle, float intensity, float subwoofer);
+    private native void nativeSetSurround3dSpeakers(long handle, boolean frontL, boolean frontR,
+                                                    boolean sideL, boolean sideR,
+                                                    boolean surroundL, boolean surroundR);
 
     private native void nativeSetEqEnabled(long handle, boolean enabled);
     private native void nativeSetPreampGain(long handle, float dB);

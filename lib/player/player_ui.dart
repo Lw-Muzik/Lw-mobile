@@ -462,6 +462,13 @@ class _CardDeck extends StatelessWidget {
                       );
                   if (isVideo) {
                     return GestureDetector(
+                      // Opaque, not the default `deferToChild`. When the stage
+                      // is not the surface owner it draws nothing, and a child
+                      // with no hit area meant this tap fell straight through
+                      // to the card stacked behind — whose own handler pops the
+                      // player. Tapping a video to go full screen closed the
+                      // screen instead.
+                      behavior: HitTestBehavior.opaque,
                       onTap: () => openFullscreenVideo(context),
                       onLongPress: () => showTrackInfo(context, controller),
                       child: Padding(
@@ -473,7 +480,16 @@ class _CardDeck extends StatelessWidget {
                           child: Stack(
                             fit: StackFit.expand,
                             children: [
-                              const VideoStage(host: VideoHost.card),
+                              const VideoStage(
+                                host: VideoHost.card,
+                                // Opaque, so the card cannot show the deck
+                                // through itself. Without this the stage was
+                                // transparent whenever it was not the owner
+                                // and the *next* track's card showed through,
+                                // which reads exactly like the player having
+                                // the wrong artwork.
+                                placeholder: ColoredBox(color: Colors.black),
+                              ),
                               // The only way the floating window is ever opened.
                               // It used to open itself whenever a video played
                               // and the card was not hosting it, which put an

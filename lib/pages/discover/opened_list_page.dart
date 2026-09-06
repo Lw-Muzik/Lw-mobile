@@ -49,8 +49,9 @@ class _YtOpenedListPageState extends State<YtOpenedListPage> {
       });
       // Resolve the top of the list while the user is still reading it, so the
       // tap that follows costs nothing.
-      YtMusicRepository.instance
-          .prefetchAudio([for (final track in list.tracks) track.videoId]);
+      YtMusicRepository.instance.prefetchAudio([
+        for (final track in list.tracks) track.videoId,
+      ]);
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -77,7 +78,9 @@ class _YtOpenedListPageState extends State<YtOpenedListPage> {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
-                    fontSize: 15, fontWeight: FontWeight.w700),
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
               background: _Header(
                 item: widget.item,
@@ -122,16 +125,20 @@ class _YtOpenedListPageState extends State<YtOpenedListPage> {
                       icon: const Icon(Icons.play_arrow_rounded, size: 20),
                       label: const Text('Play all'),
                     ),
+                    const SizedBox(width: 8),
+                    OutlinedButton.icon(
+                      onPressed: () => startPlaylistDownload(context, tracks),
+                      icon: const Icon(Icons.download_rounded, size: 20),
+                      label: const Text('Download'),
+                    ),
                     const SizedBox(width: 10),
                     Text(
                       '${tracks.length} '
                       '${tracks.length == 1 ? "track" : "tracks"}',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: Theme.of(context)
-                                .colorScheme
-                                .onSurface
-                                .withValues(alpha: 0.5),
-                          ),
+                        color: Theme.of(context).colorScheme.onSurface
+                            .withValues(alpha: 0.5),
+                      ),
                     ),
                   ],
                 ),
@@ -181,10 +188,7 @@ class _Header extends StatelessWidget {
         // The art doubles as the backdrop, blurred behind its own scrim, so the
         // header needs no second image and no second download.
         if (artwork != null)
-          Opacity(
-            opacity: 0.35,
-            child: YtArtwork(url: artwork, size: 400),
-          ),
+          Opacity(opacity: 0.35, child: YtArtwork(url: artwork, size: 400)),
         DecoratedBox(
           decoration: BoxDecoration(
             gradient: LinearGradient(
@@ -224,8 +228,9 @@ class _Header extends StatelessWidget {
                           artist,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.bodyMedium
-                              ?.copyWith(fontWeight: FontWeight.w600),
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
                         )
                       else if (item.subtitle case final subtitle?)
                         Text(
@@ -233,8 +238,9 @@ class _Header extends StatelessWidget {
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                           style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurface
-                                .withValues(alpha: 0.6),
+                            color: theme.colorScheme.onSurface.withValues(
+                              alpha: 0.6,
+                            ),
                           ),
                         ),
                     ],

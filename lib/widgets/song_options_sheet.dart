@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 
 import '/helpers/channel.dart';
 import '/controllers/app_controller.dart';
+import '/controllers/library_controller.dart';
 import '/data/library_repository.dart';
 import '/models/recognition_result.dart';
 import '/pages/album_songs.dart';
@@ -35,6 +36,59 @@ class _SongOptionsSheetState extends State<SongOptionsSheet> {
   bool get _hasAlbum {
     final a = widget.song.album;
     return a != null && a.trim().isNotEmpty;
+  }
+
+  /// Deletes the track's file, then the row.
+  ///
+  /// # Order matters
+  ///
+  /// The file goes first and the library row only follows if it actually went.
+  /// On Android 11+ the delete can be refused — the system asks the user, and
+  /// they can say no — and on iOS a track owned by the Music app lives outside
+  /// this sandbox and cannot be touched at all. Dropping the row first would
+  /// make a refused delete look like a success until the next scan put the
+  /// track back, which is the sort of thing that reads as data loss.
+  Future<void> _confirmDelete() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final library = context.read<LibraryController>();
+    final path = widget.song.data;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog.adaptive(
+        title: const Text('Delete this track?'),
+        content: Text(
+          '"${widget.song.title}" will be removed from this device. '
+          'This cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    if (!mounted) return;
+    Navigator.pop(context);
+
+    final deleted = await Channel.deleteAudio(path);
+    if (deleted) await library.rescan();
+    messenger.showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        content: Text(
+          deleted
+              ? 'Deleted "${widget.song.title}"'
+              : 'Could not delete that track',
+        ),
+      ),
+    );
   }
 
   Future<void> _goToArtist() async {
@@ -192,6 +246,20 @@ class _SongOptionsSheetState extends State<SongOptionsSheet> {
             },
           ),
 
+          // Delete from device
+          ListTile(
+            leading: Icon(
+              Icons.delete_outline_rounded,
+              color: Theme.of(context).colorScheme.error,
+            ),
+            title: Text(
+              'Delete from device',
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+            subtitle: const Text('Removes the file, not just the listing'),
+            onTap: _confirmDelete,
+          ),
+
           // Go to artist
           if (_hasArtist)
             ListTile(
@@ -335,9 +403,8 @@ class _SongOptionsSheetState extends State<SongOptionsSheet> {
       if (tagMap.isEmpty) {
         if (!mounted) return;
         setState(() => _applying = false);
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text("No tags to write")));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text("No tags to write")));
         return;
       }
 
@@ -399,9 +466,8 @@ class _SongOptionsSheetState extends State<SongOptionsSheet> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _applying = false);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("Failed to write tags")));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text("Failed to write tags")));
     }
   }
 }

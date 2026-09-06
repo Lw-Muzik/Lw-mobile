@@ -36,16 +36,20 @@ Future<void> showVideoQualitySheet(BuildContext context, VideoOutput video) {
                 padding: const EdgeInsets.fromLTRB(20, 18, 20, 6),
                 child: Row(
                   children: [
-                    Text('Quality',
-                        style: theme.textTheme.titleSmall
-                            ?.copyWith(fontWeight: FontWeight.w700)),
+                    Text(
+                      'Quality',
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                     const Spacer(),
                     if (state.hasVideo)
                       Text(
                         '${state.width}×${state.height} now',
                         style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurface
-                              .withValues(alpha: 0.55),
+                          color: theme.colorScheme.onSurface.withValues(
+                            alpha: 0.55,
+                          ),
                         ),
                       ),
                   ],
@@ -86,8 +90,9 @@ Future<void> showVideoQualitySheet(BuildContext context, VideoOutput video) {
                   child: Text(
                     'This one is offered at a single quality.',
                     style: theme.textTheme.bodySmall?.copyWith(
-                      color:
-                          theme.colorScheme.onSurface.withValues(alpha: 0.55),
+                      color: theme.colorScheme.onSurface.withValues(
+                        alpha: 0.55,
+                      ),
                     ),
                   ),
                 ),

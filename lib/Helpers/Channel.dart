@@ -300,6 +300,51 @@ class Channel {
     });
   }
 
+  // ==================== 3D Surround ====================
+  //
+  // A port of the desktop stage (crates/hm-dsp/src/surround3d.rs). Both
+  // platforms answer these three names with the same C++ underneath, so
+  // nothing here needs to know which one it is talking to.
+
+  /// Turn the virtual speaker ring on or off.
+  static Future<void> dspSetSurround3dEnabled(bool enabled) async {
+    await _invoke("dspSetSurround3dEnabled", {"enabled": enabled});
+  }
+
+  /// [intensity] is the dry/wet mix (0–1); [subwoofer] the LFE level (0–1).
+  static Future<void> dspSetSurround3dParams(
+    double intensity,
+    double subwoofer,
+  ) async {
+    await _invoke("dspSetSurround3dParams", {
+      "intensity": intensity,
+      "subwoofer": subwoofer,
+    });
+  }
+
+  /// Which speakers in the ring are switched on.
+  ///
+  /// Switching a side ("tweeter") off folds its highs back into the front
+  /// speaker rather than dropping them, so the result is a different image, not
+  /// a duller one.
+  static Future<void> dspSetSurround3dSpeakers({
+    required bool frontL,
+    required bool frontR,
+    required bool sideL,
+    required bool sideR,
+    required bool surroundL,
+    required bool surroundR,
+  }) async {
+    await _invoke("dspSetSurround3dSpeakers", {
+      "frontL": frontL,
+      "frontR": frontR,
+      "sideL": sideL,
+      "sideR": sideR,
+      "surroundL": surroundL,
+      "surroundR": surroundR,
+    });
+  }
+
   // ==================== Tone Controls (Bass/Treble) ====================
 
   /// Enable/disable tone controls (independent bass/treble shelf filters)
@@ -402,8 +447,24 @@ class Channel {
     await _invoke("expandRatio", {"expandRatio": expandRatio});
   }
 
-  static void deleteManager(String path) async {
-    await _invoke("deleteManager", {"filePath": path});
+  /// Deletes a FOLDER and everything in it. Returns whether it worked.
+  ///
+  /// Used to be `void` over a native handler that never answered, so the future
+  /// never completed and no caller could tell success from failure.
+  static Future<bool> deleteManager(String path) async {
+    final ok = await _invoke<bool>("deleteManager", {"filePath": path});
+    return ok ?? false;
+  }
+
+  /// Deletes ONE track from the device. Returns whether the file is now gone.
+  ///
+  /// On Android 11+ a track the app did not write needs the user's consent, so
+  /// this can show a system dialog and only completes once they answer — false
+  /// means they declined or it failed, and the caller must not remove the track
+  /// from the library on that answer.
+  static Future<bool> deleteAudio(String path) async {
+    final ok = await _invoke<bool>("deleteAudio", {"filePath": path});
+    return ok ?? false;
   }
 
   // ==================== 32-Band Graphic EQ (Pre-EQ) ====================

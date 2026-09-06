@@ -60,6 +60,82 @@ public class MainActivity extends AudioServiceFragmentActivity {
     private int pipWidth = 16;
     private int pipHeight = 9;
 
+    /// Whether the transport is playing, so the floating window's button shows
+    /// the action it will perform rather than the state it is in.
+    private boolean pipPlaying = true;
+
+    /// The broadcast the floating window's buttons send back to us.
+    ///
+    /// PiP actions are PendingIntents fired by the system, not callbacks: the
+    /// window is drawn by SystemUI and the app is not on screen, so a tap has
+    /// to travel back in as an Intent. Kept package-private on purpose — an
+    /// exported receiver here would let any app drive playback.
+    private static final String PIP_ACTION = "x.a.zix.PIP_CONTROL";
+    private static final String PIP_EXTRA = "control";
+
+    private BroadcastReceiver pipReceiver;
+
+    /**
+     * The buttons the floating window shows.
+     *
+     * Without these the window is a picture and nothing else: once the app is
+     * off screen there is no way to pause, and the only way to skip a track is
+     * to bring the whole app back. Android's own media apps all carry these
+     * three, and their absence is the difference between a video that floats
+     * and a video the user can still operate.
+     */
+    private java.util.List<android.app.RemoteAction> pipActions() {
+        java.util.List<android.app.RemoteAction> actions = new java.util.ArrayList<>();
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.O) {
+            return actions;
+        }
+        actions.add(pipAction(
+                android.R.drawable.ic_media_previous, "Previous", "previous", 1));
+        actions.add(pipAction(
+                pipPlaying ? android.R.drawable.ic_media_pause
+                        : android.R.drawable.ic_media_play,
+                pipPlaying ? "Pause" : "Play",
+                pipPlaying ? "pause" : "play",
+                2));
+        actions.add(pipAction(
+                android.R.drawable.ic_media_next, "Next", "next", 3));
+        return actions;
+    }
+
+    private android.app.RemoteAction pipAction(
+            int icon, String title, String control, int requestCode) {
+        Intent intent = new Intent(PIP_ACTION)
+                .setPackage(getPackageName())
+                .putExtra(PIP_EXTRA, control);
+        // A distinct requestCode per action: PendingIntents with equal request
+        // codes and matching Intents are the SAME object, so reusing one would
+        // make every button do whatever the last one registered.
+        PendingIntent pending = PendingIntent.getBroadcast(
+                this,
+                requestCode,
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        return new android.app.RemoteAction(
+                android.graphics.drawable.Icon.createWithResource(this, icon),
+                title,
+                title,
+                pending);
+    }
+
+    /** Redraws the window's buttons, for when play becomes pause. */
+    private void refreshPipActions() {
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.O) return;
+        if (!isInPictureInPictureMode()) return;
+        try {
+            setPictureInPictureParams(new android.app.PictureInPictureParams.Builder()
+                    .setAspectRatio(clampRatio(pipWidth, pipHeight))
+                    .setActions(pipActions())
+                    .build());
+        } catch (IllegalStateException | IllegalArgumentException e) {
+            android.util.Log.w("MainActivity", "PiP refresh refused: " + e.getMessage());
+        }
+    }
+
     private boolean supportsPip() {
         return android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O
                 && getPackageManager().hasSystemFeature(
@@ -82,6 +158,7 @@ public class MainActivity extends AudioServiceFragmentActivity {
                 android.app.PictureInPictureParams params =
                         new android.app.PictureInPictureParams.Builder()
                                 .setAspectRatio(ratio)
+                                .setActions(pipActions())
                                 .build();
                 return enterPictureInPictureMode(params);
             }
@@ -103,6 +180,21 @@ public class MainActivity extends AudioServiceFragmentActivity {
         // Scaled to integers because Rational takes them, and 1000 is plenty of
         // precision for a window a few centimetres across.
         return new android.util.Rational((int) Math.round(ratio * 1000), 1000);
+    }
+
+    @Override
+    protected void onDestroy() {
+        // A receiver registered against the Activity outlives it if nobody says
+        // otherwise, and Android logs that as a leak on every rotation.
+        if (pipReceiver != null) {
+            try {
+                unregisterReceiver(pipReceiver);
+            } catch (IllegalArgumentException e) {
+                // Already gone. Nothing to undo.
+            }
+            pipReceiver = null;
+        }
+        super.onDestroy();
     }
 
     @Override
@@ -136,6 +228,9 @@ public class MainActivity extends AudioServiceFragmentActivity {
 
     // Scoped-storage write state
     private ActivityResultLauncher<IntentSenderRequest> writeRequestLauncher;
+    private ActivityResultLauncher<IntentSenderRequest> deleteRequestLauncher;
+    private MethodChannel.Result pendingDeleteResult;
+    private String pendingDeletePath;
     private MethodChannel.Result pendingWriteResult;
     private Uri pendingWriteUri;
     private File pendingModifiedFile;
@@ -149,6 +244,41 @@ public class MainActivity extends AudioServiceFragmentActivity {
         // Initialize AudioProcessor singletons so just_audio can discover them
         RoomEffectsProcessor.getInstance();
         VisualizerTapProcessor.getInstance();
+
+        // The floating window's buttons come back as broadcasts. Registered
+        // NOT_EXPORTED so only this app can send them: an exported receiver
+        // would hand any installed app control of playback.
+        pipReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                if (intent == null || !PIP_ACTION.equals(intent.getAction())) return;
+                final String control = intent.getStringExtra(PIP_EXTRA);
+                if (control == null || pipChannel == null) return;
+                pipChannel.invokeMethod("control", control);
+            }
+        };
+        android.content.IntentFilter pipFilter = new android.content.IntentFilter(PIP_ACTION);
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(pipReceiver, pipFilter, Context.RECEIVER_NOT_EXPORTED);
+        } else {
+            registerReceiver(pipReceiver, pipFilter);
+        }
+
+        // Deleting a track the app does not own needs the user's consent on
+        // Android 11+, and the consent arrives as an Activity result rather
+        // than a return value — hence the pending fields.
+        deleteRequestLauncher = registerForActivityResult(
+                new ActivityResultContracts.StartIntentSenderForResult(),
+                activityResult -> {
+                    if (pendingDeleteResult == null) return;
+                    final boolean ok = activityResult.getResultCode() == Activity.RESULT_OK;
+                    if (ok && pendingDeletePath != null) {
+                        TagWriter.scanFile(getApplicationContext(), pendingDeletePath);
+                    }
+                    pendingDeleteResult.success(ok);
+                    pendingDeleteResult = null;
+                    pendingDeletePath = null;
+                });
 
         // Register launcher for MediaStore write-permission dialog (Android 11+)
         writeRequestLauncher = registerForActivityResult(
@@ -282,6 +412,19 @@ public class MainActivity extends AudioServiceFragmentActivity {
                     }
                 });
 
+        // The MediaStore importer, on THIS engine as well as the background one.
+        //
+        // It was reachable only from the flutter_foreground_task engine, which
+        // hosts the sharing server's `POST /upload`. But a YouTube download runs
+        // on the UI engine, so `NativeMediaStore.importAudio` found no handler
+        // there and threw MissingPluginException — the file downloaded, the
+        // library insert failed, and the track appeared nowhere. Attaching the
+        // same handler here costs one channel and is what makes a download
+        // land in the phone's music library.
+        HypeMediaStoreChannel.attach(
+                flutterEngine.getDartExecutor().getBinaryMessenger(),
+                getApplicationContext());
+
         // Picture-in-picture.
         //
         // Flutter draws the whole app into one window, so entering PiP shrinks
@@ -299,6 +442,15 @@ public class MainActivity extends AudioServiceFragmentActivity {
                     final Integer width = call.argument("width");
                     final Integer height = call.argument("height");
                     result.success(enterPip(width, height));
+                    break;
+                }
+                case "setPlaying": {
+                    // Only the buttons change, never the mode: calling this
+                    // while not in PiP is a no-op inside refreshPipActions.
+                    final Boolean playing = call.argument("playing");
+                    pipPlaying = playing == null || playing;
+                    refreshPipActions();
+                    result.success(null);
                     break;
                 }
                 case "setAutoEnter": {
@@ -641,22 +793,95 @@ public class MainActivity extends AudioServiceFragmentActivity {
                             short g = ReverbEngine.getPreset();
                             result.success(((short) g));
                             break;
-                        case "deleteManager":
+                        case "deleteManager": {
                             String operation = call.argument("filePath");
-                            assert operation != null;
+                            if (operation == null) {
+                                result.success(false);
+                                break;
+                            }
                             File f = new File(operation);
+                            boolean folderOk = false;
                             if (f.exists() && f.isDirectory()) {
-                                // Use a recursive method to delete the folder and its contents
-                                if (DeleteManager.deleteFolder(f)) {
-                                    showMessage(String.format("%s deleted successfully.",
-                                            operation.split("/")[operation.split("/").length - 1]));
-                                } else {
-                                    showMessage("Failed to delete the folder.");
-                                }
+                                folderOk = DeleteManager.deleteFolder(f);
+                                showMessage(folderOk
+                                        ? String.format("%s deleted successfully.",
+                                                operation.split("/")[
+                                                        operation.split("/").length - 1])
+                                        : "Failed to delete the folder.");
                             } else {
                                 showMessage("Folder does not exist or is not a directory.");
                             }
+                            // Previously this returned nothing at all, so the Dart
+                            // future never completed and every caller awaited a
+                            // delete that had already happened.
+                            result.success(folderOk);
                             break;
+                        }
+
+                        // Deleting ONE track.
+                        //
+                        // `deleteManager` above only ever handled directories, so a
+                        // track path fell into its else branch and reported that a
+                        // folder did not exist. This is the per-track path, and it
+                        // has to respect scoped storage: from Android 11 a file the
+                        // app did not create cannot simply be unlinked, and
+                        // File.delete() returns false without saying why.
+                        case "deleteAudio": {
+                            final String delPath = call.argument("filePath");
+                            if (delPath == null) {
+                                result.success(false);
+                                break;
+                            }
+                            final File df = new File(delPath);
+
+                            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+                                boolean ok = df.delete();
+                                if (ok) TagWriter.scanFile(getApplicationContext(), delPath);
+                                result.success(ok);
+                                break;
+                            }
+
+                            final Uri delUri =
+                                    LyricsManager.getMediaUri(getContentResolver(), delPath);
+                            if (delUri == null) {
+                                // Not in MediaStore — an app-private file, such as one
+                                // of our own downloads before it is published. Ours to
+                                // remove without ceremony.
+                                boolean ok = df.delete();
+                                result.success(ok);
+                                break;
+                            }
+
+                            // Rows this app inserted itself delete without a prompt.
+                            // Try that first so a downloaded track does not ask the
+                            // user for permission to remove what the app just wrote.
+                            try {
+                                int rows = getContentResolver().delete(delUri, null, null);
+                                if (rows > 0) {
+                                    result.success(true);
+                                    break;
+                                }
+                            } catch (SecurityException needsConsent) {
+                                // Someone else's file: fall through and ask.
+                            }
+
+                            try {
+                                pendingDeleteResult = result;
+                                pendingDeletePath = delPath;
+                                PendingIntent dpi = MediaStore.createDeleteRequest(
+                                        getContentResolver(),
+                                        Collections.singletonList(delUri));
+                                deleteRequestLauncher.launch(new IntentSenderRequest.Builder(
+                                        dpi.getIntentSender()).build());
+                            } catch (Exception e) {
+                                pendingDeleteResult = null;
+                                pendingDeletePath = null;
+                                android.util.Log.w("MainActivity",
+                                        "delete request failed: " + e.getMessage());
+                                result.success(false);
+                            }
+                            break;
+                        }
                         case "showNativeMessage":
                             String message = call.argument("message");
                             showMessage(message);
@@ -726,6 +951,33 @@ public class MainActivity extends AudioServiceFragmentActivity {
                             double cutoff = call.argument("cutoff");
                             double feed = call.argument("feed");
                             RoomEffectsProcessor.broadcastCrossfeedParams((float) cutoff, (float) feed);
+                            result.success(null);
+                            break;
+                        }
+
+                        // ==================== 3D Surround ====================
+                        case "dspSetSurround3dEnabled": {
+                            boolean en = call.argument("enabled");
+                            RoomEffectsProcessor.broadcastSurround3dEnabled(en);
+                            result.success(null);
+                            break;
+                        }
+                        case "dspSetSurround3dParams": {
+                            double intensity = call.argument("intensity");
+                            double subwoofer = call.argument("subwoofer");
+                            RoomEffectsProcessor.broadcastSurround3dParams(
+                                    (float) intensity, (float) subwoofer);
+                            result.success(null);
+                            break;
+                        }
+                        case "dspSetSurround3dSpeakers": {
+                            RoomEffectsProcessor.broadcastSurround3dSpeakers(
+                                    Boolean.TRUE.equals(call.argument("frontL")),
+                                    Boolean.TRUE.equals(call.argument("frontR")),
+                                    Boolean.TRUE.equals(call.argument("sideL")),
+                                    Boolean.TRUE.equals(call.argument("sideR")),
+                                    Boolean.TRUE.equals(call.argument("surroundL")),
+                                    Boolean.TRUE.equals(call.argument("surroundR")));
                             result.success(null);
                             break;
                         }

@@ -215,6 +215,27 @@ void dsp_set_crossfeed_params(void* handle, float cutoffHz, float feedLevelDb) {
     if (handle) static_cast<RoomDSPEngine*>(handle)->setCrossfeedParams(cutoffHz, feedLevelDb);
 }
 
+void dsp_set_surround3d_enabled(void* handle, bool enabled) {
+    if (handle) static_cast<RoomDSPEngine*>(handle)->setSurround3dEnabled(enabled);
+}
+
+void dsp_set_surround3d_params(void* handle, float intensity, float subwoofer) {
+    if (handle) {
+        auto* e = static_cast<RoomDSPEngine*>(handle);
+        e->setSurround3dIntensity(intensity);
+        e->setSurround3dSubwoofer(subwoofer);
+    }
+}
+
+void dsp_set_surround3d_speakers(void* handle, bool frontL, bool frontR,
+                                 bool sideL, bool sideR,
+                                 bool surroundL, bool surroundR) {
+    if (handle) {
+        static_cast<RoomDSPEngine*>(handle)->setSurround3dSpeakers(
+            frontL, frontR, sideL, sideR, surroundL, surroundR);
+    }
+}
+
 // Stem mixer
 void dsp_set_stem_mode_active(void* handle, bool active) {
     if (handle) static_cast<RoomDSPEngine*>(handle)->setStemModeActive(active);

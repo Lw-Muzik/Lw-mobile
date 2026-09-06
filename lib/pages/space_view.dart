@@ -1,4 +1,5 @@
 import '/controllers/app_controller.dart';
+
 import 'package:eq_app/models/room_preset.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -21,6 +22,70 @@ class _SpaceViewState extends State<SpaceView> {
     return ListView(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       children: [
+        // =============== 3D SURROUND ===============
+        // A port of the desktop stage: six virtual speakers rendered
+        // binaurally, not a widening effect. See surround3d.h for why every
+        // constant matches desktop's.
+        const SettingsHeader(title: "3D SURROUND"),
+        const SizedBox(height: 8),
+        FancyCard(
+          isFancy: controller.isFancy,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SwitchListTile.adaptive(
+                title: const Text("3D Surround"),
+                subtitle: Text(
+                  controller.surround3dEnabled
+                      ? "Virtual speaker ring — headphones"
+                      : "Disabled",
+                ),
+                value: controller.surround3dEnabled,
+                onChanged: (v) => controller.surround3dEnabled = v,
+              ),
+              if (controller.surround3dEnabled) ...[
+                _SurroundRing(controller: controller),
+                _buildReverbSlider(
+                  context,
+                  label: "Intensity",
+                  leftLabel: "Subtle",
+                  rightLabel: "Full",
+                  value: controller.surround3dIntensity,
+                  min: 0.0,
+                  max: 1.0,
+                  displayValue:
+                      "${(controller.surround3dIntensity * 100).round()}%",
+                  onChanged: (v) => controller.surround3dIntensity = v,
+                ),
+                _buildReverbSlider(
+                  context,
+                  label: "Subwoofer",
+                  leftLabel: "Off",
+                  rightLabel: "Deep",
+                  value: controller.surround3dSubwoofer,
+                  min: 0.0,
+                  max: 1.0,
+                  displayValue:
+                      "${(controller.surround3dSubwoofer * 100).round()}%",
+                  onChanged: (v) => controller.surround3dSubwoofer = v,
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                  child: Text(
+                    "Best on headphones. Turning a side speaker off folds its "
+                    "highs back into the front, so the image changes without "
+                    "losing treble.",
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
+
         // =============== ROOM REVERB ===============
         const SettingsHeader(title: "ROOM REVERB"),
         const SizedBox(height: 8),
@@ -805,6 +870,158 @@ class _CrossfeedPresetChip extends StatelessWidget {
         fontSize: 13,
       ),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+    );
+  }
+}
+
+/// The speaker ring, laid out the way they sit around the listener.
+///
+/// The desktop panel draws this as an SVG radial diagram in a modal. On a phone
+/// a modal for six toggles is a detour, so the same six sit in the card at
+/// their real angles — front pair at the top, sides at the edges, surrounds at
+/// the bottom — which is the part of the desktop diagram that carries meaning.
+class _SurroundRing extends StatelessWidget {
+  final AppController controller;
+
+  const _SurroundRing({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _SpeakerChip(
+                label: 'Front L',
+                on: controller.s3dFrontL,
+                onTap: () => controller.setSurroundSpeaker(
+                  'frontL',
+                  !controller.s3dFrontL,
+                ),
+              ),
+              const SizedBox(width: 10),
+              _SpeakerChip(
+                label: 'Front R',
+                on: controller.s3dFrontR,
+                onTap: () => controller.setSurroundSpeaker(
+                  'frontR',
+                  !controller.s3dFrontR,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _SpeakerChip(
+                label: 'Side L',
+                on: controller.s3dSideL,
+                onTap: () => controller.setSurroundSpeaker(
+                  'sideL',
+                  !controller.s3dSideL,
+                ),
+              ),
+              Icon(
+                Icons.person_rounded,
+                size: 20,
+                color: Theme.of(context).colorScheme.onSurface
+                    .withValues(alpha: 0.35),
+              ),
+              _SpeakerChip(
+                label: 'Side R',
+                on: controller.s3dSideR,
+                onTap: () => controller.setSurroundSpeaker(
+                  'sideR',
+                  !controller.s3dSideR,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _SpeakerChip(
+                label: 'Rear L',
+                on: controller.s3dSurroundL,
+                onTap: () => controller.setSurroundSpeaker(
+                  'surroundL',
+                  !controller.s3dSurroundL,
+                ),
+              ),
+              const SizedBox(width: 10),
+              _SpeakerChip(
+                label: 'Rear R',
+                on: controller.s3dSurroundR,
+                onTap: () => controller.setSurroundSpeaker(
+                  'surroundR',
+                  !controller.s3dSurroundR,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SpeakerChip extends StatelessWidget {
+  final String label;
+  final bool on;
+  final VoidCallback onTap;
+
+  const _SpeakerChip({
+    required this.label,
+    required this.on,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final accent = theme.colorScheme.primary;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          color: on ? accent.withValues(alpha: 0.18) : Colors.transparent,
+          border: Border.all(
+            color: on
+                ? accent.withValues(alpha: 0.7)
+                : theme.colorScheme.onSurface.withValues(alpha: 0.2),
+          ),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              on ? Icons.volume_up_rounded : Icons.volume_off_rounded,
+              size: 15,
+              color: on
+                  ? accent
+                  : theme.colorScheme.onSurface.withValues(alpha: 0.45),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: on
+                    ? accent
+                    : theme.colorScheme.onSurface.withValues(alpha: 0.55),
+                fontWeight: on ? FontWeight.w600 : FontWeight.w400,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

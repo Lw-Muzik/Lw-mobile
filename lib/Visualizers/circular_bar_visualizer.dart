@@ -18,18 +18,18 @@ class CircularBarVisualizer extends CustomPainter {
   final int gap;
   double radius = -1;
 
-  CircularBarVisualizer(
-      {required this.waveData,
-      required this.height,
-      required this.width,
-      required this.color,
-      this.density = 100,
-      this.gap = 2})
-      : wavePaint = Paint()
-          ..color = color!.withValues(alpha: 1.0)
-          ..style = PaintingStyle.stroke,
-        assert(height != null),
-        assert(width != null);
+  CircularBarVisualizer({
+    required this.waveData,
+    required this.height,
+    required this.width,
+    required this.color,
+    this.density = 100,
+    this.gap = 2,
+  }) : wavePaint = Paint()
+         ..color = color!.withValues(alpha: 1.0)
+         ..style = PaintingStyle.stroke,
+       assert(height != null),
+       assert(width != null);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -48,8 +48,8 @@ class CircularBarVisualizer extends CustomPainter {
 
       for (int i = 0; i < 150; i++, angle += 3) {
         int x = (i * 2.5).ceil();
-        int t =
-            (((-(waveData[x]).abs() + 125)) * (getHeight() / 4) ~/ 128).abs();
+        int t = (((-(waveData[x]).abs() + 125)) * (getHeight() / 4) ~/ 128)
+            .abs();
 
         points![i * 4] = getWidth() / 2 + radius * cos(radians(angle));
 

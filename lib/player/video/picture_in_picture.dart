@@ -39,6 +39,14 @@ class PictureInPicture {
   /// Whether the app is currently a floating window.
   final ValueNotifier<bool> isActive = ValueNotifier<bool>(false);
 
+  /// Called when the user taps a button on the floating window.
+  ///
+  /// The window is drawn by SystemUI while this app is off screen, so its
+  /// buttons cannot call into Dart directly — they fire PendingIntents that
+  /// come back through the platform channel as `control`. Whoever owns the
+  /// transport sets this; the value is `play`, `pause`, `next` or `previous`.
+  void Function(String control)? onControl;
+
   bool _supported = false;
   bool _wired = false;
 
@@ -55,6 +63,9 @@ class PictureInPicture {
     _channel.setMethodCallHandler((call) async {
       if (call.method == 'changed') {
         isActive.value = call.arguments == true;
+      } else if (call.method == 'control') {
+        final control = call.arguments;
+        if (control is String) onControl?.call(control);
       }
       return null;
     });
@@ -72,11 +83,7 @@ class PictureInPicture {
   ///
   /// Called whenever a video starts, stops or changes size — not at the moment
   /// of leaving, which is too late to ask.
-  Future<void> setAutoEnter({
-    required bool on,
-    int? width,
-    int? height,
-  }) async {
+  Future<void> setAutoEnter({required bool on, int? width, int? height}) async {
     if (!_supported) return;
     try {
       await _channel.invokeMethod<void>('setAutoEnter', {
@@ -86,6 +93,22 @@ class PictureInPicture {
       });
     } on PlatformException {
       // Nothing to do about it; the video simply will not float.
+    } on MissingPluginException {
+      // As above.
+    }
+  }
+
+  /// Tells the floating window whether the transport is playing.
+  ///
+  /// Its middle button has to offer the action it will *perform*, so a paused
+  /// video must show play. Nothing else about the window changes, and calling
+  /// this while not floating is harmless.
+  Future<void> setPlaying(bool playing) async {
+    if (!_supported) return;
+    try {
+      await _channel.invokeMethod<void>('setPlaying', {'playing': playing});
+    } on PlatformException {
+      // The buttons keep whatever they last showed.
     } on MissingPluginException {
       // As above.
     }

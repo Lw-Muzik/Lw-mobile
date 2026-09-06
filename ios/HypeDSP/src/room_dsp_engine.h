@@ -6,6 +6,7 @@
 #include "fdn_reverb.h"
 #include "stereo_expander.h"
 #include "crossfeed.h"
+#include "surround3d.h"
 #include "stem_mixer.h"
 #include <atomic>
 
@@ -14,7 +15,7 @@
 // Processing chain:
 //   [Preamp] -> [Speaker Correction EQ] -> [Graphic EQ 32-band]
 //   -> [Parametric EQ 32-band] -> [Tone Controls (Bass/Treble)]
-//   -> [MBC 10-band] -> [Stereo Expander] -> [Crossfeed]
+//   -> [MBC 10-band] -> [Stereo Expander] -> [Crossfeed] -> [3D Surround]
 //   -> [FDN Reverb] -> [Output Limiter] -> Output
 //
 // Key design decisions:
@@ -116,6 +117,26 @@ public:
         crossfeed_.configure(cutoffHz, feedLevelDb);
     }
 
+    // 3D Surround controls — a port of the desktop stage (see surround3d.h).
+    // Placed after Crossfeed for the same reason desktop places it after the
+    // Spatializer: it renders a whole virtual speaker ring, so anything that
+    // merely widens or crossfeeds the stereo pair belongs upstream of it.
+    void setSurround3dEnabled(bool enabled) {
+        surround3dEnabled_.store(enabled);
+        surround3d_.setEnabled(enabled);
+    }
+    void setSurround3dIntensity(float v)    { surround3d_.setIntensity(v); }
+    void setSurround3dSubwoofer(float v)    { surround3d_.setSubwoofer(v); }
+    void setSurround3dSpeakers(bool frontL, bool frontR, bool sideL,
+                               bool sideR, bool surroundL, bool surroundR) {
+        hype::SurroundSpeakers sp;
+        sp.frontL = frontL;   sp.frontR = frontR;
+        sp.sideL = sideL;     sp.sideR = sideR;
+        sp.surroundL = surroundL; sp.surroundR = surroundR;
+        surround3d_.setSpeakers(sp);
+    }
+    bool isSurround3dEnabled() const        { return surround3dEnabled_.load(); }
+
     bool isReverbEnabled() const            { return reverbEnabled_.load(); }
     bool isStereoExpandEnabled() const      { return stereoExpandEnabled_.load(); }
     bool isCrossfeedEnabled() const         { return crossfeedEnabled_.load(); }
@@ -165,10 +186,12 @@ private:
     FDNReverb reverb_;
     StereoExpander stereoExpander_;
     Crossfeed crossfeed_;
+    hype::Surround3D surround3d_;
 
     std::atomic<bool> reverbEnabled_{false};
     std::atomic<bool> stereoExpandEnabled_{false};
     std::atomic<bool> crossfeedEnabled_{false};
+    std::atomic<bool> surround3dEnabled_{false};
 
     int sampleRate_;
     int channels_;

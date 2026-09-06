@@ -7,8 +7,13 @@
 /// the shared music tree directly: the app targets SDK 36 and is fully under
 /// scoped storage, where inserting a `MediaStore.Audio.Media` row is the only
 /// sanctioned way in. That insert doubles as the registration, so a downloaded
-/// track appears in the app's own Library with no separate scan. Elsewhere it
-/// stays in app documents, which is the only place this app can write.
+/// track appears in the app's own Library with no separate scan.
+///
+/// On iOS there is no equivalent: `MPMediaLibrary` will not accept an arbitrary
+/// file, so the track goes to `Documents/Music` — the directory
+/// [LocalMusicScanner] walks and merges into the library, and which
+/// `UIFileSharingEnabled` also exposes in Files. Both platforms therefore end
+/// with the track in the app's Library; only the mechanism differs.
 library;
 
 import 'dart:async';
@@ -16,6 +21,7 @@ import 'dart:io';
 
 import 'package:path_provider/path_provider.dart';
 
+import '../local_music_scanner.dart';
 import '../native_media_store.dart';
 import 'yt_models.dart';
 import 'yt_repository.dart';
@@ -60,7 +66,14 @@ class YtDownloader {
         track.videoId,
       );
 
-      final directory = await getApplicationDocumentsDirectory();
+      // Android stages in app documents and publishes to MediaStore below.
+      // iOS has nowhere to publish to, so it writes straight into the one
+      // directory the library actually scans — writing to the Documents root
+      // instead would leave the track invisible until something else happened
+      // to rescan.
+      final directory = Platform.isIOS
+          ? await LocalMusicScanner.getMusicDirectory()
+          : await getApplicationDocumentsDirectory();
       final name = _fileName(track);
       // Downloaded to a `.part` first so a cancelled or failed transfer can
       // never be mistaken for a complete track — by this app or by MediaStore.
@@ -118,6 +131,35 @@ class YtDownloader {
       client?.close(force: true);
       if (partial != null) await _deleteQuietly(partial);
     }
+  }
+
+  /// Downloads a whole list, one track at a time.
+  ///
+  /// # Why sequential
+  ///
+  /// Each track needs its own resolved stream URL, and resolving is the part
+  /// YouTube rate-limits. Downloading four at once turns one slow playlist into
+  /// four failed ones, and the bytes arrive no faster on a phone's connection
+  /// anyway. [onTrack] reports `(index, total, title)` as each begins so the
+  /// caller can say which one, and [onProgress] is that track's own fraction.
+  ///
+  /// A failure does not stop the run: one dead video should not cost the other
+  /// forty-nine. The returned list is per-track and in order, so the caller can
+  /// say exactly how many landed.
+  static Future<List<YtDownloadResult>> downloadAll(
+    List<YtTrack> tracks, {
+    void Function(int index, int total, String title)? onTrack,
+    void Function(double fraction)? onProgress,
+    bool Function()? isCancelled,
+  }) async {
+    final results = <YtDownloadResult>[];
+    for (var i = 0; i < tracks.length; i++) {
+      if (isCancelled?.call() ?? false) break;
+      final track = tracks[i];
+      onTrack?.call(i, tracks.length, track.title);
+      results.add(await download(track, onProgress: onProgress));
+    }
+    return results;
   }
 
   /// A file name that survives every filesystem this app runs on.

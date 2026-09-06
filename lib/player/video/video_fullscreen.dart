@@ -121,18 +121,30 @@ class _VideoFullscreenPageState extends State<VideoFullscreenPage> {
   /// exists and is closed on the spot, so a later rendition change cannot
   /// rotate the phone under someone mid-watch.
   void _applyOrientation(VideoState state) {
-    if (!state.hasVideo) return;
-    _sizeSub?.cancel();
-    _sizeSub = null;
+    // Only a *measured* portrait picture keeps the phone upright. Unknown
+    // counts as landscape, which is not a guess so much as the same assumption
+    // [VideoStage] already makes when it lays out at 1600x900 for a decoder
+    // that has not reported yet.
+    //
+    // It has to work this way here, because on Android the dimensions may
+    // never arrive at all: the Dart side subscribes to
+    // `com.ryanheise.just_audio.video.<id>` before the native VideoOutput for
+    // that id exists, so the subscription dies with a MissingPluginException
+    // and `hasVideo` stays false for the life of the track. An earlier version
+    // of this method returned early in that case, which meant full screen
+    // silently stayed portrait and letterboxed every music video on the
+    // device. Waiting for a fact that never comes is not a safe default.
+    final vertical = state.hasVideo && state.height > state.width;
+    if (state.hasVideo) {
+      _sizeSub?.cancel();
+      _sizeSub = null;
+    }
     SystemChrome.setPreferredOrientations(
-      state.width >= state.height
-          ? const [
+      vertical
+          ? const [DeviceOrientation.portraitUp, DeviceOrientation.portraitDown]
+          : const [
               DeviceOrientation.landscapeLeft,
               DeviceOrientation.landscapeRight,
-            ]
-          : const [
-              DeviceOrientation.portraitUp,
-              DeviceOrientation.portraitDown,
             ],
     );
   }

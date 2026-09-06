@@ -173,6 +173,17 @@ class AppController with ChangeNotifier implements StationSink {
 
   // BS2B crossfeed
   bool _crossfeedEnabled = false;
+
+  // 3D Surround (port of the desktop stage). Defaults match the desktop panel.
+  bool _surround3dEnabled = false;
+  double _surround3dIntensity = 0.6;
+  double _surround3dSubwoofer = 0.35;
+  bool _s3dFrontL = true;
+  bool _s3dFrontR = true;
+  bool _s3dSideL = true;
+  bool _s3dSideR = true;
+  bool _s3dSurroundL = true;
+  bool _s3dSurroundR = true;
   double _crossfeedCutoff = 700.0; // Hz (100-2000)
   double _crossfeedFeed = 4.5; // dB (1-15)
 
@@ -1467,6 +1478,15 @@ class AppController with ChangeNotifier implements StationSink {
     _crossfeedEnabled = _prefs.getBool("crossfeedEnabled") ?? false;
     _crossfeedCutoff = _prefs.getDouble("crossfeedCutoff") ?? 700.0;
     _crossfeedFeed = _prefs.getDouble("crossfeedFeed") ?? 4.5;
+    _surround3dEnabled = _prefs.getBool("surround3dEnabled") ?? false;
+    _surround3dIntensity = _prefs.getDouble("surround3dIntensity") ?? 0.6;
+    _surround3dSubwoofer = _prefs.getDouble("surround3dSubwoofer") ?? 0.35;
+    _s3dFrontL = _prefs.getBool("s3dFrontL") ?? true;
+    _s3dFrontR = _prefs.getBool("s3dFrontR") ?? true;
+    _s3dSideL = _prefs.getBool("s3dSideL") ?? true;
+    _s3dSideR = _prefs.getBool("s3dSideR") ?? true;
+    _s3dSurroundL = _prefs.getBool("s3dSurroundL") ?? true;
+    _s3dSurroundR = _prefs.getBool("s3dSurroundR") ?? true;
     // Tone controls
     _toneEnabled = _prefs.getBool("toneEnabled") ?? false;
     _bassGain = _prefs.getDouble("bassGain") ?? 0.0;
@@ -1884,6 +1904,73 @@ class AppController with ChangeNotifier implements StationSink {
     notifyListeners();
   }
 
+  // ── 3D Surround ───────────────────────────────────────────────────────────
+
+  bool get surround3dEnabled => _surround3dEnabled;
+  set surround3dEnabled(bool v) {
+    _prefs.setBool("surround3dEnabled", v);
+    _surround3dEnabled = v;
+    Channel.dspSetSurround3dEnabled(v);
+    notifyListeners();
+  }
+
+  double get surround3dIntensity => _surround3dIntensity;
+  set surround3dIntensity(double v) {
+    _prefs.setDouble("surround3dIntensity", v);
+    _surround3dIntensity = v;
+    Channel.dspSetSurround3dParams(_surround3dIntensity, _surround3dSubwoofer);
+    notifyListeners();
+  }
+
+  double get surround3dSubwoofer => _surround3dSubwoofer;
+  set surround3dSubwoofer(double v) {
+    _prefs.setDouble("surround3dSubwoofer", v);
+    _surround3dSubwoofer = v;
+    Channel.dspSetSurround3dParams(_surround3dIntensity, _surround3dSubwoofer);
+    notifyListeners();
+  }
+
+  bool get s3dFrontL => _s3dFrontL;
+  bool get s3dFrontR => _s3dFrontR;
+  bool get s3dSideL => _s3dSideL;
+  bool get s3dSideR => _s3dSideR;
+  bool get s3dSurroundL => _s3dSurroundL;
+  bool get s3dSurroundR => _s3dSurroundR;
+
+  /// Toggle one speaker in the ring, keyed the way the desktop panel keys them.
+  void setSurroundSpeaker(String key, bool on) {
+    switch (key) {
+      case 'frontL':
+        _s3dFrontL = on;
+      case 'frontR':
+        _s3dFrontR = on;
+      case 'sideL':
+        _s3dSideL = on;
+      case 'sideR':
+        _s3dSideR = on;
+      case 'surroundL':
+        _s3dSurroundL = on;
+      case 'surroundR':
+        _s3dSurroundR = on;
+      default:
+        return;
+    }
+    _prefs.setBool('s3d${key[0].toUpperCase()}${key.substring(1)}', on);
+    _pushSurroundSpeakers();
+    notifyListeners();
+  }
+
+  void _pushSurroundSpeakers() {
+    Channel.dspSetSurround3dSpeakers(
+      frontL: _s3dFrontL,
+      frontR: _s3dFrontR,
+      sideL: _s3dSideL,
+      sideR: _s3dSideR,
+      surroundL: _s3dSurroundL,
+      surroundR: _s3dSurroundR,
+    );
+  }
+
   bool get crossfeedEnabled => _crossfeedEnabled;
   set crossfeedEnabled(bool v) {
     _prefs.setBool("crossfeedEnabled", v);
@@ -1951,6 +2038,9 @@ class AppController with ChangeNotifier implements StationSink {
     Channel.dspSetStereoWidth(_stereoWidth);
     Channel.dspSetCrossfeedEnabled(_crossfeedEnabled);
     Channel.dspSetCrossfeedParams(_crossfeedCutoff, _crossfeedFeed);
+    Channel.dspSetSurround3dEnabled(_surround3dEnabled);
+    Channel.dspSetSurround3dParams(_surround3dIntensity, _surround3dSubwoofer);
+    _pushSurroundSpeakers();
     // Tone controls
     Channel.dspSetToneEnabled(_toneEnabled);
     Channel.dspSetBassGain(_bassGain);

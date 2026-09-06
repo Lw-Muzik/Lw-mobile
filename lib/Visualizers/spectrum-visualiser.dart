@@ -1,4 +1,5 @@
 import 'dart:math';
+
 import 'package:flutter/material.dart';
 
 /// Professional spectrum analyzer — reads pre-processed frequency bands
@@ -29,8 +30,10 @@ class SpectrumVisualizer extends CustomPainter {
 
     for (int i = 0; i < _barCount; i++) {
       // Read directly from pre-processed bands (already log-freq mapped)
-      final dataIdx = (i * audioData.length / _barCount).floor()
-          .clamp(0, audioData.length - 1);
+      final dataIdx = (i * audioData.length / _barCount).floor().clamp(
+        0,
+        audioData.length - 1,
+      );
       final amp = audioData[dataIdx].clamp(0.0, 1.0);
 
       // Subtle per-bar animation

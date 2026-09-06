@@ -69,6 +69,7 @@ void RoomDSPEngine::init(int sampleRate, int channels) {
     // Spatial effects init
     reverb_.init(sampleRate);
     crossfeed_.init(sampleRate);
+    surround3d_.init(static_cast<float>(sampleRate));
     crossfeed_.configure(Crossfeed::kChuMoyCutoff, Crossfeed::kChuMoyFeed);
 
     // Reset smoothed gain to target
@@ -85,6 +86,8 @@ void RoomDSPEngine::reset() {
     reverb_.reset();
     stereoExpander_.reset();
     crossfeed_.reset();
+    // Surround3D has delay lines and reverb tails; re-init clears them.
+    surround3d_.init(static_cast<float>(sampleRate_));
 }
 
 void RoomDSPEngine::setPreampGain(float dB) {
@@ -220,6 +223,7 @@ void RoomDSPEngine::process(float* buffer, int numFrames) {
     bool doExpand = stereoExpandEnabled_.load(std::memory_order_relaxed);
     bool doCrossfeed = crossfeedEnabled_.load(std::memory_order_relaxed);
     bool doReverb = reverbEnabled_.load(std::memory_order_relaxed);
+    bool doSurround3d = surround3dEnabled_.load(std::memory_order_relaxed);
 
     // The limiter is a safety net for peaks created BY this chain. Only run it
     // when some upstream stage can actually raise the level enough to clip;
@@ -230,7 +234,7 @@ void RoomDSPEngine::process(float* buffer, int numFrames) {
 
     // Early out if nothing is enabled (but always continue if stems are active
     // since the buffer was just replaced and may need DSP processing)
-    if (!doStems && !doEq && !doSpeakerEq && !doTone && !doMbc && !doExpand && !doCrossfeed && !doReverb && !doLimiter) return;
+    if (!doStems && !doEq && !doSpeakerEq && !doTone && !doMbc && !doExpand && !doCrossfeed && !doReverb && !doSurround3d && !doLimiter) return;
 
     // Deinterleave to separate L/R channels
     constexpr int STACK_LIMIT = 2048;
@@ -299,6 +303,9 @@ void RoomDSPEngine::process(float* buffer, int numFrames) {
     }
     if (doCrossfeed) {
         crossfeed_.process(left, right, numFrames);
+    }
+    if (doSurround3d) {
+        surround3d_.process(left, right, numFrames);
     }
     if (doReverb) {
         reverb_.process(left, right, numFrames);

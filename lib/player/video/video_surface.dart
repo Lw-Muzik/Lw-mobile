@@ -22,6 +22,8 @@
 /// itself rather than trusting each host to remember.
 library;
 
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
@@ -122,11 +124,60 @@ class VideoSurface extends ChangeNotifier with WidgetsBindingObserver {
     // surface down the instant picture-in-picture started — on Android that is
     // a black thumbnail, on iOS a video dropped to its lowest rendition.
     PictureInPicture.instance.isActive.addListener(_onFloatingChanged);
+    // The floating window's buttons arrive here, because this is already the
+    // one class that talks to picture-in-picture. They are handled rather than
+    // forwarded to the media session: the session's own controls act on the
+    // audio handler, and skipping a *video* has to go through the controller
+    // so the queue, the registry and the surface all move together.
+    PictureInPicture.instance.onControl = _onFloatingControl;
+  }
+
+  /// Kept so the window's play/pause button shows the action it will perform.
+  StreamSubscription<bool>? _playingSub;
+
+  void _onFloatingControl(String control) {
+    final controller = AppController.instance;
+    switch (control) {
+      case 'play':
+        controller.handler.play();
+      case 'pause':
+        controller.handler.pause();
+      case 'next':
+        controller.next();
+      case 'previous':
+        controller.prev();
+    }
   }
 
   void _onFloatingChanged() {
+    _syncFloatingTransport();
     _sync();
     _announce();
+  }
+
+  /// Feeds the floating window's play/pause button, but only while there is a
+  /// window to feed.
+  ///
+  /// Deliberately not started in the constructor. This class is a lazily
+  /// created singleton, so its constructor runs the first time anything reads
+  /// [instance] — which in a unit test is long before there is an
+  /// [AppController], and reaching for one there threw before a single test in
+  /// the file could run. Nothing outside picture-in-picture needs this
+  /// subscription, so it begins when the window does.
+  void _syncFloatingTransport() {
+    if (!PictureInPicture.instance.isActive.value) {
+      _playingSub?.cancel();
+      _playingSub = null;
+      return;
+    }
+    if (_playingSub != null) return;
+    final player = AppController.instance.handler.player;
+    // Pushed once up front: the window is drawn from these params at the moment
+    // it appears, and the stream may not tick again for minutes.
+    PictureInPicture.instance.setPlaying(player.playing);
+    _playingSub = player.playingStream.listen(
+      PictureInPicture.instance.setPlaying,
+    );
   }
 
   static final VideoSurface instance = VideoSurface._();
@@ -136,7 +187,19 @@ class VideoSurface extends ChangeNotifier with WidgetsBindingObserver {
   @visibleForTesting
   set sink(VideoSink value) => _sink = value;
 
-  final Set<VideoHost> _claims = {};
+  /// How many mounted [VideoStage]s hold each host, rather than whether any
+  /// does.
+  ///
+  /// # Why a count and not a set
+  ///
+  /// A claim is taken in `initState` and dropped in `dispose`, and Flutter does
+  /// not promise those interleave one-for-one across a rebuild: it can mount
+  /// the replacement subtree before disposing the old one. With a set, the
+  /// second claim was a no-op and the first dispose deleted the entry both
+  /// widgets were relying on — leaving a mounted stage that believed it was the
+  /// owner while `owner` said nobody was, so the picture went nowhere and the
+  /// card drew empty space.
+  final Map<VideoHost, int> _claims = {};
 
   /// True while the app is in the foreground. A background app draws nothing,
   /// so it should not be decoding either — see the library comment.
@@ -153,7 +216,7 @@ class VideoSurface extends ChangeNotifier with WidgetsBindingObserver {
   VideoHost? get owner {
     if (!_visible || _claims.isEmpty) return null;
     for (final host in VideoHost.values.reversed) {
-      if (_claims.contains(host)) return host;
+      if (_claims.containsKey(host)) return host;
     }
     return null;
   }
@@ -165,20 +228,29 @@ class VideoSurface extends ChangeNotifier with WidgetsBindingObserver {
   /// The mini player asks this to decide whether to appear at all: it is for
   /// the times the player screen is not on top, and a floating copy of a video
   /// the user is already watching full-size is clutter.
-  bool claimedByOther(VideoHost host) => _claims.any((claim) => claim != host);
+  bool claimedByOther(VideoHost host) =>
+      _claims.keys.any((claim) => claim != host);
 
   /// The texture to draw, or null while nothing is attached.
   ValueListenable<int?> get texture =>
       AppController.instance.handler.video.texture;
 
   void claim(VideoHost host) {
-    if (!_claims.add(host)) return;
+    final held = (_claims[host] ?? 0) + 1;
+    _claims[host] = held;
+    if (held > 1) return;
     _sync();
     _announce();
   }
 
   void release(VideoHost host) {
-    if (!_claims.remove(host)) return;
+    final held = _claims[host];
+    if (held == null) return;
+    if (held > 1) {
+      _claims[host] = held - 1;
+      return;
+    }
+    _claims.remove(host);
     _sync();
     _announce();
   }
@@ -204,6 +276,17 @@ class VideoSurface extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   bool _disposed = false;
+
+  @override
+  void dispose() {
+    _playingSub?.cancel();
+    _playingSub = null;
+    PictureInPicture.instance.onControl = null;
+    PictureInPicture.instance.isActive.removeListener(_onFloatingChanged);
+    WidgetsBinding.instance.removeObserver(this);
+    _disposed = true;
+    super.dispose();
+  }
 
   /// Drops every claim. For a queue that has moved on to something with no
   /// picture, where leaving the surface attached would decode nothing and hold

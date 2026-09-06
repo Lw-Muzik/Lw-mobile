@@ -283,6 +283,28 @@ class DSPManager {
         dsp_set_crossfeed_params(h, cutoff, feed)
     }
 
+    // MARK: - 3D Surround
+    //
+    // Same stage, same constants and the same channel names as Android — the
+    // whole point of the port is that the two platforms sound alike, so the
+    // Dart side must not need to know which one it is talking to.
+
+    func setSurround3dEnabled(_ enabled: Bool) {
+        guard let h = handle else { return }
+        dsp_set_surround3d_enabled(h, enabled)
+    }
+
+    func setSurround3dParams(intensity: Float, subwoofer: Float) {
+        guard let h = handle else { return }
+        dsp_set_surround3d_params(h, intensity, subwoofer)
+    }
+
+    func setSurround3dSpeakers(frontL: Bool, frontR: Bool, sideL: Bool,
+                               sideR: Bool, surroundL: Bool, surroundR: Bool) {
+        guard let h = handle else { return }
+        dsp_set_surround3d_speakers(h, frontL, frontR, sideL, sideR, surroundL, surroundR)
+    }
+
     // MARK: - Stem Mixer
 
     func setStemModeActive(_ active: Bool) {

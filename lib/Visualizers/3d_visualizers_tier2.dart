@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -17,7 +18,8 @@ double _pScale(double z) => _focal / (z + _focal);
 
 double _band(List<double> data, int i, int total) {
   if (data.isEmpty) return 0.0;
-  return data[(i * data.length / total).floor().clamp(0, data.length - 1)].clamp(0.0, 1.0);
+  return data[(i * data.length / total).floor().clamp(0, data.length - 1)]
+      .clamp(0.0, 1.0);
 }
 
 double _smoothBand(List<double> data, int i, int total) {
@@ -45,15 +47,25 @@ double _smoothBand(List<double> data, int i, int total) {
 
 void _drawGlow(Canvas canvas, Path path, Color color, double width) {
   final style = PaintingStyle.stroke;
-  canvas.drawPath(path, Paint()
-    ..color = color.withValues(alpha: 0.15)
-    ..style = style..strokeWidth = width * 3
-    ..strokeCap = StrokeCap.round..strokeJoin = StrokeJoin.round
-    ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4));
-  canvas.drawPath(path, Paint()
-    ..color = color.withValues(alpha: 0.9)
-    ..style = style..strokeWidth = width
-    ..strokeCap = StrokeCap.round..strokeJoin = StrokeJoin.round);
+  canvas.drawPath(
+    path,
+    Paint()
+      ..color = color.withValues(alpha: 0.15)
+      ..style = style
+      ..strokeWidth = width * 3
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
+  );
+  canvas.drawPath(
+    path,
+    Paint()
+      ..color = color.withValues(alpha: 0.9)
+      ..style = style
+      ..strokeWidth = width
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round,
+  );
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -89,7 +101,9 @@ class AudioTerrainVisualizer extends CustomPainter {
     // Build projected grid points
     final grid = List.generate(_rows + 1, (row) {
       final histIdx = row < fftHistory.length ? row : 0;
-      final rowData = histIdx < fftHistory.length ? fftHistory[histIdx] : audioData;
+      final rowData = histIdx < fftHistory.length
+          ? fftHistory[histIdx]
+          : audioData;
       final depth = row / _rows;
 
       return List.generate(_cols + 1, (col) {
@@ -130,11 +144,17 @@ class AudioTerrainVisualizer extends CustomPainter {
       }
 
       final depth = grid[row][0].depth;
-      final alpha = ((1.0 - depth) * 0.65 + rowMaxAmp * 0.25 + 0.1).clamp(0.08, 0.8);
+      final alpha = ((1.0 - depth) * 0.65 + rowMaxAmp * 0.25 + 0.1).clamp(
+        0.08,
+        0.8,
+      );
 
       paint
         ..color = color.withValues(alpha: alpha)
-        ..strokeWidth = (1.5 * (1.0 - depth * 0.4) + rowMaxAmp * 1.0).clamp(0.5, 2.5);
+        ..strokeWidth = (1.5 * (1.0 - depth * 0.4) + rowMaxAmp * 1.0).clamp(
+          0.5,
+          2.5,
+        );
       canvas.drawPath(path, paint);
     }
 
@@ -187,11 +207,13 @@ class MeshSphereVisualizer extends CustomPainter {
 
     // Overall energy drives base scale pulsing
     double energy = 0;
-    for (int i = 0; i < math.min(audioData.length, 32); i++) energy += audioData[i];
+    for (int i = 0; i < math.min(audioData.length, 32); i++)
+      energy += audioData[i];
     energy = (energy / 32).clamp(0.0, 1.0);
 
     final rotYAngle = time * math.pi * 2 * 0.25;
-    final rotXAngle = math.pi * 0.2 + math.sin(time * math.pi * 2 * 0.15) * 0.15;
+    final rotXAngle =
+        math.pi * 0.2 + math.sin(time * math.pi * 2 * 0.15) * 0.15;
 
     final latDiv = 12;
     final lonDiv = 18;
@@ -322,8 +344,13 @@ class MorphingOrbVisualizer extends CustomPainter {
 
         // Strong spherical harmonics — 3x the original multipliers
         final d1 = bass * 0.7 * math.sin(phi * 2) * math.cos(theta * 2 + phase);
-        final d2 = mids * 0.5 * math.sin(phi * 3) * math.cos(theta * 3 + phase * 1.5);
-        final d3 = treble * 0.35 * math.sin(phi * 5) * math.cos(theta * 5 + phase * 2.5);
+        final d2 =
+            mids * 0.5 * math.sin(phi * 3) * math.cos(theta * 3 + phase * 1.5);
+        final d3 =
+            treble *
+            0.35 *
+            math.sin(phi * 5) *
+            math.cos(theta * 5 + phase * 2.5);
         // Per-vertex modulation for fine detail
         final d4 = vertBand * 0.3 * math.sin(phi * 4 + theta * 4);
 
@@ -337,17 +364,26 @@ class MorphingOrbVisualizer extends CustomPainter {
         (x, y, z) = _rotX(x, y, z, 0.35);
 
         final p = _proj(x, y, z, cx, cy);
-        if (lon == 0) path.moveTo(p.dx, p.dy); else path.lineTo(p.dx, p.dy);
+        if (lon == 0)
+          path.moveTo(p.dx, p.dy);
+        else
+          path.lineTo(p.dx, p.dy);
       }
 
       final latFrac = (lat / latSteps - 0.5).abs() * 2;
-      final alpha = (0.15 + (1.0 - latFrac) * 0.4 + bass * 0.3).clamp(0.08, 0.75);
+      final alpha = (0.15 + (1.0 - latFrac) * 0.4 + bass * 0.3).clamp(
+        0.08,
+        0.75,
+      );
 
-      canvas.drawPath(path, Paint()
-        ..color = color.withValues(alpha: alpha)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.0 + bass * 0.8
-        ..isAntiAlias = true);
+      canvas.drawPath(
+        path,
+        Paint()
+          ..color = color.withValues(alpha: alpha)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.0 + bass * 0.8
+          ..isAntiAlias = true,
+      );
     }
 
     // Longitude lines — every 3rd, for wireframe depth
@@ -358,7 +394,8 @@ class MorphingOrbVisualizer extends CustomPainter {
       for (int lat = 0; lat <= latSteps; lat++) {
         final phi = (lat / latSteps) * math.pi;
         final d1 = bass * 0.7 * math.sin(phi * 2) * math.cos(theta * 2 + phase);
-        final d2 = mids * 0.5 * math.sin(phi * 3) * math.cos(theta * 3 + phase * 1.5);
+        final d2 =
+            mids * 0.5 * math.sin(phi * 3) * math.cos(theta * 3 + phase * 1.5);
         final r = baseR * (1.0 + d1 + d2);
 
         var x = math.sin(phi) * math.cos(theta) * r;
@@ -369,23 +406,33 @@ class MorphingOrbVisualizer extends CustomPainter {
         (x, y, z) = _rotX(x, y, z, 0.35);
 
         final p = _proj(x, y, z, cx, cy);
-        if (lat == 0) path.moveTo(p.dx, p.dy); else path.lineTo(p.dx, p.dy);
+        if (lat == 0)
+          path.moveTo(p.dx, p.dy);
+        else
+          path.lineTo(p.dx, p.dy);
       }
 
-      canvas.drawPath(path, Paint()
-        ..color = color.withValues(alpha: 0.1 + mids * 0.15)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 0.6
-        ..isAntiAlias = true);
+      canvas.drawPath(
+        path,
+        Paint()
+          ..color = color.withValues(alpha: 0.1 + mids * 0.15)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 0.6
+          ..isAntiAlias = true,
+      );
     }
 
     // Central glow that breathes with bass
     final glowR = baseR * (1.2 + bass * 0.6);
-    canvas.drawCircle(Offset(cx, cy), glowR, Paint()
-      ..shader = ui.Gradient.radial(
-        Offset(cx, cy), glowR,
-        [color.withValues(alpha: 0.12 + bass * 0.2), color.withValues(alpha: 0.0)],
-      ));
+    canvas.drawCircle(
+      Offset(cx, cy),
+      glowR,
+      Paint()
+        ..shader = ui.Gradient.radial(Offset(cx, cy), glowR, [
+          color.withValues(alpha: 0.12 + bass * 0.2),
+          color.withValues(alpha: 0.0),
+        ]),
+    );
   }
 
   @override
@@ -415,7 +462,8 @@ class ReactiveGeometryVisualizer extends CustomPainter {
     if (audioData.isEmpty) return;
 
     double energy = 0;
-    for (int i = 0; i < math.min(audioData.length, 32); i++) energy += audioData[i];
+    for (int i = 0; i < math.min(audioData.length, 32); i++)
+      energy += audioData[i];
     energy = (energy / 32).clamp(0.0, 1.0);
 
     final rotYA = time * math.pi * 2 * 0.2;
@@ -423,19 +471,46 @@ class ReactiveGeometryVisualizer extends CustomPainter {
 
     final phi = (1.0 + math.sqrt(5)) / 2.0;
     final rawVerts = <(double, double, double)>[
-      (-1,  phi, 0), ( 1,  phi, 0), (-1, -phi, 0), ( 1, -phi, 0),
-      ( 0, -1,  phi), ( 0,  1,  phi), ( 0, -1, -phi), ( 0,  1, -phi),
-      ( phi, 0, -1), ( phi, 0,  1), (-phi, 0, -1), (-phi, 0,  1),
+      (-1, phi, 0),
+      (1, phi, 0),
+      (-1, -phi, 0),
+      (1, -phi, 0),
+      (0, -1, phi),
+      (0, 1, phi),
+      (0, -1, -phi),
+      (0, 1, -phi),
+      (phi, 0, -1),
+      (phi, 0, 1),
+      (-phi, 0, -1),
+      (-phi, 0, 1),
     ];
 
     final norm = math.sqrt(1 + phi * phi);
-    final verts = rawVerts.map((v) => (v.$1 / norm, v.$2 / norm, v.$3 / norm)).toList();
+    final verts = rawVerts
+        .map((v) => (v.$1 / norm, v.$2 / norm, v.$3 / norm))
+        .toList();
 
     const faces = [
-      [0,11,5],[0,5,1],[0,1,7],[0,7,10],[0,10,11],
-      [1,5,9],[5,11,4],[11,10,2],[10,7,6],[7,1,8],
-      [3,9,4],[3,4,2],[3,2,6],[3,6,8],[3,8,9],
-      [4,9,5],[2,4,11],[6,2,10],[8,6,7],[9,8,1],
+      [0, 11, 5],
+      [0, 5, 1],
+      [0, 1, 7],
+      [0, 7, 10],
+      [0, 10, 11],
+      [1, 5, 9],
+      [5, 11, 4],
+      [11, 10, 2],
+      [10, 7, 6],
+      [7, 1, 8],
+      [3, 9, 4],
+      [3, 4, 2],
+      [3, 2, 6],
+      [3, 6, 8],
+      [3, 8, 9],
+      [4, 9, 5],
+      [2, 4, 11],
+      [6, 2, 10],
+      [8, 6, 7],
+      [9, 8, 1],
     ];
 
     final edgeSet = <int>{};
@@ -485,7 +560,9 @@ class ReactiveGeometryVisualizer extends CustomPainter {
 
       _drawGlow(
         canvas,
-        Path()..moveTo(projected[a].dx, projected[a].dy)..lineTo(projected[b].dx, projected[b].dy),
+        Path()
+          ..moveTo(projected[a].dx, projected[a].dy)
+          ..lineTo(projected[b].dx, projected[b].dy),
         color.withValues(alpha: depthAlpha * (0.4 + amp * 0.6)),
         width * _pScale(avgZ),
       );
@@ -496,7 +573,9 @@ class ReactiveGeometryVisualizer extends CustomPainter {
     for (int i = 0; i < verts.length; i++) {
       final amp = ampValues[i];
       final r = (3.0 + amp * 6.0) * _pScale(zValues[i]);
-      dotPaint.color = color.withValues(alpha: (0.4 + amp * 0.6).clamp(0.0, 1.0));
+      dotPaint.color = color.withValues(
+        alpha: (0.4 + amp * 0.6).clamp(0.0, 1.0),
+      );
       canvas.drawCircle(projected[i], r, dotPaint);
       // Glow on loud vertices
       if (amp > 0.4) {
@@ -612,7 +691,9 @@ class WaterfallSpectrogramVisualizer extends CustomPainter {
     canvas.drawLine(
       Offset(w - cellW * 0.3, 0),
       Offset(w - cellW * 0.3, h),
-      Paint()..color = color.withValues(alpha: 0.1)..strokeWidth = 0.5,
+      Paint()
+        ..color = color.withValues(alpha: 0.1)
+        ..strokeWidth = 0.5,
     );
   }
 

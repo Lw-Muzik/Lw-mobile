@@ -149,8 +149,11 @@ void main() {
     surface.claim(VideoHost.card);
     surface.claim(VideoHost.fullscreen);
     expect(surface.owner, VideoHost.fullscreen);
-    expect(surface.isOwner(VideoHost.card), isFalse,
-        reason: 'the card would be drawing a stream nobody can see');
+    expect(
+      surface.isOwner(VideoHost.card),
+      isFalse,
+      reason: 'the card would be drawing a stream nobody can see',
+    );
   });
 
   test('leaving full screen hands the surface back to the card', () {
@@ -173,8 +176,11 @@ void main() {
   test('the mini player can tell whether it is needed', () {
     expect(surface.claimedByOther(VideoHost.mini), isFalse);
     surface.claim(VideoHost.card);
-    expect(surface.claimedByOther(VideoHost.mini), isTrue,
-        reason: 'a floating copy of a video already on screen is clutter');
+    expect(
+      surface.claimedByOther(VideoHost.mini),
+      isTrue,
+      reason: 'a floating copy of a video already on screen is clutter',
+    );
   });
 
   test('releasing the last claim detaches', () {
@@ -190,6 +196,50 @@ void main() {
     expect(sink.attaches, 1);
   });
 
+  // The bug this pins cost an afternoon and looked like four different bugs.
+  //
+  // Flutter does not promise that `initState` and `dispose` alternate across a
+  // rebuild: it can mount the replacement subtree BEFORE disposing the old one.
+  // Claims used to live in a Set, so the replacement's claim was a silent
+  // no-op and the outgoing widget's release deleted the entry the survivor was
+  // relying on. `owner` went null while a stage was still mounted and
+  // believed itself the owner, so the card drew nothing — and because the
+  // empty stage was transparent and had no hit area, the deck showed through
+  // it (which read as the wrong artwork) and taps fell past it to the card
+  // behind (which read as "tapping the video closes the player").
+  //
+  // Device logs of the real sequence: claim held=1, claim held=2, release.
+  test(
+    'a replacement mounting before the old one disposes keeps the surface',
+    () {
+      surface.claim(VideoHost.card); // the stage that is already on screen
+      surface.claim(VideoHost.card); // its replacement, mounted first
+      surface.release(VideoHost.card); // the original, disposed second
+
+      expect(
+        surface.owner,
+        VideoHost.card,
+        reason: 'a stage is still mounted, so the surface must still be its',
+      );
+      expect(sink.attached, isTrue);
+      expect(sink.detaches, 0, reason: 'nothing left the screen');
+    },
+  );
+
+  test('the last of several claims by one host does release it', () {
+    surface.claim(VideoHost.card);
+    surface.claim(VideoHost.card);
+    surface.release(VideoHost.card);
+    surface.release(VideoHost.card);
+
+    expect(
+      surface.owner,
+      isNull,
+      reason: 'counting must not leak a claim once every stage is gone',
+    );
+    expect(sink.attached, isFalse);
+  });
+
   test('releasing a host that never claimed changes nothing', () {
     surface.claim(VideoHost.card);
     surface.release(VideoHost.mini);
@@ -203,8 +253,11 @@ void main() {
 
     surface.setForegroundForTest(false);
     expect(surface.owner, isNull, reason: 'nothing is being drawn');
-    expect(sink.attached, isFalse,
-        reason: 'a screen-off phone should not be decoding video');
+    expect(
+      sink.attached,
+      isFalse,
+      reason: 'a screen-off phone should not be decoding video',
+    );
   });
 
   test('returning to the foreground restores the picture', () {
@@ -232,9 +285,13 @@ void main() {
   test('a picture on screen holds the screen awake', () {
     expect(sink.awake, isFalse);
     surface.claim(VideoHost.card);
-    expect(sink.awake, isTrue,
-        reason: 'a video watched without touching is what the screen timeout '
-            'gets wrong');
+    expect(
+      sink.awake,
+      isTrue,
+      reason:
+          'a video watched without touching is what the screen timeout '
+          'gets wrong',
+    );
     surface.release(VideoHost.card);
     expect(sink.awake, isFalse, reason: 'a song does not need the screen');
   });
@@ -245,15 +302,21 @@ void main() {
     surface.claim(VideoHost.fullscreen);
     surface.release(VideoHost.fullscreen);
     expect(sink.awake, isTrue);
-    expect(sink.awakeChanges, changes,
-        reason: 'the picture never left the screen, so nothing changed');
+    expect(
+      sink.awakeChanges,
+      changes,
+      reason: 'the picture never left the screen, so nothing changed',
+    );
   });
 
   test('backgrounding releases the screen', () {
     surface.claim(VideoHost.card);
     surface.setForegroundForTest(false);
-    expect(sink.awake, isFalse,
-        reason: 'a backgrounded app must not pin the screen on');
+    expect(
+      sink.awake,
+      isFalse,
+      reason: 'a backgrounded app must not pin the screen on',
+    );
     surface.setForegroundForTest(true);
     expect(sink.awake, isTrue);
   });
@@ -261,9 +324,13 @@ void main() {
   test('a video on screen asks to keep floating when the app is left', () {
     expect(sink.floats, isFalse);
     surface.claim(VideoHost.card);
-    expect(sink.floats, isTrue,
-        reason: 'Android refuses the request once the app is already leaving, '
-            'so intent has to be registered while the video is still showing');
+    expect(
+      sink.floats,
+      isTrue,
+      reason:
+          'Android refuses the request once the app is already leaving, '
+          'so intent has to be registered while the video is still showing',
+    );
     surface.release(VideoHost.card);
     expect(sink.floats, isFalse);
   });
@@ -272,17 +339,24 @@ void main() {
     surface.claim(VideoHost.card);
     surface.claim(VideoHost.fullscreen);
     surface.claim(VideoHost.pip);
-    expect(surface.owner, VideoHost.pip,
-        reason: 'the whole app is a thumbnail; only the video belongs in it');
+    expect(
+      surface.owner,
+      VideoHost.pip,
+      reason: 'the whole app is a thumbnail; only the video belongs in it',
+    );
   });
 
   test('a floating window survives the app being backgrounded', () {
     surface.claim(VideoHost.card);
     PictureInPicture.instance.isActive.value = true;
     surface.setForegroundForTest(false);
-    expect(surface.owner, VideoHost.card,
-        reason: 'picture-in-picture backgrounds the app while the video is '
-            'still on screen; tearing the surface down blacks it out');
+    expect(
+      surface.owner,
+      VideoHost.card,
+      reason:
+          'picture-in-picture backgrounds the app while the video is '
+          'still on screen; tearing the surface down blacks it out',
+    );
     expect(sink.attached, isTrue);
   });
 
@@ -314,10 +388,14 @@ void main() {
       surface.rebind();
       await pumpEventQueue();
 
-      expect(players.showing, 'B',
-          reason: 'the video is still on screen and playing, so the surface '
-              'must end up on the player that is now audible — anything else '
-              'is a black stage the user has to leave the page to fix');
+      expect(
+        players.showing,
+        'B',
+        reason:
+            'the video is still on screen and playing, so the surface '
+            'must end up on the player that is now audible — anything else '
+            'is a black stage the user has to leave the page to fix',
+      );
     });
 
     test('the swap at the end of the fade rebinds again, harmlessly', () async {
@@ -328,9 +406,13 @@ void main() {
       surface.rebind(); // onPlayerSwapped, same audible player
       await pumpEventQueue();
 
-      expect(players.showing, 'B',
-          reason: 'the second rebind of a crossfade must not take back the '
-              'picture the first one just handed over');
+      expect(
+        players.showing,
+        'B',
+        reason:
+            'the second rebind of a crossfade must not take back the '
+            'picture the first one just handed over',
+      );
     });
 
     test('rebinding with nobody watching attaches nothing', () async {
@@ -341,9 +423,13 @@ void main() {
       surface.rebind();
       await pumpEventQueue();
 
-      expect(players.showing, isNull,
-          reason: 'a queue playing on with no video host mounted should not '
-              'be decoding frames for nobody');
+      expect(
+        players.showing,
+        isNull,
+        reason:
+            'a queue playing on with no video host mounted should not '
+            'be decoding frames for nobody',
+      );
     });
   });
 

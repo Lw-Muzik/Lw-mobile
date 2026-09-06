@@ -123,15 +123,20 @@ class _VideoMiniPlayerState extends State<VideoMiniPlayer> {
               media.padding.top,
               media.size.height - height - media.padding.bottom,
             ),
-            child: _MiniWindow(
-              width: _width,
-              height: height,
-              title: song.title,
-              onDrag: (delta) => setState(() {
-                _position = (_position ?? defaultPosition) + delta;
-              }),
-              onTap: () => Routes.playerTo(context),
-              onClose: VideoPopout.instance.dismiss,
+            child: StreamBuilder<bool>(
+              stream: controller.handler.player.playingStream,
+              initialData: controller.handler.player.playing,
+              builder: (context, snapshot) => _MiniWindow(
+                width: _width,
+                height: height,
+                title: song.title,
+                playing: snapshot.data ?? false,
+                onDrag: (delta) => setState(() {
+                  _position = (_position ?? defaultPosition) + delta;
+                }),
+                onTap: () => Routes.playerTo(context),
+                onClose: VideoPopout.instance.dismiss,
+              ),
             ),
           );
         },
@@ -144,6 +149,7 @@ class _MiniWindow extends StatelessWidget {
   final double width;
   final double height;
   final String title;
+  final bool playing;
   final ValueChanged<Offset> onDrag;
   final VoidCallback onTap;
   final VoidCallback onClose;
@@ -152,6 +158,7 @@ class _MiniWindow extends StatelessWidget {
     required this.width,
     required this.height,
     required this.title,
+    required this.playing,
     required this.onDrag,
     required this.onTap,
     required this.onClose,
@@ -211,16 +218,81 @@ class _MiniWindow extends StatelessWidget {
                       ],
                     ),
                   ),
-                  child: Text(
-                    title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: Colors.white, fontSize: 11),
+                  // Transport lives in the strip rather than over the picture,
+                  // so tapping the window itself still means "give me the
+                  // player back" — the thing someone does far more often than
+                  // pausing from a thumbnail.
+                  child: Row(
+                    children: [
+                      _MiniButton(
+                        icon: playing
+                            ? Icons.pause_rounded
+                            : Icons.play_arrow_rounded,
+                        semanticLabel: playing ? 'Pause' : 'Play',
+                        onTap: playing
+                            ? AppController.instance.handler.pause
+                            : AppController.instance.handler.play,
+                      ),
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 6),
+                          child: Text(
+                            title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ),
+                      ),
+                      _MiniButton(
+                        icon: Icons.skip_next_rounded,
+                        semanticLabel: 'Next',
+                        onTap: AppController.instance.next,
+                      ),
+                    ],
                   ),
                 ),
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// One control in the floating window's strip.
+///
+/// Sized to 32 logical pixels rather than the 48 the guidelines ask for: the
+/// whole window is 190 wide, and a compliant target would leave no room for the
+/// title. The window is a convenience over the real player, which is one tap
+/// away and has full-size controls.
+class _MiniButton extends StatelessWidget {
+  final IconData icon;
+  final String semanticLabel;
+  final VoidCallback onTap;
+
+  const _MiniButton({
+    required this.icon,
+    required this.semanticLabel,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: semanticLabel,
+      child: GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: SizedBox(
+          width: 32,
+          height: 26,
+          child: Icon(icon, color: Colors.white, size: 20),
         ),
       ),
     );

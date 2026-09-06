@@ -166,6 +166,33 @@ Java_x_a_zix_RoomEffectsProcessor_nativeSetCrossfeedParams(JNIEnv*, jobject, jlo
     if (engine) engine->setCrossfeedParams(cutoffHz, feedLevelDb);
 }
 
+// --- 3D Surround controls (port of the desktop stage; see surround3d.h) ---
+
+extern "C" JNIEXPORT void JNICALL
+Java_x_a_zix_RoomEffectsProcessor_nativeSetSurround3dEnabled(JNIEnv*, jobject, jlong handle, jboolean enabled) {
+    auto* engine = reinterpret_cast<RoomDSPEngine*>(handle);
+    if (engine) engine->setSurround3dEnabled(enabled);
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_x_a_zix_RoomEffectsProcessor_nativeSetSurround3dParams(JNIEnv*, jobject, jlong handle,
+                                                           jfloat intensity, jfloat subwoofer) {
+    auto* engine = reinterpret_cast<RoomDSPEngine*>(handle);
+    if (engine) {
+        engine->setSurround3dIntensity(intensity);
+        engine->setSurround3dSubwoofer(subwoofer);
+    }
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_x_a_zix_RoomEffectsProcessor_nativeSetSurround3dSpeakers(JNIEnv*, jobject, jlong handle,
+                                                             jboolean frontL, jboolean frontR,
+                                                             jboolean sideL, jboolean sideR,
+                                                             jboolean surroundL, jboolean surroundR) {
+    auto* engine = reinterpret_cast<RoomDSPEngine*>(handle);
+    if (engine) engine->setSurround3dSpeakers(frontL, frontR, sideL, sideR, surroundL, surroundR);
+}
+
 // --- EQ controls ---
 
 JNIEXPORT void JNICALL

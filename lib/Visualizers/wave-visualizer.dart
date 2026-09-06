@@ -1,7 +1,13 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:math' as math;
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 
+import '../controllers/app_controller.dart';
+import '../services/artwork_service.dart';
+import 'beat_detector.dart';
 import 'spectrum-visualiser.dart';
 import 'poweramp_visualizers.dart';
 import '3d_visualizers.dart';
@@ -61,6 +67,25 @@ class _WaveVisualizerState extends State<WaveVisualizer>
   bool _running = false;
   static const Duration _idleTimeout = Duration(milliseconds: 400);
 
+  // ── Radial spectrum: the state the desktop scene keeps in its rAF closure ──
+  //
+  // A CustomPainter is rebuilt every frame and cannot hold any of this, so it
+  // lives here and is advanced exactly once per tick in [_advanceRadial].
+  final List<double> _radialBars = List.filled(kRadialBars, 0.0);
+  final List<RadialRing> _radialRings = [];
+  // Desktop runs one detector per channel and takes the louder pulse. The
+  // visualizer tap here delivers a single mono waveform, so there is only one
+  // to run — feeding the same level to two would just be the same number twice.
+  final BeatState _beatDetector = BeatState();
+  double _prevBeat = 0;
+  double _beat = 0;
+  int _lastTickUs = 0;
+
+  /// Cover art for the core, and the song it belongs to.
+  ui.Image? _cover;
+  int? _coverSongId;
+  bool _coverLoading = false;
+
   @override
   void initState() {
     super.initState();
@@ -79,6 +104,107 @@ class _WaveVisualizerState extends State<WaveVisualizer>
     }
     _idleTimer?.cancel();
     _idleTimer = Timer(_idleTimeout, _goIdle);
+  }
+
+  /// Advances everything the radial spectrum carries between frames.
+  ///
+  /// Called once per animation tick, never from `paint`: Flutter may repaint
+  /// for reasons that have nothing to do with time passing, and a ring that
+  /// expanded on every repaint would travel at a speed set by how busy the
+  /// rest of the screen was.
+  void _advanceRadial() {
+    final nowUs = DateTime.now().microsecondsSinceEpoch;
+    // First tick has no previous frame to measure against; 1/60 is the honest
+    // guess and only affects one frame.
+    final dt = _lastTickUs == 0
+        ? 1 / 60
+        : math.min(0.05, (nowUs - _lastTickUs) / 1e6);
+    _lastTickUs = nowUs;
+
+    // Level, the way desktop derives it: the louder of peak and 1.25x RMS.
+    double peak = 0;
+    double sumSq = 0;
+    for (final v in _waveform) {
+      final a = v.abs();
+      if (a > peak) peak = a;
+      sumSq += v * v;
+    }
+    final rms = _waveform.isEmpty ? 0.0 : math.sqrt(sumSq / _waveform.length);
+    final level = math.min(1.0, math.max(rms * 1.25, peak));
+
+    _beatDetector.step(level, dt);
+    _beat = _beatDetector.pulse;
+
+    // Bars: resample the spectrum to 96 and ease 35% of the way each frame.
+    for (int i = 0; i < kRadialBars; i++) {
+      final target = _freqBands.isEmpty
+          ? 0.0
+          : _freqBands[((i / kRadialBars) * _freqBands.length).floor().clamp(
+                  0,
+                  _freqBands.length - 1,
+                )]
+                .clamp(0.0, 1.0);
+      _radialBars[i] += (target - _radialBars[i]) * 0.35;
+    }
+
+    // A shockwave on the rising edge of the beat, not while it stays high.
+    if (_beat > 0.5 && _prevBeat <= 0.5) {
+      final minDim = math.min(widget.width, widget.height);
+      _radialRings.add(RadialRing(minDim * 0.2, 0.5));
+    }
+    _prevBeat = _beat;
+
+    final minDim = math.min(widget.width, widget.height);
+    for (int k = _radialRings.length - 1; k >= 0; k--) {
+      final ring = _radialRings[k];
+      ring.r += dt * minDim * 0.9;
+      ring.a -= dt * 0.9;
+      if (ring.a <= 0) _radialRings.removeAt(k);
+    }
+  }
+
+  /// Loads the playing track's artwork for the core, once per track.
+  ///
+  /// Desktop reads a cover URL straight off its store; here the art has to be
+  /// extracted to a file and decoded, so it is done off the paint path and the
+  /// gradient core stands in until it arrives — which is also what desktop
+  /// shows when a track has no art at all.
+  Future<void> _ensureCover() async {
+    final controller = AppController.instance;
+    if (controller.songs.isEmpty) return;
+    final song = controller
+        .songs[controller.songId.clamp(0, controller.songs.length - 1)];
+    if (song.id == _coverSongId || _coverLoading) return;
+    _coverLoading = true;
+    try {
+      final path = await ArtworkService.instance.pathFor(
+        id: song.id,
+        data: song.data,
+      );
+      if (!mounted) return;
+      if (path == null) {
+        _cover?.dispose();
+        _cover = null;
+        _coverSongId = song.id;
+        return;
+      }
+      final bytes = await File(path).readAsBytes();
+      final decoded = await ui.instantiateImageCodec(bytes, targetWidth: 512);
+      final frame = await decoded.getNextFrame();
+      if (!mounted) {
+        frame.image.dispose();
+        return;
+      }
+      _cover?.dispose();
+      _cover = frame.image;
+      _coverSongId = song.id;
+    } catch (_) {
+      // No art is a normal outcome, not a failure worth surfacing: the core
+      // simply keeps the brand gradient.
+      _coverSongId = song.id;
+    } finally {
+      _coverLoading = false;
+    }
   }
 
   /// No fresh frames for [_idleTimeout] — freeze the loop until data resumes.
@@ -116,6 +242,10 @@ class _WaveVisualizerState extends State<WaveVisualizer>
   void dispose() {
     _idleTimer?.cancel();
     _controller.dispose();
+    // A decoded ui.Image is native memory the GC does not account for; leaking
+    // one per track is how a visualizer quietly becomes a memory problem.
+    _cover?.dispose();
+    _cover = null;
     super.dispose();
   }
 
@@ -283,6 +413,17 @@ class _WaveVisualizerState extends State<WaveVisualizer>
   }
 
   Widget _buildVisualizer(String selector) {
+    // Advanced here rather than in the painter: this runs once per animation
+    // tick, which is the clock the desktop scene's rAF loop uses.
+    //
+    // Unconditional, not gated on `selector == 'radial'`, because the default
+    // branch of the switch below also renders the radial scene. Gating would
+    // mean keeping a list of "every selector that is not radial" in step with
+    // that switch forever, and the first time the two drifted the fallback
+    // would render a frozen ring. The work is 96 lerps and one pass over the
+    // waveform.
+    _advanceRadial();
+    unawaited(_ensureCover());
     return RepaintBoundary(
       child: CustomPaint(
         size: Size(widget.width, widget.height),
@@ -293,9 +434,10 @@ class _WaveVisualizerState extends State<WaveVisualizer>
             time: _controller.value,
           ),
           'radial' => RadialBurstVisualizer(
-            audioData: _freqBands,
-            color: widget.color,
-            time: _controller.value,
+            bars: _radialBars,
+            beat: _beat,
+            rings: _radialRings,
+            cover: _cover,
           ),
           'mirror_bars' => MirrorBarsVisualizer(
             audioData: _freqBands,
@@ -413,9 +555,10 @@ class _WaveVisualizerState extends State<WaveVisualizer>
             time: _controller.value,
           ),
           _ => RadialBurstVisualizer(
-            audioData: _freqBands,
-            color: widget.color,
-            time: _controller.value,
+            bars: _radialBars,
+            beat: _beat,
+            rings: _radialRings,
+            cover: _cover,
           ),
         },
       ),

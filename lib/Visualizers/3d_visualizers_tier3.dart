@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -8,7 +9,8 @@ import 'package:flutter/material.dart';
 
 double _band(List<double> data, int i, int total) {
   if (data.isEmpty) return 0.0;
-  return data[(i * data.length / total).floor().clamp(0, data.length - 1)].clamp(0.0, 1.0);
+  return data[(i * data.length / total).floor().clamp(0, data.length - 1)]
+      .clamp(0.0, 1.0);
 }
 
 double _smoothBand(List<double> data, int i, int total) {
@@ -64,8 +66,14 @@ class MetaballBlobVisualizer extends CustomPainter {
       final angle = (i / _blobCount) * math.pi * 2 + time * 0.8;
       final bandAmp = _band(audioData, i, _blobCount);
       final dist = maxR * 0.2 * (1.0 + bass * 1.2 + bandAmp * 0.8);
-      final bx = cx + math.cos(angle) * dist + math.sin(time * 1.3 + i * 2) * 25 * (1 + bandAmp);
-      final by = cy + math.sin(angle) * dist + math.cos(time * 1.1 + i * 3) * 25 * (1 + bandAmp);
+      final bx =
+          cx +
+          math.cos(angle) * dist +
+          math.sin(time * 1.3 + i * 2) * 25 * (1 + bandAmp);
+      final by =
+          cy +
+          math.sin(angle) * dist +
+          math.cos(time * 1.1 + i * 3) * 25 * (1 + bandAmp);
       final br = maxR * (0.2 + bandAmp * 0.18 + bass * 0.12);
       blobs.add((bx, by, br));
     }
@@ -74,8 +82,9 @@ class MetaballBlobVisualizer extends CustomPainter {
     final cellW = size.width / _gridSize;
     final cellH = size.height / _gridSize;
     // Evaluate field at grid intersections
-    final field = List.generate(_gridSize + 1, (gy) =>
-      List.generate(_gridSize + 1, (gx) {
+    final field = List.generate(
+      _gridSize + 1,
+      (gy) => List.generate(_gridSize + 1, (gx) {
         final px = gx * cellW;
         final py = gy * cellH;
         double sum = 0;
@@ -131,7 +140,14 @@ class MetaballBlobVisualizer extends CustomPainter {
 
           // Interpolate edge crossings
           // ignore: no_leading_underscores_for_local_identifiers
-          Offset _lerp(double v1, double v2, double x1, double y1, double x2, double y2) {
+          Offset _lerp(
+            double v1,
+            double v2,
+            double x1,
+            double y1,
+            double x2,
+            double y2,
+          ) {
             final t = (iso - v1) / (v2 - v1 + 1e-10);
             return Offset(x1 + t * (x2 - x1), y1 + t * (y2 - y1));
           }
@@ -142,17 +158,34 @@ class MetaballBlobVisualizer extends CustomPainter {
           final left = _lerp(tl, bl, x0, y0, x0, y0 + cellH);
 
           // Draw contour segments based on case
-          void drawSeg(Offset a, Offset b) => canvas.drawLine(a, b, contourPaint);
+          void drawSeg(Offset a, Offset b) =>
+              canvas.drawLine(a, b, contourPaint);
 
           switch (caseIdx) {
-            case 1: case 14: drawSeg(top, left);
-            case 2: case 13: drawSeg(top, right);
-            case 3: case 12: drawSeg(left, right);
-            case 4: case 11: drawSeg(right, bottom);
-            case 5: drawSeg(top, right); drawSeg(bottom, left);
-            case 6: case 9: drawSeg(top, bottom);
-            case 7: case 8: drawSeg(left, bottom);
-            case 10: drawSeg(top, left); drawSeg(right, bottom);
+            case 1:
+            case 14:
+              drawSeg(top, left);
+            case 2:
+            case 13:
+              drawSeg(top, right);
+            case 3:
+            case 12:
+              drawSeg(left, right);
+            case 4:
+            case 11:
+              drawSeg(right, bottom);
+            case 5:
+              drawSeg(top, right);
+              drawSeg(bottom, left);
+            case 6:
+            case 9:
+              drawSeg(top, bottom);
+            case 7:
+            case 8:
+              drawSeg(left, bottom);
+            case 10:
+              drawSeg(top, left);
+              drawSeg(right, bottom);
           }
         }
       }
@@ -160,11 +193,15 @@ class MetaballBlobVisualizer extends CustomPainter {
 
     // Inner glow at each blob center
     for (final (bx, by, br) in blobs) {
-      canvas.drawCircle(Offset(bx, by), br * 0.8, Paint()
-        ..shader = ui.Gradient.radial(
-          Offset(bx, by), br * 0.8,
-          [color.withValues(alpha: 0.2), color.withValues(alpha: 0.0)],
-        ));
+      canvas.drawCircle(
+        Offset(bx, by),
+        br * 0.8,
+        Paint()
+          ..shader = ui.Gradient.radial(Offset(bx, by), br * 0.8, [
+            color.withValues(alpha: 0.2),
+            color.withValues(alpha: 0.0),
+          ]),
+      );
     }
   }
 
@@ -217,8 +254,9 @@ class MilkdropWarpVisualizer extends CustomPainter {
     final sinR = math.sin(rot);
 
     // Build warped grid
-    final points = List.generate(_gridH + 1, (gy) =>
-      List.generate(_gridW + 1, (gx) {
+    final points = List.generate(
+      _gridH + 1,
+      (gy) => List.generate(_gridW + 1, (gx) {
         // Normalized coords -1..1
         var nx = (gx / _gridW) * 2.0 - 1.0;
         var ny = (gy / _gridH) * 2.0 - 1.0;
@@ -256,7 +294,10 @@ class MilkdropWarpVisualizer extends CustomPainter {
       final path = Path();
       for (int gx = 0; gx <= _gridW; gx++) {
         final p = points[gy][gx];
-        if (gx == 0) path.moveTo(p.dx, p.dy); else path.lineTo(p.dx, p.dy);
+        if (gx == 0)
+          path.moveTo(p.dx, p.dy);
+        else
+          path.lineTo(p.dx, p.dy);
       }
 
       final t = gy / _gridH;
@@ -275,13 +316,17 @@ class MilkdropWarpVisualizer extends CustomPainter {
       final path = Path();
       for (int gy = 0; gy <= _gridH; gy++) {
         final p = points[gy][gx];
-        if (gy == 0) path.moveTo(p.dx, p.dy); else path.lineTo(p.dx, p.dy);
+        if (gy == 0)
+          path.moveTo(p.dx, p.dy);
+        else
+          path.lineTo(p.dx, p.dy);
       }
 
       final t = gx / _gridW;
       final amp = _smoothBand(audioData, gx, _gridW + 1);
       final alpha = (0.12 + amp * 0.45).clamp(0.08, 0.6);
-      final hue = (HSLColor.fromColor(color).hue + t * 60 + time * 20 + 30) % 360;
+      final hue =
+          (HSLColor.fromColor(color).hue + t * 60 + time * 20 + 30) % 360;
       paint
         ..color = HSLColor.fromAHSL(alpha, hue, 0.8, 0.55).toColor()
         ..strokeWidth = 0.6 + amp * 1.5;
@@ -291,11 +336,15 @@ class MilkdropWarpVisualizer extends CustomPainter {
     // Bright center flash on bass
     if (bass > 0.4) {
       final flashR = math.min(cx, cy) * bass * 0.3;
-      canvas.drawCircle(Offset(cx, cy), flashR, Paint()
-        ..shader = ui.Gradient.radial(
-          Offset(cx, cy), flashR,
-          [color.withValues(alpha: bass * 0.3), color.withValues(alpha: 0.0)],
-        ));
+      canvas.drawCircle(
+        Offset(cx, cy),
+        flashR,
+        Paint()
+          ..shader = ui.Gradient.radial(Offset(cx, cy), flashR, [
+            color.withValues(alpha: bass * 0.3),
+            color.withValues(alpha: 0.0),
+          ]),
+      );
     }
   }
 
@@ -340,20 +389,49 @@ class FractalFlameVisualizer extends CustomPainter {
     // IFS transforms — STRONGLY modulated by audio
     final bassAngle = bass * math.pi * 0.8;
     final midsAngle = time * math.pi * 2 + mids * math.pi;
-    final transforms = <(double a, double b, double c, double d, double e, double f, double weight)>[
-      // Scale + skew driven by bass
-      (0.4 + bass * 0.4, bassAngle * 0.3, -bassAngle * 0.2, 0.4 + bass * 0.4, 0.5, bass * 0.3, 0.33),
-      // Rotation driven by mids — speed and angle both react
-      (
-        0.5 * math.cos(midsAngle),
-        -0.5 * math.sin(midsAngle),
-        0.5 * math.sin(midsAngle),
-        0.5 * math.cos(midsAngle),
-        -0.4 - mids * 0.3, mids * 0.2, 0.33,
-      ),
-      // Spiral driven by treble — tighter spiral on loud treble
-      (0.4 + treble * 0.3, -0.3 - treble * 0.5, 0.3 + treble * 0.5, 0.4 + treble * 0.3, treble * 0.3, 0.4, 0.34),
-    ];
+    final transforms =
+        <
+          (
+            double a,
+            double b,
+            double c,
+            double d,
+            double e,
+            double f,
+            double weight,
+          )
+        >[
+          // Scale + skew driven by bass
+          (
+            0.4 + bass * 0.4,
+            bassAngle * 0.3,
+            -bassAngle * 0.2,
+            0.4 + bass * 0.4,
+            0.5,
+            bass * 0.3,
+            0.33,
+          ),
+          // Rotation driven by mids — speed and angle both react
+          (
+            0.5 * math.cos(midsAngle),
+            -0.5 * math.sin(midsAngle),
+            0.5 * math.sin(midsAngle),
+            0.5 * math.cos(midsAngle),
+            -0.4 - mids * 0.3,
+            mids * 0.2,
+            0.33,
+          ),
+          // Spiral driven by treble — tighter spiral on loud treble
+          (
+            0.4 + treble * 0.3,
+            -0.3 - treble * 0.5,
+            0.3 + treble * 0.5,
+            0.4 + treble * 0.3,
+            treble * 0.3,
+            0.4,
+            0.34,
+          ),
+        ];
 
     // Compute cumulative weights
     final cumWeights = <double>[];
@@ -405,11 +483,15 @@ class FractalFlameVisualizer extends CustomPainter {
     }
 
     // Additive center glow
-    canvas.drawCircle(Offset(cx, cy), scale * 0.8, Paint()
-      ..shader = ui.Gradient.radial(
-        Offset(cx, cy), scale * 0.8,
-        [color.withValues(alpha: 0.08 + bass * 0.08), color.withValues(alpha: 0.0)],
-      ));
+    canvas.drawCircle(
+      Offset(cx, cy),
+      scale * 0.8,
+      Paint()
+        ..shader = ui.Gradient.radial(Offset(cx, cy), scale * 0.8, [
+          color.withValues(alpha: 0.08 + bass * 0.08),
+          color.withValues(alpha: 0.0),
+        ]),
+    );
   }
 
   @override

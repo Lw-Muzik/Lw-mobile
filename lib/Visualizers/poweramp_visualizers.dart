@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 
 /// Read a band value from pre-processed frequency data (already log-mapped).
@@ -25,78 +26,165 @@ double _smoothBand(List<double> data, int i, int total) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// 1. RADIAL BURST — Lines radiating from a center ring, length = amplitude
-//    (Image 1 & 2 — the circular spiky visualizer)
+// 1. RADIAL SPECTRUM — the desktop scene, port for port
+//    (hypemuzik-desktop: src/features/visuals/scenes/RadialSpectrum.tsx)
 // ═══════════════════════════════════════════════════════════════════════════════
 
+/// One expanding shockwave, launched on a beat.
+class RadialRing {
+  double r;
+  double a;
+  RadialRing(this.r, this.a);
+}
+
+/// The brand gold the desktop scene draws its bars and rings from.
+const Color kRadialGold = Color(0xFFF6C544); // rgb(246,197,68)
+
+/// The green the bars fade to as a band approaches full scale.
+const Color kRadialGreen = Color(0xFF4ADE80); // rgb(74,222,128)
+
+/// Bars around the ring. Desktop uses 96; the previous mobile version used 120,
+/// which is why the two never looked alike even before the colours differed.
+const int kRadialBars = 96;
+
+/// The radial spectrum, matched to the desktop scene.
+///
+/// # What "the same configuration" means here
+///
+/// Every number below is the desktop scene's: 96 bars, an inner radius of
+/// `0.2 * minDim`, bars up to `0.26 * minDim`, a gold→green ramp keyed to band
+/// level, `0.35 + 0.65 * v` alpha, beat shockwaves launched when the pulse
+/// crosses 0.5 and expanding at `0.9 * minDim` per second, and a core that
+/// pulses `0.92 + 0.12 * beat`. The palette is fixed rather than following the
+/// user's visualizer colour, because on desktop it is fixed — this scene has an
+/// identity, and honouring a theme colour here would be the one difference that
+/// made them look unalike again.
+///
+/// # Why this takes so much state as arguments
+///
+/// A [CustomPainter] is rebuilt every frame, so it cannot own the smoothing
+/// envelope, the live rings or the beat. Desktop keeps them in a closure around
+/// its rAF loop; here they live in the widget's State and arrive as arguments.
+/// The painter draws and does not advance anything — [paint] is not guaranteed
+/// to run exactly once per frame, and advancing rings inside it would make
+/// their speed depend on how often Flutter decided to repaint.
 class RadialBurstVisualizer extends CustomPainter {
-  final List<double> audioData;
-  final Color color;
-  final double time;
+  /// Per-bar smoothed levels, already advanced by the host this frame.
+  final List<double> bars;
 
-  static const int _barCount = 120;
+  /// Beat pulse 0..1 from [BeatState].
+  final double beat;
 
-  RadialBurstVisualizer({
-    required this.audioData,
-    required this.color,
-    this.time = 0.0,
+  /// Live shockwaves, already advanced by the host this frame.
+  final List<RadialRing> rings;
+
+  /// Cover art for the core, or null to draw the brand gradient instead —
+  /// the same choice the desktop scene makes.
+  final ui.Image? cover;
+
+  const RadialBurstVisualizer({
+    required this.bars,
+    required this.beat,
+    required this.rings,
+    this.cover,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
     final cx = size.width / 2;
     final cy = size.height / 2;
-    final maxR = math.min(cx, cy);
-    if (audioData.isEmpty) return;
+    final minDim = math.min(size.width, size.height);
+    final inner = minDim * 0.2;
+    final maxLen = minDim * 0.26;
 
-    // Bass energy: average the lowest 10% of frequency bands
-    final bassCount = math.max(1, (audioData.length * 0.1).round());
-    double bassEnergy = 0;
-    for (int i = 0; i < bassCount; i++) {
-      bassEnergy += audioData[i];
-    }
-    bassEnergy = (bassEnergy / bassCount).clamp(0.0, 1.0);
-
-    // Inner radius pulses gently with bass
-    final baseInnerR = maxR * 0.18;
-    final innerR = baseInnerR + bassEnergy * maxR * 0.08;
-    final maxBarLen = maxR * 0.75;
-
-    final paint = Paint()
+    // ── Bars ────────────────────────────────────────────────────────────────
+    final barPaint = Paint()
       ..strokeCap = StrokeCap.round
-      ..isAntiAlias = true;
+      ..isAntiAlias = true
+      ..strokeWidth = math.max(2.0, minDim * 0.006);
 
-    for (int i = 0; i < _barCount; i++) {
-      final angle = (i / _barCount) * math.pi * 2 - math.pi / 2;
+    for (int i = 0; i < kRadialBars; i++) {
+      final v = i < bars.length ? bars[i].clamp(0.0, 1.0) : 0.0;
+      final ang = (i / kRadialBars) * math.pi * 2 - math.pi / 2;
+      final len = inner + v * maxLen + beat * minDim * 0.02;
+      final cosA = math.cos(ang);
+      final sinA = math.sin(ang);
 
-      // Read from pre-processed frequency bands (already log-mapped + bass-boosted)
-      final boosted = _smoothBand(audioData, i, _barCount);
-
-      final barLen = boosted * maxBarLen + maxR * 0.02;
-      final thickness = 1.0 + boosted * 2.0;
-
-      final cosA = math.cos(angle);
-      final sinA = math.sin(angle);
-
-      paint
-        ..color = color.withValues(alpha: 0.35 + boosted * 0.65)
-        ..strokeWidth = thickness;
+      barPaint.color = Color.lerp(
+        kRadialGold,
+        kRadialGreen,
+        math.min(1.0, v),
+      )!.withValues(alpha: 0.35 + 0.65 * v);
 
       canvas.drawLine(
-        Offset(cx + cosA * innerR, cy + sinA * innerR),
-        Offset(cx + cosA * (innerR + barLen), cy + sinA * (innerR + barLen)),
-        paint,
+        Offset(cx + cosA * inner, cy + sinA * inner),
+        Offset(cx + cosA * len, cy + sinA * len),
+        barPaint,
       );
     }
 
-    // Inner circle ring — glows brighter on bass hits
+    // ── Beat shockwaves ─────────────────────────────────────────────────────
+    final ringPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..isAntiAlias = true
+      ..strokeWidth = math.max(1.5, minDim * 0.004);
+    for (final ring in rings) {
+      if (ring.a <= 0) continue;
+      ringPaint.color = kRadialGold.withValues(alpha: ring.a.clamp(0.0, 1.0));
+      canvas.drawCircle(Offset(cx, cy), ring.r, ringPaint);
+    }
+
+    // ── Core: cover art, or the brand gradient with its halo ────────────────
+    final coreR = inner * (0.92 + beat * 0.12);
+    final img = cover;
+    if (img != null) {
+      // Desktop clips the art to the circle and draws no halo behind it (its
+      // shadow was clipped away and therefore invisible). Same here.
+      canvas.save();
+      canvas.clipPath(
+        Path()..addOval(Rect.fromCircle(center: Offset(cx, cy), radius: coreR)),
+      );
+      final dst = Rect.fromCircle(center: Offset(cx, cy), radius: coreR);
+      canvas.drawImageRect(
+        img,
+        Rect.fromLTWH(0, 0, img.width.toDouble(), img.height.toDouble()),
+        dst,
+        Paint()..isAntiAlias = true,
+      );
+      canvas.restore();
+      return;
+    }
+
+    // The halo. Desktop bakes this into a sprite because a per-frame
+    // `shadowBlur` was a software-raster cliff on WebKitGTK; Flutter's blur is
+    // GPU work through Impeller, so the mask filter is drawn directly and the
+    // bake would only add a texture to manage.
+    final blur = minDim * 0.06;
     canvas.drawCircle(
       Offset(cx, cy),
-      innerR,
+      coreR,
       Paint()
-        ..color = color.withValues(alpha: 0.2 + bassEnergy * 0.4)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.5 + bassEnergy * 1.5,
+        ..color = kRadialGold.withValues(alpha: 0.4 + 0.4 * beat)
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, blur / 2),
+    );
+
+    // Gold at the middle out to a fifth of the radius, then out to green —
+    // the three stops reproduce the desktop gradient's inner radius, which
+    // Flutter's RadialGradient has no direct equivalent for.
+    final coreRect = Rect.fromCircle(center: Offset(cx, cy), radius: coreR);
+    canvas.drawCircle(
+      Offset(cx, cy),
+      coreR,
+      Paint()
+        ..isAntiAlias = true
+        ..shader = const RadialGradient(
+          colors: [
+            Color(0xE6F6C544), // gold, alpha 0.9
+            Color(0xE6F6C544),
+            Color(0x264ADE80), // green, alpha 0.15
+          ],
+          stops: [0.0, 0.2, 1.0],
+        ).createShader(coreRect),
     );
   }
 
@@ -228,8 +316,10 @@ class WaveformLineVisualizer extends CustomPainter {
     final points = <Offset>[];
 
     for (int i = 0; i < count; i++) {
-      final idx = (i * audioData.length / count).floor()
-          .clamp(0, audioData.length - 1);
+      final idx = (i * audioData.length / count).floor().clamp(
+        0,
+        audioData.length - 1,
+      );
       final amp = audioData[idx].clamp(-1.0, 1.0); // Already signed -1..1
       final y = midY - amp * h * 0.4;
       points.add(Offset(i * dx, y));
@@ -285,8 +375,10 @@ class TerrainVisualizer extends CustomPainter {
     final points = <Offset>[];
     final dx = w / (count - 1);
     for (int i = 0; i < count; i++) {
-      final idx = (i * audioData.length / count).floor()
-          .clamp(0, audioData.length - 1);
+      final idx = (i * audioData.length / count).floor().clamp(
+        0,
+        audioData.length - 1,
+      );
       final amp = audioData[idx].clamp(0.0, 1.0);
       final y = h - amp * h * 0.55;
       points.add(Offset(i * dx, y));
@@ -316,11 +408,10 @@ class TerrainVisualizer extends CustomPainter {
 
     // Gradient fill
     final fillPaint = Paint()
-      ..shader = ui.Gradient.linear(
-        Offset(w / 2, 0),
-        Offset(w / 2, h),
-        [color.withValues(alpha: 0.5), color.withValues(alpha: 0.05)],
-      );
+      ..shader = ui.Gradient.linear(Offset(w / 2, 0), Offset(w / 2, h), [
+        color.withValues(alpha: 0.5),
+        color.withValues(alpha: 0.05),
+      ]);
     canvas.drawPath(curvePath, fillPaint);
 
     // Outline stroke
@@ -333,9 +424,12 @@ class TerrainVisualizer extends CustomPainter {
       final p2 = points[i + 1];
       final p3 = i + 2 < points.length ? points[i + 2] : p2;
       strokePath.cubicTo(
-        p1.dx + (p2.dx - p0.dx) / 6, p1.dy + (p2.dy - p0.dy) / 6,
-        p2.dx - (p3.dx - p1.dx) / 6, p2.dy - (p3.dy - p1.dy) / 6,
-        p2.dx, p2.dy,
+        p1.dx + (p2.dx - p0.dx) / 6,
+        p1.dy + (p2.dy - p0.dy) / 6,
+        p2.dx - (p3.dx - p1.dx) / 6,
+        p2.dy - (p3.dy - p1.dy) / 6,
+        p2.dx,
+        p2.dy,
       );
     }
 
@@ -398,9 +492,14 @@ class DotMatrixVisualizer extends CustomPainter {
 
         if (lit) {
           // Higher dots (closer to peak) glow brighter
-          final peakProximity = 1.0 - (litRows > 0 ? fromBottom / litRows : 0.0).clamp(0.0, 1.0);
+          final peakProximity =
+              1.0 - (litRows > 0 ? fromBottom / litRows : 0.0).clamp(0.0, 1.0);
           paint.color = color.withValues(alpha: 0.4 + peakProximity * 0.6);
-          canvas.drawCircle(Offset(dotX, dotY), maxR * (0.6 + boosted * 0.4), paint);
+          canvas.drawCircle(
+            Offset(dotX, dotY),
+            maxR * (0.6 + boosted * 0.4),
+            paint,
+          );
         } else {
           paint.color = color.withValues(alpha: 0.05);
           canvas.drawCircle(Offset(dotX, dotY), maxR * 0.25, paint);
@@ -454,14 +553,19 @@ class HelixVisualizer extends CustomPainter {
       for (int i = 0; i <= steps; i++) {
         final t = i / steps;
         final x = t * w;
-        final dataIdx = (t * math.min(audioData.length, 128))
-            .floor().clamp(0, audioData.length - 1);
+        final dataIdx = (t * math.min(audioData.length, 128)).floor().clamp(
+          0,
+          audioData.length - 1,
+        );
         final localAmp = audioData[dataIdx].clamp(0.0, 1.0);
 
         final envelope = (0.5 + localAmp * 0.5) * h * 0.3;
         final y = midY + math.sin(t * 6 * math.pi + strandPhase) * envelope;
 
-        if (i == 0) path.moveTo(x, y); else path.lineTo(x, y);
+        if (i == 0)
+          path.moveTo(x, y);
+        else
+          path.lineTo(x, y);
       }
 
       // Draw connecting spheres at crossover points
@@ -479,8 +583,10 @@ class HelixVisualizer extends CustomPainter {
     for (int i = 0; i < 8; i++) {
       final t = (i + 0.5) / 8;
       final x = t * w;
-      final dataIdx = (t * math.min(audioData.length, 64))
-          .floor().clamp(0, audioData.length - 1);
+      final dataIdx = (t * math.min(audioData.length, 64)).floor().clamp(
+        0,
+        audioData.length - 1,
+      );
       final amp = audioData[dataIdx].clamp(0.0, 1.0);
       final r = 3.0 + amp * 6.0;
 
@@ -539,8 +645,10 @@ class SilkWavesVisualizer extends CustomPainter {
         final x = i / _points;
         // Offset each layer's data read for visual separation
         final dataOffset = (t * audioData.length * 0.15).floor();
-        final dataIdx = ((x * audioData.length).floor() + dataOffset)
-            .clamp(0, audioData.length - 1);
+        final dataIdx = ((x * audioData.length).floor() + dataOffset).clamp(
+          0,
+          audioData.length - 1,
+        );
         final amp = audioData[dataIdx].clamp(-1.0, 1.0);
 
         // Envelope: taper to zero at edges
@@ -551,7 +659,10 @@ class SilkWavesVisualizer extends CustomPainter {
         final y = midY + yOffset + spread;
         final px = x * w;
 
-        if (i == 0) path.moveTo(px, y); else path.lineTo(px, y);
+        if (i == 0)
+          path.moveTo(px, y);
+        else
+          path.lineTo(px, y);
       }
       canvas.drawPath(path, paint);
     }
@@ -588,7 +699,8 @@ class LissajousVisualizer extends CustomPainter {
 
     // Global audio energy drives overall size
     double energy = 0;
-    for (int i = 0; i < math.min(audioData.length, 32); i++) energy += audioData[i];
+    for (int i = 0; i < math.min(audioData.length, 32); i++)
+      energy += audioData[i];
     energy = (energy / 32).clamp(0.0, 1.0);
 
     final phase = time * math.pi * 2;
@@ -603,13 +715,21 @@ class LissajousVisualizer extends CustomPainter {
       final freqB = 3.0 + energy * 0.8;
 
       // Per-layer audio modulation from different freq bands
-      final bandIdx = (t * audioData.length).floor().clamp(0, audioData.length - 1);
+      final bandIdx = (t * audioData.length).floor().clamp(
+        0,
+        audioData.length - 1,
+      );
       final bandAmp = audioData[bandIdx].clamp(0.0, 1.0);
 
       final alpha = (0.15 + bandAmp * 0.45).clamp(0.1, 0.6);
       // Color shift across layers
       final hue = (color.computeLuminance() > 0.5 ? 340.0 : 0.0) + t * 60;
-      final layerColor = HSLColor.fromAHSL(alpha, hue % 360, 0.8, 0.6).toColor();
+      final layerColor = HSLColor.fromAHSL(
+        alpha,
+        hue % 360,
+        0.8,
+        0.6,
+      ).toColor();
 
       final paint = Paint()
         ..color = layerColor
@@ -620,10 +740,19 @@ class LissajousVisualizer extends CustomPainter {
       final path = Path();
       for (int i = 0; i <= _pointsPerCurve; i++) {
         final u = i / _pointsPerCurve * math.pi * 2;
-        final x = cx + radius * math.sin(freqA * u + layerPhase) * (1.0 + bandAmp * 0.3);
-        final y = cy + radius * math.cos(freqB * u + layerPhase * 0.7) * (1.0 + bandAmp * 0.3);
+        final x =
+            cx +
+            radius * math.sin(freqA * u + layerPhase) * (1.0 + bandAmp * 0.3);
+        final y =
+            cy +
+            radius *
+                math.cos(freqB * u + layerPhase * 0.7) *
+                (1.0 + bandAmp * 0.3);
 
-        if (i == 0) path.moveTo(x, y); else path.lineTo(x, y);
+        if (i == 0)
+          path.moveTo(x, y);
+        else
+          path.lineTo(x, y);
       }
       path.close();
       canvas.drawPath(path, paint);
@@ -679,7 +808,10 @@ class WindmillVisualizer extends CustomPainter {
         final at = arc / _arcsPerBlade;
         final r = innerR + at * (maxR - innerR) * (0.4 + bladeAmp * 0.6);
         // Much more visible: bright at inner arcs, fade outward
-        final alpha = (0.2 + (1.0 - at) * 0.5 * (0.3 + bladeAmp * 0.7)).clamp(0.05, 0.7);
+        final alpha = (0.2 + (1.0 - at) * 0.5 * (0.3 + bladeAmp * 0.7)).clamp(
+          0.05,
+          0.7,
+        );
 
         paint
           ..color = color.withValues(alpha: alpha)

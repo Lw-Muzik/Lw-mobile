@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -37,56 +38,90 @@ double _smoothBand(List<double> data, int i, int total) {
 }
 
 /// Rotate a 3D point around the Y axis.
-(double x, double y, double z) _rotateY(double x, double y, double z, double angle) {
+(double x, double y, double z) _rotateY(
+  double x,
+  double y,
+  double z,
+  double angle,
+) {
   final c = math.cos(angle);
   final s = math.sin(angle);
   return (x * c + z * s, y, -x * s + z * c);
 }
 
 /// Rotate a 3D point around the X axis.
-(double x, double y, double z) _rotateX(double x, double y, double z, double angle) {
+(double x, double y, double z) _rotateX(
+  double x,
+  double y,
+  double z,
+  double angle,
+) {
   final c = math.cos(angle);
   final s = math.sin(angle);
   return (x, y * c - z * s, y * s + z * c);
 }
 
 /// Draw a line with neon glow effect.
-void _drawGlowLine(Canvas canvas, Offset a, Offset b, Color color, double width) {
+void _drawGlowLine(
+  Canvas canvas,
+  Offset a,
+  Offset b,
+  Color color,
+  double width,
+) {
   // Outer glow
-  canvas.drawLine(a, b, Paint()
-    ..color = color.withValues(alpha: 0.08)
-    ..strokeWidth = width * 4
-    ..strokeCap = StrokeCap.round
-    ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6));
+  canvas.drawLine(
+    a,
+    b,
+    Paint()
+      ..color = color.withValues(alpha: 0.08)
+      ..strokeWidth = width * 4
+      ..strokeCap = StrokeCap.round
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
+  );
   // Mid glow
-  canvas.drawLine(a, b, Paint()
-    ..color = color.withValues(alpha: 0.25)
-    ..strokeWidth = width * 2
-    ..strokeCap = StrokeCap.round
-    ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3));
+  canvas.drawLine(
+    a,
+    b,
+    Paint()
+      ..color = color.withValues(alpha: 0.25)
+      ..strokeWidth = width * 2
+      ..strokeCap = StrokeCap.round
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
+  );
   // Core
-  canvas.drawLine(a, b, Paint()
-    ..color = color.withValues(alpha: 0.9)
-    ..strokeWidth = width
-    ..strokeCap = StrokeCap.round);
+  canvas.drawLine(
+    a,
+    b,
+    Paint()
+      ..color = color.withValues(alpha: 0.9)
+      ..strokeWidth = width
+      ..strokeCap = StrokeCap.round,
+  );
 }
 
 /// Draw a path with neon glow effect (2-pass: glow + core).
 void _drawGlowPath(Canvas canvas, Path path, Color color, double width) {
   final style = PaintingStyle.stroke;
-  canvas.drawPath(path, Paint()
-    ..color = color.withValues(alpha: 0.15)
-    ..style = style
-    ..strokeWidth = width * 3
-    ..strokeCap = StrokeCap.round
-    ..strokeJoin = StrokeJoin.round
-    ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4));
-  canvas.drawPath(path, Paint()
-    ..color = color.withValues(alpha: 0.9)
-    ..style = style
-    ..strokeWidth = width
-    ..strokeCap = StrokeCap.round
-    ..strokeJoin = StrokeJoin.round);
+  canvas.drawPath(
+    path,
+    Paint()
+      ..color = color.withValues(alpha: 0.15)
+      ..style = style
+      ..strokeWidth = width * 3
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
+  );
+  canvas.drawPath(
+    path,
+    Paint()
+      ..color = color.withValues(alpha: 0.9)
+      ..style = style
+      ..strokeWidth = width
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round,
+  );
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -199,11 +234,10 @@ class NeonGridHorizonVisualizer extends CustomPainter {
       Offset(cx, horizon - sunR * 0.6),
       sunR,
       Paint()
-        ..shader = ui.Gradient.radial(
-          Offset(cx, horizon - sunR * 0.6),
-          sunR,
-          [color.withValues(alpha: 0.4), color.withValues(alpha: 0.0)],
-        ),
+        ..shader = ui.Gradient.radial(Offset(cx, horizon - sunR * 0.6), sunR, [
+          color.withValues(alpha: 0.4),
+          color.withValues(alpha: 0.0),
+        ]),
     );
   }
 
@@ -276,13 +310,15 @@ class SpectrumRing3DVisualizer extends CustomPainter {
       final barWidth = 1.5 + amp * 2.5;
 
       canvas.drawLine(
-        base, top,
+        base,
+        top,
         Paint()
           ..color = color.withValues(alpha: (0.4 + amp * 0.6) * depthAlpha)
           ..strokeWidth = barWidth * _projectScale(z)
           ..strokeCap = StrokeCap.round
           ..maskFilter = amp > 0.3
-              ? const MaskFilter.blur(BlurStyle.normal, 2) : null,
+              ? const MaskFilter.blur(BlurStyle.normal, 2)
+              : null,
       );
     }
 
@@ -296,12 +332,18 @@ class SpectrumRing3DVisualizer extends CustomPainter {
       (rx, ry, rz) = _rotateY(rx, ry, rz, rotY);
       (rx, ry, rz) = _rotateX(rx, ry, rz, tiltX);
       final p = _project(rx, ry, rz, cx, cy);
-      if (i == 0) ringPath.moveTo(p.dx, p.dy); else ringPath.lineTo(p.dx, p.dy);
+      if (i == 0)
+        ringPath.moveTo(p.dx, p.dy);
+      else
+        ringPath.lineTo(p.dx, p.dy);
     }
-    canvas.drawPath(ringPath, Paint()
-      ..color = color.withValues(alpha: 0.2)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.0);
+    canvas.drawPath(
+      ringPath,
+      Paint()
+        ..color = color.withValues(alpha: 0.2)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.0,
+    );
   }
 
   @override
@@ -336,7 +378,10 @@ class RibbonTrailVisualizer extends CustomPainter {
     for (int r = 0; r < _ribbons; r++) {
       final ribbonPhase = r * math.pi * 2 / _ribbons;
       final path = Path();
-      final alpha = (0.15 + (1.0 - (r / _ribbons - 0.5).abs() * 2) * 0.5).clamp(0.1, 0.65);
+      final alpha = (0.15 + (1.0 - (r / _ribbons - 0.5).abs() * 2) * 0.5).clamp(
+        0.1,
+        0.65,
+      );
 
       for (int i = 0; i <= _segments; i++) {
         final t = i / _segments;
@@ -346,17 +391,27 @@ class RibbonTrailVisualizer extends CustomPainter {
         final angle = t * math.pi * 4 + time * math.pi * 2 + ribbonPhase;
         final spread = maxR * (0.3 + bandAmp * 0.7);
         var x = math.cos(angle) * spread;
-        var y = (t - 0.5) * size.height * 0.6 + math.sin(angle * 0.5 + time * 3) * bandAmp * 40;
+        var y =
+            (t - 0.5) * size.height * 0.6 +
+            math.sin(angle * 0.5 + time * 3) * bandAmp * 40;
         var z = math.sin(angle) * spread;
 
         // Slow rotation
         (x, y, z) = _rotateY(x, y, z, time * 0.5);
 
         final p = _project(x, y, z, cx, cy);
-        if (i == 0) path.moveTo(p.dx, p.dy); else path.lineTo(p.dx, p.dy);
+        if (i == 0)
+          path.moveTo(p.dx, p.dy);
+        else
+          path.lineTo(p.dx, p.dy);
       }
 
-      _drawGlowPath(canvas, path, color.withValues(alpha: alpha), 1.2 + r * 0.3);
+      _drawGlowPath(
+        canvas,
+        path,
+        color.withValues(alpha: alpha),
+        1.2 + r * 0.3,
+      );
     }
   }
 
@@ -391,7 +446,8 @@ class Lissajous3DVisualizer extends CustomPainter {
 
     // Audio-driven parameters
     double energy = 0;
-    for (int i = 0; i < math.min(audioData.length, 32); i++) energy += audioData[i];
+    for (int i = 0; i < math.min(audioData.length, 32); i++)
+      energy += audioData[i];
     energy = (energy / 32).clamp(0.0, 1.0);
 
     final freqA = 2.0 + energy * 2.0;
@@ -406,7 +462,10 @@ class Lissajous3DVisualizer extends CustomPainter {
 
       for (int i = 0; i <= _points; i++) {
         final t = i / _points * math.pi * 2;
-        final dataIdx = (i * audioData.length / _points).floor().clamp(0, audioData.length - 1);
+        final dataIdx = (i * audioData.length / _points).floor().clamp(
+          0,
+          audioData.length - 1,
+        );
         final localAmp = audioData[dataIdx].clamp(0.0, 1.0);
         final r = maxR * (0.5 + localAmp * 0.5);
 
@@ -417,10 +476,18 @@ class Lissajous3DVisualizer extends CustomPainter {
         (x, y, z) = _rotateY(x, y, z, time * 0.3);
 
         final p = _project(x, y, z, cx, cy);
-        if (i == 0) path.moveTo(p.dx, p.dy); else path.lineTo(p.dx, p.dy);
+        if (i == 0)
+          path.moveTo(p.dx, p.dy);
+        else
+          path.lineTo(p.dx, p.dy);
       }
 
-      _drawGlowPath(canvas, path, color.withValues(alpha: trailAlpha), 1.5 - trail * 0.3);
+      _drawGlowPath(
+        canvas,
+        path,
+        color.withValues(alpha: trailAlpha),
+        1.5 - trail * 0.3,
+      );
     }
   }
 
@@ -454,11 +521,21 @@ class ParticleFieldVisualizer extends CustomPainter {
 
     // Overall energy
     double energy = 0;
-    for (int i = 0; i < math.min(audioData.length, 32); i++) energy += audioData[i];
+    for (int i = 0; i < math.min(audioData.length, 32); i++)
+      energy += audioData[i];
     energy = (energy / 32).clamp(0.0, 1.0);
 
     final rng = math.Random(42); // deterministic layout
-    final particles = <(double z, double screenX, double screenY, double radius, double alpha)>[];
+    final particles =
+        <
+          (
+            double z,
+            double screenX,
+            double screenY,
+            double radius,
+            double alpha,
+          )
+        >[];
 
     for (int i = 0; i < _particleCount; i++) {
       // Deterministic base positions
@@ -480,8 +557,11 @@ class ParticleFieldVisualizer extends CustomPainter {
       final screenY = py * scale + cy;
 
       // Skip off-screen particles
-      if (screenX < -20 || screenX > size.width + 20 ||
-          screenY < -20 || screenY > size.height + 20) continue;
+      if (screenX < -20 ||
+          screenX > size.width + 20 ||
+          screenY < -20 ||
+          screenY > size.height + 20)
+        continue;
 
       final radius = (3.0 + amp * 8.0) * scale;
       final alpha = (0.15 + amp * 0.6) * scale;
@@ -551,7 +631,10 @@ class WaveformTunnelVisualizer extends CustomPainter {
       final path = Path();
       for (int i = 0; i <= _pointsPerRing; i++) {
         final angle = (i / _pointsPerRing) * math.pi * 2;
-        final dataIdx = (i * audioData.length / _pointsPerRing).floor().clamp(0, audioData.length - 1);
+        final dataIdx = (i * audioData.length / _pointsPerRing).floor().clamp(
+          0,
+          audioData.length - 1,
+        );
         final amp = audioData[dataIdx].clamp(-1.0, 1.0);
 
         // Waveform displaces the ring radius
@@ -560,15 +643,21 @@ class WaveformTunnelVisualizer extends CustomPainter {
 
         final px = cx + math.cos(angle) * r;
         final py = cy + math.sin(angle) * r;
-        if (i == 0) path.moveTo(px, py); else path.lineTo(px, py);
+        if (i == 0)
+          path.moveTo(px, py);
+        else
+          path.lineTo(px, py);
       }
       path.close();
 
-      canvas.drawPath(path, Paint()
-        ..color = color.withValues(alpha: alpha)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = (1.5 * scale).clamp(0.3, 2.0)
-        ..isAntiAlias = true);
+      canvas.drawPath(
+        path,
+        Paint()
+          ..color = color.withValues(alpha: alpha)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = (1.5 * scale).clamp(0.3, 2.0)
+          ..isAntiAlias = true,
+      );
     }
   }
 
@@ -602,7 +691,8 @@ class KaleidoscopeTunnelVisualizer extends CustomPainter {
     if (audioData.isEmpty) return;
 
     double energy = 0;
-    for (int i = 0; i < math.min(audioData.length, 16); i++) energy += audioData[i];
+    for (int i = 0; i < math.min(audioData.length, 16); i++)
+      energy += audioData[i];
     energy = (energy / 16).clamp(0.0, 1.0);
 
     final rotation = time * math.pi * 0.3;
@@ -629,20 +719,32 @@ class KaleidoscopeTunnelVisualizer extends CustomPainter {
         final r1 = layerR * (0.7 + amp * 0.3);
         final r2 = layerR * (0.5 + energy * 0.5);
 
-        final p1 = Offset(cx + math.cos(segAngle) * r1, cy + math.sin(segAngle) * r1);
-        final p2 = Offset(cx + math.cos(nextAngle) * r1, cy + math.sin(nextAngle) * r1);
+        final p1 = Offset(
+          cx + math.cos(segAngle) * r1,
+          cy + math.sin(segAngle) * r1,
+        );
+        final p2 = Offset(
+          cx + math.cos(nextAngle) * r1,
+          cy + math.sin(nextAngle) * r1,
+        );
         final midAngle = (segAngle + nextAngle) / 2;
-        final pMid = Offset(cx + math.cos(midAngle) * r2, cy + math.sin(midAngle) * r2);
+        final pMid = Offset(
+          cx + math.cos(midAngle) * r2,
+          cy + math.sin(midAngle) * r2,
+        );
 
         final path = Path()
           ..moveTo(p1.dx, p1.dy)
           ..quadraticBezierTo(pMid.dx, pMid.dy, p2.dx, p2.dy);
 
-        canvas.drawPath(path, Paint()
-          ..color = color.withValues(alpha: alpha)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = (1.2 * scale).clamp(0.3, 2.0)
-          ..isAntiAlias = true);
+        canvas.drawPath(
+          path,
+          Paint()
+            ..color = color.withValues(alpha: alpha)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = (1.2 * scale).clamp(0.3, 2.0)
+            ..isAntiAlias = true,
+        );
       }
     }
   }

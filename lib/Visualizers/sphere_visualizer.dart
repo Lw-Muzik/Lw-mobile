@@ -1,14 +1,12 @@
 import 'dart:math';
+
 import 'package:flutter/material.dart';
 
 class SphereVisualizer extends CustomPainter {
   final List<double> audioData;
   final double time;
 
-  SphereVisualizer({
-    required this.audioData,
-    required this.time,
-  });
+  SphereVisualizer({required this.audioData, required this.time});
 
   // Helper function to clamp values between 0 and 1
   double clamp01(double value) {
@@ -26,26 +24,32 @@ class SphereVisualizer extends CustomPainter {
 
     // Amplitude breakdowns, cached to avoid redundant calculations
     final lowFreqAmplitude = clamp01(
-        audioData.sublist(0, audioData.length ~/ 3).reduce((a, b) => a + b) /
-            (audioData.length / 3));
-    final midFreqAmplitude = clamp01(audioData
-            .sublist(audioData.length ~/ 3, 2 * audioData.length ~/ 3)
-            .reduce((a, b) => a + b) /
-        (audioData.length / 3));
+      audioData.sublist(0, audioData.length ~/ 3).reduce((a, b) => a + b) /
+          (audioData.length / 3),
+    );
+    final midFreqAmplitude = clamp01(
+      audioData
+              .sublist(audioData.length ~/ 3, 2 * audioData.length ~/ 3)
+              .reduce((a, b) => a + b) /
+          (audioData.length / 3),
+    );
     final highFreqAmplitude = clamp01(
-        audioData.sublist(2 * audioData.length ~/ 3).reduce((a, b) => a + b) /
-            (audioData.length / 3));
+      audioData.sublist(2 * audioData.length ~/ 3).reduce((a, b) => a + b) /
+          (audioData.length / 3),
+    );
 
-    final avgAmplitude =
-        clamp01(audioData.reduce((a, b) => a + b) / audioData.length);
+    final avgAmplitude = clamp01(
+      audioData.reduce((a, b) => a + b) / audioData.length,
+    );
     final maxAmplitude = clamp01(audioData.reduce(max));
 
     final sizeResponse = clamp01(avgAmplitude * 0.5 + maxAmplitude * 0.5);
-    final colorResponse = clamp01(lowFreqAmplitude * 0.5 +
-        midFreqAmplitude * 0.3 +
-        highFreqAmplitude * 0.2);
-    final distortionResponse =
-        clamp01(midFreqAmplitude * 0.3 + highFreqAmplitude * 0.5);
+    final colorResponse = clamp01(
+      lowFreqAmplitude * 0.5 + midFreqAmplitude * 0.3 + highFreqAmplitude * 0.2,
+    );
+    final distortionResponse = clamp01(
+      midFreqAmplitude * 0.3 + highFreqAmplitude * 0.5,
+    );
 
     // Optimize number of layers and points for smoother performance
     final baseRadius = min(width, height) * 0.35;
@@ -58,17 +62,26 @@ class SphereVisualizer extends CustomPainter {
     // Calculated once outside loop for reuse
     final baseHue = (360 * (time * 0.25 + colorResponse * 0.3)) % 360;
     final baseColor = HSVColor.fromAHSV(1.0, baseHue, 0.7, 0.8).toColor();
-    final accentColor =
-        HSVColor.fromAHSV(1.0, (baseHue + 180) % 360, 0.6, 0.8).toColor();
+    final accentColor = HSVColor.fromAHSV(
+      1.0,
+      (baseHue + 180) % 360,
+      0.6,
+      0.8,
+    ).toColor();
 
     // Draw background shadow once
     final shadowPaint = Paint()
       ..color = baseColor.withValues(alpha: 0.15)
       ..maskFilter = MaskFilter.blur(
-          BlurStyle.normal, 10 * sizeResponse); // Adjusted blur strength
+        BlurStyle.normal,
+        10 * sizeResponse,
+      ); // Adjusted blur strength
 
-    canvas.drawCircle(Offset(centerX, centerY + baseRadius * 0.5),
-        baseRadius * scale * 0.7, shadowPaint);
+    canvas.drawCircle(
+      Offset(centerX, centerY + baseRadius * 0.5),
+      baseRadius * scale * 0.7,
+      shadowPaint,
+    );
 
     for (int layer = 0; layer < numLayers; layer++) {
       final layerProgress = layer / numLayers;
@@ -86,8 +99,10 @@ class SphereVisualizer extends CustomPainter {
             distortionAmount * (sin(6 * angle + time * pi * 2) * 0.2);
 
         final radius = baseRadius * scale + distortion;
-        final sphereEffect =
-            pow(cos(layerProgress * pi), 0.8 + sizeResponse * 0.2).toDouble();
+        final sphereEffect = pow(
+          cos(layerProgress * pi),
+          0.8 + sizeResponse * 0.2,
+        ).toDouble();
         final adjustedRadius = radius * sphereEffect;
 
         final x = centerX + adjustedRadius * cos(angle);
@@ -103,7 +118,10 @@ class SphereVisualizer extends CustomPainter {
 
       // Layer color calculation, performed outside the loop for each layer
       final layerColor = Color.lerp(
-          baseColor, accentColor, clamp01(layerProgress * colorResponse))!;
+        baseColor,
+        accentColor,
+        clamp01(layerProgress * colorResponse),
+      )!;
       final paint = Paint()
         ..color = layerColor.withValues(alpha: layerOpacity)
         ..style = PaintingStyle.stroke
@@ -115,20 +133,27 @@ class SphereVisualizer extends CustomPainter {
     // Add a soft highlight if needed, now simpler and more performant
     if (numLayers > 1) {
       final highlightPaint = Paint()
-        ..shader = RadialGradient(
-          colors: [
-            Colors.white.withValues(alpha: 0.4 + colorResponse * 0.2),
-            Colors.transparent
-          ],
-        ).createShader(Rect.fromCircle(
-            center: Offset(
-                centerX - baseRadius * 0.25, centerY - baseRadius * 0.25),
-            radius: baseRadius * 0.5 * scale));
+        ..shader =
+            RadialGradient(
+              colors: [
+                Colors.white.withValues(alpha: 0.4 + colorResponse * 0.2),
+                Colors.transparent,
+              ],
+            ).createShader(
+              Rect.fromCircle(
+                center: Offset(
+                  centerX - baseRadius * 0.25,
+                  centerY - baseRadius * 0.25,
+                ),
+                radius: baseRadius * 0.5 * scale,
+              ),
+            );
 
       canvas.drawCircle(
-          Offset(centerX - baseRadius * 0.25, centerY - baseRadius * 0.25),
-          baseRadius * 0.35 * scale,
-          highlightPaint);
+        Offset(centerX - baseRadius * 0.25, centerY - baseRadius * 0.25),
+        baseRadius * 0.35 * scale,
+        highlightPaint,
+      );
     }
   }
 
