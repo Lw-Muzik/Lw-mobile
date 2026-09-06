@@ -75,6 +75,10 @@ class _VideoFullscreenPageState extends State<VideoFullscreenPage> {
   double _brightness = 0.5;
   double _volume = 1;
 
+  /// Open only until the decoder reports the picture's dimensions. See
+  /// [_applyOrientation].
+  StreamSubscription<VideoState>? _sizeSub;
+
   AppController get _controller => AppController.instance;
   AudioPlayer get _player => _controller.handler.currentTrackPlayer;
   VideoOutput get _video => _controller.handler.video;
@@ -90,12 +94,47 @@ class _VideoFullscreenPageState extends State<VideoFullscreenPage> {
     _volume = _player.volume.clamp(0.0, 1.0);
     unawaited(_readBrightness());
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-    SystemChrome.setPreferredOrientations(const [
-      DeviceOrientation.landscapeLeft,
-      DeviceOrientation.landscapeRight,
-      DeviceOrientation.portraitUp,
-    ]);
+    // Subscribed before the first check so a size arriving in between is not
+    // missed; [_applyOrientation] closes it as soon as it has an answer.
+    _sizeSub = _video.stateStream.listen(_applyOrientation);
+    _applyOrientation(_video.state);
     _restartHideTimer();
+  }
+
+  /// Turns the phone to match the picture.
+  ///
+  /// # Why this forces rather than permits
+  ///
+  /// This used to offer landscape *and* portrait, which meant a handset held
+  /// upright stayed upright: tapping a 16:9 music video filled a third of the
+  /// screen and left the viewer to rotate the phone themselves. Full screen is
+  /// a request to see the picture as large as it goes, and for a wide video
+  /// that means landscape — so the orientation is set, not suggested.
+  ///
+  /// It is driven by the decoder's own dimensions rather than assumed, because
+  /// a vertical video forced into landscape would be the same mistake pointing
+  /// the other way: pillarboxed, smaller than it was, and now sideways as well.
+  ///
+  /// Dimensions are not known until the first frame is decoded, which is
+  /// usually after this route opens. Until then [VideoState.hasVideo] is false
+  /// and nothing is decided; the subscription delivers the answer when it
+  /// exists and is closed on the spot, so a later rendition change cannot
+  /// rotate the phone under someone mid-watch.
+  void _applyOrientation(VideoState state) {
+    if (!state.hasVideo) return;
+    _sizeSub?.cancel();
+    _sizeSub = null;
+    SystemChrome.setPreferredOrientations(
+      state.width >= state.height
+          ? const [
+              DeviceOrientation.landscapeLeft,
+              DeviceOrientation.landscapeRight,
+            ]
+          : const [
+              DeviceOrientation.portraitUp,
+              DeviceOrientation.portraitDown,
+            ],
+    );
   }
 
   Future<void> _readBrightness() async {
@@ -111,6 +150,7 @@ class _VideoFullscreenPageState extends State<VideoFullscreenPage> {
   void dispose() {
     _hideTimer?.cancel();
     _feedbackTimer?.cancel();
+    _sizeSub?.cancel();
     // Whatever the hold was doing, it does not survive the screen.
     if (_speedBeforeHold != null) _player.setSpeed(_speedBeforeHold!);
     // Put the screen back. On Android clearing the override is enough; on iOS

@@ -8,13 +8,21 @@
 /// screen is gone. This gives it somewhere: a small window over whatever the
 /// user browses to next, draggable out of the way and dismissible.
 ///
-/// # It appears only when it is the only place left
+/// # It appears only when the user asks for it
 ///
-/// Mounted for the whole life of the app, but it shows itself only when the
-/// current track is a video *and* neither the player card nor the full-screen
-/// route is already showing it. A floating copy of a video playing full size
-/// behind it would be clutter, and two views of one texture would be two hosts
-/// competing for it.
+/// Mounted for the whole life of the app, but hidden until someone taps the
+/// pop-out control on the player's video card. It used to decide for itself —
+/// show whenever the current track is a video and no other host has claimed
+/// the surface — and that reasoning had a failure mode with no floor: when the
+/// card did not claim (for any reason at all, including a bug), this window
+/// concluded it was needed and drew itself over the transport controls. A
+/// fallback that appoints itself is indistinguishable from a fallback that is
+/// broken, so the appointment is now the user's.
+///
+/// The other two conditions remain, because they are about correctness rather
+/// than intent: it stays hidden while the card or the full-screen route is
+/// showing the same texture — two views of one stream would be two hosts
+/// competing for it — and while the current track has no picture at all.
 library;
 
 import 'package:flutter/material.dart';
@@ -25,6 +33,39 @@ import '../../controllers/app_controller.dart';
 import '../../services/video/video_registry.dart';
 import 'video_stage.dart';
 import 'video_surface.dart';
+
+/// Whether the user has asked for the floating window.
+///
+/// Separate from [VideoSurface] on purpose: that tracks which host *may* draw
+/// the picture, which is a question about the decoder. This tracks whether the
+/// user wants a floating window at all, which is a question about intent. The
+/// old code had only the first and inferred the second from it.
+///
+/// The request outlives a single track — someone who popped the video out to
+/// keep browsing has said what they want, and having it vanish at the next
+/// track would make them ask again every few minutes. It ends when they close
+/// the window, or when nothing with a picture is playing any more.
+class VideoPopout extends ChangeNotifier {
+  static final VideoPopout instance = VideoPopout._();
+
+  VideoPopout._();
+
+  bool _requested = false;
+
+  bool get requested => _requested;
+
+  void request() {
+    if (_requested) return;
+    _requested = true;
+    notifyListeners();
+  }
+
+  void dismiss() {
+    if (!_requested) return;
+    _requested = false;
+    notifyListeners();
+  }
+}
 
 class VideoMiniPlayer extends StatefulWidget {
   const VideoMiniPlayer({super.key});
@@ -40,14 +81,17 @@ class _VideoMiniPlayerState extends State<VideoMiniPlayer> {
   /// Where the user last put it, or null for the default corner.
   Offset? _position;
 
-  /// Set when the user dismisses it, cleared when a different video starts —
-  /// closing this window means "not this one", not "never again".
-  int? _dismissedSongId;
-
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: VideoSurface.instance,
+    return ListenableBuilder(
+      // The registry is in here because `isVideo` flips asynchronously; without
+      // it this window can only notice a track gained a picture if something
+      // else happens to rebuild it.
+      listenable: Listenable.merge([
+        VideoSurface.instance,
+        VideoPopout.instance,
+        VideoRegistry.instance,
+      ]),
       builder: (context, _) => Consumer<AppController>(
         builder: (context, controller, _) {
           final song = controller.songs.isEmpty
@@ -59,12 +103,9 @@ class _VideoMiniPlayerState extends State<VideoMiniPlayer> {
           final isVideo =
               song != null && VideoRegistry.instance.isVideo(song.id);
 
-          if (_dismissedSongId != null && _dismissedSongId != song?.id) {
-            _dismissedSongId = null;
-          }
           final hidden =
+              !VideoPopout.instance.requested ||
               !isVideo ||
-              _dismissedSongId == song.id ||
               VideoSurface.instance.claimedByOther(VideoHost.mini);
           if (hidden) return const SizedBox.shrink();
 
@@ -90,7 +131,7 @@ class _VideoMiniPlayerState extends State<VideoMiniPlayer> {
                 _position = (_position ?? defaultPosition) + delta;
               }),
               onTap: () => Routes.playerTo(context),
-              onClose: () => setState(() => _dismissedSongId = song.id),
+              onClose: VideoPopout.instance.dismiss,
             ),
           );
         },

@@ -27,6 +27,7 @@ library;
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -84,7 +85,7 @@ class VideoSource {
 }
 
 /// The videos currently in, or recently in, the queue.
-class VideoRegistry {
+class VideoRegistry extends ChangeNotifier {
   VideoRegistry._();
 
   static final VideoRegistry instance = VideoRegistry._();
@@ -107,7 +108,11 @@ class VideoRegistry {
 
   bool get videoMode => _videoMode;
 
-  set videoMode(bool value) => _videoMode = value;
+  set videoMode(bool value) {
+    if (_videoMode == value) return;
+    _videoMode = value;
+    _announce();
+  }
 
   /// Where DASH manifests are written. One directory so it can be swept whole.
   static const _manifestDirName = 'hype_video';
@@ -122,14 +127,48 @@ class VideoRegistry {
   /// attaching one speculatively for a queue of songs.
   bool get isEmpty => _sources.isEmpty;
 
-  void register(VideoSource source) => _sources[source.songId] = source;
+  void register(VideoSource source) {
+    _sources[source.songId] = source;
+    _announce();
+  }
 
-  void forget(int songId) => _sources.remove(songId);
+  void forget(int songId) {
+    if (_sources.remove(songId) == null) return;
+    _announce();
+  }
 
   /// Drops everything. Called when a queue that isn't YouTube's takes over.
   void clear() {
+    if (_sources.isEmpty && !_videoMode) return;
     _sources.clear();
     _videoMode = false;
+    _announce();
+  }
+
+  /// Tells listeners the answer to [isVideo] may have changed.
+  ///
+  /// # Why this class notifies at all
+  ///
+  /// A track becomes a video *asynchronously*: [adopt] has to resolve a stream
+  /// and write a manifest before [isVideo] flips. Everything that draws the
+  /// picture — above all the player card — decides what to build from
+  /// [isVideo], so a registry that changed silently left those widgets showing
+  /// whatever they had chosen before the answer arrived, forever. The card
+  /// showed a still cover while the video played in the floating window that
+  /// exists only for when the card cannot host it.
+  ///
+  /// Deferring out of a build phase is the same precaution [VideoSurface]
+  /// takes, and for the same reason: [register] is reached from async
+  /// continuations that can land mid-frame, and notifying then is an error
+  /// Flutter refuses outright.
+  void _announce() {
+    final phase = SchedulerBinding.instance.schedulerPhase;
+    if (phase == SchedulerPhase.idle ||
+        phase == SchedulerPhase.postFrameCallbacks) {
+      notifyListeners();
+      return;
+    }
+    SchedulerBinding.instance.addPostFrameCallback((_) => notifyListeners());
   }
 
   @visibleForTesting

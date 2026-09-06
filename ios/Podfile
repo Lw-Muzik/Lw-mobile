@@ -52,6 +52,31 @@ post_install do |installer|
     # Ensure C++17 for all targets that compile C++
     target.build_configurations.each do |config|
       config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
+
+      # flutter_foreground_task 11.x declares `pluginClass: FlutterForegroundTaskPlugin`,
+      # so Flutter generates `[FlutterForegroundTaskPlugin registerWithRegistrar:]` into
+      # GeneratedPluginRegistrant.m. But the ONLY definition of that class lives in
+      # FlutterForegroundTaskPluginSPMBridge.swift, wrapped entirely in `#if SWIFT_PACKAGE`
+      # -- a macro only Swift Package Manager defines. Under CocoaPods that file compiles
+      # to nothing, the class does not exist, and the build fails with
+      #   "Unknown receiver 'FlutterForegroundTaskPlugin'; did you mean
+      #    'SwiftFlutterForegroundTaskPlugin'?"
+      # which is the unwrapped implementation showing through.
+      #
+      # Defining the condition here compiles the bridge and restores the class.
+      # SWIFT_PACKAGE appears in exactly ONE place in the plugin (that bridge file), so
+      # this enables nothing else -- re-check that if the plugin is ever upgraded.
+      #
+      # Drop this when upstream ships a CocoaPods-visible class, or if this project
+      # migrates to SPM (`flutter config --enable-swift-package-manager`), which defines
+      # the macro itself.
+      if target.name == 'flutter_foreground_task'
+        conditions = config.build_settings['SWIFT_ACTIVE_COMPILATION_CONDITIONS'] || '$(inherited)'
+        conditions = conditions.join(' ') if conditions.is_a?(Array)
+        unless conditions.include?('SWIFT_PACKAGE')
+          config.build_settings['SWIFT_ACTIVE_COMPILATION_CONDITIONS'] = "#{conditions} SWIFT_PACKAGE"
+        end
+      end
     end
   end
 

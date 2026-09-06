@@ -1,5 +1,6 @@
 // ignore_for_file: library_private_types_in_public_api, depend_on_referenced_packages
 import 'dart:async';
+
 import 'package:rxdart/rxdart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -18,6 +19,7 @@ import '/widgets/common.dart';
 import 'swipe_animation.dart';
 import 'lyrics_view.dart';
 import 'video/video_fullscreen.dart';
+import 'video/video_mini_player.dart';
 import 'video/video_stage.dart';
 import 'video/video_surface.dart';
 import '../onboarding/coach_marks.dart';
@@ -60,8 +62,7 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
             CoachStep(
               targetKey: _cardDeckKey,
               title: 'Album Artwork',
-              description:
-                  'Swipe left or right to change tracks. Long press for track details.',
+              description: 'Swipe left or right to change tracks. Long press for track details.',
               icon: Icons.swipe_rounded,
               tooltipPosition: TooltipPosition.below,
             ),
@@ -75,8 +76,7 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
             CoachStep(
               targetKey: _actionBarKey,
               title: 'Quick Actions',
-              description:
-                  'Tap EQ for equalizer, Lyrics for synced lyrics, Visual for visualizer, Queue to manage your playlist.',
+              description: 'Tap EQ for equalizer, Lyrics for synced lyrics, Visual for visualizer, Queue to manage your playlist.',
               icon: Icons.dashboard_customize_rounded,
               tooltipPosition: TooltipPosition.above,
             ),
@@ -421,66 +421,99 @@ class _CardDeck extends StatelessWidget {
       child: Column(
         children: [
           Expanded(
-            child: AnimatedPlayerCard(
-              key: cardKey,
-              itemCount: controller.songs.length,
-              currentSongId: controller.songId,
-              onPageChanged: (page) {
-                if (page > controller.songId) {
-                  controller.next();
-                } else if (page < controller.songId) {
-                  // Skip the >3s restart check — card already animated,
-                  // user explicitly chose previous track
-                  controller.songId = page;
-                  controller.artWorkId = controller.songs[page].id;
-                  loadAudioSource(
-                    controller.handler,
-                    controller.songs[page],
-                    replayGain: controller.replayGain,
-                  );
-                }
-              },
-              itemBuilder: (context, index, {bool isActive = false}) {
-                // A video occupies the card where the artwork would be — the
-                // player screen is where playback lives, and a video is a track
-                // being played, not a place to navigate to. Only the track
-                // actually playing gets it: there is one surface, and the cards
-                // either side are previews of things not yet started.
-                final isVideo =
-                    index == controller.songId &&
-                    VideoRegistry.instance.isVideo(controller.songs[index].id);
-                if (isVideo) {
-                  return GestureDetector(
-                    onTap: () => openFullscreenVideo(context),
+            // Rebuilt when the registry changes, not only when the queue does.
+            // A track becomes a video asynchronously — `adopt` resolves a
+            // stream and stages a manifest first — so `isVideo` below can flip
+            // long after this card was built. Without this the card kept the
+            // still cover it chose before the answer arrived, and the video had
+            // nowhere to go but the floating window meant for when the card
+            // cannot host it.
+            child: ListenableBuilder(
+              listenable: VideoRegistry.instance,
+              builder: (context, _) => AnimatedPlayerCard(
+                key: cardKey,
+                itemCount: controller.songs.length,
+                currentSongId: controller.songId,
+                onPageChanged: (page) {
+                  if (page > controller.songId) {
+                    controller.next();
+                  } else if (page < controller.songId) {
+                    // Skip the >3s restart check — card already animated,
+                    // user explicitly chose previous track
+                    controller.songId = page;
+                    controller.artWorkId = controller.songs[page].id;
+                    loadAudioSource(
+                      controller.handler,
+                      controller.songs[page],
+                      replayGain: controller.replayGain,
+                    );
+                  }
+                },
+                itemBuilder: (context, index, {bool isActive = false}) {
+                  // A video occupies the card where the artwork would be — the
+                  // player screen is where playback lives, and a video is a track
+                  // being played, not a place to navigate to. Only the track
+                  // actually playing gets it: there is one surface, and the cards
+                  // either side are previews of things not yet started.
+                  final isVideo =
+                      index == controller.songId &&
+                      VideoRegistry.instance.isVideo(
+                        controller.songs[index].id,
+                      );
+                  if (isVideo) {
+                    return GestureDetector(
+                      onTap: () => openFullscreenVideo(context),
+                      onLongPress: () => showTrackInfo(context, controller),
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: ClipRRect(
+                          borderRadius: const BorderRadius.all(
+                            Radius.circular(14),
+                          ),
+                          child: Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              const VideoStage(host: VideoHost.card),
+                              // The only way the floating window is ever opened.
+                              // It used to open itself whenever a video played
+                              // and the card was not hosting it, which put an
+                              // undismissed window over the transport controls.
+                              Positioned(
+                                top: 6,
+                                right: 6,
+                                child: _PopOutButton(
+                                  onTap: () {
+                                    VideoPopout.instance.request();
+                                    Routes.pop(context);
+                                  },
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  }
+                  return InkWell(
+                    // Tap the cover to return to the now-playing list (Poweramp:
+                    // tap OR swipe-down both go back to the current category).
+                    onTap: () {
+                      PlayerRevealBus.revealNowPlaying();
+                      Routes.pop(context);
+                    },
                     onLongPress: () => showTrackInfo(context, controller),
-                    child: const Padding(
-                      padding: EdgeInsets.all(12),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.all(Radius.circular(14)),
-                        child: VideoStage(host: VideoHost.card),
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 300),
+                      child: playerCard(
+                        animation,
+                        context,
+                        controller,
+                        songIndex: index,
                       ),
                     ),
                   );
-                }
-                return InkWell(
-                  // Tap the cover to return to the now-playing list (Poweramp:
-                  // tap OR swipe-down both go back to the current category).
-                  onTap: () {
-                    PlayerRevealBus.revealNowPlaying();
-                    Routes.pop(context);
-                  },
-                  onLongPress: () => showTrackInfo(context, controller),
-                  child: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 300),
-                    child: playerCard(
-                      animation,
-                      context,
-                      controller,
-                      songIndex: index,
-                    ),
-                  ),
-                );
-              },
+                },
+              ),
             ),
           ),
           if (controller.currentLyrics != null || controller.lyricsLoading)
@@ -561,7 +594,7 @@ class _TrackInfo extends StatelessWidget {
           // debug underline.
           Hero(
             tag: kNowPlayingTitleHeroTag,
-              flightShuttleBuilder: fadeThroughShuttle,
+            flightShuttleBuilder: fadeThroughShuttle,
             child: Material(
               type: MaterialType.transparency,
               child: _MarqueeText(
@@ -578,7 +611,7 @@ class _TrackInfo extends StatelessWidget {
           const SizedBox(height: 4),
           Hero(
             tag: kNowPlayingArtistHeroTag,
-              flightShuttleBuilder: fadeThroughShuttle,
+            flightShuttleBuilder: fadeThroughShuttle,
             child: Material(
               type: MaterialType.transparency,
               child: _MarqueeText(
@@ -779,6 +812,42 @@ class _WaveformProgress extends StatelessWidget {
           },
         );
       },
+    );
+  }
+}
+
+/// The control that opens the floating window.
+///
+/// Deliberately small and low-contrast: it sits over the picture, and a video
+/// is the one thing on this screen that is meant to be looked at. It is the
+/// only route to the pop-out window — see [VideoPopout] for why that window no
+/// longer decides for itself.
+class _PopOutButton extends StatelessWidget {
+  final VoidCallback onTap;
+
+  const _PopOutButton({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: 'Pop out video',
+      child: GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: Container(
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.45),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: const Icon(
+            Icons.picture_in_picture_alt_rounded,
+            color: Colors.white,
+            size: 18,
+          ),
+        ),
+      ),
     );
   }
 }
