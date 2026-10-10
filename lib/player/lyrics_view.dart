@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'dart:ui';
+import 'package:flutter/foundation.dart' show ValueListenable;
+import 'package:flutter/scheduler.dart' show Ticker;
 import 'package:vector_math/vector_math_64.dart' show Vector3;
 
 import '/exports/exports.dart';
@@ -10,6 +12,7 @@ import '../models/lyrics_model.dart';
 import '../widgets/artwork_widget.dart';
 import '../widgets/common.dart';
 import 'widgets/lyrics_editor.dart';
+import 'widgets/word_fill_text.dart';
 import '/pages/settings.dart';
 
 class LyricsView extends StatefulWidget {
@@ -20,14 +23,24 @@ class LyricsView extends StatefulWidget {
 }
 
 class _LyricsViewState extends State<LyricsView>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late final AnimationController _entranceController;
   late final Animation<Offset> _slideAnimation;
   late final Animation<double> _fadeAnimation;
   final ScrollController _scrollController = ScrollController();
   StreamSubscription<Duration>? _positionSub;
+  StreamSubscription<bool>? _playingSub;
   int _currentLineIndex = -1;
-  double _lineProgress = 0.0;
+
+  /// The lyric clock (position + LRC offset, ms). Read by the active line's
+  /// word fill, which repaints from it without rebuilding the view.
+  final ValueNotifier<int> _lyricClockMs = ValueNotifier<int>(0);
+
+  /// Drives [_lyricClockMs] every frame while playing — `positionStream` only
+  /// ticks every ~200 ms, too coarse for a word-by-word fill. Stopped while
+  /// paused so an open lyrics page doesn't keep the GPU awake.
+  late final Ticker _clock = createTicker((_) => _syncClock());
+  bool _playing = false;
   bool _userScrolling = false;
   Timer? _userScrollTimer;
 
@@ -55,58 +68,50 @@ class _LyricsViewState extends State<LyricsView>
 
   void _bindPosition() {
     final controller = context.read<AppController>();
-    final player = controller.handler.currentTrackPlayer;
-    _positionSub = player.positionStream.listen(_onPositionUpdate);
+    // Seeks while paused still move the line.
+    _positionSub = controller.handler.currentTrackPlayer.positionStream.listen(
+      (_) => _syncClock(),
+    );
+    // The handler's state follows whichever player is live across crossfades.
+    _playingSub = controller.handler.playbackState
+        .map((s) => s.playing)
+        .distinct()
+        .listen((playing) {
+          _playing = playing;
+          _updateClock();
+          _syncClock();
+        });
   }
 
-  void _onPositionUpdate(Duration position) {
+  /// Runs the frame clock only while playing synced lyrics.
+  void _updateClock() {
+    final lyrics = AppController.instance.currentLyrics;
+    final want = _playing && lyrics != null && lyrics.isSynced;
+    if (want && !_clock.isActive) {
+      _clock.start();
+    } else if (!want && _clock.isActive) {
+      _clock.stop();
+    }
+  }
+
+  void _syncClock() {
+    if (!mounted) return;
     final controller = AppController.instance;
     final lyrics = controller.currentLyrics;
-    if (lyrics == null || !lyrics.isSynced) return;
-
-    final offset = Duration(milliseconds: lyrics.offsetMs);
-    final adjusted = position + offset;
-
-    // Binary search for the current line
-    int idx = -1;
-    int lo = 0, hi = lyrics.lines.length - 1;
-    while (lo <= hi) {
-      final mid = (lo + hi) ~/ 2;
-      if (lyrics.lines[mid].timestamp == null) {
-        lo = mid + 1;
-        continue;
-      }
-      if (lyrics.lines[mid].timestamp! <= adjusted) {
-        idx = mid;
-        lo = mid + 1;
-      } else {
-        hi = mid - 1;
-      }
+    if (lyrics == null || !lyrics.isSynced) {
+      _updateClock();
+      return;
     }
 
-    // Calculate progress within current line (0.0–1.0)
-    double progress = 0.0;
-    if (idx >= 0) {
-      final lineStart = lyrics.lines[idx].timestamp!;
-      final nextIdx = idx + 1;
-      final lineEnd =
-          (nextIdx < lyrics.lines.length &&
-              lyrics.lines[nextIdx].timestamp != null)
-          ? lyrics.lines[nextIdx].timestamp!
-          : lineStart + const Duration(seconds: 5);
-      final totalMs = lineEnd.inMilliseconds - lineStart.inMilliseconds;
-      if (totalMs > 0) {
-        progress =
-            ((adjusted.inMilliseconds - lineStart.inMilliseconds) / totalMs)
-                .clamp(0.0, 1.0);
-      }
-    }
+    // just_audio interpolates `position` between platform updates.
+    final adjusted =
+        controller.handler.currentTrackPlayer.position +
+        Duration(milliseconds: lyrics.offsetMs);
+    _lyricClockMs.value = adjusted.inMilliseconds;
 
-    if (idx != _currentLineIndex || (progress - _lineProgress).abs() > 0.01) {
-      setState(() {
-        _currentLineIndex = idx;
-        _lineProgress = progress;
-      });
+    final idx = activeLineIndex(lyrics.lines, adjusted);
+    if (idx != _currentLineIndex) {
+      setState(() => _currentLineIndex = idx);
     }
   }
 
@@ -134,6 +139,9 @@ class _LyricsViewState extends State<LyricsView>
   @override
   void dispose() {
     _positionSub?.cancel();
+    _playingSub?.cancel();
+    _clock.dispose();
+    _lyricClockMs.dispose();
     _userScrollTimer?.cancel();
     _scrollController.dispose();
     _entranceController.dispose();
@@ -303,10 +311,14 @@ class _LyricsViewState extends State<LyricsView>
       return _EmptyState(onAdd: () => _openEditor(controller));
     }
     if (lyrics.isSynced) {
+      // Lyrics can finish loading while the page is open and playing.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _updateClock();
+      });
       return _SyncedLyrics(
         lyrics: lyrics,
         currentLineIndex: _currentLineIndex,
-        lineProgress: _lineProgress,
+        lyricClockMs: _lyricClockMs,
         userScrolling: _userScrolling,
         scrollController: _scrollController,
         onUserScroll: _onUserScroll,
@@ -430,7 +442,7 @@ class _Header extends StatelessWidget {
 class _SyncedLyrics extends StatefulWidget {
   final LyricsData lyrics;
   final int currentLineIndex;
-  final double lineProgress;
+  final ValueListenable<int> lyricClockMs;
   final bool userScrolling;
   final ScrollController scrollController;
   final VoidCallback onUserScroll;
@@ -439,7 +451,7 @@ class _SyncedLyrics extends StatefulWidget {
   const _SyncedLyrics({
     required this.lyrics,
     required this.currentLineIndex,
-    required this.lineProgress,
+    required this.lyricClockMs,
     required this.userScrolling,
     required this.scrollController,
     required this.onUserScroll,
@@ -502,6 +514,27 @@ class _SyncedLyricsState extends State<_SyncedLyrics> {
     );
   }
 
+  List<TimedWord>? _cachedWords;
+  int _cachedWordsIndex = -1;
+  LyricsData? _cachedWordsLyrics;
+
+  /// Timed words for the active line, computed once per line change.
+  List<TimedWord> _wordsFor(int index) {
+    if (_cachedWords != null &&
+        _cachedWordsIndex == index &&
+        identical(_cachedWordsLyrics, widget.lyrics)) {
+      return _cachedWords!;
+    }
+    final lines = widget.lyrics.lines;
+    final next = index + 1 < lines.length ? lines[index + 1].timestamp : null;
+    _cachedWordsIndex = index;
+    _cachedWordsLyrics = widget.lyrics;
+    return _cachedWords = timedWords(
+      lines[index],
+      endMs: next?.inMilliseconds,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final viewportHeight = MediaQuery.of(context).size.height;
@@ -545,25 +578,26 @@ class _SyncedLyricsState extends State<_SyncedLyrics> {
                   ? (index - widget.currentLineIndex).abs()
                   : 0;
 
+              // Same depth falloff as the desktop lyrics view.
               final double alpha;
               if (isCurrent) {
                 alpha = 1.0;
-              } else if (isPast) {
-                alpha = distance <= 2 ? 0.25 : 0.12;
+              } else if (distance == 1) {
+                alpha = 0.6;
+              } else if (distance == 2) {
+                alpha = 0.42;
               } else {
-                alpha = distance <= 1
-                    ? 0.55
-                    : distance <= 3
-                    ? 0.35
-                    : 0.2;
+                alpha = isPast ? 0.22 : 0.3;
               }
 
+              final line = widget.lyrics.lines[index];
               return _LyricLine(
                 key: _lineKeys[index],
-                text: widget.lyrics.lines[index].text,
+                text: line.text,
                 isCurrent: isCurrent,
                 alpha: alpha,
-                lineProgress: isCurrent ? widget.lineProgress : 0.0,
+                words: isCurrent ? _wordsFor(index) : null,
+                lyricClockMs: widget.lyricClockMs,
                 onTap: () => widget.onLineTap(index),
               );
             }),
@@ -582,7 +616,8 @@ class _LyricLine extends StatelessWidget {
   final String text;
   final bool isCurrent;
   final double alpha;
-  final double lineProgress;
+  final List<TimedWord>? words;
+  final ValueListenable<int> lyricClockMs;
   final VoidCallback onTap;
 
   const _LyricLine({
@@ -590,7 +625,8 @@ class _LyricLine extends StatelessWidget {
     required this.text,
     required this.isCurrent,
     required this.alpha,
-    required this.lineProgress,
+    required this.words,
+    required this.lyricClockMs,
     required this.onTap,
   });
 
@@ -636,59 +672,12 @@ class _LyricLine extends StatelessWidget {
                     ]
                   : [const Shadow(color: Colors.transparent, blurRadius: 0)],
             ),
-            child: isCurrent
-                ? _ShimmerRevealText(text: text, progress: lineProgress)
+            child: isCurrent && words != null && words!.isNotEmpty
+                ? WordFillText(words: words!, positionMs: lyricClockMs)
                 : Text(text),
           ),
         ),
       ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Shimmer reveal — left-to-right gradient sweep on current lyric line
-// ---------------------------------------------------------------------------
-
-class _ShimmerRevealText extends StatelessWidget {
-  final String text;
-  final double progress;
-
-  const _ShimmerRevealText({required this.text, required this.progress});
-
-  @override
-  Widget build(BuildContext context) {
-    return TweenAnimationBuilder<double>(
-      tween: Tween<double>(end: progress),
-      duration: const Duration(milliseconds: 160),
-      curve: Curves.linear,
-      builder: (context, p, child) {
-        // Map 0..1 progress to gradient sweep with overshoot so
-        // the shimmer edge starts offscreen-left and exits offscreen-right
-        final edge = -0.15 + p * 1.30;
-
-        return ShaderMask(
-          blendMode: BlendMode.modulate,
-          shaderCallback: (bounds) => LinearGradient(
-            colors: const [
-              Color(0xFFFFFFFF), // revealed — full white
-              Color(0xFFFFFFFF), // revealed
-              Color(0xFFFFF4D6), // warm shimmer glow at edge
-              Color(0x59FFFFFF), // unrevealed — dim (alpha ~0.35)
-              Color(0x59FFFFFF), // unrevealed
-            ],
-            stops: [
-              0.0,
-              (edge - 0.07).clamp(0.0, 1.0),
-              edge.clamp(0.0, 1.0),
-              (edge + 0.04).clamp(0.0, 1.0),
-              1.0,
-            ],
-          ).createShader(bounds),
-          child: child!,
-        );
-      },
-      child: Text(text),
     );
   }
 }

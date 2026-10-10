@@ -92,6 +92,30 @@ class LyricsData {
 /// Matches `[mm:ss.xx]` or `[mm:ss.xxx]` timestamps.
 final _timestampRe = RegExp(r'\[(\d{1,3}):(\d{2})(?:\.(\d{2,3}))?\]');
 
+/// Index of the line being sung at [position] (the last line whose timestamp
+/// is <= it), or -1 before the first line. Lines must be sorted, as
+/// [parseLrc] leaves them; untimed lines are skipped.
+int activeLineIndex(List<LyricLine> lines, Duration position) {
+  var idx = -1;
+  var lo = 0, hi = lines.length - 1;
+  while (lo <= hi) {
+    final mid = (lo + hi) ~/ 2;
+    final ts = lines[mid].timestamp;
+    if (ts == null) {
+      // Untimed lines sort last.
+      hi = mid - 1;
+      continue;
+    }
+    if (ts <= position) {
+      idx = mid;
+      lo = mid + 1;
+    } else {
+      hi = mid - 1;
+    }
+  }
+  return idx;
+}
+
 /// Matches metadata tags like `[ar:Artist Name]`.
 final _metaRe = RegExp(r'^\[([a-z]+):(.*)\]$', caseSensitive: false);
 
