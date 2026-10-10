@@ -13,6 +13,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:eq_app/data/library_database.dart';
 import 'package:eq_app/data/library_repository.dart';
+import 'package:eq_app/data/streamed_track.dart';
 import 'package:eq_app/models/cloud_file.dart';
 import 'package:eq_app/services/mixes/daily_mix_service.dart';
 import 'package:eq_app/services/mixes/daily_mixes.dart';
@@ -369,6 +370,8 @@ void main() {
     });
 
     group('YouTube radio follows what the user plays', () {
+      ResolvedMix tasteMix(List<ResolvedMix> mixes) =>
+          mixes.firstWhere((m) => m.descriptor == 'Afrobeat');
       Future<void> playThrough(int songId, int times) async {
         for (var i = 0; i < times; i++) {
           await repo.recordPlayEvent(
@@ -391,17 +394,17 @@ void main() {
         await insertTaste('Afrobeat', 100, count: 30);
         await playThrough(105, 6);
         await playThrough(110, 3);
-        final seeds = <int>[];
+        final seeds = <String>[];
         final service = DailyMixService(
           repo,
           youTubeRadio: (seed) async {
-            seeds.add(seed.id);
-            return [for (var i = 0; i < 20; i++) radioTrack('r${seed.id}-$i')];
+            seeds.add(seed.key);
+            return [for (var i = 0; i < 20; i++) radioTrack('r${seed.key}-$i')];
           },
         );
 
-        final mix = (await service.mixes(now: afternoon)).single;
-        expect(seeds, unorderedEquals([105, 110]));
+        final mix = tasteMix(await service.mixes(now: afternoon));
+        expect(seeds, containsAll(['105', '110']));
         final yt = mix.tracks.where((t) => t.source == MixSource.youtube);
         expect(yt, isNotEmpty);
         // Both seeds contribute, interleaved — not just the first one.
@@ -421,9 +424,13 @@ void main() {
               [for (var i = 0; i < 20; i++) radioTrack('r$i', artist: 'Artist $i')],
         );
         final mixes = await service.mixes(now: afternoon);
-        expect(mixes, hasLength(1),
-            reason: 'streamed tracks never found a mix of their own');
-        expect(mixes.single.tracks.any((t) => t.source == MixSource.youtube), isTrue);
+        expect(tasteMix(mixes).tracks.any((t) => t.source == MixSource.youtube), isTrue);
+        // Anything besides the taste is a favourite's radio mix — opening with
+        // the user's own song — never a cluster of streamed strangers.
+        for (final mix in mixes.where((m) => m.descriptor != 'Afrobeat')) {
+          expect(mix.tracks.first.source, MixSource.local);
+          expect(mix.name, endsWith(' mix'));
+        }
       });
 
       test('songs already on the phone are not streamed', () async {
@@ -436,7 +443,7 @@ void main() {
             for (var i = 0; i < 20; i++) radioTrack('r$i'),
           ],
         );
-        final mix = (await service.mixes(now: afternoon)).single;
+        final mix = tasteMix(await service.mixes(now: afternoon));
         expect(mix.tracks.any((t) => t.track?.videoId == 'owned'), isFalse);
       });
 
@@ -455,7 +462,7 @@ void main() {
             return [for (var i = 0; i < 10; i++) ytTrack('y$i')];
           },
         );
-        final mix = (await service.mixes(now: afternoon)).single;
+        final mix = tasteMix(await service.mixes(now: afternoon));
         expect(radioCalls, 0);
         expect(asked, ['Afrobeat']);
         expect(mix.tracks.any((t) => t.source == MixSource.youtube), isTrue);
@@ -485,8 +492,128 @@ void main() {
           youTubeRadio: (_) async => throw StateError('offline'),
           youTube: (_) async => [for (var i = 0; i < 10; i++) ytTrack('y$i')],
         );
-        final mix = (await service.mixes(now: afternoon)).single;
+        final mix = tasteMix(await service.mixes(now: afternoon));
         expect(mix.tracks.any((t) => t.source == MixSource.youtube), isTrue);
+      });
+    });
+
+    group('streamed listening counts as the user\'s own', () {
+      var nextSec = 1700000000;
+      Future<StreamedTrack> streamedPlay(
+        String videoId, {
+        required String artist,
+        int plays = 2,
+        bool skipped = false,
+      }) async {
+        final t = StreamedTrack(
+          videoId: videoId,
+          songId: videoId.hashCode.abs(),
+          title: 'Song $videoId',
+          artist: artist,
+          durationMs: 200000,
+          lastPlayedSec: nextSec,
+        );
+        await repo.rememberStreamed(t);
+        for (var i = 0; i < plays; i++) {
+          await repo.recordPlayEvent(
+            songId: t.songId,
+            atSec: nextSec++,
+            msPlayed: skipped ? 3000 : 198000,
+            completed: !skipped,
+          );
+        }
+        return t;
+      }
+
+      YtTrack related(String id) => YtTrack(
+          videoId: id, title: 'Related $id', artist: 'Other $id',
+          playlistId: '', playlistTitle: '');
+
+      test('the catalog round-trips and skips are judged by its durations', () async {
+        await streamedPlay('a1', artist: 'Burna Boy', plays: 3);
+        await streamedPlay('a2', artist: 'Burna Boy', plays: 2, skipped: true);
+        final tracks = await repo.streamedTracks();
+        expect(tracks.map((t) => t.videoId), unorderedEquals(['a1', 'a2']));
+        final stats = await repo.playStatsFor({
+          for (final t in tracks) t.songId: t.durationMs,
+        });
+        expect(stats['a1'.hashCode.abs()]!.skips, 0);
+        expect(stats['a2'.hashCode.abs()]!.skips, 2);
+      });
+
+      test('nothing on the phone, only streaming: Home still gets mixes', () async {
+        // Three songs by one artist form a taste; two others are one-offs.
+        for (final id in ['b1', 'b2', 'b3']) {
+          await streamedPlay(id, artist: 'Burna Boy');
+        }
+        await streamedPlay('c1', artist: 'Tems');
+        await streamedPlay('d1', artist: 'Rema');
+        final asked = <String?>[];
+        final service = DailyMixService(
+          repo,
+          youTubeRadio: (seed) async {
+            asked.add(seed.videoId);
+            return [for (var i = 0; i < 30; i++) related('${seed.videoId}-$i')];
+          },
+        );
+        final mixes = await service.mixes(now: afternoon);
+        expect(mixes.length, greaterThanOrEqualTo(DailyMixService.minMixes));
+        expect(mixes.map((m) => m.descriptor), contains('Burna Boy'));
+        for (final mix in mixes) {
+          expect(mix.length, greaterThanOrEqualTo(MixRules.minClusterSize),
+              reason: 'every card is a playlist');
+        }
+        expect(asked, everyElement(isNotNull),
+            reason: 'a streamed seed is radioed by its video id, no search');
+      });
+
+      test('one artist\'s favourites still give several mixes', () async {
+        for (final id in ['g1', 'g2', 'g3', 'g4']) {
+          await streamedPlay(id, artist: 'Burna Boy');
+        }
+        final service = DailyMixService(
+          repo,
+          youTubeRadio: (seed) async =>
+              [for (var i = 0; i < 30; i++) related('${seed.videoId}-$i')],
+        );
+        final mixes = await service.mixes(now: afternoon);
+        expect(mixes.length, DailyMixService.minMixes);
+        final songRadios = mixes.where((m) => m.name.endsWith(' radio'));
+        expect(songRadios, isNotEmpty,
+            reason: 'artists ran out, so songs seed radios');
+        expect(songRadios.every((m) => m.seededBySong), isTrue);
+        expect(mixes.map((m) => m.name).toSet(), hasLength(mixes.length));
+      });
+
+      test('a radio mix opens with the favourite and never repeats it', () async {
+        await streamedPlay('t1', artist: 'Tems', plays: 4);
+        final service = DailyMixService(
+          repo,
+          youTubeRadio: (seed) async => [
+            YtTrack(videoId: 't1', title: 'Song t1', artist: 'Tems',
+                playlistId: '', playlistTitle: ''),
+            for (var i = 0; i < 30; i++) related('x$i'),
+          ],
+        );
+        final mix = (await service.mixes(now: afternoon)).first;
+        expect(mix.name, 'tems mix');
+        expect(mix.tracks.first.track!.videoId, 't1');
+        expect(mix.tracks.where((t) => t.track?.videoId == 't1'), hasLength(1));
+        expect(mix.length, MixRules.tracksPerMix);
+      });
+
+      test('streams the user skipped do not count as listening', () async {
+        await streamedPlay('s1', artist: 'Skipped', plays: 3, skipped: true);
+        var called = false;
+        final service = DailyMixService(
+          repo,
+          youTubeRadio: (_) async {
+            called = true;
+            return const [];
+          },
+        );
+        expect(await service.mixes(now: afternoon), isEmpty);
+        expect(called, isFalse);
       });
     });
   });

@@ -7,6 +7,7 @@ import '/exports/exports.dart';
 import '../data/library_repository.dart';
 import '../helpers/audio_handler.dart';
 import '../player/queue_sync.dart';
+import '../data/streamed_track.dart';
 import '../Helpers/Channel.dart';
 import '../helpers/index.dart';
 import '../models/eq_models.dart';
@@ -1618,6 +1619,15 @@ class AppController with ChangeNotifier implements StationSink {
     _flushPlayEvent();
     final song = songs[index];
     _incrementPlayCount(song.id);
+    // A streamed song leaves only an id in the play log; remembering what it
+    // was is what lets Home build mixes from streaming as well as files.
+    final streamed = StreamedTrack.fromSong(
+      song,
+      DateTime.now().millisecondsSinceEpoch ~/ 1000,
+    );
+    if (streamed != null) {
+      unawaited(libraryRepo?.rememberStreamed(streamed) ?? Future<void>.value());
+    }
     _markedSongId = song.id;
     _markedDurationMs = song.duration ?? 0;
     _markedStartSec = DateTime.now().millisecondsSinceEpoch ~/ 1000;

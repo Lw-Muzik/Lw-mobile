@@ -134,6 +134,18 @@ class YtMusicRepository {
         {'query': query, 'params': filter.params},
       );
 
+  /// YouTube Music's own curated playlists for [query] ("Presenting Burna
+  /// Boy", "Afrobeats Now") — the *featured* filter, as opposed to the
+  /// community playlists [SearchFilter.playlists] returns, which are anyone's
+  /// uploads. Kept out of [SearchFilter] so it doesn't become a search tab.
+  Future<List<ExploreShelf>> featuredPlaylists(String query) =>
+      YtWorker.instance.run<List<ExploreShelf>>(
+        YtOp.search,
+        {'query': query, 'params': _featuredPlaylistsParams},
+      );
+
+  static const _featuredPlaylistsParams = 'EgeKAQQoADgBagwQDhAKEAMQBRAJEAQ%3D';
+
   /// Type-ahead completions. Never throws: a failed suggestion request must
   /// leave the field alone, not replace what the user is typing with an error.
   Future<List<String>> suggestions(String query) async {

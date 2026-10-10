@@ -36,7 +36,35 @@ typedef YouTubeForTaste = Future<List<YtTrack>> Function(String descriptor);
 
 /// YouTube Music's "radio" for one of the user's own songs — the related
 /// tracks it would play next. Empty when the song can't be found there.
-typedef YouTubeRadio = Future<List<YtTrack>> Function(SongModel seed);
+typedef YouTubeRadio = Future<List<YtTrack>> Function(MixSeed seed);
+
+/// A song the user plays, as a starting point for YouTube radio: a file on the
+/// phone (found on YouTube by title and artist) or a streamed song they played
+/// (whose video id is already known).
+class MixSeed {
+  const MixSeed({
+    required this.key,
+    required this.title,
+    this.artist,
+    this.videoId,
+    required this.score,
+    required this.ref,
+  });
+
+  /// The engine's key for this track.
+  final String key;
+  final String title;
+  final String? artist;
+
+  /// Set for a streamed song: its radio needs no search.
+  final String? videoId;
+
+  /// How much it is played: completed plays count double, skips not at all.
+  final int score;
+
+  /// The track itself, for a mix that opens with it.
+  final MixTrackRef ref;
+}
 
 /// One identity for a recording across sources: "Blinding Lights (Official
 /// Video)" by "The Weeknd - Topic" is the same song as the file on the phone.
@@ -50,10 +78,15 @@ class ResolvedMix implements ResolvedMixSource {
     required this.name,
     required this.descriptor,
     required this.tracks,
+    this.seededBySong = false,
   });
 
   final String name;
   final String descriptor;
+
+  /// A radio of one song ("glory radio"): its descriptor is a song title, not
+  /// a taste, so it is no search term for playlists.
+  final bool seededBySong;
   @override
   final List<MixTrackRef> tracks;
 
@@ -88,6 +121,10 @@ class DailyMixService {
 
   /// Below this many radio tracks, the taste's name is searched as well.
   static const radioEnough = 12;
+
+  /// Home should never be bare: with fewer mixes than this, the user's
+  /// favourite songs each get a radio mix of their own.
+  static const minMixes = 3;
 
   List<ResolvedMix>? _cached;
   String? _cachedFor;
@@ -124,7 +161,8 @@ class DailyMixService {
     if (cached != null && _cachedFor == stamp) return cached;
 
     final songs = await _repo.allSongs();
-    if (songs.isEmpty) {
+    final streamed = await _repo.streamedTracks();
+    if (songs.isEmpty && streamed.isEmpty) {
       _cached = const [];
       _cachedFor = stamp;
       return const [];
@@ -133,15 +171,67 @@ class DailyMixService {
     // Two small aggregate queries rather than one per track.
     final stats = await _repo.playStats();
     final hours = await _repo.playHours();
+    final streamedStats = await _repo.playStatsFor({
+      for (final t in streamed) t.songId: t.durationMs,
+    });
 
     final byKey = {for (final song in songs) song.id.toString(): song};
-    // What the user already has on the phone — never worth streaming.
-    final owned = {for (final song in songs) trackIdentity(song.title, song.artist)};
-    final local = [
-      for (final song in songs) _candidateOf(song, stats, hours),
-    ];
+    final refs = <String, MixTrackRef>{};
+    final seeds = <String, MixSeed>{};
+    final local = <MixCandidate>[];
+    for (final song in songs) {
+      final candidate = _candidateOf(song, stats, hours);
+      local.add(candidate);
+      seeds[candidate.key] = MixSeed(
+        key: candidate.key,
+        title: song.title,
+        artist: song.artist,
+        score: _score(candidate.plays, candidate.skips, candidate.playCount),
+        ref: MixTrackRef.local(song),
+      );
+    }
+    // Streamed songs the user played are part of their listening: they can
+    // found a taste and seed radio like a file on the phone can.
+    final historyKeys = <String>{};
+    for (final t in streamed) {
+      final stat = streamedStats[t.songId];
+      if (stat == null || stat.plays == stat.skips) continue;
+      final key = t.key;
+      final track = YtTrack(
+        videoId: t.videoId,
+        title: t.title,
+        artist: t.artist,
+        thumbnail: t.thumbnail,
+        durationSecs: t.durationMs > 0 ? t.durationMs / 1000 : null,
+        playlistId: '',
+        playlistTitle: '',
+      );
+      final ref = MixTrackRef.youtube(track, asVideo: false);
+      historyKeys.add(key);
+      refs[key] = ref;
+      local.add(MixCandidate(
+        key: key,
+        source: MixSource.youtube,
+        history: true,
+        artist: t.artist,
+        plays: stat.plays,
+        skips: stat.skips,
+      ));
+      seeds[key] = MixSeed(
+        key: key,
+        title: t.title,
+        artist: t.artist,
+        videoId: t.videoId,
+        score: _score(stat.plays, stat.skips, 0),
+        ref: ref,
+      );
+    }
+    // What the user already has or plays — never worth fetching again.
+    final owned = {
+      for (final seed in seeds.values) trackIdentity(seed.title, seed.artist),
+    };
 
-    // Pass one decides the tastes, from the user's own music alone. Remote
+    // Pass one decides the tastes, from the user's own listening alone. Remote
     // tracks are then fetched for those tastes and only those — which is what
     // stops a drive full of one genre inventing a mix the library has no
     // grounds for.
@@ -155,20 +245,15 @@ class DailyMixService {
       canSupplement: canSupplement,
       variation: _variation,
     );
-    if (shape.isEmpty) {
-      _cached = const [];
-      _cachedFor = stamp;
-      return const [];
-    }
 
     // Fetched for every taste at once: each is a handful of requests, and
     // doing them in turn made Home wait for all of them end to end.
     final fetched = await Future.wait([
       for (final mix in shape)
-        _remoteFor(mix, byKey: byKey, stats: stats, owned: owned),
+        _remoteFor(mix, seeds: seeds, owned: owned, ownKeys: historyKeys),
     ]);
     final supplements = <String, List<MixCandidate>>{};
-    final refs = <String, MixTrackRef>{};
+    var supplemented = false;
     for (var i = 0; i < shape.length; i++) {
       final pool = supplements[shape[i].descriptor] ??= [];
       for (final entry in fetched[i].entries) {
@@ -176,11 +261,12 @@ class DailyMixService {
         if (refs.containsKey(entry.key)) continue;
         refs[entry.key] = entry.value.$2;
         pool.add(entry.value.$1);
+        supplemented = true;
       }
     }
 
     // Pass two fills those same tastes, each from its own supplement.
-    final built = refs.isEmpty
+    final built = !supplemented
         ? shape
         : buildDailyMixes(
             library: local,
@@ -209,9 +295,111 @@ class DailyMixService {
       ));
     }
 
+    if (resolved.length < minMixes) {
+      resolved.addAll(await _radioMixes(
+        count: minMixes - resolved.length,
+        taken: resolved,
+        seeds: seeds,
+        owned: owned,
+        ownKeys: historyKeys,
+      ));
+    }
+
     _cached = resolved;
     _cachedFor = stamp;
     return resolved;
+  }
+
+  /// Completed plays count double; the library's own counter counts once.
+  static int _score(int plays, int skips, int playCount) =>
+      (plays - skips) * 2 + playCount;
+
+  /// Mixes seeded from the user's favourite songs — for a listener whose plays
+  /// don't yet form tastes (a few songs by many artists, or nothing on the
+  /// phone at all). Each opens with the favourite, then its YouTube radio.
+  Future<List<ResolvedMix>> _radioMixes({
+    required int count,
+    required List<ResolvedMix> taken,
+    required Map<String, MixSeed> seeds,
+    required Set<String> owned,
+    required Set<String> ownKeys,
+  }) async {
+    final radio = _youTubeRadio;
+    if (radio == null || count <= 0) return const [];
+
+    final takenNames = {for (final m in taken) m.descriptor.toLowerCase()};
+    final played = [
+      for (final seed in seeds.values)
+        if (seed.score > 0) seed,
+    ]..sort((a, b) => b.score.compareTo(a.score));
+    final random = Random(Object.hash(_variation, 'radio-mixes'));
+    final keyed = [
+      for (final s in played.take(radioSeedPool * 2))
+        (s, pow(random.nextDouble(), 1 / s.score).toDouble()),
+    ]..sort((a, b) => b.$2.compareTo(a.$2));
+
+    // One per artist, and none for a taste that already has its mix. When the
+    // artists run out — someone who has played four songs by one artist —
+    // the favourites themselves each get a radio ("glory radio").
+    final chosen = <(MixSeed, bool)>[];
+    final names = <String>{...takenNames};
+    for (final (seed, _) in keyed) {
+      if (chosen.length == count) break;
+      if (_radioName(seed).isEmpty) continue;
+      if (!names.add(_radioDescriptor(seed).toLowerCase())) continue;
+      chosen.add((seed, false));
+    }
+    final titles = <String>{};
+    for (final (seed, _) in keyed) {
+      if (chosen.length >= count) break;
+      if (chosen.any((c) => c.$1.key == seed.key)) continue;
+      final title = cleanTitle(seed.title).toLowerCase();
+      if (title.isEmpty || !titles.add(title)) continue;
+      chosen.add((seed, true));
+    }
+
+    final built = await Future.wait([
+      for (final (seed, bySong) in chosen)
+        () async {
+          final List<YtTrack> related;
+          try {
+            related = await radio(seed);
+          } catch (_) {
+            return null;
+          }
+          final seen = {...owned};
+          final tracks = <MixTrackRef>[seed.ref];
+          for (final t in related) {
+            if (!t.isAvailable || ownKeys.contains('yt:${t.videoId}')) continue;
+            if (!seen.add(trackIdentity(t.title, t.artist))) continue;
+            tracks.add(MixTrackRef.youtube(t, asVideo: false));
+            if (tracks.length == MixRules.tracksPerMix) break;
+          }
+          // The favourite alone is not a mix.
+          if (tracks.length < MixRules.minClusterSize) return null;
+          final title = cleanTitle(seed.title);
+          return ResolvedMix(
+            name: bySong ? '${title.toLowerCase()} radio' : _radioName(seed),
+            descriptor: bySong ? title : _radioDescriptor(seed),
+            tracks: tracks,
+            seededBySong: bySong,
+          );
+        }(),
+    ]);
+    return [for (final mix in built) ?mix];
+  }
+
+  static String _radioDescriptor(MixSeed seed) {
+    final artist = primaryArtist(normalizeArtist(seed.artist ?? ''));
+    return artist.isNotEmpty ? artist : cleanTitle(seed.title);
+  }
+
+  /// "burna boy mix", or "last last radio" when the artist isn't known.
+  static String _radioName(MixSeed seed) {
+    final artist = primaryArtist(normalizeArtist(seed.artist ?? ''));
+    if (artist.isNotEmpty) return '${artist.toLowerCase()} mix';
+    final title = cleanTitle(seed.title);
+    return title.isEmpty ? '' : '${title.toLowerCase()} radio';
   }
 
   /// Drive and YouTube tracks for one taste.
@@ -229,9 +417,9 @@ class DailyMixService {
   /// else. The local mix is already correct.
   Future<Map<String, (MixCandidate, MixTrackRef)>> _remoteFor(
     DailyMix mix, {
-    required Map<String, SongModel> byKey,
-    required Map<int, PlayStats> stats,
+    required Map<String, MixSeed> seeds,
     required Set<String> owned,
+    required Set<String> ownKeys,
   }) async {
     final descriptor = mix.descriptor;
     final out = <String, (MixCandidate, MixTrackRef)>{};
@@ -257,7 +445,8 @@ class DailyMixService {
     final seen = {...owned};
     void addYouTube(YtTrack track, {required bool asVideo}) {
       final key = 'yt:${track.videoId}';
-      if (out.containsKey(key)) return;
+      // Already in the mix as something the user played.
+      if (out.containsKey(key) || ownKeys.contains(key)) return;
       if (!seen.add(trackIdentity(track.title, track.artist))) return;
       out[key] = (
         MixCandidate(
@@ -275,13 +464,12 @@ class DailyMixService {
     var fromRadio = 0;
     final radio = _youTubeRadio;
     if (radio != null) {
-      final seeds = seedsFor(
+      final picked = seedsFor(
         mix,
-        byKey: byKey,
-        stats: stats,
+        seeds: seeds,
         random: Random(Object.hash(_variation, mix.descriptor)),
       );
-      Future<List<YtTrack>> safely(SongModel seed) async {
+      Future<List<YtTrack>> safely(MixSeed seed) async {
         try {
           return await radio(seed);
         } catch (_) {
@@ -289,7 +477,7 @@ class DailyMixService {
         }
       }
 
-      final batches = await Future.wait([for (final seed in seeds) safely(seed)]);
+      final batches = await Future.wait([for (final seed in picked) safely(seed)]);
       final before = out.length;
       // Interleaved so two seeds share the mix rather than the first one
       // crowding the second out.
@@ -326,30 +514,22 @@ class DailyMixService {
   /// Without [random], simply the top ones. Nothing played yet means no seeds,
   /// and the taste's name is searched.
   @visibleForTesting
-  static List<SongModel> seedsFor(
+  static List<MixSeed> seedsFor(
     DailyMix mix, {
-    required Map<String, SongModel> byKey,
-    required Map<int, PlayStats> stats,
+    required Map<String, MixSeed> seeds,
     Random? random,
   }) {
-    int score(SongModel s) {
-      final stat = stats[s.id];
-      final plays = stat == null ? 0 : stat.plays - stat.skips;
-      final counter = (s.getMap['play_count'] as num?)?.toInt() ?? 0;
-      return plays * 2 + counter;
-    }
-
     final played = [
       for (final key in mix.trackKeys)
-        if (byKey[key] case final song? when score(song) > 0) song,
-    ]..sort((a, b) => score(b).compareTo(score(a)));
+        if (seeds[key] case final seed? when seed.score > 0) seed,
+    ]..sort((a, b) => b.score.compareTo(a.score));
     if (random == null) return played.take(radioSeeds).toList();
 
     // Weighted sampling without replacement among the favourites.
     final pool = played.take(radioSeedPool).toList();
     final keyed = [
       for (final s in pool)
-        (s, pow(random.nextDouble(), 1 / score(s)).toDouble()),
+        (s, pow(random.nextDouble(), 1 / s.score).toDouble()),
     ]..sort((a, b) => b.$2.compareTo(a.$2));
     return [for (final k in keyed.take(radioSeeds)) k.$1];
   }

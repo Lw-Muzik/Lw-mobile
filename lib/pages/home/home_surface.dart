@@ -14,6 +14,8 @@
 /// The page is complete and useful with the phone in aeroplane mode.
 library;
 
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:provider/provider.dart';
@@ -31,6 +33,8 @@ import '../../services/ytmusic/yt_models.dart';
 import '../../services/ytmusic/yt_repository.dart';
 import '../../services/radio/library_station.dart';
 import '../../themes/ember.dart';
+import '../discover/widgets/yt_widgets.dart';
+import '../discover/yt_open.dart';
 import 'mix_playlist_page.dart';
 import 'widgets/shelf.dart';
 
@@ -83,6 +87,9 @@ class _HomeSurfaceState extends State<HomeSurface> with WidgetsBindingObserver {
   List<SongModel> _recent = const [];
   List<SongModel> _rediscover = const [];
   List<PlaylistSummary> _playlists = const [];
+
+  /// YouTube Music playlists for the tastes the mixes were built from.
+  List<ExploreItem> _forYou = const [];
   bool _loaded = false;
 
   LibraryRepository get _repo => context.read<LibraryRepository>();
@@ -133,7 +140,16 @@ class _HomeSurfaceState extends State<HomeSurface> with WidgetsBindingObserver {
 
   /// Finds [seed] on YouTube Music and returns its radio, or nothing when the
   /// song isn't there (a wrong match would seed a radio of the wrong music).
-  static Future<List<YtTrack>> _radioFor(SongModel seed) async {
+  static Future<List<YtTrack>> _radioFor(MixSeed seed) async {
+    // A streamed song the user played is already a YouTube video.
+    final known = seed.videoId;
+    if (known != null) {
+      final batch = await YtMusicRepository.instance.radio(known);
+      return [
+        for (final t in batch.tracks)
+          if (t.videoId != known) t,
+      ];
+    }
     final title = cleanTitle(seed.title);
     final artist = primaryArtist(normalizeArtist(seed.artist ?? ''));
     if (title.isEmpty) return const [];
@@ -164,7 +180,8 @@ class _HomeSurfaceState extends State<HomeSurface> with WidgetsBindingObserver {
   }
 
   Future<void> _load({bool force = false}) async {
-    final mixes = await _mixService!.mixes(force: force);
+    final service = _mixService!;
+    final mixes = await service.mixes(force: force);
     final recent = await _repo.mostPlayed(limit: 12);
     final rediscover = await _repo.rediscover(limit: 12);
     final playlists = await _repo.playlists();
@@ -176,6 +193,22 @@ class _HomeSurfaceState extends State<HomeSurface> with WidgetsBindingObserver {
       _playlists = playlists;
       _loaded = true;
     });
+
+    // Behind the mixes: they're the user's own and should never wait on this.
+    final session = service.variation;
+    final found = await playlistsForYou(
+      tastes: [
+        for (final mix in mixes)
+          if (!mix.seededBySong) mix.descriptor,
+      ],
+      related: relatedArtists(mixes),
+      search: YtMusicRepository.instance.featuredPlaylists,
+      coldStart: moodPlaylists,
+      variation: session,
+    );
+    // A reshuffle since this started owns the shelf now.
+    if (!mounted || service.variation != session) return;
+    setState(() => _forYou = found);
   }
 
   @override
@@ -191,6 +224,14 @@ class _HomeSurfaceState extends State<HomeSurface> with WidgetsBindingObserver {
           mixes: _mixes,
           onTap: (mix) => _playMix(controller, mix),
           onSave: _saveMixAsPlaylist,
+        ),
+      if (_forYou.isNotEmpty)
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: YtShelfRow(
+            shelf: ExploreShelf(title: 'PLAYLISTS FOR YOU', items: _forYou),
+            onOpen: (item) => openExploreItem(context, item),
+          ),
         ),
       if (_playlists.isNotEmpty)
         PlaylistShelf(
@@ -366,4 +407,119 @@ class _HomeSurfaceState extends State<HomeSurface> with WidgetsBindingObserver {
     );
     await _load();
   }
+}
+
+/// YouTube Music playlists for what the user listens to.
+///
+/// One curated-playlist search per taste: the mixes' own [tastes] first, then
+/// a session's pick from [related] (artists that keep turning up in those
+/// mixes), so the shelf reaches a little beyond what the mixes already are and
+/// changes from one session to the next. Each search keeps only its top
+/// [perTaste] results in YouTube's order — further down, an artist's results
+/// drift to football and country playlists. Interleaved so no taste fills the
+/// shelf. With no tastes yet, [coldStart]: YouTube Music's own mood playlists,
+/// curated for the listener's region. Silent on failure.
+@visibleForTesting
+Future<List<ExploreItem>> playlistsForYou({
+  required List<String> tastes,
+  List<String> related = const [],
+  required Future<List<ExploreShelf>> Function(String query) search,
+  required Future<List<ExploreItem>> Function() coldStart,
+  required int variation,
+  int maxTastes = 4,
+  int perTaste = 3,
+  int limit = 12,
+}) async {
+  final random = Random(Object.hash(variation, 'playlists'));
+  final queries = <String>[];
+  void add(String taste) {
+    final q = taste.trim();
+    if (q.isEmpty || queries.length >= maxTastes) return;
+    if (queries.any((x) => x.toLowerCase() == q.toLowerCase())) return;
+    queries.add(q);
+  }
+
+  for (final taste in tastes.take(maxTastes - 1)) {
+    add(taste);
+  }
+  // At least one slot goes to a related artist when there are any.
+  for (final taste in [...related.take(6)]..shuffle(random)) {
+    add(taste);
+  }
+  for (final taste in tastes) {
+    add(taste);
+  }
+
+  if (queries.isEmpty) {
+    try {
+      return ([...await coldStart()]..shuffle(random)).take(limit).toList();
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  final results = await Future.wait([
+    for (final q in queries)
+      () async {
+        try {
+          final shelves = await search(q);
+          return [
+            for (final shelf in shelves)
+              for (final item in shelf.items)
+                if (item.kind == ExploreKind.playlist) item,
+          ].take(perTaste).toList();
+        } catch (_) {
+          return const <ExploreItem>[];
+        }
+      }(),
+  ]);
+
+  final seen = <String>{};
+  final out = <ExploreItem>[];
+  for (var i = 0; i < perTaste && out.length < limit; i++) {
+    for (final r in results) {
+      if (i < r.length && seen.add(r[i].id)) out.add(r[i]);
+      if (out.length == limit) break;
+    }
+  }
+  return out;
+}
+
+/// The artists that turn up most in [mixes] besides the mixes' own tastes —
+/// what "Playlists for you" reaches out to.
+List<String> relatedArtists(List<ResolvedMix> mixes) {
+  final own = {
+    for (final m in mixes)
+      if (!m.seededBySong) m.descriptor.toLowerCase(),
+  };
+  final counts = <String, int>{};
+  for (final mix in mixes) {
+    for (final ref in mix.tracks) {
+      final artist = primaryArtist(normalizeArtist(
+        ref.track?.artist ?? ref.song?.artist ?? '',
+      ));
+      if (artist.isEmpty || own.contains(artist.toLowerCase())) continue;
+      counts[artist] = (counts[artist] ?? 0) + 1;
+    }
+  }
+  final ranked = counts.keys.toList()
+    ..sort((a, b) => counts[b]!.compareTo(counts[a]!));
+  return ranked;
+}
+
+/// Mood playlists YouTube Music curates for the listener's region — for a
+/// Home with no tastes to search yet.
+Future<List<ExploreItem>> moodPlaylists() async {
+  final repo = YtMusicRepository.instance;
+  final sections = await repo.cachedCategories() ?? await repo.categories();
+  final moods = sections.isEmpty ? const <ExploreCategory>[] : sections.first.categories;
+  final pages = await Future.wait([
+    for (final mood in moods.take(2)) repo.categoryPage(mood),
+  ]);
+  return [
+    for (final page in pages)
+      for (final shelf in page)
+        for (final item in shelf.items)
+          if (item.kind == ExploreKind.playlist) item,
+  ];
 }

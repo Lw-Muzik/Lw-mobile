@@ -77,10 +77,19 @@ class MixCandidate {
     this.plays = 0,
     this.skips = 0,
     this.hours = const {},
+    this.history = false,
   });
 
   final String key;
   final MixSource source;
+
+  /// A streamed song the user has played themselves. It is part of their
+  /// listening, so it counts as theirs — it can found a taste and fills the
+  /// "own music" share of a mix — unlike streamed tracks fetched to add variety.
+  final bool history;
+
+  /// Whether this is the user's own music: on the phone, or played by them.
+  bool get isOwn => source == MixSource.local || history;
   final String? artist;
   final String? genre;
   final int? addedAtSec;
@@ -419,11 +428,11 @@ List<String> _fill(
 }) {
   final local = [
     for (final t in cluster)
-      if (t.source == MixSource.local) t,
+      if (t.isOwn) t,
   ];
   final remote = [
     for (final t in cluster)
-      if (t.source != MixSource.local) t,
+      if (!t.isOwn) t,
   ];
 
   final proven = [for (final t in local) if (t.isProven) t];

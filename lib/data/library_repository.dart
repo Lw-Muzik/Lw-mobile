@@ -2,6 +2,7 @@ import 'package:drift/drift.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 
 import 'library_database.dart';
+import 'streamed_track.dart';
 
 /// Field a song list is ordered by. Values map to indexed columns.
 enum SongSort { title, artist, album, dateAdded, duration, playCount }
@@ -693,4 +694,68 @@ class LibraryRepository {
       _db.into(_db.libraryMeta).insertOnConflictUpdate(
             LibraryMetaCompanion.insert(key: key, value: Value(value)),
           );
+
+  // ---------------------------------------------------------------------------
+  // Streamed tracks — see StreamedTrack.
+  // ---------------------------------------------------------------------------
+
+  /// How many streamed tracks are remembered; the least recently played go.
+  static const streamedCap = 600;
+
+  /// Remembers (or refreshes) a streamed track the user has just played.
+  Future<void> rememberStreamed(StreamedTrack track) async {
+    await metaSet(track.key, track.encode());
+    final count = await _db.customSelect(
+      "SELECT COUNT(*) AS n FROM library_meta WHERE key LIKE 'yt:%'",
+    ).getSingle();
+    final n = (count.data['n'] as num?)?.toInt() ?? 0;
+    if (n <= streamedCap) return;
+    // Rarely reached; decoding to find the oldest is fine at this size.
+    final all = await streamedTracks();
+    all.sort((a, b) => a.lastPlayedSec.compareTo(b.lastPlayedSec));
+    for (final old in all.take(n - streamedCap)) {
+      await (_db.delete(_db.libraryMeta)..where((t) => t.key.equals(old.key)))
+          .go();
+    }
+  }
+
+  /// Every remembered streamed track.
+  Future<List<StreamedTrack>> streamedTracks() async {
+    final rows = await (_db.select(_db.libraryMeta)
+          ..where((t) => t.key.like('${StreamedTrack.keyPrefix}%')))
+        .get();
+    return [
+      for (final row in rows)
+        if (StreamedTrack.decode(row.value) case final track?) track,
+    ];
+  }
+
+  /// Listening stats for tracks outside the songs table, judged against the
+  /// durations given (song id → ms) — [playStats] joins on `songs` and so
+  /// cannot see them.
+  Future<Map<int, PlayStats>> playStatsFor(Map<int, int> durationsMs) async {
+    if (durationsMs.isEmpty) return const {};
+    final ids = durationsMs.keys.toList();
+    final rows = await _db.customSelect(
+      'SELECT song_id, ms_played, completed FROM play_events '
+      'WHERE song_id IN (${List.filled(ids.length, '?').join(',')})',
+      variables: [for (final id in ids) Variable<int>(id)],
+    ).get();
+    final plays = <int, int>{};
+    final skips = <int, int>{};
+    for (final row in rows) {
+      final id = row.data['song_id'] as int;
+      plays[id] = (plays[id] ?? 0) + 1;
+      final duration = durationsMs[id] ?? 0;
+      final ms = (row.data['ms_played'] as num?)?.toInt() ?? 0;
+      final completed = (row.data['completed'] as num?)?.toInt() == 1;
+      if (!completed && duration > 0 && ms / duration < kSkipFraction) {
+        skips[id] = (skips[id] ?? 0) + 1;
+      }
+    }
+    return {
+      for (final id in plays.keys)
+        id: PlayStats(plays: plays[id]!, skips: skips[id] ?? 0),
+    };
+  }
 }
