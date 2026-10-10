@@ -6,6 +6,7 @@ import '/exports/exports.dart';
 
 import '../data/library_repository.dart';
 import '../helpers/audio_handler.dart';
+import '../player/queue_sync.dart';
 import '../Helpers/Channel.dart';
 import '../helpers/index.dart';
 import '../models/eq_models.dart';
@@ -1170,6 +1171,7 @@ class AppController with ChangeNotifier implements StationSink {
     // The user picked something rather than resuming. Whatever was waiting from
     // the last session is no longer what is about to play.
     _pendingResume = null;
+    _queueGeneration++;
     songs = songList;
     // A new list arriving while shuffle is already on has to *be* shuffled. The
     // `songs` setter copies the incoming order into both lists verbatim, so
@@ -1241,45 +1243,98 @@ class AppController with ChangeNotifier implements StationSink {
   /// step with [songs], which is what keeps `currentIndexStream` aligned with
   /// it; otherwise the list alone is enough, since that path loads each track as
   /// the previous one finishes.
-  Future<void> appendToQueue(List<SongModel> extra) async {
-    if (extra.isEmpty) return;
-    final gapless = _gaplessPlayback && _crossfadeDuration == 0;
+  ///
+  /// Gapless loads are not awaited by [playSongFromList], so an append can land
+  /// while the player is still being handed the new list — and that load then
+  /// replaced the player's sources with a snapshot taken before the append.
+  /// The model said twenty-five tracks; the player held one, and a mix played a
+  /// single song. Player-side appends therefore wait for any load in flight,
+  /// run one at a time, and add whatever the player is missing rather than
+  /// assuming it holds everything but [extra].
+  @override
+  Future<void> appendToQueue(List<SongModel> extra) {
+    if (extra.isEmpty) return Future.value();
     // Extend the model first so a currentIndex event that lands mid-append
     // always finds a song at its index.
     _songs.addAll(extra);
     _shuffledSongs.addAll(extra);
-
-    if (gapless && handler.player.audioSources.isNotEmpty) {
-      final sources = <AudioSource>[
-        for (final s in extra)
-          // A video's playable location is not its `data` — that is a manifest
-          // this app wrote, held by the registry beside the queue.
-          if (VideoRegistry.instance.sourceFor(s.id) case final video?)
-            video.toAudioSource()
-          else if (YtInnerTube.isStreamUrl(s.data))
-            AudioSource.uri(
-              Uri.parse(s.data),
-              headers: YtInnerTube.audioPlaybackHeaders,
-            )
-          else if (s.data.startsWith('/'))
-            AudioSource.file(s.data)
-          else
-            AudioSource.uri(Uri.parse(s.data)),
-      ];
-      try {
-        await handler.player.addAudioSources(sources);
-      } catch (e) {
-        // A queue that won't extend still plays what it already holds.
-        debugPrint('Queue append: $e');
-      }
-    }
     notifyListeners();
+
+    return _queueSync.serial(_syncPlayerQueue);
+  }
+
+  /// Player-side queue work, serialised so two appends can't both decide the
+  /// same tracks are missing.
+  final PlayerQueueSync _queueSync = PlayerQueueSync();
+
+  /// The gapless load most recently started, until it settles.
+  Future<void>? _gaplessLoad;
+
+  /// Bumped whenever a new queue replaces the old one, so background fills
+  /// (a mix resolving its streams) can tell the queue they were growing is gone.
+  int _queueGeneration = 0;
+  int get queueGeneration => _queueGeneration;
+
+  /// Brings the gapless player's source list level with [songs].
+  Future<void> _syncPlayerQueue() async {
+    if (!(_gaplessPlayback && _crossfadeDuration == 0)) return;
+    final player = handler.player;
+    await PlayerQueueSync.catchUp(
+      pendingLoad: _gaplessLoad,
+      playerLength: () => player.audioSources.length,
+      modelLength: () => songs.length,
+      addFrom: (from) async {
+        try {
+          await player.addAudioSources([
+            for (final s in songs.sublist(from)) _gaplessSourceFor(s),
+          ]);
+        } catch (e) {
+          // A queue that won't extend still plays what it already holds.
+          debugPrint('Queue append: $e');
+        }
+      },
+    );
+  }
+
+  /// The player source for an appended track. Cloud tracks only reach the
+  /// queue already resolved to a playable link, so their URI is used as is.
+  AudioSource _gaplessSourceFor(SongModel s) {
+    // A video's playable location is not its `data` — that is a manifest this
+    // app wrote, held by the registry beside the queue.
+    if (VideoRegistry.instance.sourceFor(s.id) case final video?) {
+      return video.toAudioSource();
+    }
+    if (YtInnerTube.isStreamUrl(s.data)) {
+      return AudioSource.uri(
+        Uri.parse(s.data),
+        headers: YtInnerTube.audioPlaybackHeaders,
+      );
+    }
+    if (s.data.startsWith('/')) return AudioSource.file(s.data);
+    return AudioSource.uri(Uri.parse(s.data));
   }
 
   /// Build and load a queue for gapless playback.
   /// Cached cloud tracks play from disk; uncached ones stream with auth headers.
   bool _loadingQueue = false;
   Future<void> loadGaplessQueue(
+    int startIndex, {
+    Duration? initialPosition,
+    bool autoPlay = true,
+  }) {
+    final load = _loadGaplessQueue(
+      startIndex,
+      initialPosition: initialPosition,
+      autoPlay: autoPlay,
+    );
+    _gaplessLoad = load;
+    load.whenComplete(() {
+      if (identical(_gaplessLoad, load)) _gaplessLoad = null;
+    }).ignore();
+    return load;
+  }
+
+  Future<void> _loadGaplessQueue(
     int startIndex, {
 
     /// Where the track at [startIndex] should resume from.

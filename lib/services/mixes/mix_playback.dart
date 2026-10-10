@@ -67,6 +67,7 @@ class MixPlayback {
         controller,
         mix.tracks.sublist(i + 1),
         resolveCloud,
+        generation: controller.queueGeneration,
       ));
       return;
     }
@@ -76,9 +77,13 @@ class MixPlayback {
   static Future<void> _fillBehind(
     AppController controller,
     List<MixTrackRef> rest,
-    CloudLinkResolver resolveCloud,
-  ) async {
+    CloudLinkResolver resolveCloud, {
+    required int generation,
+  }) async {
     for (var i = 0; i < rest.length; i += _batch) {
+      // The user may have started something else; appending to a queue they
+      // have left would graft this mix onto it.
+      if (controller.queueGeneration != generation) return;
       final slice = rest.skip(i).take(_batch).toList();
       final resolved = await Future.wait(
         [for (final ref in slice) _resolve(ref, resolveCloud)],
@@ -87,7 +92,7 @@ class MixPlayback {
         for (final song in resolved)
           if (song != null) song,
       ];
-      if (songs.isEmpty) continue;
+      if (songs.isEmpty || controller.queueGeneration != generation) continue;
       await controller.appendToQueue(songs);
     }
   }

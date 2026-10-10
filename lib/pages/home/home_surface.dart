@@ -23,6 +23,8 @@ import '../../data/library_repository.dart';
 import '../../routes/routes.dart';
 import '../../models/cloud_file.dart';
 import '../../services/mixes/daily_mix_service.dart';
+import '../../services/lyrics/lrclib_resolver.dart'
+    show cleanTitle, normalizeArtist, primaryArtist;
 import '../../services/mixes/daily_mixes.dart';
 import '../../services/mixes/mix_playback.dart';
 import '../../services/ytmusic/yt_models.dart';
@@ -86,8 +88,44 @@ class _HomeSurfaceState extends State<HomeSurface> {
               if (item.kind == ExploreKind.video) item.asTrack(),
         ];
       },
+      // The related tracks YouTube Music would play after a song the user
+      // actually listens to — so the streamed part of a mix follows their
+      // plays, not just the name of the taste.
+      youTubeRadio: _radioFor,
     );
     _load();
+  }
+
+  /// Finds [seed] on YouTube Music and returns its radio, or nothing when the
+  /// song isn't there (a wrong match would seed a radio of the wrong music).
+  static Future<List<YtTrack>> _radioFor(SongModel seed) async {
+    final title = cleanTitle(seed.title);
+    final artist = primaryArtist(normalizeArtist(seed.artist ?? ''));
+    if (title.isEmpty) return const [];
+    final shelves = await YtMusicRepository.instance.search(
+      artist.isEmpty ? title : '$title $artist',
+      SearchFilter.songs,
+    );
+    final wanted = title.toLowerCase();
+    YtTrack? match;
+    for (final shelf in shelves) {
+      for (final item in shelf.items) {
+        if (item.kind != ExploreKind.song) continue;
+        final found = cleanTitle(item.title).toLowerCase();
+        if (found == wanted || found.contains(wanted) || wanted.contains(found)) {
+          match = item.asTrack();
+          break;
+        }
+      }
+      if (match != null) break;
+    }
+    if (match == null) return const [];
+    final batch = await YtMusicRepository.instance.radio(match.videoId);
+    // The radio opens with the seed itself, which the user already owns.
+    return [
+      for (final t in batch.tracks)
+        if (t.videoId != match.videoId) t,
+    ];
   }
 
   Future<void> _load({bool force = false}) async {

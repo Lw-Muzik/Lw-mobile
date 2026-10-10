@@ -191,6 +191,12 @@ List<DailyMix> buildDailyMixes({
   /// Whether a drive or YouTube can fill a mix out. Lowers how much local music
   /// a taste needs before it is worth offering — see [MixRules.minSeedSize].
   bool canSupplement = false,
+  /// Drive and YouTube tracks fetched for a taste, keyed by its descriptor.
+  ///
+  /// They join that one mix's pool and are never clustered themselves: the
+  /// user's own music decides which tastes exist, and a radio of related
+  /// artists must add to "chris brown" rather than found a mix of its own.
+  Map<String, List<MixCandidate>> supplements = const {},
 }) {
   if (library.isEmpty) return const [];
 
@@ -204,8 +210,14 @@ List<DailyMix> buildDailyMixes({
   for (var i = 0; i < clusters.length && mixes.length < maxMixes; i++) {
     final cluster = clusters[i];
     final random = Random(_seedFor(now, daypart, i));
+    final own = {for (final t in cluster.tracks) t.key};
+    final pool = [
+      ...cluster.tracks,
+      for (final t in supplements[cluster.descriptor] ?? const <MixCandidate>[])
+        if (own.add(t.key)) t,
+    ];
     final keys = _fill(
-      cluster.tracks,
+      pool,
       daypart: daypart,
       limit: tracksPerMix,
       random: random,

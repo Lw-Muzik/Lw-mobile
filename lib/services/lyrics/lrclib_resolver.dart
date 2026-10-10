@@ -312,7 +312,6 @@ const _placeholderArtists = {
 
 /// Drops placeholder artists and YouTube channel decorations
 /// ("Artist - Topic", "ArtistVEVO", "Artist Official").
-@visibleForTesting
 String normalizeArtist(String artist) {
   var a = collapseWs(artist);
   if (_placeholderArtists.contains(a.toLowerCase())) return '';
@@ -326,7 +325,6 @@ String normalizeArtist(String artist) {
 /// Drop "(Official Video)", "[Lyrics]" bracketed groups, "feat./ft." credits,
 /// trailing "| ..." suffixes, and collapse whitespace — the decorations that
 /// throw LRCLIB's match off.
-@visibleForTesting
 String cleanTitle(String title) {
   var t = stripFeat(stripBrackets(title));
   final pipe = t.indexOf('|');
@@ -342,7 +340,6 @@ String cleanTitle(String title) {
 }
 
 /// Remove anything inside `()`, `[]`, or `{}` (non-nested, tolerant of unmatched).
-@visibleForTesting
 String stripBrackets(String s) {
   final out = StringBuffer();
   var depth = 0;
@@ -359,7 +356,6 @@ String stripBrackets(String s) {
 }
 
 /// Truncate at the first "feat./ft./featuring" marker.
-@visibleForTesting
 String stripFeat(String s) => _cutAt(s, const [
       ' feat.',
       ' feat ',
@@ -370,7 +366,6 @@ String stripFeat(String s) => _cutAt(s, const [
 
 /// The primary (first) artist: the part before a "feat./&/,/x" separator,
 /// which is how LRCLIB usually stores the credit.
-@visibleForTesting
 String primaryArtist(String artist) => _cutAt(artist, const [
       ',',
       ' & ',
@@ -404,6 +399,5 @@ String _cutAt(String s, List<String> markers) {
   return (a, t);
 }
 
-@visibleForTesting
 String collapseWs(String s) =>
     s.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).join(' ');

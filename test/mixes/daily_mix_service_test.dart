@@ -333,5 +333,127 @@ void main() {
           mix.tracks.where((t) => t.source != MixSource.local).length;
       expect(remote, lessThan(mix.length / 2));
     });
+
+    group('YouTube radio follows what the user plays', () {
+      Future<void> playThrough(int songId, int times) async {
+        for (var i = 0; i < times; i++) {
+          await repo.recordPlayEvent(
+            songId: songId,
+            atSec: 1700000000 + songId * 100 + i,
+            msPlayed: 195000,
+            completed: true,
+          );
+        }
+      }
+
+      YtTrack radioTrack(String id, {String? title, String? artist}) => YtTrack(
+          videoId: id,
+          title: title ?? 'Radio $id',
+          artist: artist ?? 'Someone Else',
+          playlistId: '',
+          playlistTitle: '');
+
+      test('the most-played songs of a mix seed its radio', () async {
+        await insertTaste('Afrobeat', 100, count: 30);
+        await playThrough(105, 6);
+        await playThrough(110, 3);
+        final seeds = <int>[];
+        final service = DailyMixService(
+          repo,
+          youTubeRadio: (seed) async {
+            seeds.add(seed.id);
+            return [for (var i = 0; i < 20; i++) radioTrack('r${seed.id}-$i')];
+          },
+        );
+
+        final mix = (await service.mixes(now: afternoon)).single;
+        expect(seeds, [105, 110]);
+        final yt = mix.tracks.where((t) => t.source == MixSource.youtube);
+        expect(yt, isNotEmpty);
+        // Both seeds contribute, interleaved — not just the first one.
+        final ids = yt.map((t) => t.track!.videoId).toList();
+        expect(ids.any((id) => id.startsWith('r105')), isTrue);
+        expect(ids.any((id) => id.startsWith('r110')), isTrue);
+        expect(mix.length, greaterThanOrEqualTo(20),
+            reason: 'a mix is a playlist, not a song');
+      });
+
+      test('radio picks by other artists still join the taste', () async {
+        await insertTaste('Afrobeat', 100, count: 30);
+        await playThrough(100, 4);
+        final service = DailyMixService(
+          repo,
+          youTubeRadio: (_) async =>
+              [for (var i = 0; i < 20; i++) radioTrack('r$i', artist: 'Artist $i')],
+        );
+        final mixes = await service.mixes(now: afternoon);
+        expect(mixes, hasLength(1),
+            reason: 'streamed tracks never found a mix of their own');
+        expect(mixes.single.tracks.any((t) => t.source == MixSource.youtube), isTrue);
+      });
+
+      test('songs already on the phone are not streamed', () async {
+        await insertTaste('Afrobeat', 100, count: 30);
+        await playThrough(100, 4);
+        final service = DailyMixService(
+          repo,
+          youTubeRadio: (_) async => [
+            radioTrack('owned', title: 'Track 103 (Official Video)', artist: 'Afrobeat artist 3 - Topic'),
+            for (var i = 0; i < 20; i++) radioTrack('r$i'),
+          ],
+        );
+        final mix = (await service.mixes(now: afternoon)).single;
+        expect(mix.tracks.any((t) => t.track?.videoId == 'owned'), isFalse);
+      });
+
+      test('no plays yet: the taste name is searched instead', () async {
+        await insertTaste('Afrobeat', 100, count: 30);
+        var radioCalls = 0;
+        final asked = <String>[];
+        final service = DailyMixService(
+          repo,
+          youTubeRadio: (_) async {
+            radioCalls++;
+            return const [];
+          },
+          youTube: (descriptor) async {
+            asked.add(descriptor);
+            return [for (var i = 0; i < 10; i++) ytTrack('y$i')];
+          },
+        );
+        final mix = (await service.mixes(now: afternoon)).single;
+        expect(radioCalls, 0);
+        expect(asked, ['Afrobeat']);
+        expect(mix.tracks.any((t) => t.source == MixSource.youtube), isTrue);
+      });
+
+      test('a full radio skips the name search', () async {
+        await insertTaste('Afrobeat', 100, count: 30);
+        await playThrough(100, 4);
+        var searched = false;
+        final service = DailyMixService(
+          repo,
+          youTubeRadio: (_) async => [for (var i = 0; i < 20; i++) radioTrack('r$i')],
+          youTube: (_) async {
+            searched = true;
+            return const [];
+          },
+        );
+        await service.mixes(now: afternoon);
+        expect(searched, isFalse);
+      });
+
+      test('a radio failure falls back to the name search', () async {
+        await insertTaste('Afrobeat', 100, count: 30);
+        await playThrough(100, 4);
+        final service = DailyMixService(
+          repo,
+          youTubeRadio: (_) async => throw StateError('offline'),
+          youTube: (_) async => [for (var i = 0; i < 10; i++) ytTrack('y$i')],
+        );
+        final mix = (await service.mixes(now: afternoon)).single;
+        expect(mix.tracks.any((t) => t.source == MixSource.youtube), isTrue);
+      });
+    });
   });
 }
