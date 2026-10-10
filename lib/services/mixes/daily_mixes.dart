@@ -13,10 +13,11 @@
 ///   they could have made themselves. Roughly two fifths of each one is music
 ///   they own and have barely heard.
 /// * **Time.** The same mix every day is the complaint this feature exists to
-///   answer. The draw is seeded with the date *and the part of the day*, so a
-///   mix is stable while you are looking at it, different this evening, and
-///   different again tomorrow — and once there is listening history, weighted
-///   towards what this person actually reaches for at this hour.
+///   answer. The draw is seeded with the date, *the part of the day* and a
+///   per-session `variation`, so a mix is stable while you are looking at it,
+///   different the next time the app is opened, this evening, and tomorrow —
+///   and once there is listening history, weighted towards what this person
+///   actually reaches for at this hour.
 ///
 /// Everything here is plain values in and plain values out: no database, no
 /// clock, no random source of its own. `now` and the candidate list are
@@ -197,19 +198,27 @@ List<DailyMix> buildDailyMixes({
   /// user's own music decides which tastes exist, and a radio of related
   /// artists must add to "chris brown" rather than found a mix of its own.
   Map<String, List<MixCandidate>> supplements = const {},
+  /// Which "session" of mixes this is. A new value — the app opened again, a
+  /// pull to refresh — gives different tracks, a different set of tastes when
+  /// there are more than fit, and a different running order. The same value
+  /// gives the same mixes, so a card doesn't change while it is looked at.
+  int variation = 0,
 }) {
   if (library.isEmpty) return const [];
 
   final daypart = Daypart.of(now);
   final minSize =
       canSupplement ? MixRules.minSeedSize : MixRules.minClusterSize;
-  final clusters = _cluster(library, minSize: minSize);
+  final clusters = _shuffleByMass(
+    _cluster(library, minSize: minSize),
+    Random(Object.hash(_day(now), daypart.index, variation, 'order')),
+  );
   if (clusters.isEmpty) return const [];
 
   final mixes = <DailyMix>[];
   for (var i = 0; i < clusters.length && mixes.length < maxMixes; i++) {
     final cluster = clusters[i];
-    final random = Random(_seedFor(now, daypart, i));
+    final random = Random(_seedFor(now, daypart, cluster.descriptor, variation));
     final own = {for (final t in cluster.tracks) t.key};
     final pool = [
       ...cluster.tracks,
@@ -237,13 +246,29 @@ List<DailyMix> buildDailyMixes({
 
 /// The RNG seed for one mix.
 ///
-/// Date and daypart and index — so the mix is stable while it is on screen,
-/// different at a different time of day, and different tomorrow. Deliberately
+/// Date, daypart, taste and session — so the mix is stable while it is on
+/// screen, different at a different time of day, different tomorrow, and
+/// different every time the app is opened. Keyed by the taste rather than its
+/// position, because the shelf order itself changes per session. Deliberately
 /// not `Random()`: a mix that reshuffles every time the page rebuilds is a mix
 /// nobody can point at.
-int _seedFor(DateTime now, Daypart daypart, int index) {
-  final day = now.year * 10000 + now.month * 100 + now.day;
-  return Object.hash(day, daypart.index, index) & 0x7fffffff;
+int _seedFor(DateTime now, Daypart daypart, String descriptor, int variation) =>
+    Object.hash(_day(now), daypart.index, descriptor, variation) & 0x7fffffff;
+
+int _day(DateTime now) => now.year * 10000 + now.month * 100 + now.day;
+
+/// Puts the tastes in a fresh order for this session, heavier listening more
+/// likely first: weighted sampling without replacement (Efraimidis–Spirakis).
+///
+/// The square root keeps a dominant taste usually-first without letting it
+/// pin the shelf — a favourite with twice the plays is not twice as likely to
+/// lead — and the +1 means a taste nobody has played yet still gets turns.
+List<_Cluster> _shuffleByMass(List<_Cluster> clusters, Random random) {
+  final keyed = [
+    for (final c in clusters)
+      (c, pow(random.nextDouble(), 1 / (sqrt(c.mass) + 1)).toDouble()),
+  ]..sort((a, b) => b.$2.compareTo(a.$2));
+  return [for (final k in keyed) k.$1];
 }
 
 @immutable

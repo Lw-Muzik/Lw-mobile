@@ -10,6 +10,8 @@
 /// — by design — exactly the same answer.
 library;
 
+import 'dart:math';
+
 import 'package:flutter/foundation.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 
@@ -67,9 +69,11 @@ class DailyMixService {
     CloudLibrary? cloudLibrary,
     YouTubeForTaste? youTube,
     YouTubeRadio? youTubeRadio,
+    int? variation,
   }) : _cloudLibrary = cloudLibrary,
        _youTube = youTube,
-       _youTubeRadio = youTubeRadio;
+       _youTubeRadio = youTubeRadio,
+       _variation = variation ?? _freshVariation();
 
   final LibraryRepository _repo;
   final CloudLibrary? _cloudLibrary;
@@ -79,11 +83,29 @@ class DailyMixService {
   /// How many of a mix's most-played songs seed its YouTube radio.
   static const radioSeeds = 2;
 
+  /// How many of a mix's favourites a session's radio seeds are drawn from.
+  static const radioSeedPool = 8;
+
   /// Below this many radio tracks, the taste's name is searched as well.
   static const radioEnough = 12;
 
   List<ResolvedMix>? _cached;
   String? _cachedFor;
+
+  /// This session's mixes. A service is made once per app launch, so each
+  /// launch gets new ones; [reshuffle] starts another session mid-launch.
+  int _variation;
+  int get variation => _variation;
+
+  static final Random _rng = Random();
+  static int _freshVariation() => _rng.nextInt(1 << 31);
+
+  /// New mixes from the same library — for a return to the app after a while,
+  /// or a pull to refresh. The next [mixes] call rebuilds.
+  void reshuffle() {
+    _variation = _freshVariation();
+    invalidate();
+  }
 
   /// A stamp that changes exactly when the mixes should.
   static String stampFor(DateTime now) =>
@@ -91,14 +113,15 @@ class DailyMixService {
 
   /// The mixes for [now], built once per daypart.
   ///
-  /// [force] rebuilds regardless — for a pull-to-refresh, where the user has
-  /// asked for something new and getting the same list back would read as the
-  /// gesture having failed.
+  /// [force] reshuffles and rebuilds — for a pull-to-refresh, where the user
+  /// has asked for something new and getting the same list back would read as
+  /// the gesture having failed.
   Future<List<ResolvedMix>> mixes({DateTime? now, bool force = false}) async {
     final moment = now ?? DateTime.now();
+    if (force) reshuffle();
     final stamp = stampFor(moment);
     final cached = _cached;
-    if (!force && cached != null && _cachedFor == stamp) return cached;
+    if (cached != null && _cachedFor == stamp) return cached;
 
     final songs = await _repo.allSongs();
     if (songs.isEmpty) {
@@ -130,6 +153,7 @@ class DailyMixService {
       library: local,
       now: moment,
       canSupplement: canSupplement,
+      variation: _variation,
     );
     if (shape.isEmpty) {
       _cached = const [];
@@ -163,6 +187,7 @@ class DailyMixService {
             now: moment,
             canSupplement: canSupplement,
             supplements: supplements,
+            variation: _variation,
           );
 
     final resolved = <ResolvedMix>[];
@@ -250,7 +275,12 @@ class DailyMixService {
     var fromRadio = 0;
     final radio = _youTubeRadio;
     if (radio != null) {
-      final seeds = seedsFor(mix, byKey: byKey, stats: stats);
+      final seeds = seedsFor(
+        mix,
+        byKey: byKey,
+        stats: stats,
+        random: Random(Object.hash(_variation, mix.descriptor)),
+      );
       Future<List<YtTrack>> safely(SongModel seed) async {
         try {
           return await radio(seed);
@@ -289,13 +319,18 @@ class DailyMixService {
     return out;
   }
 
-  /// The songs in [mix] the user plays most — what its radio is seeded from.
-  /// Nothing played yet means no seeds, and the taste's name is searched.
+  /// The songs in [mix] the user plays — what its radio is seeded from.
+  ///
+  /// Drawn from the most-played few, weighted by plays, so each session's radio
+  /// starts from a different favourite rather than the same two every time.
+  /// Without [random], simply the top ones. Nothing played yet means no seeds,
+  /// and the taste's name is searched.
   @visibleForTesting
   static List<SongModel> seedsFor(
     DailyMix mix, {
     required Map<String, SongModel> byKey,
     required Map<int, PlayStats> stats,
+    Random? random,
   }) {
     int score(SongModel s) {
       final stat = stats[s.id];
@@ -308,7 +343,15 @@ class DailyMixService {
       for (final key in mix.trackKeys)
         if (byKey[key] case final song? when score(song) > 0) song,
     ]..sort((a, b) => score(b).compareTo(score(a)));
-    return played.take(radioSeeds).toList();
+    if (random == null) return played.take(radioSeeds).toList();
+
+    // Weighted sampling without replacement among the favourites.
+    final pool = played.take(radioSeedPool).toList();
+    final keyed = [
+      for (final s in pool)
+        (s, pow(random.nextDouble(), 1 / score(s)).toDouble()),
+    ]..sort((a, b) => b.$2.compareTo(a.$2));
+    return [for (final k in keyed.take(radioSeeds)) k.$1];
   }
 
   /// Drops the cache. For after a library scan, which can change what tastes

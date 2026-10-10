@@ -132,13 +132,19 @@ void main() {
       );
     });
 
-    test('the most-listened taste comes first', () {
+    test('the most-listened taste usually comes first', () {
       final library = [
         ...taste('Quiet', 'q'),
         ...taste('Loved', 'l', playCount: 20, plays: 20),
       ];
-      final mixes = buildDailyMixes(library: library, now: _afternoon);
-      expect(mixes.first.descriptor, 'Loved');
+      var first = 0;
+      for (var v = 0; v < 100; v++) {
+        final mixes =
+            buildDailyMixes(library: library, now: _afternoon, variation: v);
+        if (mixes.first.descriptor == 'Loved') first++;
+      }
+      expect(first, greaterThan(80),
+          reason: 'heavier listening leads most sessions, not every one');
     });
   });
 
@@ -297,6 +303,54 @@ void main() {
       final today = buildDailyMixes(library: library, now: _afternoon);
       final tomorrow = buildDailyMixes(library: library, now: _nextDay);
       expect(today.single.trackKeys, isNot(tomorrow.single.trackKeys));
+    });
+  });
+
+  group('a different set of mixes every time the app opens', () {
+    final library = [...taste('Afrobeat', 'a', count: 60)];
+
+    test('the same session gives the same mix', () {
+      final a = buildDailyMixes(library: library, now: _afternoon, variation: 7);
+      final b = buildDailyMixes(library: library, now: _afternoon, variation: 7);
+      expect(a.single.trackKeys, b.single.trackKeys);
+    });
+
+    test('a new session on the same day gives different tracks', () {
+      final sessions = {
+        for (var v = 0; v < 5; v++)
+          buildDailyMixes(library: library, now: _afternoon, variation: v)
+              .single
+              .trackKeys
+              .join(','),
+      };
+      expect(sessions.length, 5);
+    });
+
+    test('the shelf order changes between sessions', () {
+      final library = [
+        for (var g = 0; g < 5; g++) ...taste('Genre$g', 'g$g', playCount: 3),
+      ];
+      final orders = {
+        for (var v = 0; v < 10; v++)
+          buildDailyMixes(library: library, now: _afternoon, variation: v)
+              .map((m) => m.descriptor)
+              .join(','),
+      };
+      expect(orders.length, greaterThan(1));
+    });
+
+    test('with more tastes than fit, sessions rotate which are offered', () {
+      final library = [
+        for (var g = 0; g < 14; g++) ...taste('Genre$g', 'g$g', playCount: 2),
+      ];
+      final offered = <String>{};
+      for (var v = 0; v < 10; v++) {
+        final mixes =
+            buildDailyMixes(library: library, now: _afternoon, variation: v);
+        expect(mixes.length, lessThanOrEqualTo(MixRules.maxMixes));
+        offered.addAll(mixes.map((m) => m.descriptor));
+      }
+      expect(offered.length, greaterThan(MixRules.maxMixes));
     });
   });
 

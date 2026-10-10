@@ -41,8 +41,43 @@ class HomeSurface extends StatefulWidget {
   State<HomeSurface> createState() => _HomeSurfaceState();
 }
 
-class _HomeSurfaceState extends State<HomeSurface> {
+class _HomeSurfaceState extends State<HomeSurface> with WidgetsBindingObserver {
   DailyMixService? _mixService;
+
+  /// Away at least this long and coming back counts as opening the app again:
+  /// the mixes reshuffle. Shorter — answering a message mid-song — and they
+  /// stay as they were.
+  static const _freshAfter = Duration(minutes: 30);
+  DateTime? _backgroundedAt;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused) {
+      _backgroundedAt = DateTime.now();
+    } else if (state == AppLifecycleState.resumed) {
+      final away = _backgroundedAt;
+      _backgroundedAt = null;
+      final service = _mixService;
+      if (away != null &&
+          service != null &&
+          DateTime.now().difference(away) >= _freshAfter) {
+        service.reshuffle();
+        _load();
+      }
+    }
+  }
 
   List<ResolvedMix> _mixes = const [];
   List<SongModel> _recent = const [];

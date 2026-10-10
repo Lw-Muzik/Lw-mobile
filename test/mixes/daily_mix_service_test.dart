@@ -186,6 +186,40 @@ void main() {
       expect(identical(first, forced), isFalse);
     });
 
+    test('each launch (a new service) gets different mixes', () async {
+      await insertTaste('Afrobeat', 100, count: 60);
+      final launches = {
+        for (var v = 0; v < 4; v++)
+          (await DailyMixService(repo, variation: v).mixes(now: afternoon))
+              .single
+              .tracks
+              .map((t) => t.song!.id)
+              .join(','),
+      };
+      expect(launches.length, 4);
+    });
+
+    test('pull to refresh gives new tracks, not the same list again', () async {
+      await insertTaste('Afrobeat', 100, count: 60);
+      final service = DailyMixService(repo, variation: 1);
+      final first = await service.mixes(now: afternoon);
+      final forced = await service.mixes(now: afternoon, force: true);
+      expect(service.variation, isNot(1));
+      expect(
+        forced.single.tracks.map((t) => t.song!.id),
+        isNot(first.single.tracks.map((t) => t.song!.id)),
+      );
+    });
+
+    test('reshuffle starts a new session', () async {
+      await insertTaste('Afrobeat', 100, count: 30);
+      final service = DailyMixService(repo, variation: 1);
+      final first = await service.mixes(now: afternoon);
+      service.reshuffle();
+      final second = await service.mixes(now: afternoon);
+      expect(identical(first, second), isFalse);
+    });
+
     test('invalidate drops the cache, for after a library scan', () async {
       await insertTaste('Afrobeat', 100, count: 30);
       final first = await service.mixes(now: afternoon);
@@ -367,7 +401,7 @@ void main() {
         );
 
         final mix = (await service.mixes(now: afternoon)).single;
-        expect(seeds, [105, 110]);
+        expect(seeds, unorderedEquals([105, 110]));
         final yt = mix.tracks.where((t) => t.source == MixSource.youtube);
         expect(yt, isNotEmpty);
         // Both seeds contribute, interleaved — not just the first one.
