@@ -60,7 +60,11 @@ class AppController with ChangeNotifier implements StationSink {
   late final DropboxService dropboxService;
 
   // Lyrics
-  final LyricsService _lyricsService = LyricsService();
+  // Weak-tagged local tracks are fingerprinted before their lyrics are looked
+  // up, like the desktop app (lazy: fingerprintService is set up in init).
+  late final LyricsService _lyricsService = LyricsService(
+    identify: (song) => fingerprintService.identifySong(song),
+  );
   LyricsService get lyricsService => _lyricsService;
 
   // Fingerprint / track recognition
@@ -69,7 +73,7 @@ class AppController with ChangeNotifier implements StationSink {
   LyricsData? get currentLyrics => _currentLyrics;
   bool _lyricsLoading = false;
   bool get lyricsLoading => _lyricsLoading;
-  int? _lyricsLoadTarget; // songId index currently being loaded
+  int? _lyricsLoadTarget; // song id whose lyrics are currently loading
 
   bool get isGoogleConnected => cloudAuth.isGoogleConnected;
   bool get isDropboxConnected => cloudAuth.isDropboxConnected;
@@ -2565,19 +2569,25 @@ class AppController with ChangeNotifier implements StationSink {
 
   Future<void> _loadLyricsForCurrentSong() async {
     if (songs.isEmpty || _songId < 0 || _songId >= songs.length) return;
-    final targetId = _songId;
-    // Skip if already loading for the same song (prevents double-call flicker)
-    if (_lyricsLoadTarget == targetId) return;
-    _lyricsLoadTarget = targetId;
+    final target = songs[_songId];
+    // Skip if already loading for the same song (prevents double-call flicker).
+    // Keyed by song id, not queue index: a new queue can reuse the index.
+    if (_lyricsLoadTarget == target.id) return;
+    _lyricsLoadTarget = target.id;
     _lyricsLoading = true;
     _currentLyrics = null;
     notifyListeners();
+    bool stale() =>
+        _songId < 0 || _songId >= songs.length || songs[_songId].id != target.id;
     try {
-      final result = await _lyricsService.loadLyrics(songs[targetId]);
-      if (_songId != targetId) return;
+      final result = await _lyricsService.loadLyrics(
+        target,
+        isCancelled: stale,
+      );
+      if (stale()) return;
       _currentLyrics = result;
     } catch (_) {
-      if (_songId != targetId) return;
+      if (stale()) return;
       _currentLyrics = null;
     }
     _lyricsLoadTarget = null;

@@ -7,6 +7,11 @@ import 'package:on_audio_query/on_audio_query.dart';
 import '../Helpers/Channel.dart';
 import '../apis/index.dart';
 import '../models/lyrics_model.dart';
+import '../models/recognition_result.dart';
+import 'lyrics/lrclib_resolver.dart';
+
+/// Identifies a track by audio fingerprint (see `FingerprintService`).
+typedef LyricsIdentifier = Future<RecognitionResult?> Function(SongModel song);
 
 class LyricsService {
   /// In-memory cache keyed by song ID. LRU-bounded: lyrics auto-load on every
@@ -24,12 +29,36 @@ class LyricsService {
     }
   }
 
-  /// Resolves lyrics using the priority chain:
+  LyricsService({
+    LrclibResolver? lrclib,
+    LyricsIdentifier? identify,
+    Future<String?> Function(String title, String artist)? backend,
+  }) : _lrclib = lrclib ?? LrclibResolver(),
+       _identify = identify, // ignore: prefer_initializing_formals
+       _backend = backend ?? Apis.fetchLyricsData;
+
+  final LrclibResolver _lrclib;
+
+  /// The HypeMuzik backend lookup, tried after LRCLIB.
+  final Future<String?> Function(String title, String artist) _backend;
+
+  /// Corrects a local track's title/artist by audio fingerprint (AcoustID →
+  /// MusicBrainz). Optional: without it, weak tags are searched as-is.
+  final LyricsIdentifier? _identify;
+
+  /// Resolves lyrics using the same chain as the desktop app:
   /// 1. .lrc sidecar file
   /// 2. ID3 USLT tag (Dart id3tag package)
-  /// 3. ID3 USLT tag (native mp3agic fallback)
-  /// 4. API fetch
-  Future<LyricsData?> loadLyrics(SongModel song) async {
+  /// 3. Embedded lyrics (native JAudioTagger/mp3agic)
+  /// 4. Weak local tags (no artist, filename-as-title) → fingerprint first
+  /// 5. LRCLIB "try-hard" resolver, then the HypeMuzik backend
+  /// 6. Tags looked fine but still missed → fingerprint once and retry
+  ///
+  /// [isCancelled] stops the online chain early once the user has moved on.
+  Future<LyricsData?> loadLyrics(
+    SongModel song, {
+    bool Function()? isCancelled,
+  }) async {
     // Check cache first (refresh LRU position on hit)
     final hit = _cache.remove(song.id);
     if (hit != null) {
@@ -49,17 +78,130 @@ class LyricsService {
       // 2. Try ID3 USLT via Dart id3tag package
       result ??= await _loadFromId3Tag(filePath);
 
-      // 3. Try native mp3agic fallback
+      // 3. Try native fallback
       result ??= await _loadFromNative(filePath);
     }
 
-    // 4. API fallback (backend + LRCLIB)
-    result ??= await _loadFromApi(song, isLocalFile);
+    // 4–6. Online sources.
+    result ??= await _loadOnline(song, isLocalFile, isCancelled);
 
     if (result != null) {
       _cachePut(song.id, result);
     }
     return result;
+  }
+
+  Future<LyricsData?> _loadOnline(
+    SongModel song,
+    bool isLocalFile,
+    bool Function()? isCancelled,
+  ) async {
+    bool cancelled() => isCancelled?.call() ?? false;
+
+    var title = song.title;
+    var artist = song.artist ?? '';
+    var identified = false;
+
+    // 4. Weak local tags can't match online lyrics — identify the track first
+    //    so we search with real metadata.
+    if (isLocalFile && isMetadataWeak(song)) {
+      final r = await _tryIdentify(song);
+      if (cancelled()) return null;
+      if (r != null) {
+        title = (r.title?.isNotEmpty ?? false) ? r.title! : title;
+        artist = (r.artist?.isNotEmpty ?? false) ? r.artist! : artist;
+        identified = true;
+      }
+    }
+
+    // 5. LRCLIB (best source of synced lyrics), then the backend.
+    var data = await _fetchByName(song, title, artist, isLocalFile, isCancelled);
+    if (data != null || cancelled()) return data;
+
+    // 6. Seemingly-fine tags that still missed may be mistagged — identify
+    //    (if we haven't yet) and retry once with the result.
+    if (!identified && isLocalFile) {
+      final r = await _tryIdentify(song);
+      if (cancelled() || r == null) return null;
+      final t = (r.title?.isNotEmpty ?? false) ? r.title! : title;
+      final a = (r.artist?.isNotEmpty ?? false) ? r.artist! : artist;
+      if (t == title && a == artist) return null;
+      data = await _fetchByName(song, t, a, isLocalFile, isCancelled);
+    }
+    if (data == null) {
+      debugPrint('LyricsService: none found for "$title" / "$artist"');
+    }
+    return data;
+  }
+
+  Future<RecognitionResult?> _tryIdentify(SongModel song) async {
+    final identify = _identify;
+    if (identify == null) return null;
+    try {
+      final r = await identify(song);
+      return (r != null && r.hasUsefulData) ? r : null;
+    } catch (e) {
+      debugPrint('LyricsService: identify failed: $e');
+      return null;
+    }
+  }
+
+  /// A local track's tags are too weak to search online lyrics when it has no
+  /// real artist or its title is just the file name.
+  static bool isMetadataWeak(SongModel song) {
+    final artist = (song.artist ?? '').trim().toLowerCase();
+    if (artist.isEmpty ||
+        artist == '<unknown>' ||
+        artist == 'unknown' ||
+        artist == 'unknown artist') {
+      return true;
+    }
+    final title = song.title.trim();
+    if (title.isEmpty) return true;
+    final stem = song.displayNameWOExt.trim();
+    return stem.isNotEmpty && title == stem;
+  }
+
+  /// LRCLIB first (best synced source), then the HypeMuzik backend.
+  /// Auto-saves to a .lrc sidecar when found online for offline persistence.
+  Future<LyricsData?> _fetchByName(
+    SongModel song,
+    String title,
+    String artist,
+    bool isLocalFile,
+    bool Function()? isCancelled,
+  ) async {
+    LyricsData? found;
+
+    try {
+      final text = await _lrclib.resolve(
+        title: title,
+        artist: artist,
+        durationMs: song.duration,
+        isCancelled: isCancelled,
+      );
+      found = _parse(text);
+    } catch (e) {
+      debugPrint('LyricsService: error fetching lyrics from LRCLIB: $e');
+    }
+
+    if (found == null && !(isCancelled?.call() ?? false)) {
+      try {
+        found = _parse(await _backend(title, artist));
+      } catch (e) {
+        debugPrint('LyricsService: error fetching lyrics from backend: $e');
+      }
+    }
+
+    if (found != null && isLocalFile) _autoSaveToLrc(song.data, found);
+    return found;
+  }
+
+  /// Parses raw lyrics, treating blank/unparseable text as a miss.
+  LyricsData? _parse(String? text) {
+    if (text == null || text.trim().isEmpty) return null;
+    final data = parseLrc(text);
+    return data.lines.any((l) => l.text.trim().isNotEmpty) ? data : null;
   }
 
   /// Loads and parses a .lrc sidecar file next to the audio file.
@@ -97,7 +239,7 @@ class LyricsService {
     return null;
   }
 
-  /// Native mp3agic fallback for reading embedded lyrics.
+  /// Native JAudioTagger/mp3agic fallback for reading embedded lyrics.
   Future<LyricsData?> _loadFromNative(String filePath) async {
     try {
       final text = await Channel.readLyrics(filePath);
@@ -107,43 +249,6 @@ class LyricsService {
     } catch (e) {
       debugPrint('LyricsService: error reading native lyrics: $e');
     }
-    return null;
-  }
-
-  /// Fetches lyrics from APIs: backend first, then LRCLIB fallback.
-  /// Auto-saves to .lrc sidecar when found online for offline persistence.
-  Future<LyricsData?> _loadFromApi(SongModel song, bool isLocalFile) async {
-    final title = song.title;
-    final artist = song.artist ?? '';
-
-    // 4a. Try existing backend
-    try {
-      final text = await Apis.fetchLyricsData(title, artist);
-      if (text != null && text.isNotEmpty) {
-        final data = parseLrc(text);
-        if (isLocalFile) _autoSaveToLrc(song.data, data);
-        return data;
-      }
-    } catch (e) {
-      debugPrint('LyricsService: error fetching lyrics from backend: $e');
-    }
-
-    // 4b. Try LRCLIB
-    try {
-      final text = await Apis.fetchLyricsFromLrclib(
-        title: title,
-        artist: artist,
-        durationMs: song.duration,
-      );
-      if (text != null && text.isNotEmpty) {
-        final data = parseLrc(text);
-        if (isLocalFile) _autoSaveToLrc(song.data, data);
-        return data;
-      }
-    } catch (e) {
-      debugPrint('LyricsService: error fetching lyrics from LRCLIB: $e');
-    }
-
     return null;
   }
 
