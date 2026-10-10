@@ -45,9 +45,16 @@ android {
         }
     }
 
+    // `flutter build apk --android-project-arg=dev=true` builds a side-by-side
+    // test copy ("Hype Muzik Dev", x.a.zix.dev). The Play Store install is
+    // signed by Google Play, so no locally built APK can update it; uninstalling
+    // it instead would wipe the device's library, history and logins.
+    val devCopy = project.hasProperty("dev")
+
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "x.a.zix"
+        applicationId = if (devCopy) "x.a.zix.dev" else "x.a.zix"
+        manifestPlaceholders["appLabel"] = if (devCopy) "Hype Muzik Dev" else "Hype Muzik"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion

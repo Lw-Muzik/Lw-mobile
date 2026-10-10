@@ -36,7 +36,7 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
 
-    <application android:name=".HypeApplication" android:enableOnBackInvokedCallback="true" android:icon="@mipmap/ic_launcher" android:label="Hype Muzik" tools:ignore="ExtraText" android:requestLegacyExternalStorage="true" android:usesCleartextTraffic="true">
+    <application android:name=".HypeApplication" android:enableOnBackInvokedCallback="true" android:icon="@mipmap/ic_launcher" android:label="${appLabel}" tools:ignore="ExtraText" android:requestLegacyExternalStorage="true" android:usesCleartextTraffic="true">
         <meta-data android:name="google_analytics_automatic_screen_reporting_enabled" android:value="true" />
         <!-- supportsPictureInPicture + resizeableActivity: watching a video and
              leaving the app floats it over whatever comes next. The

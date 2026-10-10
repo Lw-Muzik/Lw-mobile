@@ -93,12 +93,32 @@ void main() {
     test('strict mode requires the artist; relaxed mode does not', () {
       final hits = [_hit('Blinding Lights', 'Someone Else')];
       expect(
-        pickBest(hits, title: 'Blinding Lights', artist: 'The Weeknd', requireArtist: true),
+        pickBest(hits, title: 'Blinding Lights', artist: 'The Weeknd', durationSecs: 200, requireArtist: true),
         isNull,
       );
       expect(
-        pickBest(hits, title: 'Blinding Lights', artist: 'The Weeknd', requireArtist: false),
+        pickBest(hits, title: 'Blinding Lights', artist: 'The Weeknd', durationSecs: 200, requireArtist: false),
         _synced,
+      );
+    });
+
+    test('an unconfirmed artist needs the exact title and the same length', () {
+      // Device regression: "P.2" by King Saha showed "Dark Tomb p.2".
+      final hits = [_hit('Dark Tomb p.2', 'Cloud Pastel', duration: 222)];
+      expect(
+        pickBest(hits, title: 'P.2', artist: 'King Saha', durationSecs: 189, requireArtist: false),
+        isNull,
+      );
+      final sameTitle = [_hit('P.2', 'Cloud Pastel', duration: 222)];
+      expect(
+        pickBest(sameTitle, title: 'P.2', artist: 'King Saha', durationSecs: 189, requireArtist: false),
+        isNull,
+        reason: 'same title, 33 s longer: a different song',
+      );
+      expect(
+        pickBest(sameTitle, title: 'P.2', artist: 'King Saha', requireArtist: false),
+        isNull,
+        reason: 'no length to check and an artist that does not match',
       );
     });
 
@@ -109,6 +129,14 @@ void main() {
       ];
       expect(
         pickBest(hits, title: 'Blinding Lights', artist: 'The Weeknd', durationSecs: 200, requireArtist: true),
+        _synced,
+      );
+    });
+
+    test('artists match regardless of spacing ("DuaLipa" / "Dua Lipa")', () {
+      final hits = [_hit('Don\'t Start Now', 'Dua Lipa', duration: 183)];
+      expect(
+        pickBest(hits, title: 'Don\'t Start Now', artist: 'DuaLipa', requireArtist: true),
         _synced,
       );
     });
@@ -169,8 +197,22 @@ void main() {
       final text = await LrclibResolver(client: client).resolve(
         title: 'Blinding Lights',
         artist: 'Track 01 Artist',
+        durationMs: 201000,
       );
       expect(text, _synced);
+    });
+
+    test('a title-only query still rejects a different song by length', () async {
+      final client = MockClient((req) async {
+        if (req.url.path == '/api/get') return _json({'message': 'nope'}, 404);
+        return _json([_hit('Dark Tomb p.2', 'Cloud Pastel', duration: 222)]);
+      });
+      final text = await LrclibResolver(client: client).resolve(
+        title: 'P.2',
+        artist: 'King Saha',
+        durationMs: 189000,
+      );
+      expect(text, isNull);
     });
 
     test('reuses search results across strict and relaxed attempts', () async {
@@ -182,6 +224,23 @@ void main() {
       });
       await LrclibResolver(client: client).resolve(title: 'Song', artist: 'Band');
       expect(queries.toSet().length, queries.length);
+    });
+
+    test('a rate-limited reply is retried, not taken as "no lyrics"', () async {
+      var searches = 0;
+      final client = MockClient((req) async {
+        if (req.url.path == '/api/get') return _json({'message': 'nope'}, 404);
+        searches++;
+        return searches == 1
+            ? Response('Too Many Requests', 429)
+            : _json([_hit('Sura Yako', 'Sauti Sol')]);
+      });
+      final text = await LrclibResolver(client: client).resolve(
+        title: 'Sura Yako',
+        artist: 'Unknown Artist',
+      );
+      expect(text, _synced);
+      expect(searches, 2);
     });
 
     test('gives up after repeated transport failures', () async {

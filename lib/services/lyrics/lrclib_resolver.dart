@@ -28,6 +28,9 @@ class LrclibResolver {
   /// rather than walking every remaining attempt into the same dead network.
   static const int _maxTransportFailures = 2;
 
+  /// Breathing room after a failed request, so a rate limit can clear.
+  static const Duration _retryPause = Duration(milliseconds: 700);
+
   /// Returns raw lyrics (timestamped LRC when available, else plain text), or
   /// null. [isCancelled] is checked between requests so a resolve for a track
   /// the user already skipped stops early.
@@ -39,6 +42,7 @@ class LrclibResolver {
   }) async {
     final attempts = buildAttempts(title, artist);
     if (attempts.isEmpty) return null;
+    final knownArtist = primaryArtist(normalizeArtist(artist));
 
     final durationSecs =
         durationMs != null && durationMs > 0 ? durationMs / 1000.0 : null;
@@ -54,7 +58,10 @@ class LrclibResolver {
       // Exact get first when an artist is known (very precise; 404s fast).
       if (a.requireArtist && a.artist.isNotEmpty) {
         final got = await _get(a.title, a.artist, durationSecs);
-        if (got.failed) failures++;
+        if (got.failed) {
+          failures++;
+          await Future<void>.delayed(_retryPause);
+        }
         if (got.text != null) return got.text;
         if (isCancelled?.call() ?? false) return null;
       }
@@ -65,17 +72,22 @@ class LrclibResolver {
         hits = searchCache[query];
       } else {
         final res = await _search(query);
-        if (res.failed) failures++;
+        if (res.failed) {
+          failures++;
+          await Future<void>.delayed(_retryPause);
+        }
         hits = res.hits;
         // Don't cache a transport failure — a later attempt may retry it.
         if (!res.failed) searchCache[query] = hits;
       }
       if (hits == null || hits.isEmpty) continue;
 
+      // A title-only query still checks hits against the artist we know —
+      // dropping it from the query must not drop it from the verdict.
       final best = pickBest(
         hits,
         title: a.title,
-        artist: a.artist,
+        artist: a.artist.isNotEmpty ? a.artist : knownArtist,
         durationSecs: durationSecs,
         requireArtist: a.requireArtist,
       );
@@ -99,7 +111,7 @@ class LrclibResolver {
           .get(Uri.https('lrclib.net', '/api/get', params), headers: _headers)
           .timeout(_timeout);
       if (res.statusCode != 200) {
-        return _GetResult(failed: res.statusCode >= 500);
+        return _GetResult(failed: _transient(res.statusCode));
       }
       final json = jsonDecode(utf8.decode(res.bodyBytes));
       if (json is! Map<String, dynamic>) return const _GetResult();
@@ -119,7 +131,7 @@ class LrclibResolver {
           )
           .timeout(_timeout);
       if (res.statusCode != 200) {
-        return _SearchResult(failed: res.statusCode >= 500);
+        return _SearchResult(failed: _transient(res.statusCode));
       }
       final json = jsonDecode(utf8.decode(res.bodyBytes));
       if (json is! List) return const _SearchResult();
@@ -132,6 +144,10 @@ class LrclibResolver {
     }
   }
 }
+
+/// A reply worth retrying rather than believing: server trouble or a rate
+/// limit (LRCLIB answers bursts with 429). Never cached as "no lyrics".
+bool _transient(int status) => status >= 500 || status == 429;
 
 class _GetResult {
   const _GetResult({this.text, this.failed = false});
@@ -239,21 +255,41 @@ String? pickBest(
 
     var score = 0;
     // Title must be relevant.
-    if (rt == titleL) {
+    final exactTitle = rt == titleL;
+    if (exactTitle) {
       score += 10;
     } else if (rt.contains(titleL) || titleL.contains(rt)) {
       score += 5;
     } else {
       continue;
     }
-    // Artist: a match earns a bonus; a mismatch only disqualifies when strict.
+    // Artist: a match earns a bonus.
+    var artistMatched = false;
     if (artistL.isNotEmpty) {
       if (ra == artistL) {
         score += 10;
+        artistMatched = true;
       } else if (ra.isNotEmpty &&
-          (ra.contains(artistL) || artistL.contains(ra))) {
+          (ra.contains(artistL) ||
+              artistL.contains(ra) ||
+              _squash(ra) == _squash(artistL))) {
+        // The last test is "DuaLipa" (a VEVO channel) against "Dua Lipa".
         score += 5;
+        artistMatched = true;
       } else if (requireArtist) {
+        continue;
+      }
+    }
+    // Without a confirmed artist, a title alone is not evidence — "P.2" by
+    // King Saha matched "Dark Tomb p.2" by Cloud Pastel. Such a hit needs the
+    // exact title AND the same length; with no length to check it is accepted
+    // only when there was never an artist to confirm in the first place.
+    if (!artistMatched) {
+      if (!exactTitle) continue;
+      final rd = h['duration'];
+      if (durationSecs != null) {
+        if (rd is! num || (rd.toDouble() - durationSecs).abs() > 3) continue;
+      } else if (artistL.isNotEmpty) {
         continue;
       }
     }
@@ -285,6 +321,9 @@ String? lyricsOf(Map<String, dynamic> hit) {
   if (hit['instrumental'] == true) return null;
   return _nonBlank(hit['syncedLyrics']) ?? _nonBlank(hit['plainLyrics']);
 }
+
+/// Letters and digits only: spacing and punctuation differ between sources.
+String _squash(String s) => s.replaceAll(RegExp(r'[^\p{L}\p{N}]', unicode: true), '');
 
 String? _nonBlank(Object? v) =>
     v is String && v.trim().isNotEmpty ? v : null;
