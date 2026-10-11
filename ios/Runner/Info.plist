@@ -28,6 +28,8 @@
 		<true/>
 		<key>NSAppleMusicUsageDescription</key>
 		<string>Hype Muzik needs access to your music library to play your songs.</string>
+		<key>NSCameraUsageDescription</key>
+		<string>Hype Muzik uses the camera to scan the QR code shown by the HypeMuzik desktop app, so your phone and computer can pair and stream music to each other.</string>
 		<key>NSMicrophoneUsageDescription</key>
 		<string>Hype Muzik needs microphone access for audio visualization features.</string>
 		<key>NSPhotoLibraryUsageDescription</key>

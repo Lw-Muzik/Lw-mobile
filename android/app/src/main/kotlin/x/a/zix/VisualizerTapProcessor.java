@@ -304,6 +304,8 @@ public class VisualizerTapProcessor extends BaseAudioProcessor {
         nativeSetGain(gain);
     }
 
+    private static int tmpTicks, tmpFrames; private static long tmpLast; // TEMP-VIZLEAD
+
     private static void startFftVizThread() {
         if (vizThread != null) return;
         // The custom in-pipeline tap is primary: stop the legacy Android
@@ -328,6 +330,13 @@ public class VisualizerTapProcessor extends BaseAudioProcessor {
             try {
                 // Compute FFT bands in C++
                 float[] bands = nativeComputeBands();
+                // TEMP-VIZLEAD
+                tmpTicks++; if (bands != null) tmpFrames++;
+                long tmpNow = System.nanoTime();
+                if (tmpNow - tmpLast > 2_000_000_000L) {
+                    Log.i("VizLead", "fft frames " + tmpFrames + "/" + tmpTicks + " ticks in 2s");
+                    tmpLast = tmpNow; tmpFrames = 0; tmpTicks = 0;
+                }
                 if (bands != null && fftSink != null) {
                     mainHandler.post(() -> {
                         try {
