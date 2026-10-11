@@ -521,6 +521,25 @@ import AVFoundation
         case "scanMediaFile":
             result(nil)
 
+        // ==================== YouTube downloads ====================
+        case "finishYtDownload":
+            guard let src = args?["src"] as? String, let dst = args?["dst"] as? String else {
+                result(false)
+                return
+            }
+            let tags = args?["tags"] as? [String: Any] ?? [:]
+            YtDownloadFinisher.finish(src: src, dst: dst, tags: tags) { error in
+                if let error { NSLog("YtDownloadFinisher: \(error)") }
+                DispatchQueue.main.async { result(error == nil) }
+            }
+
+        case "replaceAudioFiles":
+            let files = args?["files"] as? [[String: String]] ?? []
+            DispatchQueue.global(qos: .utility).async {
+                let done = YtDownloadFinisher.replace(files)
+                DispatchQueue.main.async { result(done) }
+            }
+
         // ==================== Lyrics ====================
         case "readLyrics":
             if let filePath = args?["filePath"] as? String {

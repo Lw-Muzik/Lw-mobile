@@ -27,6 +27,7 @@ import 'parse/yt_dash.dart';
 import 'parse/yt_json.dart';
 import 'parse/yt_misc.dart';
 import 'parse/yt_page.dart';
+import 'parse/yt_track_info.dart';
 import 'parse/yt_tracks.dart';
 import 'yt_innertube.dart';
 import 'yt_models.dart';
@@ -43,6 +44,13 @@ enum YtOp {
   radioContinue,
   resolveAudio,
   resolveVideo,
+
+  /// One track's details for tagging a download (`next`: artists, album,
+  /// year, art, lyrics link).
+  trackInfo,
+
+  /// A track's lyrics page (`browse` of its `MPLYt…` id).
+  lyrics,
 
   /// Throw away the InnerTube session and start a new one.
   ///
@@ -252,6 +260,13 @@ Future<Object?> _handle(
 
     case YtOp.resolveVideo:
       return _resolveVideo(api, args['videoId'] as String);
+
+    case YtOp.trackInfo:
+      final videoId = args['videoId'] as String;
+      return parseTrackInfo(await api.next(videoId), videoId);
+
+    case YtOp.lyrics:
+      return parseLyrics(await api.browse(browseId: args['browseId'] as String));
 
     case YtOp.resetSession:
       api.resetSession();

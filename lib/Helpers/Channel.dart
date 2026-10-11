@@ -591,6 +591,41 @@ class Channel {
     await _invoke("scanMediaFile", {"filePath": filePath});
   }
 
+  // ==================== YouTube downloads ====================
+
+  /// Writes [src] (YouTube's untagged streaming MP4) to [dst] as a plain,
+  /// tagged .m4a — the audio copied as is. [tags] is
+  /// `YtSongTags.toChannel()`. False when it couldn't; [dst] is then absent.
+  static Future<bool> finishYtDownload(
+    String src,
+    String dst,
+    Map<String, Object?> tags,
+  ) async {
+    return await _invokeRequired<bool>("finishYtDownload", false, {
+      "src": src,
+      "dst": dst,
+      "tags": tags,
+    });
+  }
+
+  /// Writes each `replacement` file over its `path` — another app's files
+  /// after one consent dialog for the batch (Android) — and re-scans them.
+  /// Answers path → whether it was replaced.
+  static Future<Map<String, bool>> replaceAudioFiles(
+    List<({String path, String replacement})> files,
+  ) async {
+    final answer = await _invoke<Object>("replaceAudioFiles", {
+      "files": [
+        for (final f in files) {"path": f.path, "replacement": f.replacement},
+      ],
+    });
+    if (answer is! Map) return const {};
+    return {
+      for (final e in answer.entries)
+        if (e.key is String) e.key as String: e.value == true,
+    };
+  }
+
   // ==================== Audio Metadata Extraction ====================
 
   /// Extracts metadata from any audio format via MediaMetadataRetriever.

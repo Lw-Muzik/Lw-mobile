@@ -20,6 +20,9 @@ import 'stream_server.dart';
 
 import '/widgets/bottom_player.dart';
 import '../services/radio/radio_queue.dart';
+import '../services/ytmusic/yt_download_repair.dart';
+import '/controllers/library_controller.dart';
+import 'package:just_audio/just_audio.dart' show UriAudioSource;
 import '../themes/ember.dart';
 
 /// One group of settings, and the sections it gathers.
@@ -127,6 +130,8 @@ const kSettingsIndex = <SettingsEntry>[
   SettingsEntry('Rescan library', SettingsCategory.library, 'refresh songs missing'),
   SettingsEntry('Identify unknown tracks', SettingsCategory.library,
       'fingerprint tags artwork'),
+  SettingsEntry('Fix YouTube downloads', SettingsCategory.library,
+      'repair tags cover artwork lyrics album artist metadata'),
   SettingsEntry('Cloud storage', SettingsCategory.devices, 'google drive dropbox'),
   SettingsEntry('Phone link', SettingsCategory.devices, 'upload transfer'),
   SettingsEntry('Stream to desktop', SettingsCategory.devices, 'cast'),
@@ -156,6 +161,13 @@ class _SettingsState extends State<Settings> {
   int _scanTotal = 0;
   String _scanSongName = '';
   int? _scanResult;
+
+  // Fixing YouTube downloads that predate tagging.
+  bool _repairing = false;
+  int _repairDone = 0;
+  int _repairTotal = 0;
+  String _repairName = '';
+  YtRepairReport? _repairReport;
 
   @override
   void initState() {
@@ -1657,6 +1669,8 @@ class _SettingsState extends State<Settings> {
               onTap: _startBatchScan,
             ),
           ],
+          const Divider(height: 1, indent: 16, endIndent: 16),
+          ..._buildRepairTiles(),
         ]),
       ],
     );
@@ -1692,6 +1706,125 @@ class _SettingsState extends State<Settings> {
       setState(() {
         _scanning = false;
         _scanResult = identified;
+      });
+    }
+  }
+
+  /// "Fix YouTube downloads": idle, working (with which song), or what it did.
+  List<Widget> _buildRepairTiles() {
+    if (_repairing) {
+      return [
+        ListTile(
+          leading: const SizedBox(
+            width: 24,
+            height: 24,
+            child: CircularProgressIndicator.adaptive(strokeWidth: 2),
+          ),
+          title: Text(
+            _repairTotal == 0
+                ? "Looking for downloads…"
+                : "Fixing ${_repairDone + 1 > _repairTotal ? _repairTotal : _repairDone + 1} of $_repairTotal",
+          ),
+          subtitle: Text(
+            _repairName,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+          child: LinearProgressIndicator(
+            value: _repairTotal > 0 ? _repairDone / _repairTotal : null,
+          ),
+        ),
+      ];
+    }
+    final report = _repairReport;
+    if (report != null) {
+      final done = report.fixed;
+      final notes = [
+        if (report.fromFileName > 0)
+          "${report.fromFileName} named from their file names",
+        if (report.failed > 0) "${report.failed} couldn't be fixed",
+        if (report.skipped > 0) "${report.skipped} skipped while playing",
+      ];
+      return [
+        ListTile(
+          leading: Icon(
+            Icons.check_circle,
+            color: Theme.of(context).colorScheme.primary,
+          ),
+          title: Text(
+            done == 0 && notes.isEmpty
+                ? "No downloads need fixing"
+                : "Fixed $done download${done == 1 ? '' : 's'}",
+          ),
+          subtitle: Text(
+            notes.isEmpty ? "Tap to check again" : "${notes.join(' · ')}. Tap to try again",
+          ),
+          onTap: () {
+            setState(() => _repairReport = null);
+            _startRepair();
+          },
+        ),
+      ];
+    }
+    return [
+      ListTile(
+        title: const Text("Fix YouTube downloads"),
+        subtitle: const Text(
+          "Add song info, covers and lyrics to downloads that have none",
+        ),
+        trailing: const Icon(Icons.auto_fix_high),
+        onTap: _startRepair,
+      ),
+    ];
+  }
+
+  Future<void> _startRepair() async {
+    final controller = context.read<AppController>();
+    final library = context.read<LibraryController>();
+    setState(() {
+      _repairing = true;
+      _repairDone = 0;
+      _repairTotal = 0;
+      _repairName = '';
+      _repairReport = null;
+    });
+    var report = const YtRepairReport();
+    try {
+      final songs = await library.repo.allSongs();
+      final candidates = await YtDownloadRepair.findCandidates([
+        for (final s in songs) (path: s.data, durationMs: s.duration),
+      ]);
+      if (candidates.isNotEmpty) {
+        // The song playing now is left alone: rewriting a file under the
+        // player would cut it off.
+        final source = controller.handler.player.sequenceState.currentSource;
+        final playing = source is UriAudioSource && source.uri.scheme == 'file'
+            ? source.uri.toFilePath()
+            : null;
+        report = await YtDownloadRepair().run(
+          candidates,
+          playingPath: playing,
+          onProgress: (done, total, name) {
+            if (!mounted) return;
+            setState(() {
+              _repairDone = done;
+              _repairTotal = total;
+              _repairName = name;
+            });
+          },
+        );
+        if (report.fixed > 0) await library.rescan();
+      }
+    } catch (e) {
+      debugPrint('Fix YouTube downloads: $e');
+    }
+    if (mounted) {
+      setState(() {
+        _repairing = false;
+        _repairReport = report;
       });
     }
   }

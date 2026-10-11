@@ -5,6 +5,13 @@
 /// in ranges ([YtStreamFetch]): one plain GET of it is throttled to about twice
 /// its bitrate, a minute and a half a song, where ranges take seconds.
 ///
+/// That stream is a bare streaming (DASH) file with no tags, so it is then
+/// repackaged as a plain .m4a and tagged as other downloaders do: title,
+/// artists, album, album artist, year, track number, a 1200 px cover and
+/// lyrics, from YouTube Music itself ([YtSongTagger], gathered while the audio
+/// downloads). Timed lyrics also land beside the song as a `.lrc`. If tagging
+/// fails the download is still saved, untagged, as before.
+///
 /// On Android the file is handed to [NativeMediaStore] rather than written into
 /// the shared music tree directly: the app targets SDK 36 and is fully under
 /// scoped storage, where inserting a `MediaStore.Audio.Media` row is the only
@@ -24,10 +31,12 @@ import 'dart:io';
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:path_provider/path_provider.dart';
 
+import '../../Helpers/Channel.dart';
 import '../local_music_scanner.dart';
 import '../native_media_store.dart';
 import 'yt_models.dart';
 import 'yt_repository.dart';
+import 'yt_song_tags.dart';
 import 'yt_stream_fetch.dart';
 
 /// How a download ended.
@@ -58,6 +67,10 @@ class YtDownloader {
   @visibleForTesting
   static YtStreamFetch fetcher = const YtStreamFetch();
 
+  /// Where tags come from; replaceable in tests.
+  @visibleForTesting
+  static YtSongTagger tagger = YtSongTagger();
+
   /// A transfer that kept failing after its retries: the network, not the URL.
   static const _connectionLost =
       'Download failed. Check your connection and try again.';
@@ -71,11 +84,50 @@ class YtDownloader {
     YtTrack track, {
     void Function(double fraction)? onProgress,
   }) async {
-    File? partial;
+    File? raw;
+    File? finished;
     try {
       final target = await YtMusicRepository.instance.audioTarget(
         track.videoId,
       );
+
+      // The stream lands in temp first, out of every folder a library scan
+      // reads, and only the finished file goes where music lives. `.part`
+      // while it transfers, so a failed transfer is never mistaken for audio;
+      // `.m4a` once complete, since iOS picks its reader by extension.
+      final work = Directory('${(await getTemporaryDirectory()).path}/yt_downloads');
+      if (!work.existsSync()) await work.create(recursive: true);
+      final partial = File('${work.path}/${track.videoId}.part');
+      raw = File('${work.path}/${track.videoId}.m4a');
+
+      // Tags are gathered while the audio downloads; a slow or failed lookup
+      // costs the tags, never the download.
+      final tagsFuture = tagger
+          .gather(track, workDir: work)
+          .timeout(const Duration(seconds: 30))
+          .catchError((Object _) => YtSongTags.fromTrack(track));
+
+      try {
+        await fetcher.toFile(
+          Uri.parse(target.url),
+          partial,
+          headers: target.headers,
+          onProgress: onProgress,
+        );
+      } on YtStreamRefused catch (e) {
+        await _deleteQuietly(partial);
+        // A dead URL is worth forgetting: the retry should ask YouTube again
+        // rather than replay the same expired target.
+        YtMusicRepository.instance.forget(track.videoId);
+        return YtDownloadFailed(
+          'Download failed (${e.statusCode ?? 'refused'}).',
+        );
+      } catch (_) {
+        await _deleteQuietly(partial);
+        rethrow;
+      }
+      await partial.rename(raw.path);
+      final tags = await tagsFuture;
 
       // Android stages in app documents and publishes to MediaStore below.
       // iOS has nowhere to publish to, so it writes straight into the
@@ -86,30 +138,23 @@ class YtDownloader {
       final directory = Platform.isIOS
           ? await _iosDownloadDirectory()
           : await getApplicationDocumentsDirectory();
-      final name = _fileName(track);
-      // Downloaded to a `.part` first so a cancelled or failed transfer can
-      // never be mistaken for a complete track — by this app or by MediaStore.
-      partial = File('${directory.path}/$name.part');
-      try {
-        await fetcher.toFile(
-          Uri.parse(target.url),
-          partial,
-          headers: target.headers,
-          onProgress: onProgress,
-        );
-      } on YtStreamRefused catch (e) {
-        // A dead URL is worth forgetting: the retry should ask YouTube again
-        // rather than replay the same expired target.
-        YtMusicRepository.instance.forget(track.videoId);
-        return YtDownloadFailed(
-          'Download failed (${e.statusCode ?? 'refused'}).',
-        );
+      final name = _fileNameFor(tags.artist, tags.title, track.videoId);
+      finished = File('${directory.path}/$name.m4a');
+      final tagged = await Channel.finishYtDownload(
+        raw.path,
+        finished.path,
+        tags.toChannel(),
+      );
+      if (tagged) {
+        await _deleteQuietly(raw);
+      } else {
+        await _move(raw, finished);
       }
+      raw = null;
+      await _deleteCover(tags);
 
-      final finished = File('${directory.path}/$name.m4a');
-      await partial.rename(finished.path);
-      partial = null;
-
+      var savedPath = finished.path;
+      var inLibrary = false;
       if (NativeMediaStore.supported) {
         final row = await NativeMediaStore.importAudio(
           sourcePath: finished.path,
@@ -119,13 +164,14 @@ class YtDownloader {
         if (row != null) {
           // The MediaStore row owns the file now; the app copy is a duplicate.
           await _deleteQuietly(finished);
-          return await _saved(
-            (row['path'] as String?) ?? finished.path,
-            inLibrary: true,
-          );
+          savedPath = (row['path'] as String?) ?? finished.path;
+          inLibrary = true;
         }
       }
-      return await _saved(finished.path, inLibrary: false);
+      finished = null;
+      final lrc = tags.lrc;
+      if (lrc != null) await writeLrcBeside(savedPath, lrc);
+      return await _saved(savedPath, inLibrary: inLibrary);
     } on YtException catch (e) {
       return YtDownloadFailed(e.message);
     } on TimeoutException {
@@ -137,7 +183,7 @@ class YtDownloader {
     } catch (e) {
       return YtDownloadFailed('Download failed: $e');
     } finally {
-      if (partial != null) await _deleteQuietly(partial);
+      if (raw != null) await _deleteQuietly(raw);
     }
   }
 
@@ -175,16 +221,13 @@ class YtDownloader {
   ///
   /// Keeps the track identifiable while dropping anything a path separator or a
   /// Windows-hostile character could turn into a different file than intended.
-  static String _fileName(YtTrack track) {
-    final artist = track.artist;
-    final raw = artist == null || artist.isEmpty
-        ? track.title
-        : '$artist - ${track.title}';
+  static String _fileNameFor(String? artist, String title, String videoId) {
+    final raw = artist == null || artist.isEmpty ? title : '$artist - $title';
     final cleaned = raw
         .replaceAll(RegExp(r'[\\/:*?"<>|]'), '')
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
-    if (cleaned.isEmpty) return track.videoId;
+    if (cleaned.isEmpty) return videoId;
     // Long names are rejected outright by some filesystems, so cap well short
     // of any real limit and keep the id as the tiebreaker.
     return cleaned.length <= 80 ? cleaned : cleaned.substring(0, 80).trim();
@@ -211,6 +254,21 @@ class YtDownloader {
     String path, {
     required bool inLibrary,
   }) async => YtDownloadSaved(path, inLibrary: inLibrary);
+
+  /// Moves [from] to [to], copying when a rename can't (another volume).
+  static Future<void> _move(File from, File to) async {
+    try {
+      await from.rename(to.path);
+    } on FileSystemException {
+      await from.copy(to.path);
+      await _deleteQuietly(from);
+    }
+  }
+
+  static Future<void> _deleteCover(YtSongTags tags) async {
+    final cover = tags.coverPath;
+    if (cover != null) await _deleteQuietly(File(cover));
+  }
 
   static Future<void> _deleteQuietly(File file) async {
     try {

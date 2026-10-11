@@ -3,6 +3,7 @@ package x.a.zix;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.PendingIntent;
+import android.content.ContentResolver;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -15,6 +16,8 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.provider.MediaStore;
+import android.util.Log;
+import android.media.MediaScannerConnection;
 import android.view.KeyEvent;
 import android.widget.Toast;
 
@@ -41,6 +44,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import io.flutter.embedding.engine.FlutterEngine;
@@ -232,6 +237,13 @@ public class MainActivity extends AudioServiceFragmentActivity {
     private MethodChannel.Result pendingDeleteResult;
     private String pendingDeletePath;
     private MethodChannel.Result pendingWriteResult;
+    // Repairing YouTube downloads: the files another app owns, waiting on one
+    // consent dialog for the whole batch.
+    private ActivityResultLauncher<IntentSenderRequest> batchWriteLauncher;
+    private List<String[]> pendingBatch;
+    private List<Uri> pendingBatchUris;
+    private Map<String, Boolean> pendingBatchDone;
+    private MethodChannel.Result pendingBatchResult;
     private Uri pendingWriteUri;
     private File pendingModifiedFile;
     private String pendingWriteFilePath;
@@ -279,6 +291,38 @@ public class MainActivity extends AudioServiceFragmentActivity {
                     pendingDeleteResult = null;
                     pendingDeletePath = null;
                 });
+
+        batchWriteLauncher = registerForActivityResult(
+                new ActivityResultContracts.StartIntentSenderForResult(),
+                activityResult -> {
+                    final MethodChannel.Result res = pendingBatchResult;
+                    if (res == null) return;
+                    final List<String[]> batch = pendingBatch;
+                    final List<Uri> uris = pendingBatchUris;
+                    final Map<String, Boolean> done = pendingBatchDone;
+                    pendingBatchResult = null;
+                    pendingBatch = null;
+                    pendingBatchUris = null;
+                    pendingBatchDone = null;
+                    final boolean granted = activityResult.getResultCode() == Activity.RESULT_OK;
+                    new Thread(() -> {
+                        for (int i = 0; i < batch.size(); i++) {
+                            boolean ok = false;
+                            if (granted) {
+                                try {
+                                    YtDownloadFinisher.copyToUri(getContentResolver(), uris.get(i),
+                                            new File(batch.get(i)[1]));
+                                    ok = true;
+                                } catch (Exception e) {
+                                    Log.w("YtDownloadFinisher", "replace failed: " + batch.get(i)[0], e);
+                                }
+                            }
+                            done.put(batch.get(i)[0], ok);
+                        }
+                        finishReplace(done, res);
+                    }, "replaceAudioFiles").start();
+                }
+        );
 
         // Register launcher for MediaStore write-permission dialog (Android 11+)
         writeRequestLauncher = registerForActivityResult(
@@ -1424,6 +1468,24 @@ public class MainActivity extends AudioServiceFragmentActivity {
                             }
                             break;
                         }
+                        // ==================== YouTube downloads ====================
+                        case "finishYtDownload": {
+                            final String ytSrc = call.argument("src");
+                            final String ytDst = call.argument("dst");
+                            final Map<String, Object> ytTags = call.argument("tags");
+                            new Thread(() -> {
+                                String error = YtDownloadFinisher.finish(ytSrc, ytDst,
+                                        ytTags == null ? new HashMap<>() : ytTags);
+                                if (error != null) Log.w("YtDownloadFinisher", "finish failed: " + error);
+                                runOnUiThread(() -> result.success(error == null));
+                            }, "YtDownloadFinisher").start();
+                            break;
+                        }
+                        case "replaceAudioFiles": {
+                            List<Map<String, String>> ytFiles = call.argument("files");
+                            replaceAudioFiles(ytFiles, result);
+                            break;
+                        }
                         case "scanMediaFile": {
                             String scanPath = call.argument("filePath");
                             TagWriter.scanFile(getApplicationContext(), scanPath);
@@ -1629,4 +1691,86 @@ public class MainActivity extends AudioServiceFragmentActivity {
         return bitmap;
     }
 
+
+    /**
+     * Writes each {@code replacement} over its {@code path}: directly where this
+     * app owns the MediaStore item, after one consent dialog for the rest
+     * (Android 11+). Answers a map of path to success once the media scanner
+     * has re-read them, so the library shows the new tags.
+     */
+    private void replaceAudioFiles(List<Map<String, String>> files, MethodChannel.Result result) {
+        if (files == null || files.isEmpty()) {
+            result.success(new HashMap<String, Boolean>());
+            return;
+        }
+        new Thread(() -> {
+            final Map<String, Boolean> done = new HashMap<>();
+            final List<String[]> needConsent = new ArrayList<>();
+            final List<Uri> consentUris = new ArrayList<>();
+            final ContentResolver resolver = getContentResolver();
+            for (Map<String, String> f : files) {
+                String path = f.get("path");
+                String replacement = f.get("replacement");
+                if (path == null || replacement == null) continue;
+                File source = new File(replacement);
+                Uri uri = LyricsManager.getMediaUri(resolver, path);
+                if (uri == null) {
+                    done.put(path, YtDownloadFinisher.copyFile(source, new File(path)));
+                    continue;
+                }
+                try {
+                    YtDownloadFinisher.copyToUri(resolver, uri, source);
+                    done.put(path, true);
+                } catch (SecurityException e) {
+                    needConsent.add(new String[]{path, replacement});
+                    consentUris.add(uri);
+                } catch (Exception e) {
+                    Log.w("YtDownloadFinisher", "replace failed: " + path, e);
+                    done.put(path, false);
+                }
+            }
+            if (needConsent.isEmpty() || Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+                for (String[] p : needConsent) done.put(p[0], false);
+                finishReplace(done, result);
+                return;
+            }
+            runOnUiThread(() -> {
+                pendingBatch = needConsent;
+                pendingBatchUris = consentUris;
+                pendingBatchDone = done;
+                pendingBatchResult = result;
+                try {
+                    PendingIntent pi = MediaStore.createWriteRequest(resolver, consentUris);
+                    batchWriteLauncher.launch(new IntentSenderRequest.Builder(pi.getIntentSender()).build());
+                } catch (Exception e) {
+                    Log.w("YtDownloadFinisher", "write request failed", e);
+                    pendingBatchResult = null;
+                    pendingBatch = null;
+                    pendingBatchUris = null;
+                    pendingBatchDone = null;
+                    for (String[] p : needConsent) done.put(p[0], false);
+                    new Thread(() -> finishReplace(done, result)).start();
+                }
+            });
+        }, "replaceAudioFiles").start();
+    }
+
+    /** Off the main thread: rescans what was written, then answers. */
+    private void finishReplace(Map<String, Boolean> done, MethodChannel.Result result) {
+        List<String> written = new ArrayList<>();
+        for (Map.Entry<String, Boolean> e : done.entrySet()) {
+            if (Boolean.TRUE.equals(e.getValue())) written.add(e.getKey());
+        }
+        if (!written.isEmpty()) {
+            CountDownLatch scanned = new CountDownLatch(written.size());
+            MediaScannerConnection.scanFile(getApplicationContext(),
+                    written.toArray(new String[0]), null, (p, u) -> scanned.countDown());
+            try {
+                scanned.await(15, TimeUnit.SECONDS);
+            } catch (InterruptedException ignored) {
+                Thread.currentThread().interrupt();
+            }
+        }
+        runOnUiThread(() -> result.success(done));
+    }
 }

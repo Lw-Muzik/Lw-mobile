@@ -20,6 +20,7 @@ import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'parse/yt_track_info.dart';
 import 'parse/yt_tracks.dart';
 import 'yt_innertube.dart';
 import 'yt_models.dart';
@@ -235,6 +236,27 @@ class YtMusicRepository {
       YtWorker.instance.run<RadioBatch>(
         YtOp.radioContinue,
         {'videoId': videoId, 'token': token},
+      );
+
+  // -------------------------------------------------------------------------
+  // Details, for tagging a download
+  // -------------------------------------------------------------------------
+
+  /// What YouTube Music knows about one track — every credited artist, the
+  /// album and its link, year, art and lyrics link — or null when it can't
+  /// say. Never cached: it is asked once per download.
+  Future<YtTrackInfo?> trackInfo(String videoId) => YtWorker.instance
+      .run<YtTrackInfo?>(YtOp.trackInfo, {'videoId': videoId});
+
+  /// The lyrics behind a [YtTrackInfo.lyricsId], or null.
+  Future<YtLyrics?> lyrics(String browseId) => YtWorker.instance
+      .run<YtLyrics?>(YtOp.lyrics, {'browseId': browseId});
+
+  /// An album's page by its `MPREb…` id: its artist, cover and track order.
+  Future<YtTrackList> album(String browseId, {String title = ''}) =>
+      _trackList(
+        ExploreItem(id: browseId, kind: ExploreKind.album, title: title),
+        TrackListKind.album,
       );
 
   // -------------------------------------------------------------------------
