@@ -42,7 +42,7 @@ import '../services/playback_session.dart';
 import 'queue_order.dart';
 import 'visualizer_tap.dart';
 import '../helpers/audio_visualizer.dart';
-import 'stem_controller.dart';
+import 'stems_controller.dart';
 
 enum AppMode { musicPlayer, equalizer }
 
@@ -111,6 +111,10 @@ class AppController with ChangeNotifier implements StationSink {
     } else {
       Channel.stopEqModeService();
     }
+    // The Stems tab exists only in music-player mode. A mix changed there
+    // would otherwise keep, say, the vocals muted in a mode with no control
+    // left to bring them back.
+    if (value == AppMode.equalizer) stemsController.reset();
     notifyListeners();
   }
 
@@ -210,8 +214,10 @@ class AppController with ChangeNotifier implements StationSink {
   String? _activeSpeakerProfile;
   final SpeakerProfileService _speakerProfileService = SpeakerProfileService();
 
-  // Stem separation
-  final StemController stemController = StemController();
+  // Live stems (vocals / drums / instruments). The native engine follows the
+  // player by itself; this holds the mix, the model download and the
+  // one-time speed test. Started at the end of the constructor.
+  late final StemsController stemsController = StemsController.app(_prefs);
 
   // Song grid extent getters/setters
   double get songGridExtent => _songGridExtent;
@@ -861,6 +867,9 @@ class AppController with ChangeNotifier implements StationSink {
       dropboxService,
     );
     _initCloudServices();
+
+    // Hands the stems engine its YouTube exclusions and looks for the model.
+    stemsController.start();
   }
 
   /// Listen to audio session ID changes and rebind session-bound native effects.
@@ -2620,12 +2629,11 @@ class AppController with ChangeNotifier implements StationSink {
     // never reaches that handler), grew the queue exactly once and then let a
     // station that was supposed to be endless stop dead.
     unawaited(RadioQueue.instance.onIndexChanged(this, id));
-    // Update play count (no notify, debounced write) + stem state BEFORE the
-    // single notifyListeners, so the track change is one synchronous rebuild
-    // pass instead of the previous 2-3 (setter + play-count).
+    // Update play count (no notify, debounced write) BEFORE the single
+    // notifyListeners, so the track change is one synchronous rebuild pass
+    // instead of the previous 2-3 (setter + play-count).
     if (songs.isNotEmpty && id >= 0 && id < songs.length) {
       _onTrackStarted(id);
-      stemController.onSongChanged(songs[id].data);
     }
     _saveSession();
     notifyListeners();

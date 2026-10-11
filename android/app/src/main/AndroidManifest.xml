@@ -93,9 +93,6 @@
                 <action android:name="android.service.notification.NotificationListenerService" />
             </intent-filter>
         </service>
-        <service android:name=".StemSeparationService"
-            android:enabled="true" android:exported="false"
-            android:foregroundServiceType="mediaPlayback" />
         <!-- ADD THIS "SERVICE" element -->
         <service android:name="com.ryanheise.audioservice.AudioService" android:foregroundServiceType="mediaPlayback" android:exported="true" android:permission="android.permission.FOREGROUND_SERVICE">
             <intent-filter>

@@ -610,77 +610,77 @@ class Channel {
     return Map<String, dynamic>.from(result);
   }
 
-  // ==================== Stem Separation ====================
+  // ==================== Live Stems ====================
+  //
+  // Vocals / drums / instruments while a song plays. The native engine
+  // separates ahead of the playhead and follows the player by itself, so Dart
+  // never says which song is playing — it only supplies the model, the levels,
+  // and whether the engine should be working at all. Same names and shapes on
+  // Android and iOS.
 
-  static Future<bool> separateStems(String filePath, String outputDir) async {
-    return await _invokeRequired<bool>("separateStems", false, {
-      "filePath": filePath,
-      "outputDir": outputDir,
-    });
+  // The answers below are read as `Object` and checked, rather than cast by
+  // `invokeMethod<T>`: a native side that answers with the wrong type must
+  // read as "no", not throw a TypeError into the UI.
+
+  /// Loads `vocals.onnx`, `drums.onnx`, `bass.onnx` and `other.onnx` from
+  /// [dir]. False when the files can't be loaded — or the engine isn't there.
+  static Future<bool> stemsLoadModel(String dir) async {
+    return await _invoke<Object>("stemsLoadModel", {"dir": dir}) == true;
   }
 
-  static Future<void> cancelStemSeparation() async {
-    await _invoke("cancelStemSeparation");
+  static Future<void> stemsUnloadModel() async {
+    await _invoke("stemsUnloadModel");
   }
 
-  static Future<bool> checkStemsExist(String dirPath) async {
-    return await _invokeRequired<bool>("checkStemsExist", false, {
-      "dirPath": dirPath,
-    });
+  /// Times a short separation on the loaded model:
+  /// `{ok: bool, rtf: double, millis: int, error: String?}`, or null when the
+  /// engine didn't answer.
+  static Future<Map<String, dynamic>?> stemsBenchmark() async {
+    final result = await _invoke<Object>("stemsBenchmark");
+    return result is Map ? Map<String, dynamic>.from(result) : null;
   }
 
-  // ==================== Stem Mixer ====================
+  /// Armed = the Stems tab is on screen, or the mix differs from the
+  /// original. Disarmed, the engine stops separating and plays the original.
+  static Future<void> stemsSetArmed(bool armed) async {
+    await _invoke("stemsSetArmed", {"armed": armed});
+  }
 
-  static Future<bool> loadStems({
-    required String vocalsPath,
-    required String drumsPath,
-    required String bassPath,
-    required String otherPath,
+  /// Effective gains, 0–1 (a muted stem is 0). 1/1/1 is the original.
+  static Future<void> stemsSetLevels({
+    required double vocals,
+    required double drums,
+    required double instruments,
   }) async {
-    return await _invokeRequired<bool>("loadStems", false, {
-      "vocals": vocalsPath,
-      "drums": drumsPath,
-      "bass": bassPath,
-      "other": otherPath,
+    await _invoke("stemsSetLevels", {
+      "vocals": vocals,
+      "drums": drums,
+      "instruments": instruments,
     });
   }
 
-  static Future<void> unloadStems() async {
-    await _invoke("unloadStems");
+  /// Absolute path prefixes whose files must be reported unavailable with
+  /// reason `youtube` — YouTube downloads and video manifests.
+  static Future<void> stemsSetExcludedPrefixes(List<String> prefixes) async {
+    await _invoke("stemsSetExcludedPrefixes", {"prefixes": prefixes});
   }
 
-  static Future<void> activateStemMode() async {
-    await _invoke("activateStemMode");
+  /// The engine's current state, shaped like a [stemsEvents] event.
+  static Future<Map<String, dynamic>?> stemsGetStatus() async {
+    final result = await _invoke<Object>("stemsGetStatus");
+    return result is Map ? Map<String, dynamic>.from(result) : null;
   }
 
-  static Future<void> deactivateStemMode() async {
-    await _invoke("deactivateStemMode");
-  }
-
-  static Future<void> setStemVolume(int stem, double volume) async {
-    await _invoke("setStemVolume", {"stem": stem, "volume": volume});
-  }
-
-  static Future<void> setStemMute(int stem, bool muted) async {
-    await _invoke("setStemMute", {"stem": stem, "muted": muted});
-  }
-
-  static Future<void> setStemSolo(int stem, bool soloed) async {
-    await _invoke("setStemSolo", {"stem": stem, "soloed": soloed});
-  }
-
-  static Future<void> stemSeek(int samplePosition) async {
-    await _invoke("stemSeek", {"samplePosition": samplePosition});
-  }
-
-  static const EventChannel _stemProgressChannel = EventChannel(
-    "eq_app/stem_progress",
+  static const EventChannel _stemsEventChannel = EventChannel(
+    "eq_app/stems_events",
   );
 
-  static Stream<Map<String, dynamic>> get stemProgressStream =>
-      _stemProgressChannel.receiveBroadcastStream().map(
-        (event) => Map<String, dynamic>.from(event as Map),
-      );
+  /// `{state: idle|preparing|ready|unavailable|error, reason: String?,
+  /// progress: 0–1, aheadSeconds: double, trackKey: String?}`.
+  static Stream<Map<String, dynamic>> get stemsEvents => _stemsEventChannel
+      .receiveBroadcastStream()
+      .where((event) => event is Map)
+      .map((event) => Map<String, dynamic>.from(event as Map));
 
   // ==================== Lyrics ====================
 

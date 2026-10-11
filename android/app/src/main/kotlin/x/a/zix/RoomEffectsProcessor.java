@@ -6,6 +6,7 @@ import androidx.annotation.NonNull;
 import androidx.media3.common.C;
 import androidx.media3.common.audio.AudioProcessor;
 import androidx.media3.common.audio.BaseAudioProcessor;
+import com.ryanheise.just_audio.StemSinkListener;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -22,8 +23,13 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * Parameter changes from the UI are broadcast to all player instances via the
  * static broadcast methods. Cached params are applied when a new native handle
  * is created (in onFlush) so late-initialized players get current settings.
+ *
+ * Live stems: each instance's native engine owns a StemTap (cpp/stems). The
+ * patched just_audio reports, through {@link StemSinkListener}, which queue
+ * item this player is on and the media time of the buffers reaching its sink,
+ * so the tap knows which track and sample it is processing.
  */
-public class RoomEffectsProcessor extends BaseAudioProcessor {
+public class RoomEffectsProcessor extends BaseAudioProcessor implements StemSinkListener {
     private static final String TAG = "RoomEffectsProcessor";
 
     static {
@@ -95,13 +101,6 @@ public class RoomEffectsProcessor extends BaseAudioProcessor {
     private static volatile float cachedLimiterRelease = 50f;
     private static volatile float cachedLimiterKnee = 6f;
 
-    // Cached Stem mixer state
-    private static volatile boolean cachedStemModeActive = false;
-    private static volatile String[] cachedStemPaths = null;
-    private static final float[] cachedStemVolumes = {1.0f, 1.0f, 1.0f, 1.0f};
-    private static final boolean[] cachedStemMutes = {false, false, false, false};
-    private static final boolean[] cachedStemSolos = {false, false, false, false};
-
     // Cached Speaker correction EQ (AutoEq headphone profiles)
     private static volatile boolean cachedSpeakerEqEnabled = false;
     private static volatile int cachedSpeakerBandCount = 0;
@@ -144,8 +143,16 @@ public class RoomEffectsProcessor extends BaseAudioProcessor {
         return p;
     }
 
-    // Native engine handle — unique per instance
-    private long nativeHandle = 0;
+    // Native engine handle — unique per instance. Written on the playback
+    // thread; read under handleLock by the main thread (stem key updates).
+    private volatile long nativeHandle = 0;
+    private final Object handleLock = new Object();
+
+    // Live stems: engine ids of this player's current and next queue item, and
+    // whether the tap still needs the media time of the next buffer.
+    private volatile int stemKeyCurrent = 0;
+    private volatile int stemKeyNext = 0;
+    private boolean stemNeedTime = true;
 
     private RoomEffectsProcessor() {}
 
@@ -208,23 +215,32 @@ public class RoomEffectsProcessor extends BaseAudioProcessor {
             playerInstances.add(this);
         }
         if (inputAudioFormat != AudioFormat.NOT_SET) {
-            if (nativeHandle != 0) {
-                nativeReinit(nativeHandle, inputAudioFormat.sampleRate,
-                    inputAudioFormat.channelCount);
-            } else {
-                nativeHandle = nativeCreate(inputAudioFormat.sampleRate,
-                    inputAudioFormat.channelCount);
+            synchronized (handleLock) {
+                if (nativeHandle != 0) {
+                    nativeReinit(nativeHandle, inputAudioFormat.sampleRate,
+                        inputAudioFormat.channelCount);
+                } else {
+                    nativeHandle = nativeCreate(inputAudioFormat.sampleRate,
+                        inputAudioFormat.channelCount);
+                }
+                // Apply current cached params to this instance's native handle
+                applyCachedParams();
+                // A flush means a seek or a new source: the stem tap must learn
+                // where it is again from the next buffer's media time.
+                nativeStemFlush(nativeHandle);
+                nativeStemSetKeys(nativeHandle, stemKeyCurrent, stemKeyNext);
             }
-            // Apply current cached params to this instance's native handle
-            applyCachedParams();
+            stemNeedTime = true;
         }
     }
 
     @Override
     protected void onReset() {
-        if (nativeHandle != 0) {
-            nativeDestroy(nativeHandle);
-            nativeHandle = 0;
+        synchronized (handleLock) {
+            if (nativeHandle != 0) {
+                nativeDestroy(nativeHandle);
+                nativeHandle = 0;
+            }
         }
         // Prune this instance so the static list doesn't grow unbounded across
         // crossfade/stop-start cycles (just_audio disposes and recreates the
@@ -233,6 +249,40 @@ public class RoomEffectsProcessor extends BaseAudioProcessor {
         // an ever-growing list. If media3 later flushes this same instance
         // (mid-life reset), onFlush() re-adds it.
         playerInstances.remove(this);
+    }
+
+    // ---- StemSinkListener (patched just_audio) ----
+
+    @Override
+    public void onSinkStreamChange() {
+        // Playback thread. The next buffers belong to another queue item.
+        long h = nativeHandle;
+        if (h != 0) nativeStemStreamChange(h);
+        stemNeedTime = true;
+    }
+
+    @Override
+    public void onSinkBuffer(long mediaTimeUs) {
+        // Playback thread, before the buffer enters this processor. Only the
+        // first buffer after a flush or stream change matters; frames are
+        // counted natively from there.
+        if (!stemNeedTime) return;
+        long h = nativeHandle;
+        if (h == 0) return;
+        nativeStemBufferTime(h, mediaTimeUs);
+        stemNeedTime = false;
+    }
+
+    @Override
+    public void onTrackKeys(String currentUri, String nextUri) {
+        // Main thread.
+        int current = StemEngineBridge.registerTrack(currentUri);
+        int next = StemEngineBridge.registerTrack(nextUri);
+        stemKeyCurrent = current;
+        stemKeyNext = next;
+        synchronized (handleLock) {
+            if (nativeHandle != 0) nativeStemSetKeys(nativeHandle, current, next);
+        }
     }
 
     /** Apply all cached params to this instance's native handle. */
@@ -293,21 +343,6 @@ public class RoomEffectsProcessor extends BaseAudioProcessor {
             nativeSetSpeakerEqBand(nativeHandle, i, cachedSpeakerEqFreqs[i],
                     cachedSpeakerEqGains[i], cachedSpeakerEqQs[i],
                     cachedSpeakerEqTypes[i], true);
-        }
-        // Stem mixer state. Only (re)mmap the ~340MB of stem WAVs when stem
-        // mode is actually active — not on every onFlush (which fires on
-        // seeks, teardown flushes, and each newly created player). Cached
-        // paths linger after a stem session until broadcastUnloadStems()
-        // clears them, so gating on cachedStemModeActive prevents re-loading
-        // stems into players that will never use them.
-        if (cachedStemModeActive && cachedStemPaths != null) {
-            nativeLoadStems(nativeHandle, cachedStemPaths);
-        }
-        nativeSetStemModeActive(nativeHandle, cachedStemModeActive);
-        for (int i = 0; i < 4; i++) {
-            nativeSetStemVolume(nativeHandle, i, cachedStemVolumes[i]);
-            nativeSetStemMute(nativeHandle, i, cachedStemMutes[i]);
-            nativeSetStemSolo(nativeHandle, i, cachedStemSolos[i]);
         }
     }
 
@@ -485,36 +520,6 @@ public class RoomEffectsProcessor extends BaseAudioProcessor {
 
     public void setLimiterKnee(float dB) {
         if (nativeHandle != 0) nativeSetLimiterKnee(nativeHandle, dB);
-    }
-
-    // Stem mixer instance methods
-    public void setStemModeActive(boolean active) {
-        if (nativeHandle != 0) nativeSetStemModeActive(nativeHandle, active);
-    }
-
-    public boolean loadStems(String[] paths) {
-        if (nativeHandle != 0) return nativeLoadStems(nativeHandle, paths);
-        return false;
-    }
-
-    public void unloadStems() {
-        if (nativeHandle != 0) nativeUnloadStems(nativeHandle);
-    }
-
-    public void setStemVolume(int stem, float vol) {
-        if (nativeHandle != 0) nativeSetStemVolume(nativeHandle, stem, vol);
-    }
-
-    public void setStemMute(int stem, boolean muted) {
-        if (nativeHandle != 0) nativeSetStemMute(nativeHandle, stem, muted);
-    }
-
-    public void setStemSolo(int stem, boolean soloed) {
-        if (nativeHandle != 0) nativeSetStemSolo(nativeHandle, stem, soloed);
-    }
-
-    public void stemSeek(long samplePos) {
-        if (nativeHandle != 0) nativeStemSeek(nativeHandle, samplePos);
     }
 
     // ---- Static broadcast methods (called from MainActivity via MethodChannel) ----
@@ -858,46 +863,6 @@ public class RoomEffectsProcessor extends BaseAudioProcessor {
         for (RoomEffectsProcessor p : playerInstances) p.setLimiterKnee(dB);
     }
 
-    // ---- Stem mixer broadcast methods ----
-
-    public static void broadcastStemModeActive(boolean active) {
-        cachedStemModeActive = active;
-        for (RoomEffectsProcessor p : playerInstances) p.setStemModeActive(active);
-    }
-
-    public static void broadcastLoadStems(String[] paths) {
-        cachedStemPaths = paths.clone();
-        for (RoomEffectsProcessor p : playerInstances) p.loadStems(paths);
-    }
-
-    public static void broadcastUnloadStems() {
-        cachedStemPaths = null;
-        cachedStemModeActive = false;
-        for (RoomEffectsProcessor p : playerInstances) {
-            p.unloadStems();
-            p.setStemModeActive(false);
-        }
-    }
-
-    public static void broadcastStemVolume(int stem, float vol) {
-        if (stem >= 0 && stem < 4) cachedStemVolumes[stem] = vol;
-        for (RoomEffectsProcessor p : playerInstances) p.setStemVolume(stem, vol);
-    }
-
-    public static void broadcastStemMute(int stem, boolean muted) {
-        if (stem >= 0 && stem < 4) cachedStemMutes[stem] = muted;
-        for (RoomEffectsProcessor p : playerInstances) p.setStemMute(stem, muted);
-    }
-
-    public static void broadcastStemSolo(int stem, boolean soloed) {
-        if (stem >= 0 && stem < 4) cachedStemSolos[stem] = soloed;
-        for (RoomEffectsProcessor p : playerInstances) p.setStemSolo(stem, soloed);
-    }
-
-    public static void broadcastStemSeek(long samplePos) {
-        for (RoomEffectsProcessor p : playerInstances) p.stemSeek(samplePos);
-    }
-
     // ---- Native methods ----
 
     private native long nativeCreate(int sampleRate, int channels);
@@ -971,15 +936,9 @@ public class RoomEffectsProcessor extends BaseAudioProcessor {
                                                 boolean enabled);
     private native void nativeClearSpeakerEq(long handle);
 
-    // Stem mixer natives
-    private native boolean nativeLoadStems(long handle, String[] paths);
-    private native void nativeUnloadStems(long handle);
-    private native void nativeSetStemModeActive(long handle, boolean active);
-    private native void nativeSetStemVolume(long handle, int stem, float vol);
-    private native void nativeSetStemMute(long handle, int stem, boolean muted);
-    private native void nativeSetStemSolo(long handle, int stem, boolean soloed);
-    private native void nativeStemSeek(long handle, long samplePos);
-    private native boolean nativeAreStemsLoaded(long handle);
-    private native long nativeGetStemPosition(long handle);
-    private native long nativeGetStemTotalFrames(long handle);
+    // Live stems: this player's tap (cpp/stems/stem_tap.h)
+    private native void nativeStemFlush(long handle);
+    private native void nativeStemStreamChange(long handle);
+    private native void nativeStemBufferTime(long handle, long mediaTimeUs);
+    private native void nativeStemSetKeys(long handle, int current, int next);
 }

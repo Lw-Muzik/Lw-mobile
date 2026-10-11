@@ -82,15 +82,35 @@ void  dsp_set_stereo_width(void* handle, float width);
 void  dsp_set_crossfeed_enabled(void* handle, bool enabled);
 void  dsp_set_crossfeed_params(void* handle, float cutoffHz, float feedLevelDb);
 
-// Stem mixer
-void  dsp_set_stem_mode_active(void* handle, bool active);
-bool  dsp_load_stems(void* handle, const char* vocals, const char* drums,
-                     const char* bass, const char* other);
-void  dsp_unload_stems(void* handle);
-void  dsp_set_stem_volume(void* handle, int stem, float vol);
-void  dsp_set_stem_mute(void* handle, int stem, bool muted);
-void  dsp_set_stem_solo(void* handle, int stem, bool soloed);
-void  dsp_stem_seek(void* handle, int64_t samplePos);
+// 3D Surround (port of the desktop stage; see surround3d.h)
+void  dsp_set_surround3d_enabled(void* handle, bool enabled);
+void  dsp_set_surround3d_params(void* handle, float intensity, float subwoofer);
+void  dsp_set_surround3d_speakers(void* handle, bool frontL, bool frontR,
+                                  bool sideL, bool sideR,
+                                  bool surroundL, bool surroundR);
+
+// Live stems (stems/stem_engine.h): one engine per process, one tap per
+// AVPlayerItem audio tap. See HypeAudioTap.m.
+void  dsp_stems_init(const char* cacheDir);
+bool  dsp_stems_load_model(const char* dir, char* error, int errorLen);
+void  dsp_stems_unload_model(void);
+// Writes {"ok":bool,"rtf":double,"millis":int,"error":string} into `json`.
+void  dsp_stems_benchmark(char* json, int jsonLen);
+void  dsp_stems_set_armed(bool armed);
+void  dsp_stems_set_levels(float vocals, float drums, float instruments);
+void  dsp_stems_set_excluded_prefixes(const char* const* prefixes, int count);
+// Writes the current status as JSON (same shape as the callback's).
+void  dsp_stems_status_json(char* json, int jsonLen);
+typedef void (*dsp_stems_status_cb)(const char* json, void* ctx);
+// `cb` runs on the engine's worker thread.
+void  dsp_stems_set_status_callback(dsp_stems_status_cb cb, void* ctx);
+
+void* dsp_stem_tap_create(const char* trackUrl);
+void  dsp_stem_tap_destroy(void* tap);
+void  dsp_stem_tap_prepare(void* tap, int sampleRate);
+// Real-time safe. `framePos` = asset time of the first frame, in frames.
+void  dsp_stem_tap_process(void* tap, float* interleaved, int frames,
+                           int64_t framePos, bool discontinuity);
 
 #ifdef __cplusplus
 }

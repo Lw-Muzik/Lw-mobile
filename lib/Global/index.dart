@@ -24,6 +24,7 @@ import '../widgets/listen_sheet.dart';
 import '../services/video/video_registry.dart';
 import '../services/ytmusic/yt_innertube.dart';
 import '../player/now_playing_hero.dart';
+import '../Themes/ember.dart';
 
 SystemUiOverlayStyle overlay = const SystemUiOverlayStyle(
   systemNavigationBarDividerColor: Colors.transparent,
@@ -69,11 +70,18 @@ Widget playerActionBar(AppController controller, BuildContext context) {
     child: Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
-        _ActionItem(
-          icon: Icons.equalizer_rounded,
-          label: 'EQ',
-          onTap: () =>
-              Routes.routeTo(const Equalizer(), context, animate: true),
+        // A dot while stems are changing the mix, wherever the user has gone:
+        // without it, a song with no vocals is just a broken song.
+        ValueListenableBuilder<bool>(
+          valueListenable: controller.stemsController.engagedListenable,
+          builder: (context, stemsOn, _) => _ActionItem(
+            icon: Icons.equalizer_rounded,
+            label: 'EQ',
+            badge: stemsOn,
+            badgeLabel: 'stems on',
+            onTap: () =>
+                Routes.routeTo(const Equalizer(), context, animate: true),
+          ),
         ),
         _ActionItem(
           icon: Icons.lyrics_rounded,
@@ -165,36 +173,75 @@ class _ActionItem extends StatelessWidget {
   final String label;
   final VoidCallback onTap;
 
+  /// A small gold dot on the icon: something on that screen is in effect.
+  final bool badge;
+
+  /// What the dot means, read out after [label] while it shows.
+  final String? badgeLabel;
+
   const _ActionItem({
     required this.icon,
     required this.label,
     required this.onTap,
+    this.badge = false,
+    this.badgeLabel,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, color: Colors.white70, size: 22),
-              const SizedBox(height: 4),
-              Text(
-                label,
-                style: const TextStyle(
-                  color: Colors.white54,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w500,
-                  letterSpacing: 0.3,
+    final announceBadge = badge && badgeLabel != null;
+    return Semantics(
+      label: announceBadge ? '$label, $badgeLabel' : null,
+      excludeSemantics: announceBadge,
+      button: announceBadge ? true : null,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Icon(icon, color: Colors.white70, size: 22),
+                    Positioned(
+                      right: -3,
+                      top: -2,
+                      child: AnimatedScale(
+                        scale: badge ? 1 : 0,
+                        duration: const Duration(milliseconds: 200),
+                        curve: Curves.easeOutBack,
+                        child: Container(
+                          width: 8,
+                          height: 8,
+                          decoration: BoxDecoration(
+                            // Solid gold is fine here — it carries no text —
+                            // and the dark ring keeps it off the icon.
+                            color: Ember.accent,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Ember.ground, width: 1.5),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-            ],
+                const SizedBox(height: 4),
+                Text(
+                  label,
+                  style: const TextStyle(
+                    color: Colors.white54,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w500,
+                    letterSpacing: 0.3,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

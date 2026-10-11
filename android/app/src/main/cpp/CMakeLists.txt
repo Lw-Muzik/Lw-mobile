@@ -4,13 +4,21 @@ project("eq_app")
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -ffast-math")
 
+# Live stem separation: the engine in stems/ is shared with the iOS pod
+# (ios/HypeDSP/src/stems, kept identical by tool/sync_stems_native.sh);
+# stems_android/ is the NDK decoder and JNI.
+file(GLOB STEMS_SOURCES
+    ${CMAKE_SOURCE_DIR}/stems/*.cpp
+    ${CMAKE_SOURCE_DIR}/stems_android/*.cpp)
+
 add_library(${CMAKE_PROJECT_NAME} SHARED
     eq_app.cpp
     fdn_reverb.cpp
     room_dsp_engine.cpp
     jni_bridge.cpp
     projectm_bridge.cpp
-    chromaprint_jni.cpp)
+    chromaprint_jni.cpp
+    ${STEMS_SOURCES})
 
 # Prebuilt projectM-4 shared library
 add_library(projectM-4 SHARED IMPORTED)
@@ -22,6 +30,17 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}
     ${CMAKE_SOURCE_DIR}/projectm-include)
 
+# ONNX Runtime (headers and libraries extracted from the AAR by Gradle; see
+# extractOnnxRuntime in app/build.gradle.kts).
+if(NOT ORT_DIR)
+    message(FATAL_ERROR "ORT_DIR not set — run the Gradle build (extractOnnxRuntime)")
+endif()
+add_library(onnxruntime SHARED IMPORTED)
+set_target_properties(onnxruntime PROPERTIES
+    IMPORTED_LOCATION ${ORT_DIR}/jni/${ANDROID_ABI}/libonnxruntime.so)
+target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE ${ORT_DIR}/headers)
+
+find_library(MEDIANDK_LIB mediandk)
 find_library(GLES3_LIB GLESv3)
 find_library(EGL_LIB EGL)
 
@@ -35,6 +54,8 @@ target_link_libraries(${CMAKE_PROJECT_NAME}
     log
     projectM-4
     chromaprint
+    onnxruntime
+    ${MEDIANDK_LIB}
     ${GLES3_LIB}
     ${EGL_LIB})
 

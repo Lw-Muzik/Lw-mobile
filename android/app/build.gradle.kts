@@ -14,6 +14,8 @@ if (keystorePropertiesFile.exists()) {
     keystoreProperties.load(FileInputStream(keystorePropertiesFile))
 }
 
+val onnxRuntimeDir = layout.buildDirectory.dir("onnxruntime")
+
 android {
     namespace = "x.a.zix"
     compileSdk = flutter.compileSdkVersion
@@ -45,6 +47,16 @@ android {
         }
     }
 
+    // libonnxruntime.so arrives with the AAR; CMake links against the copy
+    // extracted below, so make sure only one ends up in the APK.
+    packaging {
+        jniLibs {
+            pickFirsts += listOf("**/libonnxruntime.so")
+            // The AAR's Java-API JNI shim: unused, the engine calls the C API.
+            excludes += listOf("**/libonnxruntime4j_jni.so")
+        }
+    }
+
     // `flutter build apk --android-project-arg=dev=true` builds a side-by-side
     // test copy ("Hype Muzik Dev", x.a.zix.dev). The Play Store install is
     // signed by Google Play, so no locally built APK can update it; uninstalling
@@ -65,6 +77,13 @@ android {
 
         ndk {
             abiFilters += listOf("armeabi-v7a", "arm64-v8a", "x86_64")
+        }
+
+        externalNativeBuild {
+            cmake {
+                // Headers + per-ABI libonnxruntime.so for the live-stem engine.
+                arguments += listOf("-DORT_DIR=" + onnxRuntimeDir.get().asFile.absolutePath)
+            }
         }
     }
     signingConfigs {
@@ -117,7 +136,25 @@ configurations.all {
     }
 }
 
+// ONNX Runtime for live stem separation (cpp/stems). The AAR ships headers and
+// per-ABI libonnxruntime.so but no prefab metadata, so the native build gets
+// them from a copy extracted here. 1.31.0's libraries are 16 KB page-aligned.
+val onnxRuntimeVersion = "1.31.0"
+val onnxRuntimeAar: Configuration by configurations.creating
+val extractOnnxRuntime by tasks.registering(Copy::class) {
+    from({ zipTree(onnxRuntimeAar.singleFile) }) {
+        include("headers/**", "jni/**")
+    }
+    into(onnxRuntimeDir)
+}
+tasks.matching {
+    it.name.startsWith("configureCMake") || it.name.startsWith("buildCMake") ||
+        it.name.startsWith("generateJsonModel")
+}.configureEach { dependsOn(extractOnnxRuntime) }
+
 dependencies {
+    implementation("com.microsoft.onnxruntime:onnxruntime-android:$onnxRuntimeVersion")
+    onnxRuntimeAar("com.microsoft.onnxruntime:onnxruntime-android:$onnxRuntimeVersion@aar")
     implementation("com.mpatric:mp3agic:0.9.1")
     implementation("net.jthink:jaudiotagger:3.0.1")
     implementation("androidx.media3:media3-exoplayer:1.4.1")

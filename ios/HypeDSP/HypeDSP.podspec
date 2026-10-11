@@ -6,9 +6,11 @@ Pod::Spec.new do |s|
   s.license          = { :type => 'Proprietary' }
   s.author           = 'Hype'
   s.source           = { :path => '.' }
-  s.ios.deployment_target = '15.0'
+  s.ios.deployment_target = '15.1'
 
-  s.source_files = 'src/**/*.{h,cpp}', 'include/**/*.h'
+  # src/stems is the live-stem engine, copied from android/app/src/main/cpp/stems
+  # by tool/sync_stems_native.sh; src/stems_ios is its AVFoundation decoder.
+  s.source_files = 'src/**/*.{h,cpp,mm}', 'include/**/*.h'
   s.public_header_files = 'include/**/*.h'
 
   s.pod_target_xcconfig = {
@@ -25,4 +27,12 @@ Pod::Spec.new do |s|
   }
 
   s.libraries = 'c++'
+  s.frameworks = 'AVFoundation', 'CoreMedia', 'AudioToolbox'
+
+  # ONNX Runtime runs the Spleeter stem nets. Its pod vendors a static
+  # xcframework, and CocoaPods refuses a dynamic framework that depends on a
+  # static one — so HypeDSP is a static framework too (the bridging header's
+  # #import <HypeDSP/dsp_bridge.h> is unaffected).
+  s.dependency 'onnxruntime-c', '1.30.0'
+  s.static_framework = true
 end

@@ -10,6 +10,8 @@ import 'tone_view.dart';
 import 'parametric_eq_view.dart';
 import 'space_view.dart';
 import 'speaker_eq_view.dart';
+import 'stems_view.dart';
+import '../controllers/stems_controller.dart';
 import '../themes/ember.dart';
 
 /// The app's one accent, not a fifth colour invented for this screen.
@@ -39,11 +41,19 @@ class _EqualizerState extends State<Equalizer> with TickerProviderStateMixin {
 
   bool _isEqMode = false;
 
+  /// Stems are a music-player feature: the sixth tab, absent in EQ mode.
+  static const int _stemsTab = 5;
+
+  late final StemsController _stems;
+
   @override
   void initState() {
     super.initState();
-    _isEqMode = context.read<AppController>().isEqMode;
-    _tabController = TabController(length: _isEqMode ? 2 : 5, vsync: this);
+    final app = context.read<AppController>();
+    _isEqMode = app.isEqMode;
+    _stems = app.stemsController;
+    _tabController = TabController(length: _isEqMode ? 2 : 6, vsync: this);
+    if (!_isEqMode) _tabController.addListener(_onTabChanged);
     Future.delayed(const Duration(milliseconds: 1500), () {
       if (!mounted) return;
       _coachController.hasBeenShown().then((shown) {
@@ -52,8 +62,11 @@ class _EqualizerState extends State<Equalizer> with TickerProviderStateMixin {
             CoachStep(
               targetKey: _tabBarKey,
               title: 'Effect Tabs',
-              description:
-                  'Switch between Graphic EQ, Tone controls, Parametric EQ, and Spatial effects.',
+              description: _isEqMode
+                  ? 'Switch between the Graphic EQ and Tone controls.'
+                  : 'Switch between Graphic EQ, Tone, Parametric EQ, Spatial '
+                        'effects, Headphone correction and Stems — vocals, '
+                        'drums and instruments, each at its own level.',
               icon: Icons.tab,
               tooltipPosition: TooltipPosition.below,
             ),
@@ -71,8 +84,19 @@ class _EqualizerState extends State<Equalizer> with TickerProviderStateMixin {
     });
   }
 
+  /// Arms the stems engine the moment the tab is chosen (the index changes at
+  /// the start of the switch, not the end), so the current song is already
+  /// being prepared when a fader is touched.
+  void _onTabChanged() {
+    _stems.setTabVisible(_tabController.index == _stemsTab);
+  }
+
   @override
   void dispose() {
+    if (!_isEqMode) {
+      _tabController.removeListener(_onTabChanged);
+      _stems.setTabVisible(false);
+    }
     _coachController.dispose();
     _tabController.dispose();
     super.dispose();
@@ -128,7 +152,10 @@ class _EqualizerState extends State<Equalizer> with TickerProviderStateMixin {
             child: KeyedSubtree(key: _tabBarKey, child: _buildTabBar(context)),
           ),
         ),
-        body: KeyedSubtree(key: _contentKey, child: _buildTabBarView()),
+        body: KeyedSubtree(
+          key: _contentKey,
+          child: _buildTabBarView(appController),
+        ),
       ),
     );
   }
@@ -156,12 +183,24 @@ class _EqualizerState extends State<Equalizer> with TickerProviderStateMixin {
           const Tab(icon: Icon(Icons.show_chart_rounded, size: 22)),
           const Tab(icon: Icon(Icons.surround_sound_rounded, size: 22)),
           const Tab(icon: Icon(Icons.headphones_rounded, size: 22)),
+          Tab(
+            icon: ValueListenableBuilder<bool>(
+              valueListenable: _stems.engagedListenable,
+              builder: (context, engaged, icon) =>
+                  _StemsTabIcon(engaged: engaged, child: icon!),
+              child: const Icon(
+                Icons.layers_rounded,
+                size: 22,
+                semanticLabel: 'Stems',
+              ),
+            ),
+          ),
         ],
       ],
     );
   }
 
-  Widget _buildTabBarView() {
+  Widget _buildTabBarView(AppController appController) {
     return SafeArea(
       child: TabBarView(
         physics: const NeverScrollableScrollPhysics(),
@@ -173,9 +212,48 @@ class _EqualizerState extends State<Equalizer> with TickerProviderStateMixin {
             const ParametricEqView(),
             const SpaceView(),
             const SpeakerEqView(),
+            StemsView(controller: _stems, isFancy: appController.isFancy),
           ],
         ],
       ),
+    );
+  }
+}
+
+/// The Stems tab's icon, with a dot while the mix is changed — the same dot
+/// the player's EQ button carries, so the trail from one to the other is
+/// obvious.
+class _StemsTabIcon extends StatelessWidget {
+  const _StemsTabIcon({required this.engaged, required this.child});
+
+  final bool engaged;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        child,
+        Positioned(
+          right: -3,
+          top: -2,
+          child: AnimatedScale(
+            scale: engaged ? 1 : 0,
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOutBack,
+            child: Container(
+              width: 7,
+              height: 7,
+              decoration: BoxDecoration(
+                color: _kAccent,
+                shape: BoxShape.circle,
+                border: Border.all(color: Ember.ground, width: 1.2),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

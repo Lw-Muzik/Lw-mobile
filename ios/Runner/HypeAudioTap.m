@@ -7,9 +7,17 @@
 #define VIZ_CAPTURE_SIZE 1024
 #define MAX_SCRATCH_FRAMES 8192
 
+// Handed to tap_Init through clientInfo: the shared DSP engine plus this
+// item's URL, which identifies the track to the live-stem engine.
+typedef struct {
+    void *dspHandle;
+    char *trackUrl;   // malloc'd; tap_Init takes ownership
+} TapClientInfo;
+
 // Context stored in each MTAudioProcessingTap
 typedef struct {
     void *dspHandle;
+    void *stemTap;            // live stems: this item's tap (dsp_stem_tap_*)
     float *scratchBuffer;     // interleave buffer (MAX_SCRATCH_FRAMES * 2)
     int sampleRate;
     int channels;
@@ -38,7 +46,13 @@ static volatile int sVizEnabledGlobal = 0;
 
 static void tap_Init(MTAudioProcessingTapRef tap, void *clientInfo, void **tapStorageOut) {
     TapContext *ctx = (TapContext *)calloc(1, sizeof(TapContext));
-    ctx->dspHandle = clientInfo;
+    TapClientInfo *info = (TapClientInfo *)clientInfo;
+    ctx->dspHandle = info ? info->dspHandle : NULL;
+    ctx->stemTap = dsp_stem_tap_create(info && info->trackUrl ? info->trackUrl : "");
+    if (info) {
+        free(info->trackUrl);
+        free(info);
+    }
     ctx->scratchBuffer = (float *)calloc(MAX_SCRATCH_FRAMES * 2, sizeof(float));
     ctx->sampleRate = 44100;
     ctx->channels = 2;
@@ -57,6 +71,7 @@ static void tap_Finalize(MTAudioProcessingTapRef tap) {
         sActiveContext = NULL;
     }
     if (ctx->fftSetup) vDSP_destroy_fftsetup(ctx->fftSetup);
+    if (ctx->stemTap) dsp_stem_tap_destroy(ctx->stemTap);
     free(ctx->scratchBuffer);
     free(ctx);
 }
@@ -72,6 +87,8 @@ static void tap_Prepare(MTAudioProcessingTapRef tap,
     if (ctx->dspHandle) {
         dsp_reinit(ctx->dspHandle, ctx->sampleRate, ctx->channels);
     }
+    // Live stems work on stereo only; rate 0 keeps the tap idle otherwise.
+    dsp_stem_tap_prepare(ctx->stemTap, ctx->channels == 2 ? ctx->sampleRate : 0);
 
     // Propagate global visualization state to this new context
     __atomic_store_n(&ctx->vizEnabled, sVizEnabledGlobal, __ATOMIC_RELEASE);
@@ -161,17 +178,26 @@ static void tap_Process(MTAudioProcessingTapRef tap,
                          MTAudioProcessingTapFlags *flagsOut) {
     TapContext *ctx = (TapContext *)MTAudioProcessingTapGetStorage(tap);
 
+    CMTimeRange timeRange = kCMTimeRangeInvalid;
     OSStatus status = MTAudioProcessingTapGetSourceAudio(tap, numberFrames,
                                                           bufferListInOut,
-                                                          flagsOut, NULL, numberFramesOut);
+                                                          flagsOut, &timeRange, numberFramesOut);
     if (status != noErr) return;
 
     int frames = (int)*numberFramesOut;
     if (frames <= 0 || !ctx->dspHandle) return;
 
+    // Asset time of the first frame tells the stem tap exactly which samples
+    // of the track this buffer holds; StartOfStream marks a seek.
+    const bool stemsKnowWhere = CMTIME_IS_NUMERIC(timeRange.start) && ctx->sampleRate > 0;
+    const int64_t framePos = stemsKnowWhere
+        ? (int64_t)llround(CMTimeGetSeconds(timeRange.start) * (double)ctx->sampleRate) : 0;
+    const bool discontinuity = (*flagsOut & kMTAudioProcessingTapFlag_StartOfStream) != 0;
+
     if (bufferListInOut->mNumberBuffers == 1) {
         // Interleaved stereo float
         float *data = (float *)bufferListInOut->mBuffers[0].mData;
+        if (stemsKnowWhere) dsp_stem_tap_process(ctx->stemTap, data, frames, framePos, discontinuity);
         dsp_process_float(ctx->dspHandle, data, frames);
 
         if (__atomic_load_n(&ctx->vizEnabled, __ATOMIC_ACQUIRE)) {
@@ -189,6 +215,9 @@ static void tap_Process(MTAudioProcessingTapRef tap,
             ctx->scratchBuffer[i * 2 + 1] = right[i];
         }
 
+        if (stemsKnowWhere) {
+            dsp_stem_tap_process(ctx->stemTap, ctx->scratchBuffer, clampedFrames, framePos, discontinuity);
+        }
         dsp_process_float(ctx->dspHandle, ctx->scratchBuffer, clampedFrames);
 
         if (__atomic_load_n(&ctx->vizEnabled, __ATOMIC_ACQUIRE)) {
@@ -234,6 +263,8 @@ static void tap_Process(MTAudioProcessingTapRef tap,
 
     AVAsset *asset = playerItem.asset;
     void *handle = _dspHandle;
+    NSString *trackUrl = [asset isKindOfClass:[AVURLAsset class]]
+        ? ((AVURLAsset *)asset).URL.absoluteString : @"";
 
     [asset loadTracksWithMediaType:AVMediaTypeAudio
                  completionHandler:^(NSArray<AVAssetTrack *> * _Nullable tracks,
@@ -242,9 +273,13 @@ static void tap_Process(MTAudioProcessingTapRef tap,
 
         AVAssetTrack *audioTrack = tracks.firstObject;
 
+        TapClientInfo *info = (TapClientInfo *)calloc(1, sizeof(TapClientInfo));
+        info->dspHandle = handle;
+        info->trackUrl = strdup(trackUrl.UTF8String ?: "");
+
         MTAudioProcessingTapCallbacks callbacks;
         callbacks.version = kMTAudioProcessingTapCallbacksVersion_0;
-        callbacks.clientInfo = handle;
+        callbacks.clientInfo = info;
         callbacks.init = tap_Init;
         callbacks.finalize = tap_Finalize;
         callbacks.prepare = tap_Prepare;
@@ -256,7 +291,11 @@ static void tap_Process(MTAudioProcessingTapRef tap,
                                                       &callbacks,
                                                       kMTAudioProcessingTapCreationFlag_PostEffects,
                                                       &tap);
-        if (status != noErr || !tap) return;
+        if (status != noErr || !tap) {
+            free(info->trackUrl);
+            free(info);
+            return;
+        }
 
         AVMutableAudioMixInputParameters *params =
             [AVMutableAudioMixInputParameters audioMixInputParametersWithTrack:audioTrack];

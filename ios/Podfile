@@ -1,4 +1,4 @@
-platform :ios, '15.0'
+platform :ios, '15.1'  # onnxruntime-c (live stems) needs 15.1
 
 # CocoaPods analytics sends network stats synchronously affecting flutter build latency.
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'
@@ -51,7 +51,7 @@ post_install do |installer|
 
     # Ensure C++17 for all targets that compile C++
     target.build_configurations.each do |config|
-      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
+      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.1'
 
       # flutter_foreground_task 11.x declares `pluginClass: FlutterForegroundTaskPlugin`,
       # so Flutter generates `[FlutterForegroundTaskPlugin registerWithRegistrar:]` into

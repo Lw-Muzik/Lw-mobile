@@ -117,6 +117,14 @@ class VideoRegistry extends ChangeNotifier {
   /// Where DASH manifests are written. One directory so it can be swept whole.
   static const _manifestDirName = 'hype_video';
 
+  /// The absolute path of that directory.
+  ///
+  /// The player opens these manifests as local files, so the stems engine
+  /// would otherwise take a YouTube video for a song saved on the phone; it is
+  /// handed this path as off limits.
+  static Future<String> manifestDirectoryPath() async =>
+      '${(await getTemporaryDirectory()).path}/$_manifestDirName';
+
   bool isVideo(int songId) => _sources.containsKey(songId);
 
   VideoSource? sourceFor(int songId) => _sources[songId];
@@ -212,9 +220,7 @@ class VideoRegistry extends ChangeNotifier {
   /// one only accumulates a file that no longer plays.
   Future<File?> _writeManifest(String videoId, String manifest) async {
     try {
-      final directory = Directory(
-        '${(await getTemporaryDirectory()).path}/$_manifestDirName',
-      );
+      final directory = Directory(await manifestDirectoryPath());
       if (!directory.existsSync()) await directory.create(recursive: true);
       final file = File('${directory.path}/$videoId.mpd');
       await file.writeAsString(manifest);
@@ -233,9 +239,7 @@ class VideoRegistry extends ChangeNotifier {
   /// that is killed never reaches its teardown.
   Future<void> sweepManifests() async {
     try {
-      final directory = Directory(
-        '${(await getTemporaryDirectory()).path}/$_manifestDirName',
-      );
+      final directory = Directory(await manifestDirectoryPath());
       if (!directory.existsSync()) return;
       await for (final entry in directory.list()) {
         if (entry is File && entry.path.endsWith('.mpd')) {

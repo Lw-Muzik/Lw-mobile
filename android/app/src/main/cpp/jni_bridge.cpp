@@ -2,7 +2,6 @@
 #include <android/log.h>
 #include <mutex>
 #include "room_dsp_engine.h"
-#include "stem_separator.h"
 #include "fft_visualizer.h"
 
 #define LOG_TAG "HypeDSP"
@@ -405,120 +404,32 @@ Java_x_a_zix_RoomEffectsProcessor_nativeSetLimiterKnee(JNIEnv*, jobject, jlong h
     if (engine) engine->setLimiterKnee(dB);
 }
 
-// --- Stem mixer controls ---
+// --- Live stems: this player's tap (see stems/stem_tap.h) ---
+// Called on the ExoPlayer playback thread, in pipeline order, by
+// RoomEffectsProcessor and the audio-sink wrapper in the patched just_audio.
 
-JNIEXPORT jboolean JNICALL
-Java_x_a_zix_RoomEffectsProcessor_nativeLoadStems(JNIEnv* env, jobject, jlong handle,
-                                                    jobjectArray paths) {
+JNIEXPORT void JNICALL
+Java_x_a_zix_RoomEffectsProcessor_nativeStemFlush(JNIEnv*, jobject, jlong handle) {
     auto* engine = reinterpret_cast<RoomDSPEngine*>(handle);
-    if (!engine) return JNI_FALSE;
-
-    int count = env->GetArrayLength(paths);
-    if (count != StemMixer::NUM_STEMS) return JNI_FALSE;
-
-    const char* cPaths[StemMixer::NUM_STEMS];
-    jstring jPaths[StemMixer::NUM_STEMS];
-    for (int i = 0; i < StemMixer::NUM_STEMS; i++) {
-        jPaths[i] = (jstring)env->GetObjectArrayElement(paths, i);
-        cPaths[i] = env->GetStringUTFChars(jPaths[i], nullptr);
-    }
-
-    bool ok = engine->loadStems(cPaths);
-
-    for (int i = 0; i < StemMixer::NUM_STEMS; i++) {
-        env->ReleaseStringUTFChars(jPaths[i], cPaths[i]);
-    }
-
-    return ok ? JNI_TRUE : JNI_FALSE;
+    if (engine) engine->stemTap().onFlush();
 }
 
 JNIEXPORT void JNICALL
-Java_x_a_zix_RoomEffectsProcessor_nativeUnloadStems(JNIEnv*, jobject, jlong handle) {
+Java_x_a_zix_RoomEffectsProcessor_nativeStemStreamChange(JNIEnv*, jobject, jlong handle) {
     auto* engine = reinterpret_cast<RoomDSPEngine*>(handle);
-    if (engine) engine->unloadStems();
+    if (engine) engine->stemTap().onStreamChange();
 }
 
 JNIEXPORT void JNICALL
-Java_x_a_zix_RoomEffectsProcessor_nativeSetStemModeActive(JNIEnv*, jobject, jlong handle, jboolean active) {
+Java_x_a_zix_RoomEffectsProcessor_nativeStemBufferTime(JNIEnv*, jobject, jlong handle, jlong mediaTimeUs) {
     auto* engine = reinterpret_cast<RoomDSPEngine*>(handle);
-    if (engine) engine->setStemModeActive(active);
+    if (engine) engine->stemTap().onBufferTime(static_cast<int64_t>(mediaTimeUs));
 }
 
 JNIEXPORT void JNICALL
-Java_x_a_zix_RoomEffectsProcessor_nativeSetStemVolume(JNIEnv*, jobject, jlong handle,
-                                                       jint stem, jfloat vol) {
+Java_x_a_zix_RoomEffectsProcessor_nativeStemSetKeys(JNIEnv*, jobject, jlong handle, jint current, jint next) {
     auto* engine = reinterpret_cast<RoomDSPEngine*>(handle);
-    if (engine) engine->setStemVolume(stem, vol);
-}
-
-JNIEXPORT void JNICALL
-Java_x_a_zix_RoomEffectsProcessor_nativeSetStemMute(JNIEnv*, jobject, jlong handle,
-                                                      jint stem, jboolean muted) {
-    auto* engine = reinterpret_cast<RoomDSPEngine*>(handle);
-    if (engine) engine->setStemMute(stem, muted);
-}
-
-JNIEXPORT void JNICALL
-Java_x_a_zix_RoomEffectsProcessor_nativeSetStemSolo(JNIEnv*, jobject, jlong handle,
-                                                      jint stem, jboolean soloed) {
-    auto* engine = reinterpret_cast<RoomDSPEngine*>(handle);
-    if (engine) engine->setStemSolo(stem, soloed);
-}
-
-JNIEXPORT void JNICALL
-Java_x_a_zix_RoomEffectsProcessor_nativeStemSeek(JNIEnv*, jobject, jlong handle, jlong samplePos) {
-    auto* engine = reinterpret_cast<RoomDSPEngine*>(handle);
-    if (engine) engine->stemSeek(static_cast<size_t>(samplePos));
-}
-
-JNIEXPORT jboolean JNICALL
-Java_x_a_zix_RoomEffectsProcessor_nativeAreStemsLoaded(JNIEnv*, jobject, jlong handle) {
-    auto* engine = reinterpret_cast<RoomDSPEngine*>(handle);
-    if (!engine) return JNI_FALSE;
-    return engine->areStemsLoaded() ? JNI_TRUE : JNI_FALSE;
-}
-
-JNIEXPORT jlong JNICALL
-Java_x_a_zix_RoomEffectsProcessor_nativeGetStemPosition(JNIEnv*, jobject, jlong handle) {
-    auto* engine = reinterpret_cast<RoomDSPEngine*>(handle);
-    if (!engine) return 0;
-    return static_cast<jlong>(engine->getStemPosition());
-}
-
-JNIEXPORT jlong JNICALL
-Java_x_a_zix_RoomEffectsProcessor_nativeGetStemTotalFrames(JNIEnv*, jobject, jlong handle) {
-    auto* engine = reinterpret_cast<RoomDSPEngine*>(handle);
-    if (!engine) return 0;
-    return static_cast<jlong>(engine->getStemTotalFrames());
-}
-
-// --- Stem separation (offline, called from StemSeparationService) ---
-
-JNIEXPORT jboolean JNICALL
-Java_x_a_zix_StemSeparationService_nativeSeparateStems(JNIEnv* env, jobject,
-                                                        jstring inputPath,
-                                                        jint numFrames,
-                                                        jint sampleRate,
-                                                        jstring outputDir) {
-    const char* input = env->GetStringUTFChars(inputPath, nullptr);
-    const char* outDir = env->GetStringUTFChars(outputDir, nullptr);
-    if (!input || !outDir) {
-        if (input) env->ReleaseStringUTFChars(inputPath, input);
-        if (outDir) env->ReleaseStringUTFChars(outputDir, outDir);
-        return JNI_FALSE;
-    }
-
-    LOGI("Stem separation (file-based): %d frames, %d Hz", numFrames, sampleRate);
-    LOGI("  input: %s", input);
-    LOGI("  output: %s", outDir);
-
-    bool ok = StemSeparator::separateFromFile(input, numFrames, sampleRate, outDir);
-
-    env->ReleaseStringUTFChars(inputPath, input);
-    env->ReleaseStringUTFChars(outputDir, outDir);
-
-    LOGI("Stem separation %s", ok ? "complete" : "FAILED");
-    return ok ? JNI_TRUE : JNI_FALSE;
+    if (engine) engine->stemTap().setKeys(static_cast<uint32_t>(current), static_cast<uint32_t>(next));
 }
 
 // ===================== FFT Visualizer =====================

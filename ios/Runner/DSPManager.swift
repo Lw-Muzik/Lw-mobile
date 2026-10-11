@@ -1,5 +1,6 @@
 import Foundation
 import AVFoundation
+import Flutter
 
 /// Manages the C++ DSP engine lifecycle and provides a singleton for parameter updates.
 /// The actual audio processing tap is installed by AudioDSPTap on the AVAudioEngine.
@@ -304,49 +305,121 @@ class DSPManager {
         guard let h = handle else { return }
         dsp_set_surround3d_speakers(h, frontL, frontR, sideL, sideR, surroundL, surroundR)
     }
+}
 
-    // MARK: - Stem Mixer
+// MARK: - Live stems
 
-    func setStemModeActive(_ active: Bool) {
-        guard let h = handle else { return }
-        dsp_set_stem_mode_active(h, active)
+/// Flutter side of the live-stem engine (HypeDSP/src/stems). The engine
+/// separates ahead of each playhead on its own native thread; the audio taps
+/// (HypeAudioTap.m) mix the result. Model loading and the speed test take
+/// seconds, so they run off the main thread and answer on it.
+final class StemsBridge: NSObject, FlutterStreamHandler {
+    static let shared = StemsBridge()
+
+    // Model loading runs here; ONNX Runtime's compute threads start from it.
+    private let queue = DispatchQueue(label: "hype.stems.control", qos: .utility)
+    private var eventSink: FlutterEventSink?
+    private var attached = false
+
+    /// Call once the Flutter engine's messenger exists.
+    func attach(messenger: FlutterBinaryMessenger) {
+        guard !attached else { return }
+        attached = true
+        let fm = FileManager.default
+        let cache = fm.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("stems", isDirectory: true)
+        // Decoded audio from an earlier run is useless now.
+        try? fm.removeItem(at: cache)
+        try? fm.createDirectory(at: cache, withIntermediateDirectories: true)
+        cache.path.withCString { dsp_stems_init($0) }
+        dsp_stems_set_status_callback({ json, _ in
+            guard let json = json else { return }
+            let text = String(cString: json)
+            DispatchQueue.main.async { StemsBridge.shared.emit(text) }
+        }, nil)
+        FlutterEventChannel(name: "eq_app/stems_events", binaryMessenger: messenger)
+            .setStreamHandler(self)
     }
 
-    func loadStems(vocals: String, drums: String, bass: String, other: String) -> Bool {
-        guard let h = handle else { return false }
-        return vocals.withCString { v in
-            drums.withCString { d in
-                bass.withCString { b in
-                    other.withCString { o in
-                        dsp_load_stems(h, v, d, b, o)
-                    }
-                }
+    func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
+        let args = call.arguments as? [String: Any]
+        switch call.method {
+        case "stemsLoadModel":
+            let dir = args?["dir"] as? String ?? ""
+            queue.async {
+                var err = [CChar](repeating: 0, count: 512)
+                let ok = dir.withCString { dsp_stems_load_model($0, &err, Int32(err.count)) }
+                if !ok { NSLog("HypeStems: model load failed: %@", String(cString: err)) }
+                DispatchQueue.main.async { result(ok) }
             }
+        case "stemsUnloadModel":
+            queue.async { dsp_stems_unload_model() }
+            result(nil)
+        case "stemsBenchmark":
+            queue.async {
+                var buf = [CChar](repeating: 0, count: 1024)
+                dsp_stems_benchmark(&buf, Int32(buf.count))
+                let map = StemsBridge.decode(String(cString: buf))
+                DispatchQueue.main.async { result(map) }
+            }
+        case "stemsSetArmed":
+            dsp_stems_set_armed(args?["armed"] as? Bool ?? false)
+            result(nil)
+        case "stemsSetLevels":
+            dsp_stems_set_levels(StemsBridge.level(args?["vocals"]),
+                                 StemsBridge.level(args?["drums"]),
+                                 StemsBridge.level(args?["instruments"]))
+            result(nil)
+        case "stemsSetExcludedPrefixes":
+            let prefixes = args?["prefixes"] as? [String] ?? []
+            let owned = prefixes.map { strdup($0) }
+            let pointers: [UnsafePointer<CChar>?] = owned.map { UnsafePointer($0) }
+            pointers.withUnsafeBufferPointer {
+                dsp_stems_set_excluded_prefixes($0.baseAddress, Int32(pointers.count))
+            }
+            owned.forEach { free($0) }
+            result(nil)
+        case "stemsGetStatus":
+            result(StemsBridge.decode(StemsBridge.statusJson()))
+        default:
+            result(FlutterMethodNotImplemented)
         }
     }
 
-    func unloadStems() {
-        guard let h = handle else { return }
-        dsp_unload_stems(h)
+    // MARK: FlutterStreamHandler
+
+    func onListen(withArguments arguments: Any?, eventSink events: @escaping FlutterEventSink) -> FlutterError? {
+        eventSink = events
+        events(StemsBridge.decode(StemsBridge.statusJson()))
+        return nil
     }
 
-    func setStemVolume(stem: Int, volume: Float) {
-        guard let h = handle else { return }
-        dsp_set_stem_volume(h, Int32(stem), volume)
+    func onCancel(withArguments arguments: Any?) -> FlutterError? {
+        eventSink = nil
+        return nil
     }
 
-    func setStemMute(stem: Int, muted: Bool) {
-        guard let h = handle else { return }
-        dsp_set_stem_mute(h, Int32(stem), muted)
+    // MARK: Helpers
+
+    private func emit(_ json: String) {
+        eventSink?(StemsBridge.decode(json))
     }
 
-    func setStemSolo(stem: Int, soloed: Bool) {
-        guard let h = handle else { return }
-        dsp_set_stem_solo(h, Int32(stem), soloed)
+    private static func statusJson() -> String {
+        var buf = [CChar](repeating: 0, count: 2048)
+        dsp_stems_status_json(&buf, Int32(buf.count))
+        return String(cString: buf)
     }
 
-    func stemSeek(samplePosition: Int64) {
-        guard let h = handle else { return }
-        dsp_stem_seek(h, samplePosition)
+    private static func decode(_ json: String) -> [String: Any] {
+        guard let data = json.data(using: .utf8),
+              let map = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return [:] }
+        return map
+    }
+
+    private static func level(_ value: Any?) -> Float {
+        if let d = value as? Double { return Float(d) }
+        if let n = value as? NSNumber { return n.floatValue }
+        return 1.0
     }
 }

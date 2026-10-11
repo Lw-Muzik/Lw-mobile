@@ -2,6 +2,14 @@
 
 #include "dsp_bridge.h"
 #include "room_dsp_engine.h"
+#include "stems/stem_engine.h"
+#include "stems_ios/av_pcm_source.h"
+
+#include <algorithm>
+#include <cstdio>
+#include <cstring>
+#include <string>
+#include <vector>
 
 extern "C" {
 
@@ -236,36 +244,96 @@ void dsp_set_surround3d_speakers(void* handle, bool frontL, bool frontR,
     }
 }
 
-// Stem mixer
-void dsp_set_stem_mode_active(void* handle, bool active) {
-    if (handle) static_cast<RoomDSPEngine*>(handle)->setStemModeActive(active);
+// Live stems
+static void copyOut(const std::string& s, char* buf, int len) {
+    if (!buf || len <= 0) return;
+    const size_t n = std::min(s.size(), size_t(len - 1));
+    std::memcpy(buf, s.data(), n);
+    buf[n] = 0;
 }
 
-bool dsp_load_stems(void* handle, const char* vocals, const char* drums,
-                    const char* bass, const char* other) {
-    if (!handle) return false;
-    const char* paths[4] = { vocals, drums, bass, other };
-    return static_cast<RoomDSPEngine*>(handle)->loadStems(paths);
+void dsp_stems_init(const char* cacheDir) {
+    hype::stems::StemEngine::instance().setCacheDir(cacheDir ? cacheDir : "");
 }
 
-void dsp_unload_stems(void* handle) {
-    if (handle) static_cast<RoomDSPEngine*>(handle)->unloadStems();
+bool dsp_stems_load_model(const char* dir, char* error, int errorLen) {
+    std::string err;
+    const bool ok = hype::stems::StemEngine::instance().loadModel(dir ? dir : "", &err);
+    copyOut(err, error, errorLen);
+    return ok;
 }
 
-void dsp_set_stem_volume(void* handle, int stem, float vol) {
-    if (handle) static_cast<RoomDSPEngine*>(handle)->setStemVolume(stem, vol);
+void dsp_stems_unload_model(void) {
+    hype::stems::StemEngine::instance().unloadModel();
 }
 
-void dsp_set_stem_mute(void* handle, int stem, bool muted) {
-    if (handle) static_cast<RoomDSPEngine*>(handle)->setStemMute(stem, muted);
+void dsp_stems_benchmark(char* json, int jsonLen) {
+    const auto b = hype::stems::StemEngine::instance().benchmark();
+    char head[96];
+    std::snprintf(head, sizeof head, "{\"ok\":%s,\"rtf\":%.4f,\"millis\":%d,\"error\":\"",
+                  b.ok ? "true" : "false", b.rtf, b.millis);
+    copyOut(std::string(head) + hype::stems::jsonEscape(b.error) + "\"}", json, jsonLen);
 }
 
-void dsp_set_stem_solo(void* handle, int stem, bool soloed) {
-    if (handle) static_cast<RoomDSPEngine*>(handle)->setStemSolo(stem, soloed);
+void dsp_stems_set_armed(bool armed) {
+    hype::stems::StemEngine::instance().setArmed(armed);
 }
 
-void dsp_stem_seek(void* handle, int64_t samplePos) {
-    if (handle) static_cast<RoomDSPEngine*>(handle)->stemSeek(static_cast<size_t>(samplePos));
+void dsp_stems_set_levels(float vocals, float drums, float instruments) {
+    hype::stems::StemEngine::instance().setLevels(vocals, drums, instruments);
+}
+
+void dsp_stems_set_excluded_prefixes(const char* const* prefixes, int count) {
+    std::vector<std::string> list;
+    for (int i = 0; i < count; ++i) {
+        if (prefixes && prefixes[i]) list.emplace_back(prefixes[i]);
+    }
+    hype::stems::StemEngine::instance().setExcludedPrefixes(list);
+}
+
+void dsp_stems_status_json(char* json, int jsonLen) {
+    copyOut(hype::stems::StemEngine::instance().status().toJson(), json, jsonLen);
+}
+
+void dsp_stems_set_status_callback(dsp_stems_status_cb cb, void* ctx) {
+    auto& engine = hype::stems::StemEngine::instance();
+    if (!cb) {
+        engine.setStatusCallback(nullptr);
+        return;
+    }
+    engine.setStatusCallback([cb, ctx](const hype::stems::StemStatus& st) { cb(st.toJson().c_str(), ctx); });
+}
+
+void* dsp_stem_tap_create(const char* trackUrl) {
+    const std::string url = trackUrl ? trackUrl : "";
+    hype::stems::PcmSourceFactory factory;
+    std::string reason;
+    if (url.rfind("file://", 0) == 0 || url.rfind("ipod-library://", 0) == 0) {
+        factory = [url] { return hype::stems::createAvPcmSource(url); };
+    } else if (url.rfind("http://", 0) != 0 && url.rfind("https://", 0) != 0) {
+        reason = "unsupported";  // the engine itself marks http(s) as "stream"
+    }
+    auto& engine = hype::stems::StemEngine::instance();
+    const uint32_t id = url.empty() ? 0 : engine.registerTrack(url, factory, reason);
+    auto* tap = new hype::stems::StemTap(engine);
+    tap->bindTrack(id);
+    return tap;
+}
+
+void dsp_stem_tap_destroy(void* tap) {
+    delete static_cast<hype::stems::StemTap*>(tap);
+}
+
+void dsp_stem_tap_prepare(void* tap, int sampleRate) {
+    if (tap) static_cast<hype::stems::StemTap*>(tap)->setSampleRate(sampleRate);
+}
+
+void dsp_stem_tap_process(void* tap, float* interleaved, int frames, int64_t framePos,
+                          bool discontinuity) {
+    if (!tap) return;
+    auto* t = static_cast<hype::stems::StemTap*>(tap);
+    t->setPosition(framePos, discontinuity);
+    t->process(interleaved, frames);
 }
 
 } // extern "C"

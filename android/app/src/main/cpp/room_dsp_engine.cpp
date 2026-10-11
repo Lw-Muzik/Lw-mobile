@@ -46,6 +46,7 @@ RoomDSPEngine::RoomDSPEngine()
 void RoomDSPEngine::init(int sampleRate, int channels) {
     sampleRate_ = sampleRate;
     channels_ = channels;
+    stemTap_.setSampleRate(channels == 2 ? sampleRate : 0);
 
     // Compute sample-rate-adaptive smoothing coefficient.
     // Target: ~1ms time constant at any sample rate.
@@ -192,10 +193,9 @@ bool RoomDSPEngine::anyUpstreamBoost() const {
     if (crossfeedEnabled_.load(std::memory_order_relaxed)) return true;
     if (stereoExpandEnabled_.load(std::memory_order_relaxed)) return true;
 
-    // Stem mode replaces the buffer with a summed stem mix that can exceed
-    // unity — keep the limiter so those peaks stay protected.
-    if (stemModeActive_.load(std::memory_order_relaxed) && stemMixer_.isLoaded())
-        return true;
+    // While separated stems are in the output the sum of the three can peak
+    // above the original — keep the limiter so those peaks stay protected.
+    if (stemTap_.active()) return true;
 
     return false;
 }
@@ -207,14 +207,12 @@ void RoomDSPEngine::process(float* buffer, int numFrames) {
     // previous FPCR is restored automatically when this scope exits.
     DenormalGuard denormalGuard;
 
-    // Stem mode: replace ExoPlayer's decoded audio with stem mixer output.
-    // ExoPlayer still provides timeline/seek/play-pause, but we override its
-    // audio content with our mixed stems. DSP chain continues as normal after.
-    bool doStems = stemModeActive_.load(std::memory_order_relaxed)
-                   && stemMixer_.isLoaded();
-    if (doStems) {
-        stemMixer_.mix(buffer, numFrames);
-    }
+    // Live stems first: while any stem level is below 100% and separated
+    // audio exists for this range, the tap swaps ExoPlayer's decoded audio for
+    // gV*vocals + gD*drums + gI*instruments. The rest of the chain then
+    // shapes that mix exactly as it would the original.
+    stemTap_.process(buffer, numFrames);
+    const bool doStems = stemTap_.active();
 
     bool doEq = eqEnabled_.load(std::memory_order_relaxed);
     bool doSpeakerEq = speakerEqEnabled_.load(std::memory_order_relaxed);

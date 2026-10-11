@@ -113,6 +113,10 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
     private Map<String, Object> pendingPlaybackEvent;
 
     private ExoPlayer player;
+    // Processors told which queue items this player is on (live stems).
+    private StemSinkListener[] stemListeners = new StemSinkListener[0];
+    private String publishedStemCurrent;
+    private String publishedStemNext;
     /**
      * The video half of this player, created lazily.
      *
@@ -306,6 +310,37 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
         // the next one letterboxes a song's artwork to the shape of a video, or
         // stretches a portrait clip to the width of the one before it.
         if (videoOutput != null) videoOutput.onItemChanged();
+        publishStemKeys();
+    }
+
+    @Override
+    public void onShuffleModeEnabledChanged(boolean shuffleModeEnabled) {
+        publishStemKeys();
+    }
+
+    @Override
+    public void onRepeatModeChanged(int repeatMode) {
+        publishStemKeys();
+    }
+
+    /** Tells live-stem processors the current and next item (main thread). */
+    private void publishStemKeys() {
+        if (player == null || stemListeners.length == 0) return;
+        String current = stemUriOf(player.getCurrentMediaItem());
+        String next = null;
+        int nextIndex = player.getNextMediaItemIndex();
+        if (nextIndex != C.INDEX_UNSET && nextIndex < player.getMediaItemCount()) {
+            next = stemUriOf(player.getMediaItemAt(nextIndex));
+        }
+        if (java.util.Objects.equals(current, publishedStemCurrent)
+                && java.util.Objects.equals(next, publishedStemNext)) return;
+        publishedStemCurrent = current;
+        publishedStemNext = next;
+        for (StemSinkListener l : stemListeners) l.onTrackKeys(current, next);
+    }
+
+    private static String stemUriOf(MediaItem item) {
+        return item != null && item.localConfiguration != null ? item.localConfiguration.uri.toString() : null;
     }
 
     // ---- Video output ----
@@ -361,6 +396,7 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
 
     @Override
     public void onPositionDiscontinuity(PositionInfo oldPosition, PositionInfo newPosition, int reason) {
+        publishStemKeys();
         updatePosition();
         switch (reason) {
         case Player.DISCONTINUITY_REASON_AUTO_TRANSITION:
@@ -373,6 +409,7 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
 
     @Override
     public void onTimelineChanged(Timeline timeline, int reason) {
+        publishStemKeys();
         if (updateCurrentIndex()) {
             broadcastImmediatePlaybackEvent();
         }
@@ -879,6 +916,16 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
             }
 
             final AudioProcessor[] processors = discoveredProcessors.toArray(new AudioProcessor[0]);
+            // Processors that need to know which item and media time they are
+            // processing (live stems) get it from a wrapper around the sink.
+            java.util.List<StemSinkListener> stemListenerList = new java.util.ArrayList<>();
+            for (AudioProcessor p : processors) {
+                if (p instanceof StemSinkListener) stemListenerList.add((StemSinkListener) p);
+            }
+            stemListeners = stemListenerList.toArray(new StemSinkListener[0]);
+            publishedStemCurrent = null;  // fresh processors know nothing yet
+            publishedStemNext = null;
+            final StemSinkListener[] sinkListeners = stemListeners;
             RenderersFactory renderersFactory = (eventHandler, videoListener, audioListener, textOutput, metadataOutput) -> {
                 DefaultRenderersFactory factory;
                 if (processors.length > 0) {
@@ -888,11 +935,12 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
                                 Context ctx,
                                 boolean enableFloatOutput,
                                 boolean enableAudioTrackPlaybackParams) {
-                            return new DefaultAudioSink.Builder(ctx)
+                            AudioSink sink = new DefaultAudioSink.Builder(ctx)
                                 .setEnableFloatOutput(enableFloatOutput)
                                 .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
                                 .setAudioProcessors(processors)
                                 .build();
+                            return sinkListeners.length > 0 ? new StemAwareAudioSink(sink, sinkListeners) : sink;
                         }
                     };
                 } else {

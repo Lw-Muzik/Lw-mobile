@@ -44,6 +44,9 @@ import AVFoundation
             // Separate channel for visualizer data (matches Android pattern)
             visualizerChannel = channel
 
+            // Live stems: engine init + status events (HypeDSP/src/stems)
+            StemsBridge.shared.attach(messenger: controller.binaryMessenger)
+
             // Screen brightness, for the swipe gesture on the video screen.
             //
             // iOS has no per-window override, so this is the device brightness
@@ -474,72 +477,10 @@ import AVFoundation
                 surroundR: args?["surroundR"] as? Bool ?? true)
             result(nil)
 
-        // ==================== Stem Separation ====================
-        case "separateStems":
-            result(false)
-
-        case "cancelStemSeparation":
-            result(nil)
-
-        case "checkStemsExist":
-            if let dirPath = args?["dirPath"] as? String {
-                let fm = FileManager.default
-                let exists = fm.fileExists(atPath: dirPath + "/vocals.wav")
-                    && fm.fileExists(atPath: dirPath + "/drums.wav")
-                    && fm.fileExists(atPath: dirPath + "/bass.wav")
-                    && fm.fileExists(atPath: dirPath + "/other.wav")
-                result(exists)
-            } else {
-                result(false)
-            }
-
-        // ==================== Stem Mixer ====================
-        case "loadStems":
-            if let vocals = args?["vocals"] as? String,
-               let drums = args?["drums"] as? String,
-               let bass = args?["bass"] as? String,
-               let other = args?["other"] as? String {
-                let ok = dsp.loadStems(vocals: vocals, drums: drums,
-                                        bass: bass, other: other)
-                result(ok)
-            } else {
-                result(false)
-            }
-
-        case "unloadStems":
-            dsp.unloadStems()
-            result(nil)
-
-        case "activateStemMode":
-            dsp.setStemModeActive(true)
-            result(nil)
-
-        case "deactivateStemMode":
-            dsp.setStemModeActive(false)
-            result(nil)
-
-        case "setStemVolume":
-            let stem = args?["stem"] as? Int ?? 0
-            let vol = floatArg(args, "volume")
-            dsp.setStemVolume(stem: stem, volume: vol)
-            result(nil)
-
-        case "setStemMute":
-            let stem = args?["stem"] as? Int ?? 0
-            let muted = args?["muted"] as? Bool ?? false
-            dsp.setStemMute(stem: stem, muted: muted)
-            result(nil)
-
-        case "setStemSolo":
-            let stem = args?["stem"] as? Int ?? 0
-            let soloed = args?["soloed"] as? Bool ?? false
-            dsp.setStemSolo(stem: stem, soloed: soloed)
-            result(nil)
-
-        case "stemSeek":
-            let pos = args?["samplePosition"] as? Int64 ?? 0
-            dsp.stemSeek(samplePosition: pos)
-            result(nil)
+        // ==================== Live Stems ====================
+        case "stemsLoadModel", "stemsUnloadModel", "stemsBenchmark", "stemsSetArmed",
+             "stemsSetLevels", "stemsSetExcludedPrefixes", "stemsGetStatus":
+            StemsBridge.shared.handle(call, result: result)
 
         // ==================== Global EQ (Not available on iOS) ====================
         case "enableGlobalEq":

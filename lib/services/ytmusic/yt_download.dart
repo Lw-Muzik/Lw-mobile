@@ -10,19 +10,30 @@
 /// track appears in the app's own Library with no separate scan.
 ///
 /// On iOS there is no equivalent: `MPMediaLibrary` will not accept an arbitrary
-/// file, so the track goes to `Documents/Music` — the directory
-/// [LocalMusicScanner] walks and merges into the library, and which
-/// `UIFileSharingEnabled` also exposes in Files. Both platforms therefore end
-/// with the track in the app's Library; only the mechanism differs.
+/// file, so the track goes to `Documents/Music/YouTube` — inside the directory
+/// [LocalMusicScanner] walks (recursively) and merges into the library, and
+/// which `UIFileSharingEnabled` also exposes in Files. Both platforms therefore
+/// end with the track in the app's Library; only the mechanism differs.
+///
+/// # Kept apart from the user's own music
+///
+/// YouTube's Developer Policies forbid separating its audio, so the Stems tab
+/// must be able to tell a YouTube download from a song the user owns. iOS
+/// downloads get a folder of their own for that, and every saved path, on both
+/// platforms, is recorded in [YtDownloadRegistry] — Android's MediaStore puts
+/// downloads in `Music/HypeMuzik` beside Phone Link uploads, where no folder
+/// rule could separate them.
 library;
 
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../local_music_scanner.dart';
 import '../native_media_store.dart';
+import 'yt_download_registry.dart';
 import 'yt_models.dart';
 import 'yt_repository.dart';
 
@@ -67,12 +78,13 @@ class YtDownloader {
       );
 
       // Android stages in app documents and publishes to MediaStore below.
-      // iOS has nowhere to publish to, so it writes straight into the one
+      // iOS has nowhere to publish to, so it writes straight into the
       // directory the library actually scans — writing to the Documents root
       // instead would leave the track invisible until something else happened
-      // to rescan.
+      // to rescan. Its own `YouTube` folder inside it keeps downloads apart
+      // from the user's imports.
       final directory = Platform.isIOS
-          ? await LocalMusicScanner.getMusicDirectory()
+          ? await _iosDownloadDirectory()
           : await getApplicationDocumentsDirectory();
       final name = _fileName(track);
       // Downloaded to a `.part` first so a cancelled or failed transfer can
@@ -116,13 +128,13 @@ class YtDownloader {
         if (row != null) {
           // The MediaStore row owns the file now; the app copy is a duplicate.
           await _deleteQuietly(finished);
-          return YtDownloadSaved(
+          return await _saved(
             (row['path'] as String?) ?? finished.path,
             inLibrary: true,
           );
         }
       }
-      return YtDownloadSaved(finished.path, inLibrary: false);
+      return await _saved(finished.path, inLibrary: false);
     } on YtException catch (e) {
       return YtDownloadFailed(e.message);
     } catch (e) {
@@ -179,6 +191,40 @@ class YtDownloader {
     // Long names are rejected outright by some filesystems, so cap well short
     // of any real limit and keep the id as the tiebreaker.
     return cleaned.length <= 80 ? cleaned : cleaned.substring(0, 80).trim();
+  }
+
+  /// Where iOS keeps YouTube downloads: `Documents/Music/YouTube`.
+  ///
+  /// Only the path — nothing is created, so asking (as the stems engine's
+  /// exclusion list does at every launch) leaves no empty folder in Files for
+  /// people who never download anything.
+  static Future<String> iosDownloadDirectoryPath() async {
+    final docs = await getApplicationDocumentsDirectory();
+    return '${docs.path}/Music/$_iosFolder';
+  }
+
+  static const _iosFolder = 'YouTube';
+
+  static Future<Directory> _iosDownloadDirectory() async {
+    final directory = Directory(await iosDownloadDirectoryPath());
+    if (!directory.existsSync()) await directory.create(recursive: true);
+    return directory;
+  }
+
+  /// A finished download, written down before it is reported so the stems
+  /// engine can never be handed it as the user's own music.
+  static Future<YtDownloadSaved> _saved(
+    String path, {
+    required bool inLibrary,
+  }) async {
+    try {
+      await YtDownloadRegistry.instance.record(path);
+    } catch (e) {
+      // Never worth failing a finished download over; the legacy sweep finds
+      // the file by its container on the next launch anyway.
+      debugPrint('YtDownloader: could not record $path: $e');
+    }
+    return YtDownloadSaved(path, inLibrary: inLibrary);
   }
 
   static Future<void> _deleteQuietly(File file) async {
