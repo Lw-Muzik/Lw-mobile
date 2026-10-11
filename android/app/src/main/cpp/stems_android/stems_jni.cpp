@@ -106,16 +106,13 @@ Java_x_a_zix_StemEngineBridge_nativeSetLevels(JNIEnv*, jclass, jfloat vocals, jf
     StemEngine::instance().setLevels(vocals, drums, instruments);
 }
 
+// A local copy of a streamed track, downloaded by the app (see provideSource).
 JNIEXPORT void JNICALL
-Java_x_a_zix_StemEngineBridge_nativeSetExcludedPrefixes(JNIEnv* env, jclass, jobjectArray prefixes) {
-    std::vector<std::string> list;
-    const jsize n = prefixes ? env->GetArrayLength(prefixes) : 0;
-    for (jsize i = 0; i < n; ++i) {
-        auto s = static_cast<jstring>(env->GetObjectArrayElement(prefixes, i));
-        list.push_back(str(env, s));
-        env->DeleteLocalRef(s);
-    }
-    StemEngine::instance().setExcludedPrefixes(list);
+Java_x_a_zix_StemEngineBridge_nativeProvideSource(JNIEnv* env, jclass, jstring key, jstring path) {
+    const std::string p = str(env, path);
+    if (p.empty()) return;
+    StemEngine::instance().provideSource(str(env, key),
+                                         [p] { return hype::stems::createNdkPcmSource(p, -1); });
 }
 
 // `path` for local files, or `fd` (>= 0, ownership passes here) for content

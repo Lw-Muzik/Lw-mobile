@@ -14,9 +14,10 @@ enum StemsEngineState { idle, preparing, ready, unavailable, error }
 class StemsEngineStatus {
   final StemsEngineState state;
 
-  /// Why stems are unavailable or failed: `stream`, `youtube`, `protected`,
-  /// `unsupported`, `decode` or `model`. Kept as the raw string so a reason
-  /// added natively later still reaches the UI as "something else".
+  /// Why stems are unavailable or failed: `stream` (no local copy of it yet),
+  /// `fetch` (the copy couldn't be downloaded — set by the controller),
+  /// `protected`, `unsupported`, `decode` or `model`. Kept as the raw string so
+  /// a reason added natively later still reaches the UI as "something else".
   final String? reason;
 
   /// How much of the current song has been separated, 0–1.
@@ -28,12 +29,17 @@ class StemsEngineStatus {
   /// The engine's identity for the track it is working on.
   final String? trackKey;
 
+  /// The same for the item the player has queued after it, when it knows —
+  /// so a stream's copy can be fetched before that item starts.
+  final String? nextKey;
+
   const StemsEngineStatus({
     required this.state,
     this.reason,
     this.progress = 0,
     this.aheadSeconds = 0,
     this.trackKey,
+    this.nextKey,
   });
 
   static const idle = StemsEngineStatus(state: StemsEngineState.idle);
@@ -54,12 +60,14 @@ class StemsEngineStatus {
     };
     final reason = map['reason'];
     final trackKey = map['trackKey'];
+    final nextKey = map['nextKey'];
     return StemsEngineStatus(
       state: state,
       reason: reason is String && reason.isNotEmpty ? reason : null,
       progress: _fraction(map['progress']),
       aheadSeconds: _nonNegative(map['aheadSeconds']),
       trackKey: trackKey is String ? trackKey : null,
+      nextKey: nextKey is String && nextKey.isNotEmpty ? nextKey : null,
     );
   }
 
@@ -72,16 +80,18 @@ class StemsEngineStatus {
       other.reason == reason &&
       other.progress == progress &&
       other.aheadSeconds == aheadSeconds &&
-      other.trackKey == trackKey;
+      other.trackKey == trackKey &&
+      other.nextKey == nextKey;
 
   @override
   int get hashCode =>
-      Object.hash(state, reason, progress, aheadSeconds, trackKey);
+      Object.hash(state, reason, progress, aheadSeconds, trackKey, nextKey);
 
   @override
   String toString() =>
       'StemsEngineStatus(${state.name}, reason: $reason, '
-      'progress: $progress, ahead: ${aheadSeconds}s, track: $trackKey)';
+      'progress: $progress, ahead: ${aheadSeconds}s, track: $trackKey, '
+      'next: $nextKey)';
 }
 
 /// The one-time speed test that decides whether this phone gets live stems.

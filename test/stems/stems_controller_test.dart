@@ -9,8 +9,8 @@ library;
 
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -34,8 +34,7 @@ void main() {
     WidgetTester tester, {
     bool modelReady = true,
     Map<String, Object> saved = const {},
-    Future<List<String>> Function()? excludedPrefixes,
-    Listenable? exclusionChanges,
+    StemsStreamFetcher? fetchStream,
   }) async {
     SharedPreferences.setMockInitialValues(saved);
     prefs = await SharedPreferences.getInstance();
@@ -43,8 +42,7 @@ void main() {
     final c = controller = StemsController(
       prefs: prefs,
       store: store,
-      excludedPrefixes: excludedPrefixes,
-      exclusionChanges: exclusionChanges,
+      fetchStream: fetchStream,
     );
     c.start();
     await tester.pump();
@@ -497,10 +495,10 @@ void main() {
       expect(c.status.isReady, isTrue);
       expect(c.status.trackKey, 'k');
 
-      native.sink!.success({'state': 'unavailable', 'reason': 'youtube'});
+      native.sink!.success({'state': 'unavailable', 'reason': 'protected'});
       await tester.pump();
       expect(c.status.state, StemsEngineState.unavailable);
-      expect(c.status.reason, 'youtube');
+      expect(c.status.reason, 'protected');
     });
 
     stemsTest('an event that beats the status snapshot wins', (tester) async {
@@ -516,41 +514,166 @@ void main() {
     });
   });
 
-  group('excluded paths', () {
-    stemsTest('are sent at start and again when downloads change', (
+  group('streams', () {
+    const url = 'https://rr1.googlevideo.com/videoplayback?id=7';
+    Map<String, Object?> waiting([String key = url]) => {
+      'state': 'unavailable',
+      'reason': 'stream',
+      'trackKey': key,
+    };
+
+    Future<StemsController> open(
+      WidgetTester tester,
+      FakeStreamFetcher fetcher,
+    ) async {
+      final c = await start(
+        tester,
+        saved: supportedPhone,
+        fetchStream: fetcher.call,
+      );
+      c.setTabVisible(true);
+      await tester.pump();
+      return c;
+    }
+
+    stemsTest('a stream is fetched once, reads as preparing, then handed over', (
       tester,
     ) async {
-      var prefixes = ['/tmp/hype_video/'];
-      final changes = ValueNotifier(0);
-      await start(
-        tester,
-        modelReady: false,
-        excludedPrefixes: () async => prefixes,
-        exclusionChanges: changes,
-      );
-      expect(native.named('stemsSetExcludedPrefixes').map((m) => m.arguments), [
-        {
-          'prefixes': ['/tmp/hype_video/'],
-        },
+      final fetcher = FakeStreamFetcher();
+      final c = await open(tester, fetcher);
+
+      native.sink!.success(waiting());
+      await tester.pump();
+      expect(fetcher.urls, [url]);
+      expect(c.status.state, StemsEngineState.preparing);
+      expect(c.status.progress, 0.0);
+
+      fetcher.progress!(0.5);
+      await tester.pump();
+      expect(c.status.progress, closeTo(0.2, 1e-9), reason: 'download = 40%');
+
+      native.sink!.success({...waiting(), 'progress': 0.0});
+      await tester.pump();
+      expect(fetcher.urls, [url], reason: 'one fetch per stream');
+
+      fetcher.pending!.complete('/tmp/stems_streams/copy.m4a');
+      await tester.pump();
+      expect(native.lastArgs('stemsProvideStream'), {
+        'url': url,
+        'path': '/tmp/stems_streams/copy.m4a',
+      });
+
+      native.sink!.success({
+        'state': 'preparing',
+        'progress': 0.5,
+        'trackKey': url,
+      });
+      await tester.pump();
+      expect(c.status.progress, closeTo(0.7, 1e-9), reason: '40% + half of 60%');
+
+      native.sink!.success({'state': 'ready', 'progress': 1.0, 'trackKey': url});
+      await tester.pump();
+      expect(c.status.isReady, isTrue);
+    });
+
+    stemsTest('a failed fetch says so', (tester) async {
+      final fetcher = FakeStreamFetcher();
+      final c = await open(tester, fetcher);
+      native.sink!.success(waiting());
+      await tester.pump();
+      fetcher.pending!.completeError(const SocketException('offline'));
+      await tester.pump();
+      expect(c.status.state, StemsEngineState.unavailable);
+      expect(c.status.reason, 'fetch');
+      expect(native.named('stemsProvideStream'), isEmpty);
+    });
+
+    stemsTest('a stream this app cannot fetch stays a stream', (tester) async {
+      final fetcher = FakeStreamFetcher();
+      final c = await open(tester, fetcher);
+      native.sink!.success(waiting('https://drive.example/file'));
+      await tester.pump();
+      fetcher.pending!.complete(null);
+      await tester.pump();
+      expect(c.status.state, StemsEngineState.unavailable);
+      expect(c.status.reason, 'stream');
+    });
+
+    stemsTest('moving on to another song drops the fetch', (tester) async {
+      final fetcher = FakeStreamFetcher();
+      await open(tester, fetcher);
+      native.sink!.success(waiting());
+      await tester.pump();
+      native.sink!.success({
+        'state': 'ready',
+        'progress': 1.0,
+        'trackKey': '/music/a.mp3',
+      });
+      await tester.pump();
+      expect(fetcher.tokens.single!.isCancelled, isTrue);
+    });
+
+    stemsTest('the queued stream is fetched once the playing one has its copy', (
+      tester,
+    ) async {
+      const next = 'https://rr2.googlevideo.com/videoplayback?id=8';
+      final fetcher = FakeStreamFetcher();
+      await open(tester, fetcher);
+      native.sink!.success({...waiting(), 'nextKey': next});
+      await tester.pump();
+      expect(fetcher.urls, [url], reason: 'the playing song first');
+
+      fetcher.pending!.complete('/tmp/a.m4a');
+      await tester.pump();
+      expect(fetcher.urls, [url, next]);
+      fetcher.pending!.complete('/tmp/b.m4a');
+      await tester.pump();
+      expect(native.named('stemsProvideStream').map((c) => c.arguments), [
+        {'url': url, 'path': '/tmp/a.m4a'},
+        {'url': next, 'path': '/tmp/b.m4a'},
       ]);
 
-      changes.value++; // nothing new
+      // Its own turn: the copy is already there, nothing more to fetch.
+      native.sink!.success({'state': 'preparing', 'trackKey': next});
       await tester.pump();
-      expect(native.named('stemsSetExcludedPrefixes'), hasLength(1));
+      expect(fetcher.urls, hasLength(2));
+    });
 
-      prefixes = [
-        '/tmp/hype_video/',
-        '/storage/emulated/0/Music/HypeMuzik/a.m4a',
-      ];
-      changes.value++;
+    stemsTest('a song that needs a copy now takes over from the queued fetch', (
+      tester,
+    ) async {
+      const next = 'https://rr2.googlevideo.com/videoplayback?id=8';
+      const skipped = 'https://rr3.googlevideo.com/videoplayback?id=9';
+      final fetcher = FakeStreamFetcher();
+      await open(tester, fetcher);
+      native.sink!.success({...waiting(), 'nextKey': next});
       await tester.pump();
-      expect(native.lastArgs('stemsSetExcludedPrefixes'), {
-        'prefixes': [
-          '/tmp/hype_video/',
-          '/storage/emulated/0/Music/HypeMuzik/a.m4a',
-        ],
-      });
-      changes.dispose();
+      fetcher.pending!.complete('/tmp/a.m4a');
+      await tester.pump();
+      expect(fetcher.urls.last, next);
+
+      // Still preparing the playing song: the queued fetch carries on.
+      native.sink!.success({'state': 'preparing', 'trackKey': url, 'nextKey': next});
+      await tester.pump();
+      expect(fetcher.tokens.last!.isCancelled, isFalse);
+
+      // The user jumps elsewhere in the queue.
+      native.sink!.success(waiting(skipped));
+      await tester.pump();
+      expect(fetcher.tokens[1]!.isCancelled, isTrue);
+      expect(fetcher.urls.last, skipped);
+    });
+
+    stemsTest('closing the tab with the original mix drops the fetch', (
+      tester,
+    ) async {
+      final fetcher = FakeStreamFetcher();
+      final c = await open(tester, fetcher);
+      native.sink!.success(waiting());
+      await tester.pump();
+      c.setTabVisible(false);
+      await tester.pump();
+      expect(fetcher.tokens.single!.isCancelled, isTrue);
     });
   });
 

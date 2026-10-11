@@ -47,14 +47,6 @@ public:
             *reason = "decode";
             return false;
         }
-        // YouTube's audio downloads are MP4 with the "dash" brand. A backstop
-        // for the app's own exclusion list: its policy forbids separating them.
-        unsigned char head[12] = {};
-        if (::pread(fd_, head, sizeof head, 0) == ssize_t(sizeof head) &&
-            std::memcmp(head + 4, "ftypdash", 8) == 0) {
-            *reason = "youtube";
-            return false;
-        }
         extractor_ = AMediaExtractor_new();
         if (AMediaExtractor_setDataSourceFd(extractor_, fd_, 0, st.st_size) != AMEDIA_OK) {
             *reason = "unsupported";

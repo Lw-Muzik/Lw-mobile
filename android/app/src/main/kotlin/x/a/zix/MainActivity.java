@@ -1108,9 +1108,8 @@ public class MainActivity extends AudioServiceFragmentActivity {
                             result.success(null);
                             break;
                         }
-                        case "stemsSetExcludedPrefixes": {
-                            java.util.List<String> prefixes = call.argument("prefixes");
-                            StemEngineBridge.setExcludedPrefixes(prefixes);
+                        case "stemsProvideStream": {
+                            StemEngineBridge.provideStream(call.argument("url"), call.argument("path"));
                             result.success(null);
                             break;
                         }

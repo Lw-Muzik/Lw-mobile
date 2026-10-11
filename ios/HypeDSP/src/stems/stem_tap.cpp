@@ -234,9 +234,14 @@ void StemTap::process(float* buf, int frames) {
         gI_ = ti;
         pos_ += frames;
         pubPos_.store(pos_, std::memory_order_relaxed);
+        pubMixing_.store(false, std::memory_order_relaxed);
         return;
     }
     const int64_t rampFrames = int64_t(1.0f / alphaStep_) + 1;
+    // Coming in needs a run long enough for the next split to land before it
+    // ends (else the original would be back a moment later); staying in only
+    // needs room for the fade out.
+    const int64_t engageFrames = std::max(rampFrames, toRate(engine_.readyLead(), rate_));
     int done = 0;
     while (done < frames) {
         const int n = std::min(frames - done, kChunk);
@@ -254,7 +259,7 @@ void StemTap::process(float* buf, int frames) {
             continue;
         }
         for (int i = 0; i < got; ++i) {
-            const bool on = want && (runEnd - (at + i)) > rampFrames;
+            const bool on = want && (runEnd - (at + i)) > (alpha_ > 0.0f ? rampFrames : engageFrames);
             alpha_ = on ? std::min(1.0f, alpha_ + alphaStep_) : std::max(0.0f, alpha_ - alphaStep_);
             gV_ += gainCoeff_ * (tv - gV_);
             gD_ += gainCoeff_ * (td - gD_);
@@ -271,6 +276,7 @@ void StemTap::process(float* buf, int frames) {
     }
     pos_ += frames;
     pubPos_.store(pos_, std::memory_order_relaxed);
+    pubMixing_.store(alpha_ > 0.0f, std::memory_order_relaxed);
 }
 
 // ---- Worker side ---------------------------------------------------------------
@@ -288,6 +294,7 @@ StemTap::View StemTap::view() const {
     v.trackStartMs = pubTrackStartMs_.load(std::memory_order_relaxed);
     v.captureReady = captureState_.load(std::memory_order_acquire) == 2;
     v.epoch = pubEpoch_.load(std::memory_order_relaxed);
+    v.mixing = pubMixing_.load(std::memory_order_relaxed);
     return v;
 }
 

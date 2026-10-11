@@ -394,6 +394,83 @@ static void runEnginePath(int fileRate, int playRate, int lag, const char* label
 TEST(engine_aligns_separates_and_mixes_44k) { runEnginePath(44100, 44100, 1105, "44k_lag1105"); }
 TEST(engine_handles_48k_files) { runEnginePath(48000, 48000, -700, "48k_lagm700"); }
 
+// The fake, as slow as a phone: a split costs a real share of its 11.8 s.
+class SlowFakeSeparator : public FakeSeparator {
+public:
+    explicit SlowFakeSeparator(int msPerNet) : ms_(msPerNet) {}
+    bool run(int net, const float* mag, float* out, std::string* error) override {
+        std::this_thread::sleep_for(std::chrono::milliseconds(ms_));
+        return FakeSeparator::run(net, mag, out, error);
+    }
+
+private:
+    int ms_;
+};
+
+TEST(engine_engages_one_job_after_a_seek_and_holds) {
+    // A seek landing 2 s before a grid split ends, with ~1.7 s jobs: the grid
+    // separated that split, finished after the playhead left it, then the next
+    // one (stems after ~3.9 s). A split started where the playhead will be is
+    // heard after one job and the original never comes back.
+    const int rate = 44100;
+    Synth s = makeSynth(rate, 54.0, 9);
+    auto engine = StemEngine::createForTesting(std::make_unique<SlowFakeSeparator>(400));
+    engine->setCacheDir(tmpDir());
+    const std::vector<float> audio = s.mix;
+    const uint32_t id = engine->registerTrack(
+        "file:///tmp/test_seek.wav", [audio, rate] { return std::make_unique<stemtest::MemorySource>(audio, rate); }, "");
+    StemTap tap(*engine);
+    tap.setSampleRate(rate);
+    tap.setKeys(id, 0);
+    engine->setArmed(true);
+    engine->setLevels(0.0f, 1.0f, 1.0f);
+
+    const int block = 1024;
+    std::vector<float> buf(size_t(block) * 2);
+    // Plays [from, to) in real time; returns the first frame of the first block
+    // with the vocals gone (-1: never) and how many blocks after it had them.
+    auto play = [&](int64_t from, int64_t to, int64_t* removedAt, int* relapses) {
+        tap.onFlush();
+        tap.onBufferTime(from * 1000000 / rate);
+        *removedAt = -1;
+        *relapses = 0;
+        auto due = std::chrono::steady_clock::now();
+        for (int64_t p = from; p + block <= to; p += block) {
+            std::copy(audio.begin() + p * 2, audio.begin() + (p + block) * 2, buf.begin());
+            tap.process(buf.data(), block);
+            double eLow = 0, eErr = 0;
+            for (int i = 0; i < block * 2; ++i) {
+                const float lo = s.low[size_t(p * 2 + i)];
+                const float err = buf[size_t(i)] - s.high[size_t(p * 2 + i)];
+                eLow += double(lo) * lo;
+                eErr += double(err) * err;
+            }
+            const bool removed = eErr < 0.01 * eLow;
+            if (removed && *removedAt < 0) *removedAt = p;
+            if (!removed && *removedAt >= 0) ++*relapses;
+            due += std::chrono::microseconds(int64_t(block) * 1000000 / rate);
+            std::this_thread::sleep_until(due);
+        }
+    };
+
+    int64_t at = 0;
+    int relapses = 0;
+    // First job of a session, from the top: with no job timed yet the engine
+    // assumes a slow phone and starts it a few seconds in.
+    play(0, 9 * rate, &at, &relapses);
+    CHECK(at >= 0);
+    CHECK(relapses == 0);
+
+    const int64_t gridEnd = splitOwnedEnd(3);         // ~47.2 s
+    const int64_t seekTo = gridEnd - 2 * rate;
+    play(seekTo, seekTo + int64_t(5.5 * rate), &at, &relapses);
+    CHECK(at >= 0);
+    const double wait = at >= 0 ? double(at - seekTo) / rate : 99.0;
+    std::printf("      stems %.2f s after the seek, %d relapsed blocks\n", wait, relapses);
+    CHECK(wait < 3.0);
+    CHECK(relapses == 0);
+}
+
 TEST(engine_unity_levels_pass_through) {
     // With every level at 100% the tap must not touch the audio at all.
     Synth s = makeSynth(44100, 4.0, 6);
@@ -419,40 +496,52 @@ TEST(engine_unity_levels_pass_through) {
     CHECK(!tap.active());
 }
 
-TEST(engine_reports_streams_and_excluded_paths) {
+TEST(engine_reports_streams_until_given_a_copy) {
     auto engine = StemEngine::createForTesting(std::make_unique<FakeSeparator>());
-    engine->setExcludedPrefixes({"/data/user/0/x.a.zix/files/yt/"});
-    const uint32_t a = engine->registerTrack("https://rr1.googlevideo.com/videoplayback?x", nullptr, "");
-    const uint32_t b = engine->registerTrack("/data/user/0/x.a.zix/files/yt/song.m4a", nullptr, "");
-    const uint32_t c = engine->registerTrack("file:///data/user/0/x.a.zix/files/yt/a%20b.m4a", nullptr, "");
+    engine->setCacheDir(tmpDir());
+    const std::string url = "https://rr1.googlevideo.com/videoplayback?x";
+    const uint32_t a = engine->registerTrack(url, nullptr, "");
     StemTap tap(*engine);
     tap.setSampleRate(44100);
     std::vector<float> buf(2048, 0.1f);
-    struct Case { uint32_t id; const char* reason; } cases[] = {{a, "stream"}, {b, "youtube"}, {c, "youtube"}};
-    for (const Case& k : cases) {
-        tap.setKeys(k.id, 0);
+    auto waitFor = [&](uint32_t id, const char* state) {
+        tap.setKeys(id, 0);
         tap.onFlush();
         tap.onBufferTime(0);
         engine->setArmed(true);
-        std::string reason;
-        for (int i = 0; i < 100 && reason.empty(); ++i) {
+        for (int i = 0; i < 150; ++i) {
             tap.process(buf.data(), 1024);
             std::this_thread::sleep_for(std::chrono::milliseconds(20));
-            reason = engine->status().reason;
+            const StemStatus st = engine->status();
+            if (st.trackKey == engine->status().trackKey && st.state == state) return st;
         }
-        CHECK(engine->status().state == "unavailable");
-        CHECK(reason == k.reason);
-    }
+        return engine->status();
+    };
+    StemStatus st = waitFor(a, "unavailable");
+    CHECK(st.state == "unavailable");
+    CHECK(st.reason == "stream");
+    // The player registers its items again on every change: still a stream.
+    CHECK(engine->registerTrack(url, nullptr, "") == a);
+    // A copy fetched ahead, before the player reaches the item, is kept.
+    Synth s = makeSynth(44100, 6.0, 3);
+    const std::vector<float> audio = s.mix;
+    const std::string next = "https://rr2.googlevideo.com/videoplayback?y";
+    engine->provideSource(next, [audio] { return std::make_unique<stemtest::MemorySource>(audio, 44100); });
+    const uint32_t b = engine->registerTrack(next, nullptr, "");
+    st = waitFor(b, "preparing");
+    CHECK(st.trackKey == next);
+    CHECK(st.state != "unavailable");
 }
 
-TEST(engine_stops_mixing_a_track_that_becomes_excluded) {
-    Synth s = makeSynth(44100, 20.0, 9);
+TEST(engine_separates_a_stream_once_given_its_copy) {
+    // YouTube Music plays from the network; the app downloads the same file
+    // while stems are in use and hands it over mid-song.
+    Synth s = makeSynth(44100, 24.0, 9);
     auto engine = StemEngine::createForTesting(std::make_unique<FakeSeparator>());
     engine->setCacheDir(tmpDir());
     const std::vector<float> audio = s.mix;
-    const uint32_t id = engine->registerTrack(
-        "/storage/emulated/0/Music/HypeMuzik/late.m4a",
-        [audio] { return std::make_unique<stemtest::MemorySource>(audio, 44100); }, "");
+    const std::string url = "https://rr3.googlevideo.com/videoplayback?id=1";
+    const uint32_t id = engine->registerTrack(url, nullptr, "");
     StemTap tap(*engine);
     tap.setSampleRate(44100);
     tap.setKeys(id, 0);
@@ -462,23 +551,37 @@ TEST(engine_stops_mixing_a_track_that_becomes_excluded) {
     engine->setLevels(0.0f, 1.0f, 1.0f);
     std::vector<float> buf(2048);
     int64_t p = 0;
-    for (; p + 1024 < int64_t(audio.size() / 2) && engine->status().state != "ready"; p += 1024) {
+    double eHigh = 0, eErr = 0;
+    auto playBlock = [&](bool measure) {
         for (int i = 0; i < 2048; ++i) buf[size_t(i)] = audio[size_t(p * 2 + i)];
         tap.process(buf.data(), 1024);
+        if (measure) {
+            for (int i = 0; i < 2048; ++i) {
+                const float hi = s.high[size_t(p * 2 + i)];
+                eHigh += double(hi) * hi;
+                eErr += double(buf[size_t(i)] - hi) * double(buf[size_t(i)] - hi);
+            }
+        }
+        p += 1024;
         std::this_thread::sleep_for(std::chrono::microseconds(2500));
+    };
+    for (int k = 0; k < 40; ++k) playBlock(false);  // ~1 s of the stream as is
+    CHECK(engine->status().state == "unavailable");
+    CHECK(engine->status().reason == "stream");
+    CHECK(!tap.active());
+
+    engine->provideSource(url, [audio] { return std::make_unique<stemtest::MemorySource>(audio, 44100); });
+    bool ready = false;
+    for (int k = 0; k < 400 && !ready; ++k) {
+        playBlock(false);
+        ready = engine->status().state == "ready" && tap.active();
     }
-    CHECK(engine->status().state == "ready");
-    // Stems are in the output now; then the app learns it is a YouTube file.
-    engine->setExcludedPrefixes({"/storage/emulated/0/Music/HypeMuzik/late.m4a"});
-    bool untouched = false;
-    for (int k = 0; k < 200 && !untouched; ++k, p += 1024) {
-        for (int i = 0; i < 2048; ++i) buf[size_t(i)] = audio[size_t(p * 2 + i)];
-        tap.process(buf.data(), 1024);
-        untouched = !tap.active();
-        std::this_thread::sleep_for(std::chrono::milliseconds(5));
-    }
-    CHECK(untouched);
-    CHECK(engine->status().reason == "youtube");
+    CHECK(ready);
+    for (int k = 0; k < 8; ++k) playBlock(false);  // past the fade in
+    for (int k = 0; k < 40; ++k) playBlock(true);
+    const double snr = eHigh > 0 && eErr > 0 ? 10.0 * std::log10(eHigh / eErr) : 0.0;
+    std::printf("      vocals removed from the stream: %.1f dB SNR\n", snr);
+    CHECK(snr > 30.0);
 }
 
 TEST(tap_follows_gapless_and_seek_transitions) {

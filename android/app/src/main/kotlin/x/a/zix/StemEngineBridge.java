@@ -12,7 +12,6 @@ import org.json.JSONObject;
 import java.io.File;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
@@ -114,8 +113,13 @@ public final class StemEngineBridge {
         nativeSetLevels(vocals, drums, instruments);
     }
 
-    public static void setExcludedPrefixes(List<String> prefixes) {
-        nativeSetExcludedPrefixes(prefixes == null ? new String[0] : prefixes.toArray(new String[0]));
+    /**
+     * A local copy of a streamed track (the app downloads YouTube streams while
+     * stems are in use): the engine decodes it for the player's stream URL.
+     */
+    public static void provideStream(String url, String path) {
+        if (url == null || url.isEmpty() || path == null || path.isEmpty()) return;
+        nativeProvideSource(url, path);
     }
 
     public static Map<String, Object> statusMap() {
@@ -136,8 +140,8 @@ public final class StemEngineBridge {
 
     /**
      * Interns a player's media URI with the engine and returns its id (0 for
-     * none). Local files are keyed by their decoded path, so the engine can
-     * apply path-based rules (the YouTube download folder) to them.
+     * none). Local files are keyed by their decoded path; streams by their URL,
+     * which is how {@link #provideStream} finds them.
      */
     public static int registerTrack(String uriString) {
         if (uriString == null || uriString.isEmpty()) return 0;
@@ -203,7 +207,7 @@ public final class StemEngineBridge {
     private static native String nativeBenchmark();
     private static native void nativeSetArmed(boolean armed);
     private static native void nativeSetLevels(float vocals, float drums, float instruments);
-    private static native void nativeSetExcludedPrefixes(String[] prefixes);
+    private static native void nativeProvideSource(String key, String path);
     private static native int nativeRegisterTrack(String key, String path, int fd, String reason);
     private static native String nativeStatusJson();
 }

@@ -98,7 +98,8 @@ void  dsp_stems_unload_model(void);
 void  dsp_stems_benchmark(char* json, int jsonLen);
 void  dsp_stems_set_armed(bool armed);
 void  dsp_stems_set_levels(float vocals, float drums, float instruments);
-void  dsp_stems_set_excluded_prefixes(const char* const* prefixes, int count);
+// A local copy (file URL) of the stream the player plays from `streamUrl`.
+void  dsp_stems_provide_stream(const char* streamUrl, const char* fileUrl);
 // Writes the current status as JSON (same shape as the callback's).
 void  dsp_stems_status_json(char* json, int jsonLen);
 typedef void (*dsp_stems_status_cb)(const char* json, void* ctx);

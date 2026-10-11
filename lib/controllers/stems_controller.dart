@@ -17,6 +17,15 @@
 /// to run. A model nobody has wanted for [unloadAfter] is unloaded to give its
 /// memory back.
 ///
+/// # Streams
+///
+/// The engine separates from its own decode of the song, ahead of the
+/// playhead, so a stream gives it nothing to read ahead from: it reports the
+/// track unavailable with reason `stream`. For a YouTube Music stream this
+/// controller then fetches the same file the player streams and hands the
+/// engine the copy (see [StemsStreamCache]); meanwhile the tab reads as
+/// preparing, with the download as the first part of the progress.
+///
 /// # Not remembered
 ///
 /// Fader and pad positions carry from one song to the next while the app is
@@ -34,10 +43,19 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../Helpers/Channel.dart';
 import '../models/stems_engine_status.dart';
 import '../models/stems_mix.dart';
-import '../services/stems/stems_exclusions.dart';
 import '../services/stems/stems_manifest.dart';
 import '../services/stems/stems_model_store.dart';
-import '../services/ytmusic/yt_download_registry.dart';
+import '../services/stems/stems_stream_cache.dart';
+import '../services/ytmusic/yt_innertube.dart';
+
+/// Fetches a local copy of the stream the player plays from `url` and
+/// returns its path, or null for a stream this app can't fetch.
+typedef StemsStreamFetcher =
+    Future<String?> Function(
+      String url, {
+      void Function(double fraction)? onProgress,
+      StemsCancelToken? cancel,
+    });
 
 /// Where the separation model is on this phone.
 enum StemsModelPhase { checking, absent, downloading, verifying, ready, failed }
@@ -63,32 +81,33 @@ class StemsController extends ChangeNotifier {
   StemsController({
     required this._prefs,
     StemsModelStore? store,
-    this._excludedPrefixes,
-    this._exclusionChanges,
-    Future<void> Function()? sweepLegacyDownloads,
+    this._fetchStream,
     this.unloadAfter = const Duration(minutes: 2),
     this.levelInterval = const Duration(milliseconds: 33),
     this.nativeTimeout = const Duration(seconds: 90),
-    this.legacySweepDelay = const Duration(seconds: 6),
-  }) : _store = store ?? StemsModelStore(),
-       _sweepLegacy = sweepLegacyDownloads;
+  }) : _store = store ?? StemsModelStore();
 
-  /// The app's wiring: the real model store, the YouTube exclusions and the
-  /// one-per-session sweep for downloads made before they were recorded.
-  factory StemsController.app(SharedPreferences prefs) => StemsController(
-    prefs: prefs,
-    excludedPrefixes: StemsExclusions.collect,
-    exclusionChanges: YtDownloadRegistry.instance,
-    sweepLegacyDownloads: () async {
-      await YtDownloadRegistry.instance.sweepLegacyDownloads();
-    },
-  );
+  /// The app's wiring: the real model store, and YouTube Music streams fetched
+  /// with the headers the player streams them with.
+  factory StemsController.app(SharedPreferences prefs) {
+    final cache = StemsStreamCache();
+    return StemsController(
+      prefs: prefs,
+      fetchStream: (url, {onProgress, cancel}) async {
+        if (!YtInnerTube.isStreamUrl(url)) return null;
+        return cache.fetch(
+          url,
+          headers: YtInnerTube.audioPlaybackHeaders,
+          onProgress: onProgress,
+          cancel: cancel,
+        );
+      },
+    );
+  }
 
   final SharedPreferences _prefs;
   final StemsModelStore _store;
-  final Future<List<String>> Function()? _excludedPrefixes;
-  final Listenable? _exclusionChanges;
-  final Future<void> Function()? _sweepLegacy;
+  final StemsStreamFetcher? _fetchStream;
 
   /// How long a loaded model may sit unwanted before it is unloaded.
   final Duration unloadAfter;
@@ -99,10 +118,6 @@ class StemsController extends ChangeNotifier {
 
   /// How long a native load or speed test may take before it counts as failed.
   final Duration nativeTimeout;
-
-  /// How long after [start] the legacy-download sweep waits, to stay out of
-  /// the app's busiest seconds.
-  final Duration legacySweepDelay;
 
   StemsModelManifest get manifest => _store.manifest;
 
@@ -142,11 +157,23 @@ class StemsController extends ChangeNotifier {
   Timer? _levelsTimer;
   bool _levelsPending = false;
 
+  // --- Streams --------------------------------------------------------------
+
+  /// The stream being fetched right now (the playing one, or the queued one
+  /// once the playing one has its copy), its progress and how to stop it.
+  String? _streamKey;
+  double _streamProgress = 0;
+  StemsCancelToken? _streamCancel;
+  int _streamPermille = -1;
+
+  /// Streams whose copy the engine has; ones whose fetch failed (not retried
+  /// until stems are next switched on); ones this app can't fetch at all.
+  final Set<String> _providedStreams = {};
+  final Set<String> _failedStreams = {};
+  final Set<String> _unfetchableStreams = {};
+
   // --- Lifecycle ------------------------------------------------------------
 
-  List<String>? _lastPrefixes;
-  Future<void> _prefixWork = Future.value();
-  Timer? _sweepTimer;
   bool _started = false;
   bool _disposed = false;
 
@@ -201,15 +228,53 @@ class StemsController extends ChangeNotifier {
 
   /// What the engine last reported. Between asking it to start and its first
   /// answer this reads as preparing, because that is what is happening: the
-  /// original plays while the stems get ready.
+  /// original plays while the stems get ready. So does a stream whose copy is
+  /// downloading: the download is the first [_streamShare] of the progress.
   StemsEngineStatus get status {
     if (armed &&
         stage == StemsStage.mixer &&
         (!_nativeArmed || _awaitingStatus)) {
       return StemsEngineStatus.starting;
     }
-    return _status;
+    final st = _status;
+    final key = st.trackKey;
+    if (key == null) return st;
+    if (st.state == StemsEngineState.unavailable && st.reason == 'stream') {
+      if (_failedStreams.contains(key)) {
+        return StemsEngineStatus(
+          state: StemsEngineState.unavailable,
+          reason: 'fetch',
+          trackKey: key,
+          nextKey: st.nextKey,
+        );
+      }
+      // Fetching, or about to (a copy just handed over has not been picked
+      // up yet): the original plays meanwhile, as it does while preparing.
+      if (key == _streamKey || _providedStreams.contains(key)) {
+        return StemsEngineStatus(
+          state: StemsEngineState.preparing,
+          progress: key == _streamKey ? _streamProgress * _streamShare : _streamShare,
+          trackKey: key,
+          nextKey: st.nextKey,
+        );
+      }
+    }
+    if (st.state == StemsEngineState.preparing &&
+        _providedStreams.contains(key)) {
+      return StemsEngineStatus(
+        state: StemsEngineState.preparing,
+        progress: _streamShare + st.progress * (1 - _streamShare),
+        aheadSeconds: st.aheadSeconds,
+        trackKey: key,
+        nextKey: st.nextKey,
+      );
+    }
+    return st;
   }
+
+  /// The download's part of a stream's progress bar; separating the first
+  /// stretch is the rest.
+  static const double _streamShare = 0.4;
 
   StemsStage get stage {
     if (_support == StemsDeviceSupport.unsupported) {
@@ -237,58 +302,14 @@ class StemsController extends ChangeNotifier {
   // Lifecycle
   // ===========================================================================
 
-  /// Call once, at app start: hands the engine its excluded paths, recalls
-  /// the speed-test verdict and looks for a downloaded model.
+  /// Call once, at app start: recalls the speed-test verdict and looks for a
+  /// downloaded model.
   void start() {
     if (_started || _disposed) return;
     _started = true;
     _restoreBenchmark();
     unawaited(_checkModel());
-    if (_excludedPrefixes != null) {
-      unawaited(refreshExcludedPrefixes());
-      _exclusionChanges?.addListener(_onExclusionsChanged);
-    }
-    final sweep = _sweepLegacy;
-    if (sweep != null) {
-      _sweepTimer = Timer(legacySweepDelay, () {
-        _sweepTimer = null;
-        unawaited(
-          sweep().catchError((Object e) {
-            debugPrint('Stems: legacy download sweep failed: $e');
-          }),
-        );
-      });
-    }
   }
-
-  /// Re-sends the excluded-path list if it changed. Serialised, so a slow
-  /// collection can never overwrite a newer one.
-  Future<void> refreshExcludedPrefixes() {
-    return _prefixWork = _prefixWork
-        .then((_) => _sendExcludedPrefixes())
-        .catchError((Object e) {
-          debugPrint('Stems: could not send excluded paths: $e');
-        });
-  }
-
-  Future<void> _sendExcludedPrefixes() async {
-    final collect = _excludedPrefixes;
-    if (collect == null || _disposed) return;
-    final List<String> prefixes;
-    try {
-      prefixes = await collect();
-    } catch (e) {
-      debugPrint('Stems: could not collect excluded paths: $e');
-      return;
-    }
-    if (_disposed) return;
-    final last = _lastPrefixes;
-    if (last != null && listEquals(last, prefixes)) return;
-    _lastPrefixes = prefixes;
-    await _guard<void>(() => Channel.stemsSetExcludedPrefixes(prefixes), null);
-  }
-
-  void _onExclusionsChanged() => unawaited(refreshExcludedPrefixes());
 
   void _restoreBenchmark() {
     final raw = _prefs.getString(_benchmarkKey);
@@ -541,6 +562,8 @@ class StemsController extends ChangeNotifier {
         unawaited(_pullStatus());
       } else {
         _fire(() => Channel.stemsSetArmed(false));
+        _dropStreamFetch();
+        _failedStreams.clear();
       }
     }
     if (!armed && _modelLoaded) {
@@ -582,6 +605,7 @@ class StemsController extends ChangeNotifier {
     _awaitingStatus = false;
     if (next == _status && !wasAwaiting) return;
     _status = next;
+    _maybeFetchStream();
     _notify();
   }
 
@@ -595,6 +619,96 @@ class StemsController extends ChangeNotifier {
     );
     if (_disposed || raw == null || seq != _eventSeq || !_nativeArmed) return;
     _onEvent(raw);
+  }
+
+  // ===========================================================================
+  // Streams
+  // ===========================================================================
+
+  /// Keeps one stream fetch running for what needs it most: the playing
+  /// stream when the engine says it has no copy, otherwise the queued one, so
+  /// the next song has stems from its start. A fetch for a stream that is
+  /// neither any more is dropped.
+  void _maybeFetchStream() {
+    final fetch = _fetchStream;
+    if (fetch == null || _disposed || !_nativeArmed) return;
+    final st = _status;
+    bool wants(String? key) =>
+        key != null &&
+        key.startsWith('http') &&
+        !_providedStreams.contains(key) &&
+        !_failedStreams.contains(key) &&
+        !_unfetchableStreams.contains(key);
+    final current =
+        st.state == StemsEngineState.unavailable && st.reason == 'stream'
+        ? st.trackKey
+        : null;
+    final next = st.nextKey == st.trackKey ? null : st.nextKey;
+    final want = wants(current) ? current : (wants(next) ? next : null);
+    final running = _streamKey;
+    if (running != null && running != want) {
+      // Keep fetching the queued stream while the playing one has its copy and
+      // is not asking for anything; drop anything else.
+      if (want == null && running == next) return;
+      _dropStreamFetch();
+    }
+    if (want == null || want == _streamKey) return;
+    final token = StemsCancelToken();
+    _streamKey = want;
+    _streamProgress = 0;
+    _streamPermille = -1;
+    _streamCancel = token;
+    unawaited(_fetchStreamCopy(fetch, want, token));
+  }
+
+  Future<void> _fetchStreamCopy(
+    StemsStreamFetcher fetch,
+    String key,
+    StemsCancelToken token,
+  ) async {
+    try {
+      final path = await fetch(
+        key,
+        cancel: token,
+        onProgress: (fraction) {
+          if (token.isCancelled || _disposed) return;
+          _streamProgress = fraction;
+          final permille = (fraction * 1000).floor();
+          if (permille == _streamPermille) return;
+          _streamPermille = permille;
+          if (key == _status.trackKey) _notify();
+        },
+      );
+      if (token.isCancelled || _disposed) return;
+      if (path == null) {
+        _unfetchableStreams.add(key);
+      } else {
+        _providedStreams.add(key);
+        await _guard<void>(() => Channel.stemsProvideStream(key, path), null);
+      }
+    } on StemsDownloadCancelled {
+      return;
+    } catch (e) {
+      debugPrint('Stems: could not fetch the stream: $e');
+      if (!token.isCancelled) _failedStreams.add(key);
+    } finally {
+      if (identical(_streamCancel, token)) {
+        _streamCancel = null;
+        _streamKey = null;
+        if (!_disposed) {
+          _maybeFetchStream(); // the queued one, if the playing one is done
+          _notify();
+        }
+      }
+    }
+  }
+
+  /// Stops the running fetch (stems switched off, or nobody needs that stream
+  /// now); failures are forgotten so the next session tries again.
+  void _dropStreamFetch() {
+    _streamCancel?.cancel();
+    _streamCancel = null;
+    _streamKey = null;
   }
 
   // ===========================================================================
@@ -702,9 +816,8 @@ class StemsController extends ChangeNotifier {
     _download?.cancel();
     _levelsTimer?.cancel();
     _unloadTimer?.cancel();
-    _sweepTimer?.cancel();
+    _streamCancel?.cancel();
     _events?.cancel();
-    _exclusionChanges?.removeListener(_onExclusionsChanged);
     _engaged.dispose();
     super.dispose();
   }

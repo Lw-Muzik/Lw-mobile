@@ -255,17 +255,12 @@ void main() {
   stemsWidgetTest('a song stems cannot split says why, chip and note', (
     tester,
   ) async {
-    native.status = {'state': 'unavailable', 'reason': 'youtube'};
+    native.status = {'state': 'unavailable', 'reason': 'protected'};
     await showStems(tester, saved: _supported);
 
+    expect(find.text('This song is protected'), findsOneWidget);
     expect(
-      find.text('Stems work on songs saved on your phone'),
-      findsOneWidget,
-    );
-    expect(
-      find.text(
-        "YouTube songs can't be split, even downloaded ones, so this plays as is.",
-      ),
+      find.text("This song is protected, so it can't be split."),
       findsOneWidget,
     );
   });
@@ -295,6 +290,22 @@ void main() {
     });
   }
 
+  stemsWidgetTest('on a tablet each level stays on top of its fader', (
+    tester,
+  ) async {
+    // A 10" tablet in portrait: the faders stop growing well short of the
+    // column, and the readout must travel with them, not stay at the top.
+    final semantics = tester.ensureSemantics();
+    await showStems(tester, size: const Size(800, 1280), saved: _supported);
+    expect(tester.takeException(), isNull);
+    final readout = tester.getRect(find.text('100%').first);
+    final fader = tester.getRect(find.bySemanticsLabel('Vocals level'));
+    expect(fader.height, closeTo(440, 1));
+    expect(readout.bottom, lessThanOrEqualTo(fader.top));
+    expect(fader.top - readout.bottom, lessThan(12));
+    semantics.dispose();
+  });
+
   group('status wording', () {
     StemsEngineStatus unavailable(String reason) =>
         StemsEngineStatus(state: StemsEngineState.unavailable, reason: reason);
@@ -314,12 +325,11 @@ void main() {
         stemsChipLabel(const StemsEngineStatus(state: StemsEngineState.ready)),
         'Ready',
       );
-      for (final reason in ['stream', 'youtube']) {
-        expect(
-          stemsChipLabel(unavailable(reason)),
-          'Stems work on songs saved on your phone',
-        );
-      }
+      expect(
+        stemsChipLabel(unavailable('stream')),
+        'Stems work on songs saved on your phone',
+      );
+      expect(stemsChipLabel(unavailable('fetch')), "Couldn't load this song");
       expect(
         stemsChipLabel(unavailable('protected')),
         'This song is protected',
@@ -339,7 +349,7 @@ void main() {
         StemsEngineStatus.starting,
         StemsEngineStatus.idle,
         unavailable('stream'),
-        unavailable('youtube'),
+        unavailable('fetch'),
         unavailable('protected'),
         unavailable('decode'),
         unavailable('model'),

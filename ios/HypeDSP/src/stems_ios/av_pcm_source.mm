@@ -29,18 +29,6 @@ public:
                 *reason = "unsupported";
                 return false;
             }
-            // YouTube's audio downloads are MP4 with the "dash" brand. A
-            // backstop for the app's exclusion list: its policy forbids
-            // separating them.
-            if (url.isFileURL) {
-                NSFileHandle* fh = [NSFileHandle fileHandleForReadingFromURL:url error:nil];
-                NSData* head = [fh readDataOfLength:12];
-                [fh closeFile];
-                if (head.length == 12 && std::memcmp(static_cast<const char*>(head.bytes) + 4, "ftypdash", 8) == 0) {
-                    *reason = "youtube";
-                    return false;
-                }
-            }
             AVURLAsset* asset = [AVURLAsset URLAssetWithURL:url options:@{AVURLAssetPreferPreciseDurationAndTimingKey : @YES}];
             if (asset.hasProtectedContent) {
                 *reason = "protected";

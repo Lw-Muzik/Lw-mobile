@@ -40,10 +40,11 @@ std::string jsonEscape(const std::string& s);
 
 struct StemStatus {
     std::string state = "idle";  // idle | preparing | ready | unavailable | error
-    std::string reason;          // stream | youtube | protected | unsupported | decode | model
+    std::string reason;          // stream | protected | unsupported | decode | model
     double progress = 0.0;       // 0..1, while preparing the split at the playhead
     double aheadSeconds = 0.0;   // separated audio available past the playhead
     std::string trackKey;
+    std::string nextKey;         // the item the player has queued after it, if any
     std::string toJson() const;
     bool sameAs(const StemStatus& o) const;
 };
@@ -58,7 +59,6 @@ public:
 
     // ---- Configuration --------------------------------------------------
     void setCacheDir(const std::string& dir);
-    void setExcludedPrefixes(const std::vector<std::string>& prefixes);
 
     // ---- Model (blocking: call from a background thread) -----------------
     bool loadModel(const std::string& dir, std::string* error);
@@ -82,9 +82,14 @@ public:
     // ---- Tracks -----------------------------------------------------------
     // Interns `key` (the player's URI for the track) and returns its id.
     // `factory` builds a decoder for a local file; a non-empty
-    // `unavailableReason` marks the track as one stems never apply to.
+    // `unavailableReason` marks the track as one stems never apply to. An
+    // http(s) key is a stream: unavailable ("stream") until provideSource.
     uint32_t registerTrack(const std::string& key, PcmSourceFactory factory,
                            std::string unavailableReason);
+    // A local copy of the stream registered (or yet to be registered) as
+    // `key` — the app downloads it while stems are in use. From now on the
+    // engine decodes the copy and aligns it to what the player streams.
+    void provideSource(const std::string& key, PcmSourceFactory factory);
 
     // ---- Status -----------------------------------------------------------
     void setStatusCallback(std::function<void(const StemStatus&)> cb);
@@ -94,6 +99,10 @@ public:
     void attach(StemTap* tap);
     void detach(StemTap* tap);
     bool engaged() const { return engaged_.load(std::memory_order_relaxed); }
+    // Model samples from starting a split to hearing it (audio-thread safe).
+    // Stems only come in on a run at least this long, so the next split can
+    // be ready before it ends rather than the original coming back meanwhile.
+    int64_t readyLead() const;
     void levels(float* v, float* d, float* i) const {
         *v = levelV_.load(std::memory_order_relaxed);
         *d = levelD_.load(std::memory_order_relaxed);
@@ -121,6 +130,7 @@ private:
         std::string key;
         PcmSourceFactory factory;
         std::string reason;
+        bool provided = false;  // a stream with a local copy (provideSource)
     };
 
     // Pooled per-track state. Never freed while the engine lives, so an audio
@@ -141,7 +151,7 @@ private:
     struct Job {
         TrackSlot* slot = nullptr;
         uint32_t track = 0;
-        int64_t split = -1;
+        int64_t start = -1;  // owned start, model samples (see chunkOwnedEnd)
         int prio = 99;
         double ahead = 1e9;
         bool valid() const { return slot != nullptr; }
@@ -158,7 +168,7 @@ private:
     bool ensureDecoding(TrackSlot* slot);
     void alignTap(const StemTap::View& v);
     Job pickJob(const std::vector<StemTap::View>& views, int64_t now);
-    void considerSplit(Job* best, TrackSlot* slot, uint32_t track, int64_t split, int prio, double ahead);
+    void considerChunk(Job* best, TrackSlot* slot, uint32_t track, int64_t start, int prio, double ahead);
     bool runJob(const Job& job);
     bool stillWanted(const Job& job);
     bool computeSplit(const float* in44, const std::atomic<bool>* cancel, std::string* error,
@@ -166,11 +176,9 @@ private:
     void cleanup(const std::vector<StemTap::View>& views, int64_t now, bool wanted);
     void freeSlot(TrackSlot* slot);
     void publishStatus(const std::vector<StemTap::View>& views, int64_t now, bool wanted);
-    bool isExcludedLocked(const std::string& key) const;
     void ensureBuffers();
     void releaseBuffers();
-    int64_t ownedStartR(int64_t split, int rate) const;
-    int64_t ownedEndR(int64_t split, int rate, int64_t lengthR) const;
+    int64_t chunkEndR(int64_t start, int rate, int64_t lengthR) const;
 
     // Control state.
     std::atomic<bool> armed_{false};
@@ -183,7 +191,6 @@ private:
     std::unordered_map<std::string, uint32_t> keyToId_;
     std::unordered_map<uint32_t, TrackInfo> tracks_;
     uint32_t nextId_ = 1;
-    std::vector<std::string> excluded_;
     std::string cacheDir_;
 
     // Taps.
@@ -226,6 +233,9 @@ private:
     int64_t lastEmitMs_ = 0;
     std::atomic<uint32_t> jobTrack_{0};
     std::atomic<double> jobProgress_{0.0};
+    // How long a split takes here, decode included (moving average, ms; 0
+    // until the benchmark or the first job): where to start one after a seek.
+    std::atomic<int64_t> jobMs_{0};
 };
 
 }  // namespace stems

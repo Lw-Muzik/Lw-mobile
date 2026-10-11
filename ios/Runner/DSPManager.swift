@@ -370,14 +370,10 @@ final class StemsBridge: NSObject, FlutterStreamHandler {
                                  StemsBridge.level(args?["drums"]),
                                  StemsBridge.level(args?["instruments"]))
             result(nil)
-        case "stemsSetExcludedPrefixes":
-            let prefixes = args?["prefixes"] as? [String] ?? []
-            let owned = prefixes.map { strdup($0) }
-            let pointers: [UnsafePointer<CChar>?] = owned.map { UnsafePointer($0) }
-            pointers.withUnsafeBufferPointer {
-                dsp_stems_set_excluded_prefixes($0.baseAddress, Int32(pointers.count))
+        case "stemsProvideStream":
+            if let url = args?["url"] as? String, let path = args?["path"] as? String {
+                dsp_stems_provide_stream(url, URL(fileURLWithPath: path).absoluteString)
             }
-            owned.forEach { free($0) }
             result(nil)
         case "stemsGetStatus":
             result(StemsBridge.decode(StemsBridge.statusJson()))

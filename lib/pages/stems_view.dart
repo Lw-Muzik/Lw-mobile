@@ -35,8 +35,12 @@ const Color _kIdle = Color(0xFF6E6E76);
 /// made now applies the moment they are — but plainly not in effect yet.
 const double _kDimmed = 0.42;
 
-/// Past this a fader stops reading as something to grip.
-const double _kMaxFaderHeight = 340;
+/// Past this a fader stops reading as something to grip — about 2.75 in, a
+/// long-throw fader on a tablet; phones never have the room to reach it.
+const double _kMaxFaderHeight = 440;
+
+/// The level readout above each fader.
+const double _kReadoutHeight = 20;
 
 /// Below this the mixer scrolls rather than crushing its faders. A 320×568
 /// phone in portrait still clears it (faders of ~120 dp); a phone in
@@ -202,7 +206,8 @@ String stemsChipLabel(StemsEngineStatus status) => switch (status.state) {
         : 'Preparing…',
   StemsEngineState.ready => 'Ready',
   StemsEngineState.unavailable => switch (status.reason) {
-    'stream' || 'youtube' => 'Stems work on songs saved on your phone',
+    'stream' => 'Stems work on songs saved on your phone',
+    'fetch' => "Couldn't load this song",
     'protected' => 'This song is protected',
     'unsupported' || 'decode' => "Can't read this song",
     'model' => 'Stems model unavailable',
@@ -226,7 +231,8 @@ String stemsStatusNote(StemsEngineStatus status) => switch (status.state) {
   StemsEngineState.unavailable => switch (status.reason) {
     'stream' =>
       'Streaming songs play as is. Stems work on songs saved on your phone.',
-    'youtube' => "YouTube songs can't be split, even downloaded ones, so this plays as is.",
+    'fetch' =>
+      "Couldn't download this song to split it, so it plays as is. Check the connection.",
     'protected' => "This song is protected, so it can't be split.",
     'unsupported' ||
     'decode' => "Can't read this song's audio, so it plays as is.",
@@ -474,24 +480,41 @@ class _StemStrip extends StatelessWidget {
     final on = mix.padOn(stem);
     return Column(
       children: [
-        _LevelReadout(value: value, on: on),
-        const SizedBox(height: 6),
         Expanded(
           child: LayoutBuilder(
-            builder: (context, constraints) => Center(
-              child: SizedBox(
-                height: math.min(constraints.maxHeight, _kMaxFaderHeight),
-                width: constraints.maxWidth,
-                child: _StemFader(
-                  stem: stem,
-                  value: value,
-                  on: on,
-                  onChanged: (v) => controller.setFader(stem, v),
-                  onChangeEnd: controller.commitFader,
-                  onReset: () => controller.resetFader(stem),
+            builder: (context, constraints) {
+              // The readout rides on the fader rather than sitting at the top
+              // of the column: once the fader stops growing (a tablet) the
+              // two would otherwise drift apart.
+              final faderHeight = math.max(
+                0.0,
+                math.min(
+                  constraints.maxHeight - _kReadoutHeight - 6,
+                  _kMaxFaderHeight,
                 ),
-              ),
-            ),
+              );
+              return Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _LevelReadout(value: value, on: on),
+                    const SizedBox(height: 6),
+                    SizedBox(
+                      height: faderHeight,
+                      width: constraints.maxWidth,
+                      child: _StemFader(
+                        stem: stem,
+                        value: value,
+                        on: on,
+                        onChanged: (v) => controller.setFader(stem, v),
+                        onChangeEnd: controller.commitFader,
+                        onReset: () => controller.resetFader(stem),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
           ),
         ),
         SizedBox(height: compact ? 8 : 12),
@@ -521,7 +544,7 @@ class _LevelReadout extends StatelessWidget {
         ? _kAccent
         : Ember.textPrimary.withValues(alpha: 0.9);
     return SizedBox(
-      height: 20,
+      height: _kReadoutHeight,
       child: FittedBox(
         fit: BoxFit.scaleDown,
         child: AnimatedDefaultTextStyle(

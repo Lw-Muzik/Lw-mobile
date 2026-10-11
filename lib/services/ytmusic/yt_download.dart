@@ -14,26 +14,15 @@
 /// [LocalMusicScanner] walks (recursively) and merges into the library, and
 /// which `UIFileSharingEnabled` also exposes in Files. Both platforms therefore
 /// end with the track in the app's Library; only the mechanism differs.
-///
-/// # Kept apart from the user's own music
-///
-/// YouTube's Developer Policies forbid separating its audio, so the Stems tab
-/// must be able to tell a YouTube download from a song the user owns. iOS
-/// downloads get a folder of their own for that, and every saved path, on both
-/// platforms, is recorded in [YtDownloadRegistry] — Android's MediaStore puts
-/// downloads in `Music/HypeMuzik` beside Phone Link uploads, where no folder
-/// rule could separate them.
 library;
 
 import 'dart:async';
 import 'dart:io';
 
-import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../local_music_scanner.dart';
 import '../native_media_store.dart';
-import 'yt_download_registry.dart';
 import 'yt_models.dart';
 import 'yt_repository.dart';
 
@@ -195,9 +184,8 @@ class YtDownloader {
 
   /// Where iOS keeps YouTube downloads: `Documents/Music/YouTube`.
   ///
-  /// Only the path — nothing is created, so asking (as the stems engine's
-  /// exclusion list does at every launch) leaves no empty folder in Files for
-  /// people who never download anything.
+  /// Only the path — nothing is created, so asking leaves no empty folder in
+  /// Files for people who never download anything.
   static Future<String> iosDownloadDirectoryPath() async {
     final docs = await getApplicationDocumentsDirectory();
     return '${docs.path}/Music/$_iosFolder';
@@ -211,21 +199,10 @@ class YtDownloader {
     return directory;
   }
 
-  /// A finished download, written down before it is reported so the stems
-  /// engine can never be handed it as the user's own music.
   static Future<YtDownloadSaved> _saved(
     String path, {
     required bool inLibrary,
-  }) async {
-    try {
-      await YtDownloadRegistry.instance.record(path);
-    } catch (e) {
-      // Never worth failing a finished download over; the legacy sweep finds
-      // the file by its container on the next launch anyway.
-      debugPrint('YtDownloader: could not record $path: $e');
-    }
-    return YtDownloadSaved(path, inLibrary: inLibrary);
-  }
+  }) async => YtDownloadSaved(path, inLibrary: inLibrary);
 
   static Future<void> _deleteQuietly(File file) async {
     try {

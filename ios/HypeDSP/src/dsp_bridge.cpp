@@ -283,12 +283,11 @@ void dsp_stems_set_levels(float vocals, float drums, float instruments) {
     hype::stems::StemEngine::instance().setLevels(vocals, drums, instruments);
 }
 
-void dsp_stems_set_excluded_prefixes(const char* const* prefixes, int count) {
-    std::vector<std::string> list;
-    for (int i = 0; i < count; ++i) {
-        if (prefixes && prefixes[i]) list.emplace_back(prefixes[i]);
-    }
-    hype::stems::StemEngine::instance().setExcludedPrefixes(list);
+void dsp_stems_provide_stream(const char* streamUrl, const char* fileUrl) {
+    if (!streamUrl || !fileUrl || !*fileUrl) return;
+    const std::string file = fileUrl;
+    hype::stems::StemEngine::instance().provideSource(
+        streamUrl, [file] { return hype::stems::createAvPcmSource(file); });
 }
 
 void dsp_stems_status_json(char* json, int jsonLen) {

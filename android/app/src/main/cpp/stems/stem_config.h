@@ -51,10 +51,25 @@ inline int64_t splitContaining(int64_t modelSample) {
     return (modelSample - kMargin) / kStepSamples;
 }
 
+// A split can also start anywhere: after a seek the engine starts one where the
+// playhead will be by the time it is ready, and each next one where the last
+// ended. One starting at model sample s owns [s, chunkOwnedEnd(s)) and reads
+// the span [chunkSpanStart(s), +kInputSpan), the same layout split c has (for
+// s == splitOwnedStart(c) these are exactly split c's).
+inline int64_t chunkOwnedEnd(int64_t s) { return s == 0 ? splitOwnedEnd(0) : s + kStepSamples; }
+inline int64_t chunkSpanStart(int64_t s) { return s == 0 ? -kPad : s - kMargin - kPad; }
+
 // Map a model-domain boundary to a playback-rate boundary (floor). Monotonic,
 // so ranges [b(c), b(c+1)) tile the playback timeline with no gaps.
 inline int64_t toRate(int64_t modelSample, int rate) {
     return rate == kModelRate ? modelSample : (modelSample * rate) / kModelRate;
+}
+
+// The reverse, also floor: toRate(fromRate(r, rate), rate) <= r, so a chunk
+// started at fromRate(end of what is ready) overlaps it by a sample at most and
+// never leaves a hole.
+inline int64_t fromRate(int64_t r, int rate) {
+    return rate == kModelRate ? r : (r * kModelRate) / rate;
 }
 
 }  // namespace stems

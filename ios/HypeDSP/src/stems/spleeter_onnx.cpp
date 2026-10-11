@@ -23,7 +23,13 @@ namespace {
 
 Ort::Env& ortEnv() {
     // One environment per process: ORT's global state must outlive sessions.
-    static Ort::Env* env = new Ort::Env(ORT_LOGGING_LEVEL_WARNING, "hype-stems");
+    // Telemetry off: separation happens on the phone and nothing about it
+    // leaves it (the Android build otherwise tries, and logs that it can't).
+    static Ort::Env* env = [] {
+        auto* e = new Ort::Env(ORT_LOGGING_LEVEL_WARNING, "hype-stems");
+        e->DisableTelemetryEvents();
+        return e;
+    }();
     return *env;
 }
 

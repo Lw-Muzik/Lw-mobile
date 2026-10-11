@@ -13,13 +13,13 @@ void main() {
     test('reads every field of a well-formed event', () {
       final status = StemsEngineStatus.fromMap({
         'state': 'unavailable',
-        'reason': 'youtube',
+        'reason': 'protected',
         'progress': 0.5,
         'aheadSeconds': 12.5,
         'trackKey': '/music/a.flac',
       });
       expect(status.state, StemsEngineState.unavailable);
-      expect(status.reason, 'youtube');
+      expect(status.reason, 'protected');
       expect(status.progress, 0.5);
       expect(status.aheadSeconds, 12.5);
       expect(status.trackKey, '/music/a.flac');

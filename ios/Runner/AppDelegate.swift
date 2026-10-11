@@ -479,7 +479,7 @@ import AVFoundation
 
         // ==================== Live Stems ====================
         case "stemsLoadModel", "stemsUnloadModel", "stemsBenchmark", "stemsSetArmed",
-             "stemsSetLevels", "stemsSetExcludedPrefixes", "stemsGetStatus":
+             "stemsSetLevels", "stemsProvideStream", "stemsGetStatus":
             StemsBridge.shared.handle(call, result: result)
 
         // ==================== Global EQ (Not available on iOS) ====================

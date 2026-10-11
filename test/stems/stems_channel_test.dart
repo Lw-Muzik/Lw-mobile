@@ -87,17 +87,15 @@ void main() {
     }
   });
 
-  test('stemsSetExcludedPrefixes sends the list', () async {
-    await Channel.stemsSetExcludedPrefixes([
-      '/tmp/hype_video/',
-      '/storage/emulated/0/Music/HypeMuzik/A - B.m4a',
-    ]);
-    expect(calls.single.method, 'stemsSetExcludedPrefixes');
+  test('stemsProvideStream sends the stream URL and the copy', () async {
+    await Channel.stemsProvideStream(
+      'https://rr1.googlevideo.com/videoplayback?id=1&mime=audio%2Fmp4',
+      '/tmp/stems_streams/a b.m4a',
+    );
+    expect(calls.single.method, 'stemsProvideStream');
     expect(calls.single.arguments, {
-      'prefixes': [
-        '/tmp/hype_video/',
-        '/storage/emulated/0/Music/HypeMuzik/A - B.m4a',
-      ],
+      'url': 'https://rr1.googlevideo.com/videoplayback?id=1&mime=audio%2Fmp4',
+      'path': '/tmp/stems_streams/a b.m4a',
     });
   });
 
@@ -124,7 +122,7 @@ void main() {
       await Channel.stemsUnloadModel();
       await Channel.stemsSetArmed(true);
       await Channel.stemsSetLevels(vocals: 1, drums: 1, instruments: 1);
-      await Channel.stemsSetExcludedPrefixes(const []);
+      await Channel.stemsProvideStream('https://x', '/y');
     });
   });
 

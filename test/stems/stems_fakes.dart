@@ -127,3 +127,27 @@ class FakeStemsEngine {
     return matching.isEmpty ? null : matching.last.arguments as Map;
   }
 }
+
+/// A stream fetcher the test finishes by hand.
+class FakeStreamFetcher {
+  final urls = <String>[];
+  final tokens = <StemsCancelToken?>[];
+  void Function(double fraction)? progress;
+  final pendings = <Completer<String?>>[];
+
+  /// The most recent fetch, still to be finished by the test.
+  Completer<String?>? get pending => pendings.isEmpty ? null : pendings.last;
+
+  Future<String?> call(
+    String url, {
+    void Function(double fraction)? onProgress,
+    StemsCancelToken? cancel,
+  }) {
+    urls.add(url);
+    tokens.add(cancel);
+    progress = onProgress;
+    final c = Completer<String?>();
+    pendings.add(c);
+    return c.future;
+  }
+}

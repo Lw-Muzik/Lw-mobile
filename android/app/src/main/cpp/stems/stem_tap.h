@@ -70,6 +70,7 @@ public:
         int64_t trackStartMs = 0;  // when the tap switched to this track
         bool captureReady = false;
         uint32_t epoch = 0;
+        bool mixing = false;       // stems were in the last buffer
     };
     View view() const;
     // Takes the finished capture (once): returns its length and sets its
@@ -127,6 +128,7 @@ private:
     std::atomic<int> pubRate_{0};
     std::atomic<int64_t> pubPos_{0};
     std::atomic<int64_t> pubLastMs_{0};
+    std::atomic<bool> pubMixing_{false};
     std::atomic<int64_t> pubTrackStartMs_{0};
     std::atomic<int64_t> pubLag_{0};
     std::atomic<bool> pubLagKnown_{false};

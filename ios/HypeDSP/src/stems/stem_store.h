@@ -145,6 +145,17 @@ public:
         return at;
     }
 
+    // Worker: the earliest published start after `from` (INT64_MAX if none).
+    int64_t nextStart(int64_t from) const {
+        int64_t best = INT64_MAX;
+        for (const Slot& s : slots_) {
+            const int64_t a = s.start.load(std::memory_order_relaxed);
+            const int64_t b = s.end.load(std::memory_order_relaxed);
+            if (b > a && a > from && a < best) best = a;
+        }
+        return best;
+    }
+
     // Audio thread: copies up to `count` frames starting at `pos` from ONE
     // slot into float stereo buffers. Returns the frames copied (0 when `pos`
     // is not published or the slot changed mid-copy). Call again at

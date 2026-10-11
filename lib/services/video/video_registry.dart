@@ -118,10 +118,6 @@ class VideoRegistry extends ChangeNotifier {
   static const _manifestDirName = 'hype_video';
 
   /// The absolute path of that directory.
-  ///
-  /// The player opens these manifests as local files, so the stems engine
-  /// would otherwise take a YouTube video for a song saved on the phone; it is
-  /// handed this path as off limits.
   static Future<String> manifestDirectoryPath() async =>
       '${(await getTemporaryDirectory()).path}/$_manifestDirName';
 

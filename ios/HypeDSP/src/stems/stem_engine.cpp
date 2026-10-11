@@ -66,30 +66,6 @@ std::string jsonEscape(const std::string& s) {
 
 namespace {
 
-std::string percentDecode(const std::string& s) {
-    std::string out;
-    out.reserve(s.size());
-    for (size_t i = 0; i < s.size(); ++i) {
-        if (s[i] == '%' && i + 2 < s.size()) {
-            const char hex[3] = {s[i + 1], s[i + 2], 0};
-            char* end = nullptr;
-            const long v = std::strtol(hex, &end, 16);
-            if (end == hex + 2) {
-                out += char(v);
-                i += 2;
-                continue;
-            }
-        }
-        out += s[i];
-    }
-    return out;
-}
-
-std::string keyToPath(const std::string& key) {
-    if (key.rfind("file://", 0) == 0) return percentDecode(key.substr(7));
-    return key;
-}
-
 bool startsWith(const std::string& s, const char* prefix) { return s.rfind(prefix, 0) == 0; }
 
 int defaultThreads() {
@@ -115,11 +91,12 @@ std::string StemStatus::toJson() const {
     char nums[96];
     std::snprintf(nums, sizeof nums, "\"progress\":%.3f,\"aheadSeconds\":%.2f", progress, aheadSeconds);
     return std::string("{\"state\":\"") + jsonEscape(state) + "\",\"reason\":\"" + jsonEscape(reason) +
-           "\"," + nums + ",\"trackKey\":\"" + jsonEscape(trackKey) + "\"}";
+           "\"," + nums + ",\"trackKey\":\"" + jsonEscape(trackKey) + "\",\"nextKey\":\"" +
+           jsonEscape(nextKey) + "\"}";
 }
 
 bool StemStatus::sameAs(const StemStatus& o) const {
-    return state == o.state && reason == o.reason && trackKey == o.trackKey &&
+    return state == o.state && reason == o.reason && trackKey == o.trackKey && nextKey == o.nextKey &&
            std::fabs(progress - o.progress) < 0.05 &&
            std::floor(aheadSeconds / 2.0) == std::floor(o.aheadSeconds / 2.0);
 }
@@ -163,25 +140,6 @@ void StemEngine::ensureWorker() {
 void StemEngine::setCacheDir(const std::string& dir) {
     std::lock_guard<std::mutex> lock(regMu_);
     cacheDir_ = dir;
-}
-
-void StemEngine::setExcludedPrefixes(const std::vector<std::string>& prefixes) {
-    std::lock_guard<std::mutex> lock(regMu_);
-    excluded_ = prefixes;
-    // Re-evaluate tracks registered before the list arrived.
-    for (auto& entry : tracks_) {
-        if (entry.second.reason.empty() && isExcludedLocked(entry.second.key)) {
-            entry.second.reason = "youtube";
-        }
-    }
-}
-
-bool StemEngine::isExcludedLocked(const std::string& key) const {
-    const std::string path = keyToPath(key);
-    for (const std::string& p : excluded_) {
-        if (!p.empty() && path.compare(0, p.size(), p) == 0) return true;
-    }
-    return false;
 }
 
 // ---- Model -------------------------------------------------------------------
@@ -274,6 +232,11 @@ StemEngine::Benchmark StemEngine::benchmark() {
     b.ok = true;
     b.millis = int(secs * 1000.0);
     b.rtf = secs / (double(kStepSamples) / double(kModelRate));
+    // A first guess at a real job (which also decodes and resamples) until
+    // one has been timed.
+    if (jobMs_.load(std::memory_order_relaxed) <= 0) {
+        jobMs_.store(int64_t(secs * 1100.0), std::memory_order_relaxed);
+    }
     return b;
 }
 
@@ -310,10 +273,6 @@ uint32_t StemEngine::registerTrack(const std::string& key, PcmSourceFactory fact
     uint32_t id;
     {
         std::lock_guard<std::mutex> lock(regMu_);
-        if (unavailableReason.empty() && (startsWith(key, "http://") || startsWith(key, "https://"))) {
-            unavailableReason = "stream";
-        }
-        if (unavailableReason.empty() && isExcludedLocked(key)) unavailableReason = "youtube";
         auto it = keyToId_.find(key);
         if (it != keyToId_.end()) {
             id = it->second;
@@ -324,12 +283,38 @@ uint32_t StemEngine::registerTrack(const std::string& key, PcmSourceFactory fact
         TrackInfo& info = tracks_[id];
         info.key = key;
         if (factory) info.factory = std::move(factory);
+        // A stream plays as is until the app hands over a copy of it, which
+        // may already have happened (the next item, fetched ahead).
+        const bool stream = startsWith(key, "http://") || startsWith(key, "https://");
+        if (unavailableReason.empty() && stream) unavailableReason = "stream";
+        if (unavailableReason == "stream" && info.provided) unavailableReason.clear();
         // A transient failure (decode) is retried when the player registers
-        // the track again; a policy reason sticks.
+        // the track again; a lasting reason sticks.
         if (!unavailableReason.empty() || info.reason == "decode") info.reason = unavailableReason;
     }
     poke();
     return id;
+}
+
+void StemEngine::provideSource(const std::string& key, PcmSourceFactory factory) {
+    if (!factory) return;
+    {
+        std::lock_guard<std::mutex> lock(regMu_);
+        auto it = keyToId_.find(key);
+        uint32_t id;
+        if (it != keyToId_.end()) {
+            id = it->second;
+        } else {
+            id = nextId_++;
+            keyToId_[key] = id;
+        }
+        TrackInfo& info = tracks_[id];
+        info.key = key;
+        info.factory = std::move(factory);
+        info.provided = true;
+        if (info.reason == "stream" || info.reason == "decode") info.reason.clear();
+    }
+    poke();
 }
 
 StemEngine::TrackInfo StemEngine::trackInfo(uint32_t id) {
@@ -425,7 +410,9 @@ void StemEngine::step() {
     }
 
     if (wanted && modelLoaded_.load()) {
-        const Job job = pickJob(views, now);
+        // Aligning can decode for a while (a long seek): plan from where the
+        // playheads are now, since a split after a seek starts ahead of them.
+        const Job job = didWork ? pickJob(snapshotTaps(), nowMs()) : pickJob(views, now);
         if (job.valid()) {
             busy_.store(true);
             runJob(job);
@@ -625,24 +612,32 @@ void StemEngine::alignTap(const StemTap::View& v) {
     }
 }
 
-int64_t StemEngine::ownedStartR(int64_t split, int rate) const {
-    return toRate(splitOwnedStart(split), rate);
-}
-
-int64_t StemEngine::ownedEndR(int64_t split, int rate, int64_t lengthR) const {
-    const int64_t e = toRate(splitOwnedEnd(split), rate);
+int64_t StemEngine::chunkEndR(int64_t start, int rate, int64_t lengthR) const {
+    const int64_t e = toRate(chunkOwnedEnd(start), rate);
     return lengthR >= 0 ? std::min(e, lengthR) : e;
 }
 
-void StemEngine::considerSplit(Job* best, TrackSlot* slot, uint32_t track, int64_t split, int prio,
+void StemEngine::considerChunk(Job* best, TrackSlot* slot, uint32_t track, int64_t start, int prio,
                                double ahead) {
     if (!best->valid() || prio < best->prio || (prio == best->prio && ahead < best->ahead)) {
         best->slot = slot;
         best->track = track;
-        best->split = split;
+        best->start = start;
         best->prio = prio;
         best->ahead = ahead;
     }
+}
+
+int64_t StemEngine::readyLead() const {
+    // Model samples from starting a split to hearing it: a job as long as the
+    // recent ones, plus slack for a slower run and the alignment after it.
+    // Until one is timed this session (the speed test's verdict is remembered,
+    // so it rarely runs), assume a slow phone: too long a lead only delays the
+    // first stems after a seek a little, too short makes them drop out.
+    int64_t ms = jobMs_.load(std::memory_order_relaxed);
+    if (ms <= 0) ms = 6000;
+    ms = ms * 115 / 100 + 300;
+    return ms * kModelRate / 1000;
 }
 
 StemEngine::Job StemEngine::pickJob(const std::vector<StemTap::View>& views, int64_t now) {
@@ -651,10 +646,10 @@ StemEngine::Job StemEngine::pickJob(const std::vector<StemTap::View>& views, int
         if (track == 0 || !trackInfo(track).reason.empty()) return;
         TrackSlot* slot = slotFor(track, rate, true, views, now);
         if (!slot || !ensureDecoding(slot)) return;
-        const int64_t a = ownedStartR(0, rate);
-        const int64_t b = ownedEndR(0, rate, slot->lengthR);
-        if (a < b && !slot->store.covers(a, b)) considerSplit(&best, slot, track, 0, 2, 0.0);
+        const int64_t b = chunkEndR(0, rate, slot->lengthR);
+        if (0 < b && !slot->store.covers(0, b)) considerChunk(&best, slot, track, 0, 2, 0.0);
     };
+    const int64_t lead = readyLead();
 
     for (const StemTap::View& v : views) {
         if (v.track == 0 || v.rate <= 0) continue;
@@ -668,16 +663,46 @@ StemEngine::Job StemEngine::pickJob(const std::vector<StemTap::View>& views, int
         TrackSlot* slot = slotFor(v.track, v.rate, true, views, now);
         if (!slot || !ensureDecoding(slot)) continue;
 
+        // Splits are not on a fixed grid. Each one starts where the separated
+        // run ahead of the playhead ends; when the playhead is in a hole (a
+        // seek, or stems just switched on) the first one starts where the
+        // playhead will be once it is ready, so stems come in after one job
+        // and the next split is done long before this one runs out. A grid
+        // split would often finish after the playhead left it, and the next
+        // one could not be ready in time: the original heard for two jobs.
+        const int R = v.rate;
         const int64_t dpos = std::max<int64_t>(0, v.pos + (v.lagKnown ? v.lag : 0));
-        const int64_t c = splitContaining(dpos * kModelRate / v.rate);
-        for (int k = 0; k < 3; ++k) {
-            const int64_t a = ownedStartR(c + k, v.rate);
-            const int64_t b = ownedEndR(c + k, v.rate, slot->lengthR);
-            if (a >= b) break;
-            if (!slot->store.covers(k == 0 ? std::max(a, dpos) : a, b)) {
-                const double ahead = double(slot->store.readyUntil(dpos) - dpos) / double(v.rate);
-                considerSplit(&best, slot, v.track, c + k, k == 0 ? 0 : 1, ahead);
-                break;
+        const int64_t dM = fromRate(dpos, R);
+        const int64_t leadR = toRate(lead, R);
+        // Where the playhead will be when a job started now is heard, less a
+        // quarter of the lead in case this one runs faster.
+        const int64_t onTime = dM + lead * 3 / 4;
+        const StemStore& store = slot->store;
+        int64_t from = -1;  // playback-rate end of the separated run ahead
+        if (store.covers(dpos, dpos + 1)) {
+            from = store.readyUntil(dpos);
+        } else {
+            const int64_t next = store.nextStart(dpos);
+            if (next != INT64_MAX && next - dpos <= leadR + R) {
+                from = store.readyUntil(next);  // the hole closes before a job could fill it
+            } else {
+                // From the top of the track split 0 itself leaves the next job
+                // time enough; anywhere else, start where it will be on time.
+                const int64_t s = dM + 2 * lead - kStepSamples <= 0 ? 0 : onTime;
+                if (toRate(s, R) < chunkEndR(s, R, slot->lengthR)) {
+                    considerChunk(&best, slot, v.track, s, 0, 0.0);
+                }
+            }
+        }
+        // Keep about two splits ready ahead. A run too short for the next job
+        // to land before it ends (the playhead just landed near its end) can
+        // not be continued in time: start that job where it will be on time.
+        if (from >= 0 && from - dpos < 2 * toRate(kStepSamples, R) &&
+            (slot->lengthR < 0 || from < slot->lengthR)) {
+            const bool late = from - dpos < leadR;
+            const int64_t s = late ? std::max(fromRate(from, R), onTime) : fromRate(from, R);
+            if (toRate(s, R) < chunkEndR(s, R, slot->lengthR)) {
+                considerChunk(&best, slot, v.track, s, late ? 0 : 1, double(from - dpos) / double(R));
             }
         }
 
@@ -702,9 +727,11 @@ bool StemEngine::stillWanted(const Job& job) {
     for (const StemTap::View& v : views) {
         if (v.next == job.track) return true;
         if (v.track != job.track || v.rate <= 0) continue;
-        const int64_t dpos = std::max<int64_t>(0, v.pos + (v.lagKnown ? v.lag : 0));
-        const int64_t c = splitContaining(dpos * kModelRate / v.rate);
-        if (job.split >= c && job.split <= c + 2) return true;
+        const int64_t dM = fromRate(std::max<int64_t>(0, v.pos + (v.lagKnown ? v.lag : 0)), v.rate);
+        // Still worth hearing when done: it reaches a lead past the playhead
+        // (a seek can leave a running split ending just ahead of it, too short
+        // for stems to come in on), and is within the lead the planner keeps.
+        if (chunkOwnedEnd(job.start) - dM >= readyLead() && job.start < dM + 3 * kStepSamples) return true;
     }
     return false;
 }
@@ -715,8 +742,8 @@ bool StemEngine::runJob(const Job& job) {
     if (!dec) return false;
     const int R = slot->rate.load();
     const int F = dec->sampleRate();
-    const int64_t c = job.split;
-    const int64_t spanStart = c * kStepSamples - kPad;
+    const int64_t spanStart = chunkSpanStart(job.start);
+    const auto t0 = std::chrono::steady_clock::now();
     jobTrack_.store(job.track);
     jobProgress_.store(0.0);
 
@@ -744,8 +771,8 @@ bool StemEngine::runJob(const Job& job) {
     }
     if (dec->finished()) slot->lengthR = ceilDiv(dec->framesDecoded() * R, F);
 
-    const int64_t r0 = ownedStartR(c, R);
-    const int64_t r1 = ownedEndR(c, R, slot->lengthR);
+    const int64_t r0 = toRate(job.start, R);
+    const int64_t r1 = chunkEndR(job.start, R, slot->lengthR);
     if (r1 <= r0) return true;  // past the end of the track
     jobProgress_.store(0.1);
 
@@ -812,6 +839,10 @@ bool StemEngine::runJob(const Job& job) {
     }
     slot->store.endWrite(w);
     jobProgress_.store(1.0);
+    const int64_t ms = int64_t(
+        std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count());
+    const int64_t avg = jobMs_.load(std::memory_order_relaxed);
+    jobMs_.store(avg <= 0 ? ms : (avg * 7 + ms * 3) / 10, std::memory_order_relaxed);
     return true;
 }
 
@@ -972,6 +1003,8 @@ void StemEngine::publishStatus(const std::vector<StemTap::View>& views, int64_t 
     if (fg) {
         const TrackInfo info = trackInfo(fg->track);
         st.trackKey = info.key;
+        // So the app can fetch a queued stream's copy before it starts.
+        if (fg->next != 0 && fg->next != fg->track) st.nextKey = trackInfo(fg->next).key;
         if (!info.reason.empty()) {
             st.state = "unavailable";
             st.reason = info.reason;
@@ -983,10 +1016,15 @@ void StemEngine::publishStatus(const std::vector<StemTap::View>& views, int64_t 
         } else {
             TrackSlot* slot = slotFor(fg->track, fg->rate, false, views, now);
             const int64_t dpos = fg->pos + (fg->lagKnown ? fg->lag : 0);
-            if (slot && fg->lagKnown && slot->store.covers(dpos, dpos + 1)) {
+            const int64_t until = slot && fg->lagKnown ? slot->store.readyUntil(dpos) : dpos;
+            // Ready means heard: the tap only comes in on a run long enough to
+            // be continued in time (or one reaching the end of the track).
+            const bool heard = fg->mixing || until - dpos >= toRate(readyLead(), fg->rate) ||
+                               (slot && slot->lengthR >= 0 && until >= slot->lengthR);
+            if (until > dpos && heard) {
                 st.state = "ready";
                 st.progress = 1.0;
-                st.aheadSeconds = double(slot->store.readyUntil(dpos) - dpos) / double(fg->rate);
+                st.aheadSeconds = double(until - dpos) / double(fg->rate);
             } else {
                 st.state = "preparing";
                 st.progress = jobTrack_.load() == fg->track ? jobProgress_.load() : 0.0;
@@ -998,7 +1036,7 @@ void StemEngine::publishStatus(const std::vector<StemTap::View>& views, int64_t 
     {
         std::lock_guard<std::mutex> lock(statusMu_);
         const bool stateChanged = st.state != status_.state || st.reason != status_.reason ||
-                                  st.trackKey != status_.trackKey;
+                                  st.trackKey != status_.trackKey || st.nextKey != status_.nextKey;
         if (status_.sameAs(st) || (!stateChanged && now - lastEmitMs_ < 250)) return;
         status_ = st;
         lastEmitMs_ = now;

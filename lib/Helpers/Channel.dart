@@ -659,10 +659,11 @@ class Channel {
     });
   }
 
-  /// Absolute path prefixes whose files must be reported unavailable with
-  /// reason `youtube` — YouTube downloads and video manifests.
-  static Future<void> stemsSetExcludedPrefixes(List<String> prefixes) async {
-    await _invoke("stemsSetExcludedPrefixes", {"prefixes": prefixes});
+  /// A local copy of the stream the player is playing from [url] (the exact
+  /// URI string it was given): the engine separates the copy instead of
+  /// reporting the track as a stream it can't read ahead of the playhead.
+  static Future<void> stemsProvideStream(String url, String path) async {
+    await _invoke("stemsProvideStream", {"url": url, "path": path});
   }
 
   /// The engine's current state, shaped like a [stemsEvents] event.
