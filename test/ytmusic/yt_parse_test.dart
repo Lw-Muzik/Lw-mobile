@@ -204,6 +204,15 @@ void main() {
       expect(list.title, 'Miracles');
       expect(list.artist, contains('A Pass'));
       expect(list.tracks, hasLength(7));
+      // The header, for the album page: each artist with their channel, the
+      // first one's portrait, what it is and how long.
+      expect([for (final a in list.artists) (a.name, a.id)], [
+        ('A Pass', 'UCcQqLOFmSKx6dNJmRrLFUDw'),
+        ('Kaboo', 'UCD5ur3ZCzfJhHIsnMjlAUWg'),
+      ]);
+      expect(list.artistThumbnail, contains('googleusercontent'));
+      expect(list.subtitle, 'Album • 2026');
+      expect(list.stats, '7 songs • 18 minutes');
       for (final track in list.tracks) {
         expect(track.album, 'Miracles');
         expect(track.album, isNot(contains('plays')));
@@ -302,7 +311,56 @@ void main() {
     });
   });
 
+  group('artist page', () {
+    test('the header: name, banner, counts, bio and both buttons', () {
+      final header = parseArtistHeader(fixture('artist_page'))!;
+      expect(header.name, 'Patoranking');
+      expect(header.banner, contains('googleusercontent'));
+      expect(header.subscribers, endsWith('subscribers'));
+      expect(header.audience, endsWith('monthly audience'));
+      expect(header.description, startsWith('Patoranking is'));
+      expect(header.shuffle?.videoId, isNotEmpty);
+      expect(header.radio?.videoId, isNotEmpty);
+      expect(header.radio?.playlistId, startsWith('RD'));
+    });
+
+    test('the shelves still come from the same response', () {
+      final shelves = parsePage(fixture('artist_page'));
+      expect(shelves, isNotEmpty);
+      expect(shelves.expand((s) => s.items).where((i) => i.isPlayable),
+          isNotEmpty);
+    });
+
+    test('a page without a header we know is no header', () {
+      expect(parseArtistHeader({'header': {}}), isNull);
+      expect(parseArtistHeader(null), isNull);
+    });
+  });
+
   group('json readers', () {
+    test('credits each artist with their channel, skipping separators', () {
+      Map<String, Object?> linked(String name, String id) => {
+            'text': name,
+            'navigationEndpoint': {
+              'browseEndpoint': {'browseId': id},
+            },
+          };
+      final refs = artistRefs([
+        linked('Burna Boy', 'UCburna'),
+        {'text': ', '},
+        {'text': 'Unlinked'},
+        {'text': ' & '},
+        linked('Ed Sheeran', 'UCed'),
+        linked('Some Album', 'MPREb_x'),
+      ]);
+      expect([for (final r in refs) (r.name, r.id)], [
+        ('Burna Boy', 'UCburna'),
+        ('Unlinked', null),
+        ('Ed Sheeran', 'UCed'),
+      ]);
+      expect(artistRefs(null), isEmpty);
+    });
+
     test('joins runs rather than indexing them', () {
       expect(
         joinRuns([

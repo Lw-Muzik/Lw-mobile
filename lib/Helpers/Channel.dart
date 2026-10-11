@@ -585,6 +585,16 @@ class Channel {
     });
   }
 
+  /// Opens the system share sheet with [text] (a song's link).
+  static Future<bool> shareText(String text) =>
+      _invokeRequired<bool>("shareText", false, {"text": text});
+
+  /// Opens the system share sheet with the audio file at [filePath]. False
+  /// when it can't be shared — on Android, a file the media library doesn't
+  /// list.
+  static Future<bool> shareAudio(String filePath) =>
+      _invokeRequired<bool>("shareAudio", false, {"filePath": filePath});
+
   /// Triggers Android MediaStore re-scan for the given file path.
   /// Call after writing tags so queries return updated metadata.
   static Future<void> scanMediaFile(String filePath) async {

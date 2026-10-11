@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../pages/equalizer.dart';
 import '../pages/loader.dart';
+import '../player/player_presence.dart';
 import '../player/player_ui.dart';
 
 class Routes {
@@ -49,8 +50,10 @@ class Routes {
     required Widget closedWidget,
     required Widget openWidget,
     Duration duration = const Duration(milliseconds: 500),
+    RouteSettings? routeSettings,
   }) {
     return OpenContainer(
+      routeSettings: routeSettings,
       closedElevation: 0,
       openElevation: 0,
       closedColor: Colors.transparent,
@@ -67,9 +70,22 @@ class Routes {
   /// transition without a direction change (Poweramp-style). The list beneath
   /// is painted by the framework for the whole reverse transition, which is
   /// what makes the "player slides away revealing the list" read work.
+  ///
+  /// With a player already open — something opened from it started playing —
+  /// this goes back to that one rather than stacking a second; see
+  /// [PlayerPresence].
   static void playerTo(BuildContext context) {
-    Navigator.of(context).push(
+    final navigator = Navigator.of(context);
+    if (PlayerPresence.isOpen) {
+      navigator.popUntil(
+        (route) =>
+            route.settings.name == PlayerPresence.routeName || route.isFirst,
+      );
+      return;
+    }
+    navigator.push(
       PageRouteBuilder(
+        settings: const RouteSettings(name: PlayerPresence.routeName),
         transitionDuration: const Duration(milliseconds: 350),
         reverseTransitionDuration: const Duration(milliseconds: 280),
         pageBuilder: (context, animation, secondaryAnimation) =>

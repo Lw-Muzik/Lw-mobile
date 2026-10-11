@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'dart:ui';
 
-import '../player/widgets/track_info_widget.dart';
+import '../player/actions/song_actions_sheet.dart';
 import '/helpers/visualizer_widget.dart';
 import '/helpers/index.dart';
 import '/exports/exports.dart';
@@ -710,14 +710,8 @@ Future<String?> _downloadCloudArtwork(String url, int songId) async {
   return null;
 }
 
-//  function to show track info
+/// The playing song's actions — the long press on the player's cover. See
+/// `SongActionsSheet`.
 void showTrackInfo(BuildContext context, AppController controller) {
-  showCupertinoModalPopup(
-    barrierColor: Colors.transparent,
-    context: context,
-    filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-    builder: (context) {
-      return TrackInfoWidget(controller: controller);
-    },
-  );
+  showSongActions(context, controller);
 }

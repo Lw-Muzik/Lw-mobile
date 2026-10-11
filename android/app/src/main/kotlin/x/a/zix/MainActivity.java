@@ -3,6 +3,7 @@ package x.a.zix;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.PendingIntent;
+import android.content.ClipData;
 import android.content.ContentResolver;
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -1490,6 +1491,41 @@ public class MainActivity extends AudioServiceFragmentActivity {
                             String scanPath = call.argument("filePath");
                             TagWriter.scanFile(getApplicationContext(), scanPath);
                             result.success(null);
+                            break;
+                        }
+
+                        // ==================== Sharing ====================
+                        // The system share sheet, for a song's link or the song
+                        // itself. A file goes by its MediaStore uri with a read
+                        // grant — the receiving app has no access to the path —
+                        // and the uri is set as ClipData too, which is what
+                        // carries the grant through the chooser to the app
+                        // picked from it.
+                        case "shareText": {
+                            String shareText = call.argument("text");
+                            Intent sendText = new Intent(Intent.ACTION_SEND);
+                            sendText.setType("text/plain");
+                            sendText.putExtra(Intent.EXTRA_TEXT, shareText);
+                            startActivity(Intent.createChooser(sendText, null));
+                            result.success(true);
+                            break;
+                        }
+                        case "shareAudio": {
+                            String sharePath = call.argument("filePath");
+                            Uri shareUri = sharePath == null ? null
+                                    : LyricsManager.getMediaUri(getContentResolver(), sharePath);
+                            if (shareUri == null) {
+                                result.success(false);
+                                break;
+                            }
+                            String shareMime = getContentResolver().getType(shareUri);
+                            Intent sendAudio = new Intent(Intent.ACTION_SEND);
+                            sendAudio.setType(shareMime != null ? shareMime : "audio/*");
+                            sendAudio.putExtra(Intent.EXTRA_STREAM, shareUri);
+                            sendAudio.setClipData(ClipData.newRawUri("", shareUri));
+                            sendAudio.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                            startActivity(Intent.createChooser(sendAudio, null));
+                            result.success(true);
                             break;
                         }
 

@@ -17,6 +17,7 @@ import 'package:provider/provider.dart';
 import '../../Routes/routes.dart';
 import '../../controllers/library_controller.dart';
 import '../../services/ytmusic/yt_download.dart';
+import '../../services/ytmusic/yt_downloads.dart';
 import '../../services/ytmusic/yt_models.dart';
 import '../../services/ytmusic/yt_playback.dart';
 import 'artist_page.dart';
@@ -127,70 +128,89 @@ Future<void> showTrackActions(BuildContext context, YtTrack track) async {
 /// Downloads [track], reporting progress and the outcome in one snack bar.
 ///
 /// Deliberately fire-and-forget from the caller's point of view: a download is
-/// something you set going and keep browsing, not something you wait on.
-void startDownload(BuildContext context, YtTrack track) {
+/// something you set going and keep browsing, not something you wait on. One
+/// already running is not started twice — see [YtDownloads].
+///
+/// [showProgress] false leaves the progress to whatever started it (the
+/// player's song actions draw it in their download button) and reports only
+/// how it ended.
+void startDownload(
+  BuildContext context,
+  YtTrack track, {
+  bool showProgress = true,
+}) {
   final messenger = ScaffoldMessenger.of(context);
+  if (YtDownloads.instance.isRunning(track.videoId)) {
+    messenger.showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        content: Text('Already downloading ${track.title}'),
+      ),
+    );
+    return;
+  }
   final progress = ValueNotifier<double?>(null);
 
-  messenger.showSnackBar(
-    SnackBar(
-      duration: const Duration(minutes: 10),
-      behavior: SnackBarBehavior.floating,
-      content: ValueListenableBuilder<double?>(
-        valueListenable: progress,
-        builder: (context, value, _) => Row(
-          children: [
-            SizedBox(
-              width: 60,
-              child: LinearProgressIndicator(
-                value: value,
-                minHeight: 4,
-                borderRadius: BorderRadius.circular(2),
+  if (showProgress) {
+    messenger.showSnackBar(
+      SnackBar(
+        duration: const Duration(minutes: 10),
+        behavior: SnackBarBehavior.floating,
+        content: ValueListenableBuilder<double?>(
+          valueListenable: progress,
+          builder: (context, value, _) => Row(
+            children: [
+              SizedBox(
+                width: 60,
+                child: LinearProgressIndicator(
+                  value: value,
+                  minHeight: 4,
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Text(
-                'Downloading ${track.title}',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+              const SizedBox(width: 14),
+              Expanded(
+                child: Text(
+                  'Downloading ${track.title}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
-    ),
-  );
+    );
+  }
 
   // Captured before the await: the widget that started this may well be gone
   // by the time the download finishes, and reading a provider off a dead
   // context throws.
   final library = context.read<LibraryController>();
 
-  YtDownloader.download(
-    track,
-    onProgress: (value) => progress.value = value,
-  ).then((result) async {
-    // A saved track that the Library does not list has not, as far as the user
-    // is concerned, been saved. Android's MediaStore insert and iOS's write
-    // into Documents/Music both need a scan before the row exists.
-    if (result is YtDownloadSaved) await library.rescan();
-    messenger.hideCurrentSnackBar();
-    messenger.showSnackBar(
-      SnackBar(
-        behavior: SnackBarBehavior.floating,
-        content: Text(switch (result) {
-          YtDownloadSaved(inLibrary: true) => 'Saved to your music library',
-          YtDownloadSaved(inLibrary: false) => 'Saved to this app',
-          YtDownloadFailed(:final message) => message,
-        }),
-      ),
-    );
-    // Deliberately not disposed. Hiding a snack bar is animated, so its builder
-    // is still listening well past this point, and disposing underneath it
-    // throws. Nothing else holds the notifier once that widget is gone, so it
-    // is collected on its own — which is the cheaper of the two mistakes.
-  });
+  YtDownloads.instance
+      .download(track, onProgress: (value) => progress.value = value)
+      .then((result) async {
+        // A saved track that the Library does not list has not, as far as the user
+        // is concerned, been saved. Android's MediaStore insert and iOS's write
+        // into Documents/Music both need a scan before the row exists.
+        if (result is YtDownloadSaved) await library.rescan();
+        if (showProgress) messenger.hideCurrentSnackBar();
+        messenger.showSnackBar(
+          SnackBar(
+            behavior: SnackBarBehavior.floating,
+            content: Text(switch (result) {
+              YtDownloadSaved(inLibrary: true) => 'Saved to your music library',
+              YtDownloadSaved(inLibrary: false) => 'Saved to this app',
+              YtDownloadFailed(:final message) => message,
+            }),
+          ),
+        );
+        // Deliberately not disposed. Hiding a snack bar is animated, so its builder
+        // is still listening well past this point, and disposing underneath it
+        // throws. Nothing else holds the notifier once that widget is gone, so it
+        // is collected on its own — which is the cheaper of the two mistakes.
+      });
 }
 
 /// Downloads every track in a list.
@@ -251,6 +271,13 @@ void startPlaylistDownload(BuildContext context, List<YtTrack> tracks) {
     },
     onProgress: (_) {},
   ).then((results) async {
+    // In order, one per track until a stop: each saved one is remembered so
+    // the player knows it is downloaded.
+    for (var i = 0; i < results.length; i++) {
+      if (results[i] case YtDownloadSaved(:final path)) {
+        await YtDownloads.instance.remember(tracks[i].videoId, path);
+      }
+    }
     final saved = results.whereType<YtDownloadSaved>().length;
     if (saved > 0) await library.rescan();
     messenger.hideCurrentSnackBar();

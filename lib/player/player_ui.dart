@@ -25,6 +25,7 @@ import 'video/video_surface.dart';
 import '../onboarding/coach_marks.dart';
 import '../services/video/video_registry.dart';
 import 'now_playing_hero.dart';
+import 'player_presence.dart';
 
 // Main Player Widget
 class Player extends StatefulWidget {
@@ -48,6 +49,7 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
+    PlayerPresence.opened();
     _initializeAnimationController();
     // Detect current audio output device for display
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -131,6 +133,7 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
 
   @override
   void dispose() {
+    PlayerPresence.closed();
     _coachController.dispose();
     _animationController?.dispose();
     super.dispose();

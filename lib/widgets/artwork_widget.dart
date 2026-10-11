@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import '/exports/exports.dart';
@@ -49,6 +50,27 @@ class _ArtworkWidgetState extends State<ArtworkWidget> {
   // required decode size actually changes.
   Future<ImageProvider>? _imageFuture;
   int? _decodeWidth;
+
+  /// Artwork the user replaces ("Find artwork") is swapped in everywhere the
+  /// song shows — the player, its background, every list — without waiting
+  /// for the song to scroll away and back.
+  StreamSubscription<int>? _replaced;
+
+  @override
+  void initState() {
+    super.initState();
+    _replaced = ArtworkService.instance.changes.listen((id) {
+      if (id == widget.songId && widget.type == ArtworkType.AUDIO && mounted) {
+        setState(() => _imageFuture = null);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _replaced?.cancel();
+    super.dispose();
+  }
 
   int _computeDecodeWidth(BuildContext context, double? availableWidth) {
     final dpr = MediaQuery.of(context).devicePixelRatio;

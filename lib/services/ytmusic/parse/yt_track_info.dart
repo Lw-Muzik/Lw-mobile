@@ -17,6 +17,7 @@
 /// can't read is null rather than an error.
 library;
 
+import '../yt_models.dart';
 import 'yt_json.dart';
 
 class YtTrackInfo {
@@ -25,6 +26,10 @@ class YtTrackInfo {
 
   /// Every credited artist as YouTube writes them ("Burna Boy & Ed Sheeran").
   final String? artist;
+
+  /// The same credits one by one, with each artist's channel where linked —
+  /// what "Go to artist" opens.
+  final List<YtArtistRef> artists;
   final String? album;
 
   /// The album's `MPREb…` browse id, for its track list and album artist.
@@ -46,6 +51,7 @@ class YtTrackInfo {
     required this.videoId,
     required this.title,
     this.artist,
+    this.artists = const [],
     this.album,
     this.albumId,
     this.year,
@@ -70,6 +76,7 @@ YtTrackInfo? parseTrackInfo(Object? json, String videoId) {
     videoId: videoId,
     title: own.title,
     artist: own.artist ?? song?.artist,
+    artists: own.artists.isNotEmpty ? own.artists : (song?.artists ?? const []),
     album: useSong ? song.album : own.album,
     albumId: useSong ? song.albumId : own.albumId,
     year: own.year ?? (useSong ? song.year : null),
@@ -112,6 +119,7 @@ YtLyrics? parseLyrics(Object? json) {
 class _Facts {
   final String title;
   final String? artist;
+  final List<YtArtistRef> artists;
   final String? album;
   final String? albumId;
   final int? year;
@@ -122,6 +130,7 @@ class _Facts {
   const _Facts({
     required this.title,
     this.artist,
+    this.artists = const [],
     this.album,
     this.albumId,
     this.year,
@@ -177,6 +186,7 @@ _Facts? _rowFacts(Object? row) {
   return _Facts(
     title: title,
     artist: artist,
+    artists: artistRefs(segments.first),
     album: album,
     albumId: albumId,
     year: year,

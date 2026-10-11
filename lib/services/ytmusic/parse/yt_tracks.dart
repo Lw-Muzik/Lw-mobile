@@ -29,7 +29,20 @@ enum TrackListKind { playlist, album }
 class YtTrackList {
   final String title;
   final String? artist;
+
+  /// The same credit artist by artist, with their channels — what the page's
+  /// artist line opens.
+  final List<YtArtistRef> artists;
+
+  /// The first credited artist's portrait, beside their name.
+  final String? artistThumbnail;
   final String? thumbnail;
+
+  /// What it is and when: "Album • 2019", "EP • 2024", "Playlist • 2025".
+  final String? subtitle;
+
+  /// Its size: "12 songs • 42 minutes".
+  final String? stats;
   final List<YtTrack> tracks;
 
   /// The token for the next page, if this one has a successor.
@@ -39,7 +52,11 @@ class YtTrackList {
     required this.title,
     required this.tracks,
     this.artist,
+    this.artists = const [],
+    this.artistThumbnail,
     this.thumbnail,
+    this.subtitle,
+    this.stats,
     this.continuation,
   });
 }
@@ -76,7 +93,14 @@ YtTrackList parseTrackList(
   return YtTrackList(
     title: title,
     artist: artist,
+    artists: artistRefs(ptr(header, 'straplineTextOne/runs')),
+    artistThumbnail: bestThumbnail(
+      ptr(header,
+          'straplineThumbnail/musicThumbnailRenderer/thumbnail/thumbnails'),
+    ),
     thumbnail: cover,
+    subtitle: joinRuns(ptr(header, 'subtitle/runs')),
+    stats: joinRuns(ptr(header, 'secondSubtitle/runs')),
     tracks: tracks,
     continuation: nextPageToken(json),
   );

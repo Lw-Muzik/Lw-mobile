@@ -63,7 +63,19 @@ class _HomeSurfaceState extends State<HomeSurface> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _playlistSource?.playlistRevision.removeListener(_reloadPlaylists);
     super.dispose();
+  }
+
+  /// The repository whose playlist changes this shelf follows — kept, because
+  /// `dispose` can no longer look it up from context.
+  LibraryRepository? _playlistSource;
+
+  /// A playlist made or added to anywhere — the player's song actions, a
+  /// saved mix — shows on the shelf at once.
+  Future<void> _reloadPlaylists() async {
+    final playlists = await _repo.playlists();
+    if (mounted) setState(() => _playlists = playlists);
   }
 
   @override
@@ -99,6 +111,7 @@ class _HomeSurfaceState extends State<HomeSurface> with WidgetsBindingObserver {
     super.didChangeDependencies();
     // Guarded: didChangeDependencies runs again on any inherited-widget change.
     if (_mixService != null) return;
+    _playlistSource = _repo..playlistRevision.addListener(_reloadPlaylists);
     final controller = context.read<AppController>();
     _mixService = DailyMixService(
       _repo,

@@ -42,6 +42,65 @@ class ArtworkService {
   /// (survives restarts without re-extraction).
   void attachRepository(LibraryRepository repo) => _repo = repo;
 
+  // ---------------------------------------------------------------------------
+  // Artwork the user chose
+  // ---------------------------------------------------------------------------
+
+  /// Song id → the artwork the user picked for it ("Find artwork").
+  ///
+  /// Kept apart from the extracted art and checked before it: a scan writes
+  /// the extracted path again (iOS does on every scan), and a choice the user
+  /// made must not be undone by the app rereading the file. Recorded in
+  /// `library_meta` as `art:<id>`; loaded once.
+  Map<int, String>? _chosen;
+  static const _chosenKey = 'art:';
+
+  final _changes = StreamController<int>.broadcast();
+
+  /// The id of each song whose artwork was just replaced, so every view of it
+  /// can let go of the old picture.
+  Stream<int> get changes => _changes.stream;
+
+  Future<Map<int, String>> _chosenArt() async {
+    final loaded = _chosen;
+    if (loaded != null) return loaded;
+    final out = <int, String>{};
+    final rows = await _repo?.metaWithPrefix(_chosenKey) ?? const {};
+    for (final entry in rows.entries) {
+      final id = int.tryParse(entry.key.substring(_chosenKey.length));
+      if (id != null && await File(entry.value).exists()) out[id] = entry.value;
+    }
+    return _chosen = out;
+  }
+
+  /// Makes [bytes] the artwork of song [id] from now on, wherever it shows.
+  ///
+  /// Stored in app support — temp is the OS's to clear — under a name that is
+  /// new every time, so no image cache can hand back the old picture.
+  Future<String> setChosenArtwork(int id, List<int> bytes) async {
+    final chosen = await _chosenArt();
+    final dir = Directory(
+      '${(await getApplicationSupportDirectory()).path}/chosen_artwork',
+    );
+    if (!dir.existsSync()) await dir.create(recursive: true);
+    final file = File(
+      '${dir.path}/${id}_${DateTime.now().millisecondsSinceEpoch}.jpg',
+    );
+    await file.writeAsBytes(bytes, flush: true);
+    final previous = chosen[id];
+    chosen[id] = file.path;
+    await _repo?.metaSet('$_chosenKey$id', file.path);
+    _mem.remove('a:$id');
+    _lruOrder.remove('a:$id');
+    if (previous != null) {
+      try {
+        await File(previous).delete();
+      } catch (_) {}
+    }
+    _changes.add(id);
+    return file.path;
+  }
+
   Future<String> get _temp async =>
       _tempPath ??= (await getTemporaryDirectory()).path;
 
@@ -54,6 +113,11 @@ class ArtworkService {
     String other = '',
   }) async {
     final temp = await _temp;
+
+    if (type == ArtworkType.AUDIO) {
+      final chosen = (await _chosenArt())[id];
+      if (chosen != null) return chosen;
+    }
 
     // Cloud files keep their existing stable naming; extraction for those
     // happens on the cloud path, so here we only read.

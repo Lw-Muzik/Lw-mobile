@@ -234,7 +234,10 @@ Future<Object?> _handle(
 
     case YtOp.artistPage:
       final json = await api.browse(browseId: args['browseId'] as String);
-      return parsePage(json);
+      return YtArtistPageData(
+        header: parseArtistHeader(json),
+        shelves: parsePage(json),
+      );
 
     case YtOp.trackList:
       return _trackList(
@@ -324,7 +327,11 @@ Future<YtTrackList> _trackList(
   return YtTrackList(
     title: first.title,
     artist: first.artist,
+    artists: first.artists,
+    artistThumbnail: first.artistThumbnail,
     thumbnail: first.thumbnail,
+    subtitle: first.subtitle,
+    stats: first.stats,
     tracks: tracks,
   );
 }

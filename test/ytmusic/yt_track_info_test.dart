@@ -21,6 +21,9 @@ void main() {
       final info = parseTrackInfo(fixture('next_song'), '2cNFrajBk0k')!;
       expect(info.title, 'Last Last');
       expect(info.artist, 'Burna Boy');
+      expect([for (final a in info.artists) (a.name, a.id)], [
+        ('Burna Boy', 'UCr61sufuLt7_eB7ak1bXHIg'),
+      ]);
       expect(info.album, 'Love, Damini');
       expect(info.albumId, 'MPREb_If75wr3HkMf');
       expect(info.year, 2022);

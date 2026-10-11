@@ -1,4 +1,5 @@
 import 'package:drift/drift.dart';
+import 'package:flutter/foundation.dart' show ValueNotifier;
 import 'package:on_audio_query/on_audio_query.dart';
 
 import 'library_database.dart';
@@ -181,6 +182,18 @@ class LibraryRepository {
         .customSelect('SELECT * FROM songs ORDER BY ${_songsOrderBy(sort, dir)}',
             readsFrom: {_db.songs})
         .get();
+    return _songs(rows);
+  }
+
+  /// Library songs titled exactly [title], ignoring case — for asking whether
+  /// a streamed track is already in the library. The caller decides what
+  /// counts as the same artist.
+  Future<List<SongModel>> songsTitled(String title) async {
+    final rows = await _db.customSelect(
+      'SELECT * FROM songs WHERE title = ? COLLATE NOCASE LIMIT 20',
+      variables: [Variable<String>(title)],
+      readsFrom: {_db.songs},
+    ).get();
     return _songs(rows);
   }
 
@@ -592,6 +605,15 @@ class LibraryRepository {
   // Playlists (app-owned)
   // ---------------------------------------------------------------------------
 
+  /// Moves on whenever a playlist is created, renamed, deleted or added to.
+  ///
+  /// The writes below are raw statements, which drift's `watch()` streams
+  /// don't see — so screens that list playlists listen here instead, and a
+  /// song added from the player shows up on Home without a pull to refresh.
+  final ValueNotifier<int> playlistRevision = ValueNotifier(0);
+
+  void _playlistsChanged() => playlistRevision.value++;
+
   Future<int> createPlaylist(String name, int nowSec) async {
     await _db.customStatement(
       'INSERT INTO playlists (name, created_sec, updated_sec) VALUES (?, ?, ?)',
@@ -600,7 +622,27 @@ class LibraryRepository {
     final row = await _db
         .customSelect('SELECT last_insert_rowid() AS id')
         .getSingle();
+    _playlistsChanged();
     return (row.data['id'] as num).toInt();
+  }
+
+  /// The playlists that already hold [item] — a local song by its id, a
+  /// drive file or YouTube track by its external id.
+  Future<Set<int>> playlistsHolding(PlaylistItem item) async {
+    final byExternal = item.source != 'local';
+    final key = byExternal ? item.externalId : item.songId;
+    if (key == null) return const {};
+    final rows = await _db.customSelect(
+      'SELECT DISTINCT playlist_id FROM playlist_entries '
+      'WHERE source = ? AND ${byExternal ? 'external_id' : 'song_id'} = ?',
+      variables: [
+        Variable<String>(item.source),
+        byExternal
+            ? Variable<String>(key as String)
+            : Variable<int>(key as int),
+      ],
+    ).get();
+    return {for (final row in rows) (row.data['playlist_id'] as num).toInt()};
   }
 
   Future<List<PlaylistSummary>> playlists() async {
@@ -621,16 +663,19 @@ class LibraryRepository {
     ];
   }
 
-  Future<void> renamePlaylist(int id, String name, int nowSec) =>
-      _db.customStatement(
-        'UPDATE playlists SET name = ?, updated_sec = ? WHERE id = ?',
-        [name, nowSec, id],
-      );
+  Future<void> renamePlaylist(int id, String name, int nowSec) async {
+    await _db.customStatement(
+      'UPDATE playlists SET name = ?, updated_sec = ? WHERE id = ?',
+      [name, nowSec, id],
+    );
+    _playlistsChanged();
+  }
 
   Future<void> deletePlaylist(int id) async {
     await _db.customStatement(
       'DELETE FROM playlist_entries WHERE playlist_id = ?', [id]);
     await _db.customStatement('DELETE FROM playlists WHERE id = ?', [id]);
+    _playlistsChanged();
   }
 
   /// Appends [entries] to the end of a playlist, keeping positions contiguous.
@@ -664,6 +709,7 @@ class LibraryRepository {
     }
     await _db.customStatement(
       'UPDATE playlists SET updated_sec = ? WHERE id = ?', [nowSec, playlistId]);
+    _playlistsChanged();
   }
 
   Future<List<PlaylistItem>> playlistEntries(int playlistId) async {
@@ -688,6 +734,19 @@ class LibraryRepository {
           ..where((t) => t.key.equals(key)))
         .getSingleOrNull();
     return row?.value;
+  }
+
+  /// Every `library_meta` row whose key starts with [prefix].
+  Future<Map<String, String>> metaWithPrefix(String prefix) async {
+    final rows = await _db.customSelect(
+      'SELECT key, value FROM library_meta WHERE substr(key, 1, ?) = ?',
+      variables: [Variable<int>(prefix.length), Variable<String>(prefix)],
+    ).get();
+    return {
+      for (final row in rows)
+        if (row.data['value'] case final String value)
+          row.data['key'] as String: value,
+    };
   }
 
   Future<void> metaSet(String key, String value) =>

@@ -222,6 +222,7 @@ void main() {
       }
       final work = Directory('${dir.path}/work');
       final replaced = <List<String>>[];
+      final remembered = <String, String>{};
       final tagger = YtSongTagger(
         trackInfo: (id) async => YtTrackInfo(videoId: id, title: 'T $id', artist: 'Ar'),
         album: (id, title) async => null,
@@ -247,6 +248,7 @@ void main() {
           };
         },
         workDir: () async => work,
+        remember: (videoId, path) async => remembered[videoId] = path,
         batchSize: 1,
       );
       final progress = <int>[];
@@ -276,6 +278,9 @@ void main() {
       expect(work.listSync().whereType<File>(), isEmpty,
           reason: 'temp copies are cleaned up');
       expect(progress.last, 4);
+      // Identified files are remembered as downloads of their track; the one
+      // named from its file name has no track to be.
+      expect(remembered, {'id_A': paths[0]});
     });
   });
 }

@@ -20,6 +20,7 @@ import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../../Helpers/Channel.dart';
+import 'yt_downloads.dart';
 import 'yt_models.dart';
 import 'yt_repository.dart';
 import 'yt_song_tags.dart';
@@ -80,18 +81,24 @@ class YtDownloadRepair {
     YtFinish? finish,
     YtReplace? replace,
     Future<Directory> Function()? workDir,
+    Future<void> Function(String videoId, String path)? remember,
     this.batchSize = 25,
   }) : _tagger = tagger ?? YtSongTagger(),
        _search = search ?? _searchYouTubeMusic,
        _finish = finish ?? Channel.finishYtDownload,
        _replace = replace ?? Channel.replaceAudioFiles,
-       _workDir = workDir ?? _defaultWorkDir;
+       _workDir = workDir ?? _defaultWorkDir,
+       _remember = remember ?? YtDownloads.instance.remember;
 
   final YtSongTagger _tagger;
   final YtSearchSource _search;
   final YtFinish _finish;
   final YtReplace _replace;
   final Future<Directory> Function() _workDir;
+
+  /// Notes which track a repaired file turned out to be, so the player knows
+  /// it is already downloaded.
+  final Future<void> Function(String videoId, String path) _remember;
 
   /// Files written back per batch — one permission dialog each for files
   /// another app owns, and the temp space a batch takes (~4 MB a song).
@@ -172,6 +179,7 @@ class YtDownloadRepair {
           fixed++;
           if (p.fromFileName) fromFileName++;
           if (p.lrc != null) await writeLrcBeside(p.path, p.lrc!);
+          if (p.videoId != null) await _remember(p.videoId!, p.path);
         } else {
           failed++;
         }
@@ -208,6 +216,7 @@ class YtDownloadRepair {
               lrc: tags.lrc,
               cover: tags.coverPath,
               fromFileName: track == null,
+              videoId: track?.videoId,
             ),
           );
         } else {
@@ -275,6 +284,7 @@ class _Prepared {
   final String? lrc;
   final String? cover;
   final bool fromFileName;
+  final String? videoId;
 
   const _Prepared({
     required this.path,
@@ -282,6 +292,7 @@ class _Prepared {
     required this.lrc,
     required this.cover,
     required this.fromFileName,
+    this.videoId,
   });
 }
 

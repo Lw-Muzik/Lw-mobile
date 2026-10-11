@@ -31,17 +31,17 @@ class LibrarySurface extends StatefulWidget {
 class _LibrarySurfaceState extends State<LibrarySurface> {
   int _mode = 0;
 
-  /// Folders and Playlists are Android-only — `queryPlaylists` is documented in
-  /// `play_list_view.dart` as unsupported on iOS.
+  /// Folders are Android-only. Playlists are everywhere now: the app's own
+  /// work on iOS too, and only the media library's are Android's alone (see
+  /// `play_list_view.dart`).
   late final List<_Mode> _modes = [
     const _Mode('Songs', Icons.music_note_rounded, AllSongs()),
     const _Mode('Albums', Icons.album_rounded, Albums()),
     const _Mode('Artists', Icons.person_rounded, Artists()),
     const _Mode('Genres', Icons.category_rounded, Genres()),
-    if (Platform.isAndroid) ...[
+    if (Platform.isAndroid)
       const _Mode('Folders', Icons.folder_rounded, Folders()),
-      const _Mode('Playlists', Icons.queue_music_rounded, PlayListView()),
-    ],
+    const _Mode('Playlists', Icons.queue_music_rounded, PlayListView()),
   ];
 
   @override
@@ -52,8 +52,7 @@ class _LibrarySurfaceState extends State<LibrarySurface> {
           height: 46,
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(
-                horizontal: Ember.gutter - 6),
+            padding: const EdgeInsets.symmetric(horizontal: Ember.gutter - 6),
             itemCount: _modes.length,
             itemBuilder: (context, index) => _chip(index),
           ),

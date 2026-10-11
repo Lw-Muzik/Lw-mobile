@@ -1,14 +1,12 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:provider/provider.dart';
 
 import '/helpers/channel.dart';
-import '/controllers/app_controller.dart';
 import '/controllers/library_controller.dart';
 import '/data/library_repository.dart';
 import '/models/recognition_result.dart';
+import '/services/track_identify.dart';
 import '/pages/album_songs.dart';
 import '/pages/artist_songs.dart';
 import 'playlist_widget.dart';
@@ -297,52 +295,13 @@ class _SongOptionsSheetState extends State<SongOptionsSheet> {
       _identifying = true;
       _error = null;
     });
-
-    try {
-      final controller = AppController.instance;
-      final isCloud = widget.song.data.startsWith('http');
-
-      // For cloud files, use the locally cached audio file for fingerprinting
-      String? fingerprintPath;
-      if (isCloud) {
-        final fileId = widget.song.id.toString();
-        if (controller.cloudCache.isCached(fileId)) {
-          fingerprintPath = controller.cloudCache.cacheFile(fileId).path;
-        } else {
-          if (!mounted) return;
-          setState(() {
-            _identifying = false;
-            _error = "Cloud track not cached — play it first";
-          });
-          return;
-        }
-      }
-
-      final result = await controller.fingerprintService.identifySong(
-        widget.song,
-        fingerprintPath: fingerprintPath,
-      );
-
-      if (!mounted) return;
-
-      if (result == null || !result.hasUsefulData) {
-        setState(() {
-          _identifying = false;
-          _error = "Could not identify this track";
-        });
-      } else {
-        setState(() {
-          _identifying = false;
-          _result = result;
-        });
-      }
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _identifying = false;
-        _error = "Identification failed";
-      });
-    }
+    final outcome = await identifyTrack(widget.song);
+    if (!mounted) return;
+    setState(() {
+      _identifying = false;
+      _result = outcome.result;
+      _error = outcome.error;
+    });
   }
 
   Widget _buildResultTile(ThemeData theme) {
@@ -390,84 +349,20 @@ class _SongOptionsSheetState extends State<SongOptionsSheet> {
   }
 
   Future<void> _applyTags() async {
-    if (_result == null) return;
-
+    final result = _result;
+    if (result == null) return;
     setState(() => _applying = true);
-
-    final controller = AppController.instance;
-    final isCloud = widget.song.data.startsWith('http');
-
-    try {
-      // Write tags directly from the already-identified result
-      final tagMap = _result!.toTagMap();
-      if (tagMap.isEmpty) {
-        if (!mounted) return;
-        setState(() => _applying = false);
-        ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text("No tags to write")));
-        return;
-      }
-
-      // Fetch cover art if available
-      String? artworkPath;
-      if (_result!.musicBrainzReleaseId != null) {
-        artworkPath = await controller.fingerprintService.fetchCoverArt(
-          _result!.musicBrainzReleaseId!,
-        );
-      }
-
-      // Write tags to file (local files only — can't write to remote URLs)
-      if (!isCloud) {
-        final ok = await Channel.writeTags(
-          widget.song.data,
-          tagMap,
-          artworkPath: artworkPath,
-        );
-
-        if (!ok) {
-          // Clean up temp artwork on failure
-          if (artworkPath != null) {
-            try {
-              File(artworkPath).deleteSync();
-            } catch (_) {}
-          }
-          if (!mounted) return;
-          setState(() => _applying = false);
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text("Failed to write tags")));
-          return;
-        }
-
-        // Trigger MediaStore re-scan
-        await Channel.scanMediaFile(widget.song.data);
-      }
-
-      // Update in-memory state + save artwork to UI cache
-      await controller.updateSongMetadata(
-        widget.song,
-        _result!,
-        newArtworkPath: artworkPath,
-      );
-
-      // Clean up temp artwork after it's been copied to cache
-      if (artworkPath != null) {
-        try {
-          File(artworkPath).deleteSync();
-        } catch (_) {}
-      }
-
-      if (!mounted) return;
-
-      Navigator.pop(context);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("Tags and artwork updated")));
-    } catch (e) {
-      if (!mounted) return;
+    final error = await applyIdentification(widget.song, result);
+    if (!mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    if (error != null) {
       setState(() => _applying = false);
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text("Failed to write tags")));
+      messenger.showSnackBar(SnackBar(content: Text(error)));
+      return;
     }
+    Navigator.pop(context);
+    messenger.showSnackBar(
+      const SnackBar(content: Text("Tags and artwork updated")),
+    );
   }
 }

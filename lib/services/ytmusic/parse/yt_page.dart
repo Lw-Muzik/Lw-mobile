@@ -49,6 +49,61 @@ const _cardVideoType = 'watchEndpointMusicSupportedConfigs'
 /// result rather than the shelf.
 const _topResult = 'Top result';
 
+/// The top of an artist's page, or null when the page has none we can read.
+///
+/// Measured Oct 2026 (Patoranking): a `musicImmersiveHeaderRenderer` holding
+/// the name, a 1080×450 banner, the bio, "1.93M subscribers", "3.21M monthly
+/// audience" and YouTube's Shuffle and Mix buttons. Older and smaller pages
+/// use `musicVisualHeaderRenderer`, which adds a round portrait in
+/// `foregroundThumbnail` — read from either.
+YtArtistHeader? parseArtistHeader(Object? json) {
+  final header =
+      ptr(json, 'header/musicImmersiveHeaderRenderer') ??
+      ptr(json, 'header/musicVisualHeaderRenderer');
+  final name = joinRuns(ptr(header, 'title/runs'));
+  if (name == null) return null;
+  final subscribe = ptr(
+    header,
+    'subscriptionButton/subscribeButtonRenderer',
+  );
+  return YtArtistHeader(
+    name: name,
+    banner: bestThumbnail(
+      ptr(header, 'thumbnail/musicThumbnailRenderer/thumbnail/thumbnails'),
+    ),
+    avatar: bestThumbnail(
+      ptr(
+        header,
+        'foregroundThumbnail/musicThumbnailRenderer/thumbnail/thumbnails',
+      ),
+    ),
+    subscribers:
+        joinRuns(ptr(subscribe, 'longSubscriberCountText/runs')) ??
+        _withSubscribers(joinRuns(ptr(subscribe, 'subscriberCountText/runs'))),
+    audience: joinRuns(ptr(header, 'monthlyListenerCount/runs')),
+    description: joinRuns(ptr(header, 'description/runs')),
+    shuffle: _watchRef(
+      ptr(header, 'playButton/buttonRenderer/navigationEndpoint/watchEndpoint'),
+    ),
+    radio: _watchRef(
+      ptr(
+        header,
+        'startRadioButton/buttonRenderer/navigationEndpoint/watchEndpoint',
+      ),
+    ),
+  );
+}
+
+/// "1.93M" alone says nothing; the long form is "1.93M subscribers".
+String? _withSubscribers(String? count) =>
+    count == null ? null : '$count subscribers';
+
+YtWatchRef? _watchRef(Object? endpoint) {
+  final videoId = ptrString(endpoint, 'videoId');
+  if (videoId == null) return null;
+  return YtWatchRef(videoId, playlistId: ptrString(endpoint, 'playlistId'));
+}
+
 /// Every shelf on a mood, genre, artist or search page.
 ///
 /// Walks for the shelf renderers instead of navigating to them: a search nests

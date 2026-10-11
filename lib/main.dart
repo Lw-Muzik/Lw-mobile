@@ -39,6 +39,7 @@ import 'services/video/video_registry.dart';
 import 'services/streaming_data_guard.dart';
 import 'services/library_scanner.dart';
 import 'services/artwork_service.dart';
+import 'services/ytmusic/yt_downloads.dart';
 import 'services/share_service.dart';
 
 Future<void> main() async {
@@ -129,6 +130,7 @@ Future<void> main() async {
   // frame; art is resolved on demand through the same repository.
   final libraryRepo = LibraryRepository(LibraryDatabase());
   ArtworkService.instance.attachRepository(libraryRepo);
+  YtDownloads.instance.attachRepository(libraryRepo);
   AppController.libraryRepo = libraryRepo;
   final libraryScanner = LibraryScanner(libraryRepo);
 

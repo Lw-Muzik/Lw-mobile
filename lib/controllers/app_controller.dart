@@ -23,6 +23,7 @@ import '../services/cloud_metadata_service.dart';
 import '../services/google_drive_service.dart';
 import '../services/dropbox_service.dart';
 import '../services/lyrics_service.dart';
+import '../services/artwork_service.dart';
 import '../services/fingerprint_service.dart';
 import '../services/cast_controller.dart';
 import '../services/streaming_data_guard.dart';
@@ -1238,6 +1239,39 @@ class AppController with ChangeNotifier implements StationSink {
     playSongFromList([seed], 0);
     RadioQueue.instance.attach(source);
     await RadioQueue.instance.fill(this, force: true);
+  }
+
+  /// Makes everything after the playing track [source]'s station, leaving the
+  /// track itself playing where it is.
+  ///
+  /// "Start radio" on the song that is already playing. [playStation] starts
+  /// its seed from the top, which here would restart the very song the user
+  /// asked to hear more like. The queue is cut back to that one song and the
+  /// station grows behind it; in gapless mode the player is handed the shorter
+  /// queue the way a reorder hands it a new order — at the current position,
+  /// playing or paused as it was.
+  Future<void> continueAsStation(StationSource source) async {
+    if (_songId < 0 || _songId >= songs.length) return;
+    final playing = songs[_songId];
+    // The fill of the old queue, if one is still resolving, stops appending.
+    _queueGeneration++;
+    _songs = [playing];
+    _shuffledSongs = [playing];
+    _songId = 0;
+    _artWorkId = playing.id;
+    notifyListeners();
+    if (_gaplessPlayback &&
+        _crossfadeDuration == 0 &&
+        handler.player.audioSources.length > 1) {
+      await loadGaplessQueue(
+        0,
+        initialPosition: handler.player.position,
+        autoPlay: handler.player.playing,
+      );
+    }
+    RadioQueue.instance.attach(source);
+    await RadioQueue.instance.fill(this, force: true);
+    _saveSession();
   }
 
   /// Appends already-resolved tracks to the end of the live queue.
@@ -2697,20 +2731,19 @@ class AppController with ChangeNotifier implements StationSink {
       song.getMap['album'] = result.album;
     }
 
-    // If new artwork was fetched, save it to the UI cache location so
-    // savedImage()/ArtworkWidget picks it up immediately.
+    // New artwork becomes the song's artwork everywhere it shows, at once.
     // For songs that already had artwork, TagWriter skips embedding (fill-empty),
-    // but updating the cache with higher-quality Cover Art Archive art is fine.
+    // but showing the higher-quality Cover Art Archive art is fine.
+    //
+    // It used to be copied into temp under the file's bare name, which is not
+    // the name ArtworkService reads (it replaces spaces), and behind a path the
+    // database and memory cache already held — so it rarely showed at all.
     if (newArtworkPath != null && File(newArtworkPath).existsSync()) {
       try {
-        final tempDir = await getTemporaryDirectory();
-        final isCloud = song.data.startsWith('http');
-        final cachePath = isCloud
-            ? '${tempDir.path}/cloud_art_${song.id}.png'
-            : '${tempDir.path}/${song.data.split('/').last.split('.').first}.png';
-        final cacheFile = File(cachePath);
-        if (cacheFile.existsSync()) cacheFile.deleteSync();
-        File(newArtworkPath).copySync(cachePath);
+        await ArtworkService.instance.setChosenArtwork(
+          song.id,
+          await File(newArtworkPath).readAsBytes(),
+        );
       } catch (_) {}
     }
 

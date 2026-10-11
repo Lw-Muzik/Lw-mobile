@@ -1,17 +1,31 @@
-/// An artist's page: their top songs as rows, then their albums, singles and
-/// videos as shelves.
+/// An artist's page: who they are, their top songs as rows, then their
+/// albums, singles and videos as shelves.
 ///
-/// "Play all" queues the rows only. The carousels are things to *open*, not
+/// # The header
+///
+/// YouTube Music's own: the artist's banner full-bleed with their name over
+/// it, how many listen, and play, shuffle and radio — then their bio, folded
+/// to three lines. A page with only a portrait (an older or smaller artist)
+/// shows that, round, over itself blurred.
+///
+/// "Play" queues the rows only. The carousels are things to *open*, not
 /// tracks, and flattening each of them would be dozens of requests for one play
 /// button — which is the same call desktop makes, and what YouTube's own play
 /// button does.
 library;
 
+import 'dart:math' as math;
+import 'dart:ui' show ImageFilter;
+
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
+import '../../services/ytmusic/parse/yt_json.dart';
 import '../../services/ytmusic/yt_models.dart';
 import '../../services/ytmusic/yt_playback.dart';
 import '../../services/ytmusic/yt_repository.dart';
+import '../../themes/ember.dart';
+import 'widgets/yt_hero.dart';
 import 'widgets/yt_widgets.dart';
 import 'yt_open.dart';
 
@@ -25,14 +39,30 @@ class YtArtistPage extends StatefulWidget {
 }
 
 class _YtArtistPageState extends State<YtArtistPage> {
+  YtArtistHeader? _header;
   List<ExploreShelf> _shelves = const [];
   bool _loading = true;
   String? _error;
+  final _scroll = ScrollController();
+  bool _collapsed = false;
 
   @override
   void initState() {
     super.initState();
+    _scroll.addListener(_onScroll);
     _load();
+  }
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    final collapsed =
+        _scroll.offset > _heroHeight(context) - kToolbarHeight - 24;
+    if (collapsed != _collapsed) setState(() => _collapsed = collapsed);
   }
 
   Future<void> _load() async {
@@ -41,15 +71,15 @@ class _YtArtistPageState extends State<YtArtistPage> {
       _error = null;
     });
     try {
-      final shelves =
-          await YtMusicRepository.instance.artistPage(widget.item.id);
+      final page = await YtMusicRepository.instance.artistPage(widget.item.id);
       if (!mounted) return;
       setState(() {
-        _shelves = shelves;
+        _header = page.header;
+        _shelves = page.shelves;
         _loading = false;
       });
       YtMusicRepository.instance.prefetchAudio([
-        for (final shelf in shelves)
+        for (final shelf in page.shelves)
           for (final item in shelf.items)
             if (item.isPlayable) item.id,
       ]);
@@ -62,76 +92,81 @@ class _YtArtistPageState extends State<YtArtistPage> {
     }
   }
 
-  /// The playable rows across the page, credited to this artist where a row
-  /// didn't link a credit — on their own page, an unlinked credit is them.
-  List<YtTrack> get _tracks => [
-        for (final shelf in _shelves)
-          for (final item in shelf.items)
-            if (item.isPlayable)
-              item
-                  .asTrack(
-                    playlistId: widget.item.id,
-                    playlistTitle: widget.item.title,
-                  )
-                  .copyWith(artist: item.artist ?? widget.item.title),
-      ];
+  String get _name => _header?.name ?? widget.item.title;
+
+  /// A shelf's rows as tracks, credited to this artist where a row didn't
+  /// link a credit — on their own page, an unlinked credit is them.
+  List<YtTrack> _tracksOf(Iterable<ExploreItem> items) => [
+    for (final item in items)
+      if (item.isPlayable)
+        item
+            .asTrack(playlistId: widget.item.id, playlistTitle: _name)
+            .copyWith(artist: item.artist ?? _name),
+  ];
+
+  /// Every playable row on the page.
+  List<YtTrack> get _tracks =>
+      _tracksOf([for (final shelf in _shelves) ...shelf.items]);
+
+  double _heroHeight(BuildContext context) {
+    final width = MediaQuery.sizeOf(context).width;
+    return MediaQuery.paddingOf(context).top + math.min(width * 0.82, 440);
+  }
+
+  void _radio() {
+    final seed = _header?.radio;
+    final tracks = _tracks;
+    if (seed != null) {
+      YtPlayback.startRadio(
+        context,
+        YtTrack(videoId: seed.videoId, title: _name, artist: _name),
+      );
+    } else if (tracks.isNotEmpty) {
+      YtPlayback.startRadio(context, tracks.first);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final tracks = _tracks;
-
+    final header = _header;
     return Scaffold(
+      backgroundColor: Ember.ground,
       body: CustomScrollView(
+        controller: _scroll,
         slivers: [
           SliverAppBar(
             pinned: true,
-            expandedHeight: 240,
-            flexibleSpace: FlexibleSpaceBar(
-              title: Text(
-                widget.item.title,
+            expandedHeight: _heroHeight(context),
+            backgroundColor: Ember.ground,
+            surfaceTintColor: Colors.transparent,
+            foregroundColor: Ember.textPrimary,
+            leading: const _BackButton(),
+            title: AnimatedOpacity(
+              duration: const Duration(milliseconds: 180),
+              opacity: _collapsed ? 1 : 0,
+              child: Text(
+                _name,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style:
-                    const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
-              background: Stack(
-                fit: StackFit.expand,
-                children: [
-                  if (widget.item.thumbnail != null)
-                    Opacity(
-                      opacity: 0.4,
-                      child: YtArtwork(url: widget.item.thumbnail, size: 400),
-                    ),
-                  DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          theme.colorScheme.surface.withValues(alpha: 0.1),
-                          theme.colorScheme.surface,
-                        ],
-                      ),
-                    ),
-                  ),
-                  Center(
-                    child: YtArtwork(
-                      url: widget.item.thumbnail,
-                      size: 108,
-                      circular: true,
-                      placeholder: Icons.person_rounded,
-                    ),
-                  ),
-                ],
+            ),
+            flexibleSpace: FlexibleSpaceBar(
+              collapseMode: CollapseMode.parallax,
+              background: _ArtistHero(
+                name: _name,
+                banner: header?.banner,
+                portrait: header?.avatar ?? widget.item.thumbnail,
+                stats: [?header?.subscribers, ?header?.audience].join(' • '),
               ),
             ),
           ),
           if (_loading)
-            const SliverFillRemaining(
-              hasScrollBody: false,
-              child: YtSkeleton(),
-            )
+            const SliverFillRemaining(hasScrollBody: false, child: YtSkeleton())
           else if (_error case final String message)
             SliverFillRemaining(
               hasScrollBody: false,
@@ -153,38 +188,360 @@ class _YtArtistPageState extends State<YtArtistPage> {
               ),
             )
           else ...[
-            if (tracks.isNotEmpty)
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: FilledButton.icon(
-                      onPressed: () => YtPlayback.play(context, tracks, 0),
-                      icon: const Icon(Icons.play_arrow_rounded, size: 20),
-                      label: const Text('Play all'),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+                child: Row(
+                  children: [
+                    YtRoundButton(
+                      icon: Icons.play_arrow_rounded,
+                      tooltip: 'Play',
+                      size: 58,
+                      primary: true,
+                      onTap: tracks.isEmpty
+                          ? null
+                          : () => YtPlayback.play(context, tracks, 0),
                     ),
-                  ),
+                    const SizedBox(width: 14),
+                    YtRoundButton(
+                      icon: Icons.shuffle_rounded,
+                      tooltip: 'Shuffle',
+                      onTap: tracks.isEmpty
+                          ? null
+                          : () => YtPlayback.play(
+                              context,
+                              [...tracks]..shuffle(),
+                              0,
+                            ),
+                    ),
+                    const SizedBox(width: 14),
+                    YtRoundButton(
+                      icon: Icons.radio_rounded,
+                      tooltip: 'Radio',
+                      onTap: header?.radio == null && tracks.isEmpty
+                          ? null
+                          : _radio,
+                    ),
+                  ],
                 ),
               ),
+            ),
+            if (header?.description case final bio?)
+              SliverToBoxAdapter(child: _About(text: bio)),
             SliverPadding(
-              padding: const EdgeInsets.fromLTRB(12, 0, 12, 90),
+              padding: const EdgeInsets.fromLTRB(12, 4, 12, 110),
               sliver: SliverList.builder(
                 itemCount: _shelves.length,
-                itemBuilder: (context, index) => YtShelfRow(
-                  shelf: _shelves[index],
-                  onOpen: (item) => openExploreItem(
-                    context,
-                    item,
-                    siblings: _shelves[index].items,
-                  ),
-                  onHold: (item) => showTrackActions(context, item.asTrack()),
-                ),
+                itemBuilder: (context, index) {
+                  final shelf = _shelves[index];
+                  final rows = shelf.items.every(
+                    (item) =>
+                        item.kind == ExploreKind.song ||
+                        item.kind == ExploreKind.video,
+                  );
+                  // Rows read as a list — "Top songs" — and carousels as
+                  // carousels.
+                  if (rows && index == 0) {
+                    return _SongList(
+                      title: shelf.title,
+                      tracks: _tracksOf(shelf.items),
+                    );
+                  }
+                  return YtShelfRow(
+                    shelf: shelf,
+                    onOpen: (item) =>
+                        openExploreItem(context, item, siblings: shelf.items),
+                    onHold: (item) => showTrackActions(context, item.asTrack()),
+                  );
+                },
               ),
             ),
           ],
         ],
       ),
+    );
+  }
+}
+
+class _BackButton extends StatelessWidget {
+  const _BackButton();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Material(
+        color: Colors.black.withValues(alpha: 0.28),
+        shape: const CircleBorder(),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: () => Navigator.of(context).maybePop(),
+          child: const SizedBox.square(
+            dimension: 40,
+            child: Icon(
+              Icons.arrow_back_ios_new_rounded,
+              size: 18,
+              color: Ember.textPrimary,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The banner full-bleed, the name over it.
+class _ArtistHero extends StatelessWidget {
+  const _ArtistHero({
+    required this.name,
+    required this.banner,
+    required this.portrait,
+    required this.stats,
+  });
+
+  final String name;
+  final String? banner;
+  final String? portrait;
+  final String stats;
+
+  @override
+  Widget build(BuildContext context) {
+    final banner = this.banner;
+    final portrait = this.portrait;
+    // Until the banner arrives (a 1080 px image), a wash in the artist's own
+    // colour rather than a black hole at the top of the page.
+    final tint = Ember.accentFor(name);
+    final waiting = DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color.lerp(tint, Colors.black, 0.2)!, Ember.ground],
+        ),
+      ),
+    );
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        if (banner != null)
+          CachedNetworkImage(
+            imageUrl: banner,
+            fit: BoxFit.cover,
+            alignment: const Alignment(0, -0.35),
+            fadeInDuration: const Duration(milliseconds: 350),
+            placeholder: (_, _) => waiting,
+            errorWidget: (_, _, _) => waiting,
+          )
+        else if (portrait != null)
+          ImageFiltered(
+            imageFilter: ImageFilter.blur(sigmaX: 40, sigmaY: 40),
+            child: Opacity(
+              opacity: 0.55,
+              child: CachedNetworkImage(
+                imageUrl: thumbnailAt(portrait, 160),
+                fit: BoxFit.cover,
+                errorWidget: (_, _, _) => const SizedBox.shrink(),
+              ),
+            ),
+          ),
+        DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Colors.black.withValues(alpha: 0.35),
+                Colors.transparent,
+                Ember.ground.withValues(alpha: 0.6),
+                Ember.ground,
+              ],
+              stops: const [0, 0.3, 0.72, 1],
+            ),
+          ),
+        ),
+        if (banner == null && portrait != null)
+          Align(
+            alignment: const Alignment(0, -0.1),
+            child: Container(
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: Color(0x99000000),
+                    blurRadius: 30,
+                    offset: Offset(0, 12),
+                  ),
+                ],
+              ),
+              child: YtArtwork(
+                url: portrait,
+                size: 132,
+                circular: true,
+                placeholder: Icons.person_rounded,
+              ),
+            ),
+          ),
+        Positioned(
+          left: 20,
+          right: 20,
+          bottom: 18,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                name,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Ember.textPrimary,
+                  fontSize: 36,
+                  fontWeight: FontWeight.w800,
+                  height: 1.05,
+                  letterSpacing: -1,
+                  shadows: [Shadow(color: Color(0x66000000), blurRadius: 18)],
+                ),
+              ),
+              if (stats.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Text(
+                  stats,
+                  style: TextStyle(
+                    color: Ember.textPrimary.withValues(alpha: 0.78),
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// The bio, folded to three lines until asked for.
+class _About extends StatefulWidget {
+  const _About({required this.text});
+
+  final String text;
+
+  @override
+  State<_About> createState() => _AboutState();
+}
+
+class _AboutState extends State<_About> {
+  bool _open = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
+      child: Material(
+        color: Colors.white.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(Ember.radiusCard),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(Ember.radiusCard),
+          onTap: () => setState(() => _open = !_open),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 16, 18, 14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'ABOUT',
+                  style: TextStyle(
+                    color: Ember.accent,
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1.6,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                AnimatedSize(
+                  duration: const Duration(milliseconds: 320),
+                  curve: Curves.easeOutCubic,
+                  alignment: Alignment.topCenter,
+                  child: Text(
+                    widget.text,
+                    maxLines: _open ? null : 3,
+                    overflow: _open ? null : TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Ember.textSecondary,
+                      fontSize: 14,
+                      height: 1.45,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  _open ? 'Less' : 'More',
+                  style: const TextStyle(
+                    color: Ember.textPrimary,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The page's song rows — "Top songs" — five at a time.
+class _SongList extends StatefulWidget {
+  const _SongList({required this.title, required this.tracks});
+
+  final String title;
+  final List<YtTrack> tracks;
+
+  @override
+  State<_SongList> createState() => _SongListState();
+}
+
+class _SongListState extends State<_SongList> {
+  bool _all = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final tracks = widget.tracks;
+    final shown = _all ? tracks : tracks.take(5).toList();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(4, 16, 4, 6),
+          child: Text(
+            widget.title.toUpperCase(),
+            style: Ember.shelfTitle(context),
+          ),
+        ),
+        AnimatedSize(
+          duration: const Duration(milliseconds: 360),
+          curve: Curves.easeOutCubic,
+          alignment: Alignment.topCenter,
+          child: Column(
+            children: [
+              for (var i = 0; i < shown.length; i++)
+                YtTrackRow(
+                  track: shown[i],
+                  position: i + 1,
+                  onTap: () => YtPlayback.play(context, tracks, i),
+                  onMore: () => showTrackActions(context, shown[i]),
+                ),
+            ],
+          ),
+        ),
+        if (tracks.length > 5)
+          TextButton(
+            onPressed: () => setState(() => _all = !_all),
+            style: TextButton.styleFrom(foregroundColor: Ember.textPrimary),
+            child: Text(_all ? 'Show less' : 'Show all ${tracks.length}'),
+          ),
+      ],
     );
   }
 }

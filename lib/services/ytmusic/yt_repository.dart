@@ -117,9 +117,10 @@ class YtMusicRepository {
     return shelves;
   }
 
-  /// One artist's shelves — top songs, albums, singles, videos.
-  Future<List<ExploreShelf>> artistPage(String browseId) =>
-      YtWorker.instance.run<List<ExploreShelf>>(
+  /// One artist's page: who they are, then their shelves — top songs,
+  /// albums, singles, videos.
+  Future<YtArtistPageData> artistPage(String browseId) =>
+      YtWorker.instance.run<YtArtistPageData>(
         YtOp.artistPage,
         {'browseId': browseId},
       );
@@ -210,7 +211,7 @@ class YtMusicRepository {
   /// An artist whose page holds no rows is an empty queue rather than an error —
   /// there is nothing wrong with the page, it simply lists no songs.
   Future<List<YtTrack>> _artistTracks(ExploreItem item) async {
-    final shelves = await artistPage(item.id);
+    final shelves = (await artistPage(item.id)).shelves;
     return [
       for (final shelf in shelves)
         for (final entry in shelf.items)

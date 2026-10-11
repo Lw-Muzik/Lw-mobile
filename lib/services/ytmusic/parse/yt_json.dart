@@ -5,6 +5,8 @@
 /// insisting on a shape and destroying an entire response when reality differs.
 library;
 
+import '../yt_models.dart';
+
 /// Walks a decoded JSON tree by a `/a/b/0/c` path.
 ///
 /// A JSON-pointer stand-in, because Dart has none and the Rust this is ported
@@ -80,6 +82,33 @@ String? bestThumbnail(Object? thumbs) {
   }
   return best;
 }
+
+/// The artists a byline credits, each with their channel where it links one.
+///
+/// [runs] is the artist part of a byline — `Burna Boy`, ` & `, `Ed Sheeran` —
+/// as YouTube splits it: one run per artist, separators as runs of their own. A
+/// run linking a channel (`UC…`) is an artist; so is any other run that isn't
+/// a separator, because YouTube leaves some credits unlinked. A run linking
+/// anything else (an album, a playlist) is not a credit.
+List<YtArtistRef> artistRefs(Object? runs) {
+  if (runs is! List) return const [];
+  final out = <YtArtistRef>[];
+  for (final run in runs) {
+    final text = ptrString(run, 'text')?.trim();
+    if (text == null || text.isEmpty || _creditSeparator.hasMatch(text)) {
+      continue;
+    }
+    final id = ptrString(run, 'navigationEndpoint/browseEndpoint/browseId');
+    if (id != null && !id.startsWith('UC')) continue;
+    out.add(YtArtistRef(text, id: id));
+  }
+  return out;
+}
+
+final _creditSeparator = RegExp(
+  r'^(,|&|•|x|×|and|feat\.?|ft\.?|with)$',
+  caseSensitive: false,
+);
 
 /// Seconds from a `M:SS` or `H:MM:SS` running time.
 ///

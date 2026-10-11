@@ -521,6 +521,18 @@ import AVFoundation
         case "scanMediaFile":
             result(nil)
 
+        // ==================== Sharing ====================
+        case "shareText":
+            presentShareSheet(items: [args?["text"] as? String ?? ""], result: result)
+
+        case "shareAudio":
+            guard let path = args?["filePath"] as? String,
+                  FileManager.default.fileExists(atPath: path) else {
+                result(false)
+                return
+            }
+            presentShareSheet(items: [URL(fileURLWithPath: path)], result: result)
+
         // ==================== YouTube downloads ====================
         case "finishYtDownload":
             guard let src = args?["src"] as? String, let dst = args?["dst"] as? String else {
@@ -861,5 +873,28 @@ import AVFoundation
         }
 
         return nil
+    }
+
+    /// The system share sheet over whatever is showing. On iPad it must be
+    /// anchored or UIKit throws; it is pinned to the bottom centre, under the
+    /// song's actions it was opened from.
+    private func presentShareSheet(items: [Any], result: @escaping FlutterResult) {
+        DispatchQueue.main.async {
+            guard var top = self.window?.rootViewController else {
+                result(false)
+                return
+            }
+            while let presented = top.presentedViewController { top = presented }
+            let sheet = UIActivityViewController(activityItems: items, applicationActivities: nil)
+            if let popover = sheet.popoverPresentationController {
+                popover.sourceView = top.view
+                popover.sourceRect = CGRect(
+                    x: top.view.bounds.midX, y: top.view.bounds.maxY - 120,
+                    width: 1, height: 1)
+                popover.permittedArrowDirections = []
+            }
+            top.present(sheet, animated: true)
+            result(true)
+        }
     }
 }

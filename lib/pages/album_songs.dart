@@ -13,11 +13,19 @@ import '/data/library_repository.dart';
 
 class AlbumSongs extends StatefulWidget {
   final int? albumId;
+
+  /// A song whose cover stands in when there is no album id to look art up
+  /// by — a album reached from the player, for a file the media library
+  /// never gave one.
+  final int? coverSongId;
+  final String coverPath;
   final String album;
   final int songs;
   const AlbumSongs({
     super.key,
     required this.albumId,
+    this.coverSongId,
+    this.coverPath = '',
     required this.album,
     required this.songs,
   });
@@ -69,9 +77,12 @@ class _AlbumSongsState extends State<AlbumSongs> {
                           quality: 100,
                           width: MediaQuery.of(context).size.width,
                           height: MediaQuery.of(context).size.width,
-                          songId: widget.albumId!,
-                          other: widget.album,
-                          type: ArtworkType.ALBUM,
+                          songId: widget.albumId ?? widget.coverSongId ?? 0,
+                          other: widget.albumId == null ? '' : widget.album,
+                          path: widget.albumId == null ? widget.coverPath : '',
+                          type: widget.albumId == null
+                              ? ArtworkType.AUDIO
+                              : ArtworkType.ALBUM,
                         ),
                       ),
                     ),

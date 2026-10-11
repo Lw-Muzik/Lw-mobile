@@ -94,6 +94,80 @@ class ExploreShelf {
   const ExploreShelf({required this.title, required this.items});
 }
 
+/// One credited artist, and their channel when the credit links one.
+///
+/// Kept per artist rather than joined, so a collaboration can offer each of
+/// its artists' pages — "Burna Boy & Ed Sheeran" is two places to go.
+class YtArtistRef {
+  final String name;
+
+  /// The `UC…` channel id, or null where YouTube credits the name without
+  /// linking it.
+  final String? id;
+
+  const YtArtistRef(this.name, {this.id});
+
+  /// The artist as something to open.
+  ExploreItem? asItem({String? thumbnail}) => id == null
+      ? null
+      : ExploreItem(
+          id: id!,
+          kind: ExploreKind.artist,
+          title: name,
+          thumbnail: thumbnail,
+        );
+}
+
+/// A button on a page that starts playback: the video it opens on and the
+/// list it plays from.
+class YtWatchRef {
+  final String videoId;
+  final String? playlistId;
+
+  const YtWatchRef(this.videoId, {this.playlistId});
+}
+
+/// The top of an artist's page.
+class YtArtistHeader {
+  final String name;
+
+  /// The wide banner behind the name (about 2.4:1), resizable.
+  final String? banner;
+
+  /// A round portrait, on the pages that have one apart from the banner.
+  final String? avatar;
+
+  /// "1.93M subscribers".
+  final String? subscribers;
+
+  /// "3.21M monthly audience".
+  final String? audience;
+  final String? description;
+
+  /// YouTube's own Shuffle and Mix buttons.
+  final YtWatchRef? shuffle;
+  final YtWatchRef? radio;
+
+  const YtArtistHeader({
+    required this.name,
+    this.banner,
+    this.avatar,
+    this.subscribers,
+    this.audience,
+    this.description,
+    this.shuffle,
+    this.radio,
+  });
+}
+
+/// An artist's page: who they are, then their shelves.
+class YtArtistPageData {
+  final YtArtistHeader? header;
+  final List<ExploreShelf> shelves;
+
+  const YtArtistPageData({this.header, required this.shelves});
+}
+
 /// One mood or genre YouTube offers ("Chill", "African", …).
 class ExploreCategory {
   final String title;
