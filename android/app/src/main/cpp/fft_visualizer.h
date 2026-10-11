@@ -12,9 +12,22 @@
  *
  * FFT: in-place radix-2 Cooley-Tukey via the "pack two reals" trick.
  *       2048-point real FFT at 44.1kHz = 21.5 Hz resolution, 46ms window.
+ *
+ * Heard time: the tap sits upstream of the AudioTrack, so what it receives is
+ * ~0.3 s from being heard (the track's buffer plus output latency; measured
+ * 280-316 ms on a Lenovo tablet, more on Bluetooth). Every read here takes an
+ * END index — the ring position being heard now, worked out from ExoPlayer's
+ * playback clock in VisualizerTapProcessor — so the picture moves with the
+ * sound instead of a quarter-second ahead of it. -1 means "newest", the old
+ * behaviour, for when no clock is known.
+ *
+ * Beat frames (computeBeat): the energy below ~150 Hz in ~5.8 ms hops for the
+ * stretch heard since the last call, plus 64 band levels in dBFS. The radial
+ * visualizer finds bass hits in the hops (lib/visualizers/bass_beat.dart).
  */
 
 #include <cmath>
+#include <cstdint>
 #include <cstring>
 #include <atomic>
 #include <algorithm>
@@ -54,6 +67,7 @@ public:
         }
 
         computeBandEdges();
+        designBassFilters();
 
         memset(ringBuf_, 0, sizeof(ringBuf_));
         memset(smoothBands_, 0, sizeof(smoothBands_));
@@ -64,14 +78,25 @@ public:
     /**
      * Called from audio thread (ExoPlayer AudioProcessor).
      * Downmixes stereo-interleaved float PCM to mono and writes to ring buffer.
+     * Returns the ring index the first frame landed at, which is how the tap
+     * maps the player's clock onto the ring.
      */
-    void pushSamples(const float* stereoInterleaved, int numFrames) {
+    int64_t pushSamples(const float* stereoInterleaved, int numFrames) {
+        const int64_t first = writePos_.load(std::memory_order_relaxed);
         for (int i = 0; i < numFrames; i++) {
             float mono = (stereoInterleaved[i * 2] + stereoInterleaved[i * 2 + 1]) * 0.5f;
-            ringBuf_[writePos_ & RING_MASK] = mono;
-            writePos_++;
+            ringBuf_[(first + i) & RING_MASK] = mono;
         }
+        writePos_.store(first + numFrames, std::memory_order_release);
         samplesAvailable_.fetch_add(numFrames, std::memory_order_release);
+        return first;
+    }
+
+    /** The sample rate the bass filters are tuned for. Viz thread. */
+    void setSampleRate(int sampleRate) {
+        if (sampleRate <= 0 || sampleRate == sampleRate_) return;
+        sampleRate_ = sampleRate;
+        designBassFilters();
     }
 
     // ── Viz thread: compute FFT + bands here (~30fps) ─────────────────
@@ -81,12 +106,13 @@ public:
      * Returns true if new data was computed.
      * Output: bands[0..NUM_BANDS-1] = smoothed magnitude 0.0–1.0
      */
-    bool computeBands(float* bands) {
+    bool computeBands(float* bands, int64_t endIndex = -1) {
         int avail = samplesAvailable_.load(std::memory_order_acquire);
         if (avail < FFT_SIZE) return false;
 
-        // Snap the latest FFT_SIZE samples from ring buffer + apply Hann window
-        int rp = writePos_ - FFT_SIZE;
+        // Snap the FFT_SIZE samples ending at the heard position (or the
+        // newest, without a clock) + apply Hann window
+        const int64_t rp = windowEnd(endIndex) - FFT_SIZE;
         for (int i = 0; i < FFT_SIZE; i++) {
             inputBuf_[i] = ringBuf_[(rp + i) & RING_MASK] * window_[i];
         }
@@ -135,9 +161,9 @@ public:
      * with existing Flutter visualizer painters.
      * Output: wave[0..size-1], returns actual size written.
      */
-    int getWaveform(uint8_t* wave, int maxSize) {
+    int getWaveform(uint8_t* wave, int maxSize, int64_t endIndex = -1) {
         int count = std::min(maxSize, (int)FFT_SIZE);
-        int rp = writePos_ - count;
+        const int64_t rp = windowEnd(endIndex) - count;
         for (int i = 0; i < count; i++) {
             float s = ringBuf_[(rp + i) & RING_MASK];
             // Clamp [-1,1] → [0,255]
@@ -148,14 +174,151 @@ public:
         return count;
     }
 
+    /** Hops at most per beat frame: 0.75 s of them, more than a slow tick needs. */
+    static constexpr int MAX_HOPS = 128;
+    /** Floats in the largest frame computeBeat writes. */
+    static constexpr int BEAT_FRAME_MAX = 6 + MAX_HOPS + NUM_BANDS;
+
+    /**
+     * Writes a beat frame for the stretch heard since the previous call:
+     *
+     *   [0] format (1)   [1] sample rate   [2] hop seconds   [3] synced (1/0)
+     *   [4] hop count n  [5 .. 5+n) mean square below ~150 Hz per hop
+     *   [5+n] band count (64)  then the bands' levels, dBFS, at the heard end
+     *
+     * Returns the number of floats written. Viz thread only.
+     */
+    int computeBeat(float* out, int64_t endIndex) {
+        const int64_t end = windowEnd(endIndex);
+        const double hopSeconds = (double)hopSize_ / sampleRate_;
+
+        // Restart cleanly rather than filter a backlog: first frame, a seek, a
+        // pause longer than half a second, or the clock stepping backwards.
+        const int64_t resync = sampleRate_ / 2;
+        if (bassCursor_ < 0 || end - bassCursor_ > resync || bassCursor_ - end > resync / 2) {
+            bassCursor_ = end;
+            hp_.reset();
+            lp1_.reset();
+            lp2_.reset();
+            hopAcc_ = 0;
+            hopFill_ = 0;
+        }
+        int n = 0;
+        float* hops = out + 5;
+        for (int64_t i = bassCursor_; i < end; i++) {
+            const double y = lp2_.process(lp1_.process(hp_.process(ringBuf_[i & RING_MASK])));
+            hopAcc_ += y * y;
+            if (++hopFill_ >= hopSize_) {
+                if (n < MAX_HOPS) hops[n++] = (float)(hopAcc_ / hopSize_);
+                hopAcc_ = 0;
+                hopFill_ = 0;
+            }
+        }
+        if (end > bassCursor_) bassCursor_ = end;
+
+        out[0] = 1.0f;
+        out[1] = (float)sampleRate_;
+        out[2] = (float)hopSeconds;
+        out[3] = endIndex >= 0 ? 1.0f : 0.0f;
+        out[4] = (float)n;
+
+        // Absolute band levels where the hops end: the radial's bars.
+        const int64_t rp = end - FFT_SIZE;
+        for (int i = 0; i < FFT_SIZE; i++) {
+            inputBuf_[i] = ringBuf_[(rp + i) & RING_MASK] * window_[i];
+        }
+        realFFT(inputBuf_, fftOut_, FFT_SIZE);
+        float* bands = out + 6 + n;
+        out[5 + n] = (float)NUM_BANDS;
+        for (int b = 0; b < NUM_BANDS; b++) {
+            const int lo = bandEdges_[b];
+            const int hi = bandEdges_[b + 1];
+            float sum = 0;
+            for (int i = lo; i < hi; i++) {
+                const float re = fftOut_[i * 2];
+                const float im = fftOut_[i * 2 + 1];
+                sum += sqrtf(re * re + im * im);
+            }
+            const float mean = sum / std::max(1, hi - lo);
+            // A full-scale sine peaks at FFT_SIZE/4 through a Hann window.
+            bands[b] = 20.0f * log10f(mean / (FFT_SIZE / 4) + 1e-9f);
+        }
+        return 6 + n + NUM_BANDS;
+    }
+
 private:
-    static constexpr int RING_SIZE = 8192;  // power of 2, >= 2*FFT_SIZE
+    // ~1.5 s at 44.1 kHz: the heard position trails the newest sample by the
+    // sink's lead (~0.3 s, more on Bluetooth), and a window must fit behind it.
+    static constexpr int RING_SIZE = 65536;  // power of 2
     static constexpr int RING_MASK = RING_SIZE - 1;
+    // Never read closer than this to being overwritten by the audio thread.
+    static constexpr int RING_GUARD = 8192;
 
     // Ring buffer (SPSC: audio thread writes, viz thread reads)
     float ringBuf_[RING_SIZE];
-    int writePos_ = 0;    // only written by audio thread
+    std::atomic<int64_t> writePos_{0};  // only written by audio thread
     std::atomic<int> samplesAvailable_{0};
+
+    /**
+     * Where a read window ends: the heard position when known, kept inside
+     * what the ring still holds; the newest sample otherwise.
+     */
+    int64_t windowEnd(int64_t endIndex) const {
+        const int64_t newest = writePos_.load(std::memory_order_acquire);
+        if (endIndex < 0) return newest;
+        const int64_t oldest = newest - (RING_SIZE - RING_GUARD) + FFT_SIZE;
+        return std::max(oldest, std::min(endIndex, newest));
+    }
+
+    // ── Bass hops (viz thread) ──
+    // Direct form I biquad in double: a 35 Hz high-pass at 44.1 kHz puts its
+    // poles within 0.005 of the unit circle, too close for float state.
+    struct Biquad {
+        double b0 = 1, b1 = 0, b2 = 0, a1 = 0, a2 = 0;
+        double x1 = 0, x2 = 0, y1 = 0, y2 = 0;
+        double process(double x) {
+            const double y = b0 * x + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2;
+            x2 = x1; x1 = x; y2 = y1; y1 = y;
+            return y;
+        }
+        void reset() { x1 = x2 = y1 = y2 = 0; }
+        // RBJ cookbook, Q = 1/sqrt(2): a second-order Butterworth section.
+        void design(bool highPass, double fc, double fs) {
+            const double w0 = 2.0 * M_PI * fc / fs;
+            const double cw = std::cos(w0);
+            const double alpha = std::sin(w0) / (2.0 * 0.7071067811865476);
+            const double a0 = 1.0 + alpha;
+            if (highPass) {
+                b0 = (1.0 + cw) / 2.0 / a0; b1 = -(1.0 + cw) / a0; b2 = b0;
+            } else {
+                b0 = (1.0 - cw) / 2.0 / a0; b1 = (1.0 - cw) / a0; b2 = b0;
+            }
+            a1 = -2.0 * cw / a0;
+            a2 = (1.0 - alpha) / a0;
+        }
+    };
+
+    // 35 Hz high-pass (rumble, DC) then a 4th-order 150 Hz low-pass: where a
+    // kick or an 808 is most of the energy.
+    Biquad hp_, lp1_, lp2_;
+    int sampleRate_ = 44100;
+    int hopSize_ = 256;         // ~5.8 ms
+    int64_t bassCursor_ = -1;   // next ring index to filter
+    double hopAcc_ = 0;
+    int hopFill_ = 0;
+
+    void designBassFilters() {
+        hp_.design(true, 35.0, sampleRate_);
+        lp1_.design(false, 150.0, sampleRate_);
+        lp2_.design(false, 150.0, sampleRate_);
+        hp_.reset();
+        lp1_.reset();
+        lp2_.reset();
+        // Keep the hop near 5.8 ms whatever the rate, so the detector's
+        // windows (counted in hops) mean the same time.
+        hopSize_ = std::max(64, (int)std::lround(sampleRate_ / 172.27));
+        bassCursor_ = -1;
+    }
 
     // FFT working buffers
     float window_[FFT_SIZE];

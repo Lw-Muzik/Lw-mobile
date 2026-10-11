@@ -7,7 +7,8 @@ import java.nio.ByteBuffer;
 
 /**
  * Reports stream changes and buffer media times to {@link StemSinkListener}
- * processors, then forwards everything to the real sink unchanged.
+ * processors, and the playback clock to {@link SinkClockListener} ones, then
+ * forwards everything to the real sink unchanged.
  *
  * <p>The renderer calls {@link #setOutputStreamOffsetUs} right after the last
  * buffer of one stream and before the first of the next; buffers carry
@@ -16,12 +17,13 @@ import java.nio.ByteBuffer;
  */
 final class StemAwareAudioSink extends ForwardingAudioSink {
     private final StemSinkListener[] listeners;
+    private final SinkClockListener[] clockListeners;
     private long outputStreamOffsetUs;
-    private long tmpLastLog; // TEMP-VIZLEAD
 
-    StemAwareAudioSink(AudioSink sink, StemSinkListener[] listeners) {
+    StemAwareAudioSink(AudioSink sink, StemSinkListener[] listeners, SinkClockListener[] clockListeners) {
         super(sink);
         this.listeners = listeners;
+        this.clockListeners = clockListeners;
     }
 
     @Override
@@ -36,13 +38,15 @@ final class StemAwareAudioSink extends ForwardingAudioSink {
             throws InitializationException, WriteException {
         final long mediaTimeUs = presentationTimeUs - outputStreamOffsetUs;
         for (StemSinkListener l : listeners) l.onSinkBuffer(mediaTimeUs);
-        // TEMP-VIZLEAD
-        long tmpNow = System.nanoTime();
-        if (tmpNow - tmpLastLog > 1_000_000_000L) {
-            tmpLastLog = tmpNow;
-            long tmpPos = getCurrentPositionUs(false);
-            android.util.Log.i("VizLead", "buffer=" + presentationTimeUs + " playing=" + tmpPos
-                + " lead_ms=" + ((presentationTimeUs - tmpPos) / 1000) + " bytes=" + buffer.remaining());
+        long playingUs = CURRENT_POSITION_NOT_SET;
+        boolean asked = false;
+        for (SinkClockListener l : clockListeners) {
+            if (!l.wantsSinkClock()) continue;
+            if (!asked) {
+                playingUs = getCurrentPositionUs(false);
+                asked = true;
+            }
+            l.onSinkClock(presentationTimeUs, playingUs);
         }
         return super.handleBuffer(buffer, presentationTimeUs, encodedAccessUnitCount);
     }

@@ -7,6 +7,8 @@ import androidx.annotation.NonNull;
 import androidx.media3.common.C;
 import androidx.media3.common.audio.AudioProcessor;
 import androidx.media3.common.audio.BaseAudioProcessor;
+import androidx.media3.exoplayer.audio.AudioSink;
+import com.ryanheise.just_audio.SinkClockListener;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -26,8 +28,20 @@ import io.flutter.plugin.common.EventChannel;
  *
  * The C++ FFT replaces Android's Visualizer API, eliminating the need for
  * an audio session ID. PCM is tapped directly from ExoPlayer's pipeline.
+ *
+ * <h3>Heard time</h3>
+ * The tap runs as ExoPlayer hands a buffer to the AudioTrack: ~0.3 s before
+ * it is heard (280-316 ms measured on the Lenovo tablet). Drawing the newest
+ * samples put every visualizer a quarter-second ahead of the music — half a
+ * beat at 100 bpm, so a bounce landed between kicks. The player's sink now
+ * reports its clock ({@link SinkClockListener}): the presentation time of the
+ * buffers it is given and the position it is playing out. Frames are counted
+ * from the first buffer after a flush, so the playing position maps onto the
+ * native ring ({@link #onSinkClock}), and the viz tick reads the audio being
+ * heard ({@link #heardIndex}) — plus {@link #VISUAL_LEAD_NS}, because a frame
+ * drawn now reaches the screen a frame or two later.
  */
-public class VisualizerTapProcessor extends BaseAudioProcessor {
+public class VisualizerTapProcessor extends BaseAudioProcessor implements SinkClockListener {
     private static final String TAG = "VisualizerTap";
 
     // All player-attached instances
@@ -43,6 +57,7 @@ public class VisualizerTapProcessor extends BaseAudioProcessor {
     // FFT visualization via EventChannel
     private static volatile EventChannel.EventSink fftSink;
     private static volatile EventChannel.EventSink waveformSink;
+    private static volatile EventChannel.EventSink beatSink;
     private static ScheduledExecutorService vizThread;
     private static final Handler mainHandler = new Handler(Looper.getMainLooper());
     private static volatile boolean fftEnabled = false;
@@ -53,9 +68,10 @@ public class VisualizerTapProcessor extends BaseAudioProcessor {
     // Native FFT methods (implemented in jni_bridge.cpp)
     private static native void nativeInitFFT();
     private static native void nativeDestroyFFT();
-    private static native void nativePushSamples(float[] samples, int numFrames);
-    private static native float[] nativeComputeBands();
-    private static native byte[] nativeGetWaveform();
+    private static native long nativePushSamples(float[] samples, int numFrames);
+    private static native float[] nativeComputeBands(long endIndex);
+    private static native byte[] nativeGetWaveform(long endIndex);
+    private static native float[] nativeComputeBeat(long endIndex, int sampleRate);
     private static native void nativeSetSmoothing(float attack, float decay);
     private static native void nativeSetGain(float gain);
 
@@ -96,6 +112,46 @@ public class VisualizerTapProcessor extends BaseAudioProcessor {
     }
 
     private int sampleRate = 44100;
+    private static volatile int latestSampleRate = 44100;
+
+    // ── Heard time (see the class comment) ──
+
+    /** A drawn frame reaches the screen ~one to two vsyncs after it is built. */
+    private static final long VISUAL_LEAD_NS = 35_000_000L;
+    /** Past this the playhead is stale (paused, seeking): fall back to newest. */
+    private static final long PLAYHEAD_MAX_AGE_NS = 500_000_000L;
+
+    /** Where the player's output is, on the native ring, as of {@code nanos}. */
+    private static final class Playhead {
+        final long ringIndex;
+        final long nanos;
+        final int sampleRate;
+        final VisualizerTapProcessor owner;
+
+        Playhead(long ringIndex, long nanos, int sampleRate, VisualizerTapProcessor owner) {
+            this.ringIndex = ringIndex;
+            this.nanos = nanos;
+            this.sampleRate = sampleRate;
+            this.owner = owner;
+        }
+    }
+
+    private static volatile Playhead playhead;
+    // During a crossfade two players push into the one ring; only the one that
+    // pushed last may move the playhead, so it does not flip between them.
+    private static volatile VisualizerTapProcessor latestPusher;
+
+    /** Presentation time of the first buffer since the last flush. */
+    private long streamStartUs = C.TIME_UNSET;
+    /** Frames this player has processed since the last flush. */
+    private long framesSinceFlush;
+    // Where recent buffers landed on the ring: frame index -> ring index.
+    private static final int CHUNKS = 128;
+    private final long[] chunkFrame = new long[CHUNKS];
+    private final long[] chunkRing = new long[CHUNKS];
+    private final int[] chunkFrames = new int[CHUNKS];
+    private int chunkNext;
+    private int chunkCount;
 
     // Double-buffered PCM scratch (F7): eliminates the per-callback heap
     // allocation and keeps the projectM reader thread-safe. Each callback fills
@@ -125,6 +181,7 @@ public class VisualizerTapProcessor extends BaseAudioProcessor {
         }
 
         sampleRate = inputAudioFormat.sampleRate;
+        latestSampleRate = sampleRate;
         Log.i(TAG, "Configured: " + sampleRate + "Hz, encoding=" + encoding);
         return inputAudioFormat;
     }
@@ -189,15 +246,77 @@ public class VisualizerTapProcessor extends BaseAudioProcessor {
                 latestPcm.set(pcm);
             }
 
-            // Push to C++ FFT ring buffer (synchronous copy — length-agnostic)
+            // Push to C++ FFT ring buffer (synchronous copy — length-agnostic),
+            // remembering where it landed so the clock can be mapped onto it.
             if (fftEnabled) {
-                nativePushSamples(pcm, numFrames);
+                long first = nativePushSamples(pcm, numFrames);
+                if (first >= 0) rememberChunk(framesSinceFlush, first, numFrames);
+                latestPusher = this;
             }
 
             // Flip so the next callback writes the other buffer, giving any
             // reader a full callback period before this array is reused.
             pcmToggle = !pcmToggle;
         }
+        framesSinceFlush += numFrames;
+    }
+
+    // ---- Sink clock (heard time) ----
+
+    @Override
+    public boolean wantsSinkClock() {
+        // Always for the first buffer of a stream, which anchors the count.
+        return fftEnabled || streamStartUs == C.TIME_UNSET;
+    }
+
+    @Override
+    public void onSinkClock(long presentationTimeUs, long playingPositionUs) {
+        if (streamStartUs == C.TIME_UNSET) streamStartUs = presentationTimeUs;
+        if (!fftEnabled || playingPositionUs == AudioSink.CURRENT_POSITION_NOT_SET) return;
+        if (latestPusher != this) return;
+        // The sink counts frames from the stream's first buffer the same way:
+        // what it plays out at P is frame (P - start) of what passed through here.
+        long frame = (playingPositionUs - streamStartUs) * sampleRate / 1_000_000L;
+        long ring = ringIndexOf(frame);
+        if (ring >= 0) playhead = new Playhead(ring, System.nanoTime(), sampleRate, this);
+    }
+
+    private void rememberChunk(long frame, long ring, int frames) {
+        chunkFrame[chunkNext] = frame;
+        chunkRing[chunkNext] = ring;
+        chunkFrames[chunkNext] = frames;
+        chunkNext = (chunkNext + 1) % CHUNKS;
+        if (chunkCount < CHUNKS) chunkCount++;
+    }
+
+    /** The ring index frame {@code frame} landed at, or -1 if not remembered. */
+    private long ringIndexOf(long frame) {
+        for (int k = 1; k <= chunkCount; k++) {
+            int i = (chunkNext - k + CHUNKS) % CHUNKS;
+            if (chunkFrame[i] <= frame) {
+                long offset = frame - chunkFrame[i];
+                return offset < chunkFrames[i] ? chunkRing[i] + offset : -1;
+            }
+        }
+        return -1;
+    }
+
+    private void forgetStream() {
+        streamStartUs = C.TIME_UNSET;
+        framesSinceFlush = 0;
+        chunkCount = 0;
+        chunkNext = 0;
+        Playhead p = playhead;
+        if (p != null && p.owner == this) playhead = null;
+    }
+
+    /** The ring index being heard about now, or -1 when no clock is known. */
+    private static long heardIndex() {
+        Playhead p = playhead;
+        if (p == null) return -1;
+        long age = System.nanoTime() - p.nanos;
+        if (age < 0 || age > PLAYHEAD_MAX_AGE_NS) return -1;
+        return p.ringIndex + (age + VISUAL_LEAD_NS) * p.sampleRate / 1_000_000_000L;
     }
 
     @Override
@@ -208,6 +327,8 @@ public class VisualizerTapProcessor extends BaseAudioProcessor {
         if (!playerInstances.contains(this)) {
             playerInstances.add(this);
         }
+        // A seek or a new stream: the frame count starts again.
+        forgetStream();
     }
 
     @Override
@@ -223,6 +344,8 @@ public class VisualizerTapProcessor extends BaseAudioProcessor {
         pcmBufA = null;
         pcmBufB = null;
         shortScratch = null;
+        forgetStream();
+        if (latestPusher == this) latestPusher = null;
     }
 
     // ---- ProjectM API (existing) ----
@@ -269,6 +392,14 @@ public class VisualizerTapProcessor extends BaseAudioProcessor {
         waveformSink = sink;
     }
 
+    /**
+     * Set the EventSink for beat frames (see FFTVisualizer::computeBeat): the
+     * bass energy heard since the last tick, for the radial visualizer.
+     */
+    public static void setBeatSink(EventChannel.EventSink sink) {
+        beatSink = sink;
+    }
+
     // Current frame interval in ms (default 33ms ≈ 30fps)
     private static long frameIntervalMs = 33;
 
@@ -304,8 +435,6 @@ public class VisualizerTapProcessor extends BaseAudioProcessor {
         nativeSetGain(gain);
     }
 
-    private static int tmpTicks, tmpFrames; private static long tmpLast; // TEMP-VIZLEAD
-
     private static void startFftVizThread() {
         if (vizThread != null) return;
         // The custom in-pipeline tap is primary: stop the legacy Android
@@ -328,15 +457,11 @@ public class VisualizerTapProcessor extends BaseAudioProcessor {
 
         vizThread.scheduleAtFixedRate(() -> {
             try {
+                // What is being heard now — every read below ends there.
+                final long heard = heardIndex();
+
                 // Compute FFT bands in C++
-                float[] bands = nativeComputeBands();
-                // TEMP-VIZLEAD
-                tmpTicks++; if (bands != null) tmpFrames++;
-                long tmpNow = System.nanoTime();
-                if (tmpNow - tmpLast > 2_000_000_000L) {
-                    Log.i("VizLead", "fft frames " + tmpFrames + "/" + tmpTicks + " ticks in 2s");
-                    tmpLast = tmpNow; tmpFrames = 0; tmpTicks = 0;
-                }
+                float[] bands = nativeComputeBands(heard);
                 if (bands != null && fftSink != null) {
                     mainHandler.post(() -> {
                         try {
@@ -345,8 +470,20 @@ public class VisualizerTapProcessor extends BaseAudioProcessor {
                     });
                 }
 
+                // The bass heard since the last tick, for the radial visualizer.
+                if (beatSink != null) {
+                    float[] beat = nativeComputeBeat(heard, latestSampleRate);
+                    if (beat != null) {
+                        mainHandler.post(() -> {
+                            try {
+                                if (beatSink != null) beatSink.success(beat);
+                            } catch (Exception ignored) {}
+                        });
+                    }
+                }
+
                 // Also send waveform if listener is active
-                byte[] waveform = nativeGetWaveform();
+                byte[] waveform = nativeGetWaveform(heard);
                 if (waveform != null && waveformSink != null) {
                     mainHandler.post(() -> {
                         try {

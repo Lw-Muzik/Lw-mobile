@@ -1,8 +1,11 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:eq_app/Helpers/Channel.dart';
 import 'package:flutter/services.dart';
+
+import '../visualizers/beat_frame.dart';
 
 class Visualizers {
   static AudioVisualizer audioVisualizer() {
@@ -55,6 +58,25 @@ class AudioVisualizer {
   // Android EventChannels for C++ FFT pipeline
   static const EventChannel _fftBandsChannel = EventChannel('eq_app/fft_bands');
   static const EventChannel _waveformChannel = EventChannel('eq_app/waveform');
+  static const EventChannel _beatChannel = EventChannel('eq_app/beat');
+
+  // iOS sends beat frames inside its FFT message; they are re-published here.
+  static final StreamController<BeatFrame> _iosBeats =
+      StreamController<BeatFrame>.broadcast();
+
+  /// The native tap's bass report, one frame per visualizer tick, timed to
+  /// what is being heard where the platform can (see [BeatFrame.synced]).
+  ///
+  /// Android computes these only while something listens, and only while a
+  /// visualizer has the tap running — subscribe alongside an activated
+  /// [AudioVisualizer], not instead of one.
+  static final Stream<BeatFrame> beatFrames = Platform.isAndroid
+      ? _beatChannel
+            .receiveBroadcastStream()
+            .map(BeatFrame.parse)
+            .where((f) => f != null)
+            .cast<BeatFrame>()
+      : _iosBeats.stream;
 
   // Active stream subscriptions
   dynamic _bandsSub;
@@ -88,6 +110,8 @@ class AudioVisualizer {
     channel.setMethodCallHandler((MethodCall call) async {
       switch (call.method) {
         case 'onFftVisualization':
+          final beat = BeatFrame.parse(call.arguments['beat']);
+          if (beat != null && _iosBeats.hasListener) _iosBeats.add(beat);
           final raw = call.arguments['fft'];
           final List<int> samples =
               raw is List<int> ? raw : List<int>.from(raw);

@@ -435,15 +435,20 @@ Java_x_a_zix_RoomEffectsProcessor_nativeStemSetKeys(JNIEnv*, jobject, jlong hand
 // ===================== FFT Visualizer =====================
 
 static FFTVisualizer* g_fftViz = nullptr;
-// Guards the g_fftViz pointer's lifecycle (create/destroy) against concurrent
-// use. Without it, nativeDestroyFFT (viz-stop, main thread) can free the
-// object while a viz tick is inside computeBands/getWaveform or the ExoPlayer
-// audio thread is inside pushSamples → use-after-free. The lock is uncontended
-// in steady state; the only contention is at teardown.
+// Two locks, so the audio thread never waits on a visualizer computation:
+//  - g_fftMutex guards the pointer against the audio thread (pushSamples,
+//    try_lock only) and is held just for create/destroy.
+//  - g_vizMutex serialises everything else — the viz tick's computations and
+//    the settings — and is also held for create/destroy.
+// They used to be one lock, so every push that landed while a viz tick held
+// it was dropped: a gap in the ring that the bass filters would read as a
+// hit, and an index that no longer matched the player's clock.
 static std::mutex g_fftMutex;
+static std::mutex g_vizMutex;
 
 JNIEXPORT void JNICALL
 Java_x_a_zix_VisualizerTapProcessor_nativeInitFFT(JNIEnv*, jobject) {
+    std::lock_guard<std::mutex> viz(g_vizMutex);
     std::lock_guard<std::mutex> lock(g_fftMutex);
     if (!g_fftViz) {
         g_fftViz = new FFTVisualizer();
@@ -454,45 +459,61 @@ Java_x_a_zix_VisualizerTapProcessor_nativeInitFFT(JNIEnv*, jobject) {
 
 JNIEXPORT void JNICALL
 Java_x_a_zix_VisualizerTapProcessor_nativeDestroyFFT(JNIEnv*, jobject) {
+    std::lock_guard<std::mutex> viz(g_vizMutex);
     std::lock_guard<std::mutex> lock(g_fftMutex);
     delete g_fftViz;
     g_fftViz = nullptr;
     LOGI("FFT visualizer destroyed");
 }
 
-JNIEXPORT void JNICALL
+JNIEXPORT jlong JNICALL
 Java_x_a_zix_VisualizerTapProcessor_nativePushSamples(
         JNIEnv* env, jobject, jfloatArray samples, jint numFrames) {
     // Called on the real-time ExoPlayer audio thread. Use try_lock so we NEVER
-    // block the audio thread: if the FFT object is being created/destroyed or
-    // a viz tick holds the lock, skip this buffer (a dropped visualizer frame
-    // is harmless; a stalled audio callback is not).
+    // block the audio thread; the lock is only contended while the FFT object
+    // is being created or destroyed, and then the buffer is skipped.
+    // Returns the ring index the buffer landed at, -1 when skipped.
+    jlong first = -1;
     float* data = env->GetFloatArrayElements(samples, nullptr);
     {
         std::unique_lock<std::mutex> lock(g_fftMutex, std::try_to_lock);
         if (lock.owns_lock() && g_fftViz) {
-            g_fftViz->pushSamples(data, numFrames);
+            first = static_cast<jlong>(g_fftViz->pushSamples(data, numFrames));
         }
     }
     env->ReleaseFloatArrayElements(samples, data, JNI_ABORT);
+    return first;
 }
 
 JNIEXPORT jfloatArray JNICALL
-Java_x_a_zix_VisualizerTapProcessor_nativeComputeBands(JNIEnv* env, jobject) {
-    std::lock_guard<std::mutex> lock(g_fftMutex);
+Java_x_a_zix_VisualizerTapProcessor_nativeComputeBands(JNIEnv* env, jobject, jlong endIndex) {
+    std::lock_guard<std::mutex> lock(g_vizMutex);
     if (!g_fftViz) return nullptr;
     float bands[FFTVisualizer::NUM_BANDS];
-    if (!g_fftViz->computeBands(bands)) return nullptr;
+    if (!g_fftViz->computeBands(bands, static_cast<int64_t>(endIndex))) return nullptr;
 
     jfloatArray result = env->NewFloatArray(FFTVisualizer::NUM_BANDS);
     env->SetFloatArrayRegion(result, 0, FFTVisualizer::NUM_BANDS, bands);
     return result;
 }
 
+JNIEXPORT jfloatArray JNICALL
+Java_x_a_zix_VisualizerTapProcessor_nativeComputeBeat(
+        JNIEnv* env, jobject, jlong endIndex, jint sampleRate) {
+    std::lock_guard<std::mutex> lock(g_vizMutex);
+    if (!g_fftViz) return nullptr;
+    g_fftViz->setSampleRate(sampleRate);
+    float frame[FFTVisualizer::BEAT_FRAME_MAX];
+    const int count = g_fftViz->computeBeat(frame, static_cast<int64_t>(endIndex));
+    jfloatArray result = env->NewFloatArray(count);
+    env->SetFloatArrayRegion(result, 0, count, frame);
+    return result;
+}
+
 JNIEXPORT void JNICALL
 Java_x_a_zix_VisualizerTapProcessor_nativeSetSmoothing(
         JNIEnv*, jobject, jfloat attack, jfloat decay) {
-    std::lock_guard<std::mutex> lock(g_fftMutex);
+    std::lock_guard<std::mutex> lock(g_vizMutex);
     if (g_fftViz) {
         g_fftViz->attackRate = attack;
         g_fftViz->decayRate = decay;
@@ -501,19 +522,19 @@ Java_x_a_zix_VisualizerTapProcessor_nativeSetSmoothing(
 
 JNIEXPORT void JNICALL
 Java_x_a_zix_VisualizerTapProcessor_nativeSetGain(JNIEnv*, jobject, jfloat gain) {
-    std::lock_guard<std::mutex> lock(g_fftMutex);
+    std::lock_guard<std::mutex> lock(g_vizMutex);
     if (g_fftViz) {
         g_fftViz->gain = gain;
     }
 }
 
 JNIEXPORT jbyteArray JNICALL
-Java_x_a_zix_VisualizerTapProcessor_nativeGetWaveform(JNIEnv* env, jobject) {
-    std::lock_guard<std::mutex> lock(g_fftMutex);
+Java_x_a_zix_VisualizerTapProcessor_nativeGetWaveform(JNIEnv* env, jobject, jlong endIndex) {
+    std::lock_guard<std::mutex> lock(g_vizMutex);
     if (!g_fftViz) return nullptr;
     static constexpr int WAVE_SIZE = 1024;
     uint8_t wave[WAVE_SIZE];
-    int count = g_fftViz->getWaveform(wave, WAVE_SIZE);
+    int count = g_fftViz->getWaveform(wave, WAVE_SIZE, static_cast<int64_t>(endIndex));
     if (count <= 0) return nullptr;
 
     jbyteArray result = env->NewByteArray(count);

@@ -919,13 +919,18 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
             // Processors that need to know which item and media time they are
             // processing (live stems) get it from a wrapper around the sink.
             java.util.List<StemSinkListener> stemListenerList = new java.util.ArrayList<>();
+            // Processors that line their work up with what is being heard (the
+            // visualizer tap) get the playback clock from the same wrapper.
+            java.util.List<SinkClockListener> clockListenerList = new java.util.ArrayList<>();
             for (AudioProcessor p : processors) {
                 if (p instanceof StemSinkListener) stemListenerList.add((StemSinkListener) p);
+                if (p instanceof SinkClockListener) clockListenerList.add((SinkClockListener) p);
             }
             stemListeners = stemListenerList.toArray(new StemSinkListener[0]);
             publishedStemCurrent = null;  // fresh processors know nothing yet
             publishedStemNext = null;
             final StemSinkListener[] sinkListeners = stemListeners;
+            final SinkClockListener[] clockListeners = clockListenerList.toArray(new SinkClockListener[0]);
             RenderersFactory renderersFactory = (eventHandler, videoListener, audioListener, textOutput, metadataOutput) -> {
                 DefaultRenderersFactory factory;
                 if (processors.length > 0) {
@@ -940,7 +945,9 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
                                 .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
                                 .setAudioProcessors(processors)
                                 .build();
-                            return sinkListeners.length > 0 ? new StemAwareAudioSink(sink, sinkListeners) : sink;
+                            return sinkListeners.length > 0 || clockListeners.length > 0
+                                ? new StemAwareAudioSink(sink, sinkListeners, clockListeners)
+                                : sink;
                         }
                     };
                 } else {

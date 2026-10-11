@@ -396,6 +396,17 @@ public class MainActivity extends AudioServiceFragmentActivity {
                 VisualizerTapProcessor.setWaveformSink(null);
             }
         });
+        // Bass energy timed to what is being heard: the radial visualizer's hits.
+        EventChannel beatChannel = new EventChannel(
+                flutterEngine.getDartExecutor().getBinaryMessenger(), "eq_app/beat");
+        beatChannel.setStreamHandler(new EventChannel.StreamHandler() {
+            @Override public void onListen(Object arguments, EventChannel.EventSink events) {
+                VisualizerTapProcessor.setBeatSink(events);
+            }
+            @Override public void onCancel(Object arguments) {
+                VisualizerTapProcessor.setBeatSink(null);
+            }
+        });
 
         // Screen brightness, for the swipe gesture on the video screen.
         //
