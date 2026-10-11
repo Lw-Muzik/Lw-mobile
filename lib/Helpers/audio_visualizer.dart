@@ -9,9 +9,7 @@ import '../visualizers/beat_frame.dart';
 
 class Visualizers {
   static AudioVisualizer audioVisualizer() {
-    return AudioVisualizer(
-      channel: Channel.channel,
-    );
+    return AudioVisualizer(channel: Channel.channel);
   }
 
   /// Starts or stops the native FFT/PCM tap.
@@ -29,21 +27,23 @@ class Visualizers {
   }
 
   static void setFrameRate(int frameRate) async {
-    await Channel.channel
-        .invokeMethod("setFrameRate", {"frameRate": frameRate});
+    await Channel.channel.invokeMethod("setFrameRate", {
+      "frameRate": frameRate,
+    });
   }
 
   /// Set C++ FFT smoothing rates. Attack = how fast bands rise, decay = how fast they fall.
   static void setSmoothing(double attack, double decay) async {
-    await Channel.channel
-        .invokeMethod("setVizSmoothing", {"attack": attack, "decay": decay});
+    await Channel.channel.invokeMethod("setVizSmoothing", {
+      "attack": attack,
+      "decay": decay,
+    });
   }
 
   /// Set FFT gain / beat sensitivity. 0.5 = subtle, 1.0 = normal, 3.0 = intense.
   static void setGain(double gain) async {
     await Channel.channel.invokeMethod("setVizGain", {"gain": gain});
   }
-
 }
 
 /// Unified audio visualizer that uses:
@@ -95,9 +95,7 @@ class AudioVisualizer {
   static int _iosTapUsers = 0;
   bool _iosActive = false;
 
-  AudioVisualizer({
-    required this.channel,
-  }) {
+  AudioVisualizer({required this.channel}) {
     _instances.add(this);
     _ensureSharedHandler(channel);
   }
@@ -113,8 +111,10 @@ class AudioVisualizer {
           final beat = BeatFrame.parse(call.arguments['beat']);
           if (beat != null && _iosBeats.hasListener) _iosBeats.add(beat);
           final raw = call.arguments['fft'];
-          final List<int> samples =
-              raw is List<int> ? raw : List<int>.from(raw);
+          if (raw == null) break;
+          final List<int> samples = raw is List<int>
+              ? raw
+              : List<int>.from(raw);
           for (final v in List<AudioVisualizer>.of(_instances)) {
             for (final callback in v._fftCallbacks) {
               callback(samples);
@@ -123,8 +123,9 @@ class AudioVisualizer {
           break;
         case 'onWaveformVisualization':
           final raw = call.arguments['waveform'];
-          final List<int> samples =
-              raw is List<int> ? raw : List<int>.from(raw);
+          final List<int> samples = raw is List<int>
+              ? raw
+              : List<int>.from(raw);
           final int sampleRate = call.arguments['sampleRate'] as int;
           for (final v in List<AudioVisualizer>.of(_instances)) {
             for (final callback in v._waveformCallbacks) {
@@ -265,6 +266,9 @@ class AudioVisualizer {
 
 typedef FftCallback = void Function(List<int> fftSamples);
 typedef WaveformCallback = void Function(
-    List<int> waveformSamples, int sampleRate);
+  List<int> waveformSamples,
+  int sampleRate,
+);
+
 /// Pre-computed log-frequency bands (64 floats, 0.0-1.0) from C++ FFT.
 typedef FftBandsCallback = void Function(Float32List bands);

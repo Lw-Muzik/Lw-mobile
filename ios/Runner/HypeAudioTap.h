@@ -25,6 +25,10 @@ NS_ASSUME_NONNULL_BEGIN
 - (nullable NSData *)latestFftBytes;
 - (int)currentSampleRate;
 
+/// The bass energy (below ~150 Hz, ~5.8 ms hops) captured since the last call,
+/// as the float32 beat frame Dart's BeatFrame reads; nil before a tap runs.
+- (nullable NSData *)takeBeatFrame;
+
 /// Raw PCM float data for projectM feeding
 - (nullable NSData *)latestPcmFloat;
 

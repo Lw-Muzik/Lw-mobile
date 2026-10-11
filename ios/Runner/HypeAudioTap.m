@@ -6,6 +6,8 @@
 
 #define VIZ_CAPTURE_SIZE 1024
 #define MAX_SCRATCH_FRAMES 8192
+// Bass hops kept for the main thread: ~3 s, far more than a display tick needs.
+#define BASS_RING 512
 
 // Handed to tap_Init through clientInfo: the shared DSP engine plus this
 // item's URL, which identifies the track to the live-stem engine.
@@ -35,7 +37,73 @@ typedef struct {
     float fftWindow[VIZ_CAPTURE_SIZE];
     float fftRealp[VIZ_CAPTURE_SIZE / 2];
     float fftImagp[VIZ_CAPTURE_SIZE / 2];
+
+    // Bass hops for the radial visualizer: the energy below ~150 Hz in ~5.8 ms
+    // slices, measured at full resolution before the visualizer's decimation
+    // (Android's FFTVisualizer::computeBeat does the same; Dart's BassBeat
+    // finds the hits). Biquads in double: a 35 Hz high-pass puts its poles
+    // within 0.005 of the unit circle.
+    double bassCoef[3][5];    // b0 b1 b2 a1 a2: high-pass 35, low-pass 150 x2
+    double bassState[3][4];   // x1 x2 y1 y2
+    double bassAcc;
+    int bassFill;
+    int bassHopSize;
+    float bassHops[BASS_RING];
+    int64_t bassWritten;      // atomic: hops written (audio thread)
+    int64_t bassRead;         // hops taken (main thread only)
 } TapContext;
+
+static void designBassBiquad(double *c, int highPass, double fc, double fs) {
+    // RBJ cookbook, Q = 1/sqrt(2): a second-order Butterworth section.
+    const double w0 = 2.0 * M_PI * fc / fs;
+    const double cw = cos(w0);
+    const double alpha = sin(w0) / (2.0 * 0.7071067811865476);
+    const double a0 = 1.0 + alpha;
+    if (highPass) {
+        c[0] = (1.0 + cw) / 2.0 / a0; c[1] = -(1.0 + cw) / a0; c[2] = c[0];
+    } else {
+        c[0] = (1.0 - cw) / 2.0 / a0; c[1] = (1.0 - cw) / a0; c[2] = c[0];
+    }
+    c[3] = -2.0 * cw / a0;
+    c[4] = (1.0 - alpha) / a0;
+}
+
+static inline double bassBiquad(double *st, const double *c, double x) {
+    const double y = c[0] * x + c[1] * st[0] + c[2] * st[1] - c[3] * st[2] - c[4] * st[3];
+    st[1] = st[0]; st[0] = x; st[3] = st[2]; st[2] = y;
+    return y;
+}
+
+static void prepareBass(TapContext *ctx) {
+    const double fs = ctx->sampleRate > 0 ? ctx->sampleRate : 44100;
+    designBassBiquad(ctx->bassCoef[0], 1, 35.0, fs);
+    designBassBiquad(ctx->bassCoef[1], 0, 150.0, fs);
+    designBassBiquad(ctx->bassCoef[2], 0, 150.0, fs);
+    memset(ctx->bassState, 0, sizeof(ctx->bassState));
+    ctx->bassAcc = 0;
+    ctx->bassFill = 0;
+    // ~5.8 ms whatever the rate, so the detector's windows mean the same time.
+    ctx->bassHopSize = (int)fmax(64.0, round(fs / 172.27));
+}
+
+static void captureBass(TapContext *ctx, const float *interleaved, int numFrames) {
+    if (ctx->bassHopSize <= 0) return;
+    int64_t written = __atomic_load_n(&ctx->bassWritten, __ATOMIC_RELAXED);
+    for (int i = 0; i < numFrames; i++) {
+        double y = 0.5 * ((double)interleaved[i * 2] + (double)interleaved[i * 2 + 1]);
+        y = bassBiquad(ctx->bassState[0], ctx->bassCoef[0], y);
+        y = bassBiquad(ctx->bassState[1], ctx->bassCoef[1], y);
+        y = bassBiquad(ctx->bassState[2], ctx->bassCoef[2], y);
+        ctx->bassAcc += y * y;
+        if (++ctx->bassFill >= ctx->bassHopSize) {
+            ctx->bassHops[written % BASS_RING] = (float)(ctx->bassAcc / ctx->bassHopSize);
+            written++;
+            ctx->bassAcc = 0;
+            ctx->bassFill = 0;
+        }
+    }
+    __atomic_store_n(&ctx->bassWritten, written, __ATOMIC_RELEASE);
+}
 
 // Shared latest context (points to whichever tap is active)
 static TapContext * volatile sActiveContext = NULL;
@@ -90,6 +158,8 @@ static void tap_Prepare(MTAudioProcessingTapRef tap,
     // Live stems work on stereo only; rate 0 keeps the tap idle otherwise.
     dsp_stem_tap_prepare(ctx->stemTap, ctx->channels == 2 ? ctx->sampleRate : 0);
 
+    prepareBass(ctx);
+
     // Propagate global visualization state to this new context
     __atomic_store_n(&ctx->vizEnabled, sVizEnabledGlobal, __ATOMIC_RELEASE);
 
@@ -104,6 +174,8 @@ static void tap_Unprepare(MTAudioProcessingTapRef tap) {
 }
 
 static void captureVisualization(TapContext *ctx, const float *interleavedData, int numFrames) {
+    captureBass(ctx, interleavedData, numFrames);
+
     // Downsample stereo interleaved PCM to VIZ_CAPTURE_SIZE mono uint8 samples
     // Format matches Android Visualizer: unsigned bytes 0-255, silence = 128
     int step = (numFrames > VIZ_CAPTURE_SIZE) ? (numFrames / VIZ_CAPTURE_SIZE) : 1;
@@ -346,6 +418,28 @@ static void tap_Process(MTAudioProcessingTapRef tap,
         return nil;
     }
     return [NSData dataWithBytes:ctx->vizFft length:VIZ_CAPTURE_SIZE];
+}
+
+- (nullable NSData *)takeBeatFrame {
+    TapContext *ctx = sActiveContext;
+    if (!ctx || ctx->bassHopSize <= 0) return nil;
+    const int64_t written = __atomic_load_n(&ctx->bassWritten, __ATOMIC_ACQUIRE);
+    int64_t from = ctx->bassRead;
+    if (written - from > BASS_RING) from = written - BASS_RING;
+    if (from > written) from = written;  // a new tap started its count again
+    const int n = (int)(written - from);
+    ctx->bassRead = written;
+    // The frame Dart's BeatFrame reads; no clock here, so unsynced, no bands.
+    NSMutableData *frame = [NSMutableData dataWithLength:(6 + n) * sizeof(float)];
+    float *f = (float *)frame.mutableBytes;
+    f[0] = 1.0f;
+    f[1] = (float)ctx->sampleRate;
+    f[2] = (float)((double)ctx->bassHopSize / (ctx->sampleRate > 0 ? ctx->sampleRate : 44100));
+    f[3] = 0.0f;
+    f[4] = (float)n;
+    for (int i = 0; i < n; i++) f[5 + i] = ctx->bassHops[(from + i) % BASS_RING];
+    f[5 + n] = 0.0f;
+    return frame;
 }
 
 // PCM float data for projectM (stereo interleaved)

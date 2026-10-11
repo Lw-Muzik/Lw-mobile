@@ -115,7 +115,9 @@ class RadialMotion {
     final x = _x;
     final v = _v;
     _x = decay * (x * c + (v + _damping * _omega * x) / wd * s);
-    _v = decay * (v * c - (_omega * _omega * x + _damping * _omega * v) / wd * s);
+    _v =
+        decay *
+        (v * c - (_omega * _omega * x + _damping * _omega * v) / wd * s);
     _flare *= math.exp(-dt / _flareTau);
     for (var k = rings.length - 1; k >= 0; k--) {
       _advanceRing(rings[k], dt);

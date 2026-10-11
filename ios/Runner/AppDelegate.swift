@@ -162,10 +162,13 @@ import AVFoundation
             channel.invokeMethod("onWaveformVisualization", arguments: args)
         }
 
-        if let fft = tap.latestFftBytes() {
-            let args: [String: Any] = [
-                "fft": FlutterStandardTypedData(bytes: fft)
-            ]
+        // The bass report rides along with the FFT (see BeatFrame in Dart).
+        let beat = tap.takeBeatFrame()
+        let fft = tap.latestFftBytes()
+        if fft != nil || beat != nil {
+            var args: [String: Any] = [:]
+            if let fft = fft { args["fft"] = FlutterStandardTypedData(bytes: fft) }
+            if let beat = beat { args["beat"] = FlutterStandardTypedData(float32: beat) }
             channel.invokeMethod("onFftVisualization", arguments: args)
         }
     }

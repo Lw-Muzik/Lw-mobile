@@ -78,7 +78,8 @@ const double _floorDb = -58.0;
 /// loud is 1, one this much quieter is 0.
 const double _rangeDb = 14.0;
 
-const double _minStrength = 0.08;
+/// Below this a hit would move the core ~2%: noise, not a beat.
+const double _minStrength = 0.15;
 const double _refractory = 0.11;
 const double _attackWindow = 0.04;
 const double _baseTau = 0.09;
@@ -105,6 +106,9 @@ class BassBeat {
   double _clock = 0;
   double _lastOnset = -1e9;
   double _level = 0;
+  // Hops seen since a reset: the window starts full of silence, so its first
+  // hops rise from nothing — not a hit.
+  int _seen = 0;
 
   // The hit whose attack is still rising, if any.
   double? _openAt;
@@ -137,10 +141,12 @@ class BassBeat {
 
   (double, double, bool)? _step(double meanSquare, double hop) {
     final e = meanSquare.isFinite && meanSquare > 0 ? meanSquare : 0.0;
+    _seen++;
     _winSum += e - _win[_winAt];
     _win[_winAt] = e;
     _winAt = (_winAt + 1) % _window;
-    final db = 10 * math.log(math.max(_winSum, 0) / _window + 1e-12) / math.ln10;
+    final db =
+        10 * math.log(math.max(_winSum, 0) / _window + 1e-12) / math.ln10;
 
     var lowest = _recent[0];
     for (var k = 1; k < _fastHops; k++) {
@@ -178,6 +184,7 @@ class BassBeat {
         fastRise >= _fastRiseDb &&
         db > _peak - _gateDb &&
         db > _floorDb &&
+        _seen > 2 * _window &&
         _clock - _lastOnset > _refractory) {
       final s = _strengthOf(db);
       if (s >= _minStrength) {
@@ -209,6 +216,7 @@ class BassBeat {
     _clock = 0;
     _lastOnset = -1e9;
     _level = 0;
+    _seen = 0;
     _openAt = null;
   }
 }
