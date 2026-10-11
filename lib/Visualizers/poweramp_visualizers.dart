@@ -39,10 +39,6 @@ const Color kRadialGold = Color(0xFFF6C544); // rgb(246,197,68)
 /// The green the bars fade to as a band approaches full scale.
 const Color kRadialGreen = Color(0xFF4ADE80); // rgb(74,222,128)
 
-/// Distinct bars per side; the crown mirrors them left to right, so 96 are
-/// drawn — the desktop scene's count.
-const int kCrownBars = 48;
-
 /// The radial spectrum.
 ///
 /// # What moves on a bass hit

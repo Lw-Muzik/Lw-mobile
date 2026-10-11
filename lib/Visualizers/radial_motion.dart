@@ -54,11 +54,16 @@ const double _ringStrength = 0.4;
 /// Core edge at rest, as a fraction of the smaller screen dimension.
 const double kRadialCore = 0.2;
 
+/// Distinct bars per side of the crown, bass first; the painter mirrors them,
+/// so 96 are drawn — the desktop scene's count.
+const int kCrownBars = 48;
+
 class RadialMotion {
   double _x = 0;
   double _v = 0;
   double _flare = 0;
   double _breath = 0;
+  double _breathTarget = 0;
   bool _ringOwed = false;
 
   /// Live shockwaves, oldest first.
@@ -100,9 +105,9 @@ class RadialMotion {
     }
   }
 
-  /// Follows the bass level between hits.
+  /// The bass level now, 0..1; [advance] eases [breath] toward it.
   void level(double bass) {
-    _breath = bass;
+    _breathTarget = bass.clamp(0.0, 1.0);
   }
 
   /// Moves everything on by [dt] seconds.
@@ -119,6 +124,10 @@ class RadialMotion {
         decay *
         (v * c - (_omega * _omega * x + _damping * _omega * v) / wd * s);
     _flare *= math.exp(-dt / _flareTau);
+    // Up in ~30 ms, down over ~150 ms: it breathes with the bass, it does
+    // not buzz with the hops.
+    final tau = _breathTarget > _breath ? 0.03 : 0.15;
+    _breath += (_breathTarget - _breath) * (1 - math.exp(-dt / tau));
     for (var k = rings.length - 1; k >= 0; k--) {
       _advanceRing(rings[k], dt);
       if (rings[k].a <= 0) rings.removeAt(k);
@@ -136,6 +145,7 @@ class RadialMotion {
     _v = 0;
     _flare = 0;
     _breath = 0;
+    _breathTarget = 0;
     _ringOwed = false;
     rings.clear();
   }

@@ -38,8 +38,18 @@ import io.flutter.plugin.common.EventChannel;
  * buffers it is given and the position it is playing out. Frames are counted
  * from the first buffer after a flush, so the playing position maps onto the
  * native ring ({@link #onSinkClock}), and the viz tick reads the audio being
- * heard ({@link #heardIndex}) — plus {@link #VISUAL_LEAD_NS}, because a frame
- * drawn now reaches the screen a frame or two later.
+ * heard ({@link #heardNow}).
+ *
+ * <p>How far past "heard now" each output reads:
+ * <ul>
+ *   <li>Beat frames read {@link #BEAT_LOOKAHEAD_NS} ahead and say when their
+ *   last hop will be heard; Dart holds each hit until the frame that will be
+ *   on screen then (lib/visualizers/radial_scene.dart). The lookahead
+ *   absorbs this thread's uneven ticks (up to ~70 ms apart, measured) and the
+ *   ~70-100 ms a Flutter frame takes to reach the screen on the Lenovo.</li>
+ *   <li>Bands and waveform, which every other visualizer draws as they come,
+ *   read {@link #DRAW_LEAD_NS} ahead: about that drawing delay.</li>
+ * </ul>
  */
 public class VisualizerTapProcessor extends BaseAudioProcessor implements SinkClockListener {
     private static final String TAG = "VisualizerTap";
@@ -116,8 +126,8 @@ public class VisualizerTapProcessor extends BaseAudioProcessor implements SinkCl
 
     // ── Heard time (see the class comment) ──
 
-    /** A drawn frame reaches the screen ~one to two vsyncs after it is built. */
-    private static final long VISUAL_LEAD_NS = 35_000_000L;
+    private static final long BEAT_LOOKAHEAD_NS = 200_000_000L;
+    private static final long DRAW_LEAD_NS = 70_000_000L;
     /** Past this the playhead is stale (paused, seeking): fall back to newest. */
     private static final long PLAYHEAD_MAX_AGE_NS = 500_000_000L;
 
@@ -140,6 +150,12 @@ public class VisualizerTapProcessor extends BaseAudioProcessor implements SinkCl
     // During a crossfade two players push into the one ring; only the one that
     // pushed last may move the playhead, so it does not flip between them.
     private static volatile VisualizerTapProcessor latestPusher;
+    // One past the newest sample on the ring: reads ahead of the playhead stop
+    // here, and a frame's heard time is worked out from where it really ends.
+    private static volatile long ringEnd;
+    // Bumped whenever the native ring is created afresh (its indices restart
+    // at 0), so chunks remembered against the old ring are not looked up.
+    private static volatile int ringGeneration;
 
     /** Presentation time of the first buffer since the last flush. */
     private long streamStartUs = C.TIME_UNSET;
@@ -150,6 +166,7 @@ public class VisualizerTapProcessor extends BaseAudioProcessor implements SinkCl
     private final long[] chunkFrame = new long[CHUNKS];
     private final long[] chunkRing = new long[CHUNKS];
     private final int[] chunkFrames = new int[CHUNKS];
+    private final int[] chunkGeneration = new int[CHUNKS];
     private int chunkNext;
     private int chunkCount;
 
@@ -250,7 +267,10 @@ public class VisualizerTapProcessor extends BaseAudioProcessor implements SinkCl
             // remembering where it landed so the clock can be mapped onto it.
             if (fftEnabled) {
                 long first = nativePushSamples(pcm, numFrames);
-                if (first >= 0) rememberChunk(framesSinceFlush, first, numFrames);
+                if (first >= 0) {
+                    rememberChunk(framesSinceFlush, first, numFrames);
+                    ringEnd = Math.max(ringEnd, first + numFrames);
+                }
                 latestPusher = this;
             }
 
@@ -285,14 +305,17 @@ public class VisualizerTapProcessor extends BaseAudioProcessor implements SinkCl
         chunkFrame[chunkNext] = frame;
         chunkRing[chunkNext] = ring;
         chunkFrames[chunkNext] = frames;
+        chunkGeneration[chunkNext] = ringGeneration;
         chunkNext = (chunkNext + 1) % CHUNKS;
         if (chunkCount < CHUNKS) chunkCount++;
     }
 
     /** The ring index frame {@code frame} landed at, or -1 if not remembered. */
     private long ringIndexOf(long frame) {
+        final int generation = ringGeneration;
         for (int k = 1; k <= chunkCount; k++) {
             int i = (chunkNext - k + CHUNKS) % CHUNKS;
+            if (chunkGeneration[i] != generation) return -1;
             if (chunkFrame[i] <= frame) {
                 long offset = frame - chunkFrame[i];
                 return offset < chunkFrames[i] ? chunkRing[i] + offset : -1;
@@ -310,13 +333,20 @@ public class VisualizerTapProcessor extends BaseAudioProcessor implements SinkCl
         if (p != null && p.owner == this) playhead = null;
     }
 
-    /** The ring index being heard about now, or -1 when no clock is known. */
-    private static long heardIndex() {
-        Playhead p = playhead;
+    /**
+     * The ring index being heard at {@code nowNs}, or -1 when no clock is
+     * known (nothing playing yet, paused, a seek in flight).
+     */
+    private static long heardNow(Playhead p, long nowNs) {
         if (p == null) return -1;
-        long age = System.nanoTime() - p.nanos;
+        long age = nowNs - p.nanos;
         if (age < 0 || age > PLAYHEAD_MAX_AGE_NS) return -1;
-        return p.ringIndex + (age + VISUAL_LEAD_NS) * p.sampleRate / 1_000_000_000L;
+        return p.ringIndex + age * p.sampleRate / 1_000_000_000L;
+    }
+
+    /** {@code leadNs} past the heard position, but never past the newest sample. */
+    private static long ahead(Playhead p, long heard, long leadNs) {
+        return Math.min(heard + leadNs * p.sampleRate / 1_000_000_000L, ringEnd);
     }
 
     @Override
@@ -446,6 +476,11 @@ public class VisualizerTapProcessor extends BaseAudioProcessor implements SinkCl
                 Log.i(TAG, "Deactivated legacy Visualizer — custom FFT tap is primary");
             }
         } catch (Exception ignored) {}
+        // A new ring: its indices start again at 0, so forget the old mapping
+        // before anything lands on it.
+        ringGeneration++;
+        ringEnd = 0;
+        playhead = null;
         fftEnabled = true;
         nativeInitFFT();
 
@@ -457,11 +492,14 @@ public class VisualizerTapProcessor extends BaseAudioProcessor implements SinkCl
 
         vizThread.scheduleAtFixedRate(() -> {
             try {
-                // What is being heard now — every read below ends there.
-                final long heard = heardIndex();
+                // What is being heard now; every read below ends a little past it.
+                final Playhead p = playhead;
+                final long nowNs = System.nanoTime();
+                final long heard = heardNow(p, nowNs);
+                final long drawEnd = heard < 0 ? -1 : ahead(p, heard, DRAW_LEAD_NS);
 
                 // Compute FFT bands in C++
-                float[] bands = nativeComputeBands(heard);
+                float[] bands = nativeComputeBands(drawEnd);
                 if (bands != null && fftSink != null) {
                     mainHandler.post(() -> {
                         try {
@@ -472,18 +510,28 @@ public class VisualizerTapProcessor extends BaseAudioProcessor implements SinkCl
 
                 // The bass heard since the last tick, for the radial visualizer.
                 if (beatSink != null) {
-                    float[] beat = nativeComputeBeat(heard, latestSampleRate);
+                    final long beatEnd = heard < 0 ? -1 : ahead(p, heard, BEAT_LOOKAHEAD_NS);
+                    float[] beat = nativeComputeBeat(beatEnd, latestSampleRate);
                     if (beat != null) {
+                        final java.util.HashMap<String, Object> frame = new java.util.HashMap<>(2);
+                        frame.put("f", beat);
+                        if (heard >= 0) {
+                            // When its last hop will be heard, in µs on
+                            // CLOCK_MONOTONIC — the clock Dart's Timeline.now
+                            // reads — so Dart can put each hit on screen then.
+                            frame.put("heard", nowNs / 1000L
+                                    + (beatEnd - heard) * 1_000_000L / p.sampleRate);
+                        }
                         mainHandler.post(() -> {
                             try {
-                                if (beatSink != null) beatSink.success(beat);
+                                if (beatSink != null) beatSink.success(frame);
                             } catch (Exception ignored) {}
                         });
                     }
                 }
 
                 // Also send waveform if listener is active
-                byte[] waveform = nativeGetWaveform(heard);
+                byte[] waveform = nativeGetWaveform(drawEnd);
                 if (waveform != null && waveformSink != null) {
                     mainHandler.post(() -> {
                         try {

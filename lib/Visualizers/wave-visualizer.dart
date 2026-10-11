@@ -1,20 +1,19 @@
 import 'dart:async';
+import 'dart:developer' show Timeline;
 import 'dart:io';
 import 'dart:math' as math;
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 
 import '../controllers/app_controller.dart';
 // Lowercase on purpose: the same URI visualizer_widget.dart reaches it by, so
 // the beat stream (a static) is the one the iOS handler publishes to.
 import '../helpers/audio_visualizer.dart';
 import '../services/artwork_service.dart';
-import 'bass_beat.dart';
-import 'beat_detector.dart';
 import 'beat_frame.dart';
-import 'radial_motion.dart';
+import 'radial_scene.dart';
 import 'spectrum-visualiser.dart';
 import 'poweramp_visualizers.dart';
 import '3d_visualizers.dart';
@@ -76,30 +75,12 @@ class _WaveVisualizerState extends State<WaveVisualizer>
 
   // ── Radial spectrum ──
   //
-  // A CustomPainter is rebuilt every frame and cannot hold any of this, so it
-  // lives here and is advanced exactly once per tick in [_advanceRadial].
-  //
   // The bounce comes from the native tap's bass report ([BeatFrame]): energy
-  // below ~150 Hz in ~6 ms hops of the audio being heard, which [BassBeat]
-  // turns into hits and [RadialMotion] into the swell, flare and rings. The
-  // crown's bars come from the same frames' absolute band levels.
-  final BassBeat _bass = BassBeat();
-  final RadialMotion _motion = RadialMotion();
-  final List<double> _crown = List.filled(kCrownBars, 0.0);
-  final List<double> _crownTarget = List.filled(kCrownBars, 0.0);
-  final List<double> _tilted = List.filled(_crownBands, 0.0);
-  double _bandRef = -60;
+  // below ~150 Hz in ~6 ms hops, read ahead of what is being heard and stamped
+  // with when it will be. [RadialScene] finds the hits and puts each on screen
+  // when it is heard; it is advanced once per tick in [_advanceRadial].
+  final RadialScene _radial = RadialScene();
   StreamSubscription<BeatFrame>? _beatSub;
-  bool? _beatSynced;
-  final Stopwatch _clock = Stopwatch()..start();
-  int _motionUs = 0;
-  int _crownUs = 0;
-  int _beatUs = -1 << 40;
-
-  // Without beat frames (an older native build, or none arriving), the old
-  // whole-mix detector still gives a pulse — better than a still picture.
-  final BeatState _beatDetector = BeatState();
-  double _prevPulse = 0;
 
   /// Cover art for the core, and the song it belongs to.
   ui.Image? _cover;
@@ -133,115 +114,27 @@ class _WaveVisualizerState extends State<WaveVisualizer>
   /// expanded on every repaint would travel at a speed set by how busy the
   /// rest of the screen was.
   void _advanceRadial() {
-    final nowUs = _clock.elapsedMicroseconds;
-    _advanceMotionTo(nowUs);
-    final dt = _crownUs == 0 ? 1 / 60 : math.min(0.1, (nowUs - _crownUs) / 1e6);
-    _crownUs = nowUs;
-
-    if (nowUs - _beatUs > _beatStaleUs) _fallbackBeat(dt);
-
-    // Bars rise in ~25 ms and fall over ~110 ms: a kick lands as a jump, and
-    // the crown still reads as a spectrum rather than flicker.
-    final rise = 1 - math.exp(-dt / 0.025);
-    final fall = 1 - math.exp(-dt / 0.11);
-    for (var i = 0; i < kCrownBars; i++) {
-      final t = _crownTarget[i];
-      _crown[i] += (t - _crown[i]) * (t > _crown[i] ? rise : fall);
-    }
+    _radial.tick(Timeline.now, waveform: _waveform, spectrum: _freqBands);
   }
 
   /// Subscribes to the native bass report the first time the radial scene is
-  /// drawn — not before, so other visualizers do not pay for it.
+  /// drawn — not before, so other visualizers do not pay for it — and starts
+  /// timing frames, which is how the scene knows when a frame will be seen.
   void _ensureBeatFeed() {
     if (_beatSub != null) return;
     _beatSub = AudioVisualizer.beatFrames.listen(
-      _onBeatFrame,
+      (frame) => _radial.addFrame(frame, Timeline.now),
       onError: (Object _) {},
     );
-  }
-
-  void _onBeatFrame(BeatFrame frame) {
-    final nowUs = _clock.elapsedMicroseconds;
-    _advanceMotionTo(nowUs);
-    final sinceLast = (nowUs - _beatUs) / 1e6;
-    _beatUs = nowUs;
-    // Unsynced hops read the newest audio, synced ones what is heard: the
-    // switch jumps the stream ~0.3 s, which must not read as a hit.
-    if (_beatSynced != null && _beatSynced != frame.synced) _bass.reset();
-    _beatSynced = frame.synced;
-    for (final hit in _bass.add(frame.hops, frame.hopSeconds)) {
-      _motion.hit(hit);
-    }
-    _motion.level(_bass.level);
-    if (frame.bandsDb.length > _crownBands) {
-      _aimCrown(frame.bandsDb, frame.sampleRate, sinceLast.clamp(0.0, 0.2));
-    }
-  }
-
-  void _advanceMotionTo(int nowUs) {
-    if (_motionUs != 0) {
-      _motion.advance(math.min(0.1, (nowUs - _motionUs) / 1e6));
-    }
-    _motionUs = nowUs;
-  }
-
-  /// Sets the bars' targets from absolute band levels.
-  ///
-  /// +3 dB per octave about 1 kHz so treble, whose energy is spread thin
-  /// across wide bands, is not drawn flat; then 42 dB below the loudest band
-  /// lately maps to 0..1, curved so quiet bands stay low and peaks stand out.
-  /// Measured on three songs, bass bars sit near 0.85-0.95 on a kick and fall
-  /// between them; the treble moves around 0.2-0.5.
-  void _aimCrown(Float32List db, double sampleRate, double dt) {
-    var loudest = -200.0;
-    for (var b = 0; b < _crownBands; b++) {
-      final band = b + 1; // band 0 is ~20 Hz: rumble, not music
-      final v =
-          db[band] +
-          3 * math.log(_bandCentre(band, sampleRate) / 1000) / math.ln2;
-      _tilted[b] = v;
-      if (v > loudest) loudest = v;
-    }
-    _bandRef = loudest > _bandRef
-        ? loudest
-        : math.max(loudest, _bandRef - 8 * dt);
-    const range = 42.0;
-    for (var i = 0; i < kCrownBars; i++) {
-      final pos = i * (_crownBands - 1) / (kCrownBars - 1);
-      final k = pos.floor();
-      final f = pos - k;
-      final x = k + 1 < _crownBands
-          ? _tilted[k] * (1 - f) + _tilted[k + 1] * f
-          : _tilted[k];
-      final v = ((x - (_bandRef - range)) / range).clamp(0.0, 1.0);
-      _crownTarget[i] = math.pow(v, 1.6).toDouble();
-    }
-  }
-
-  /// What moves the scene when no beat frames arrive: the old whole-mix pulse,
-  /// and the shared spectrum for the bars.
-  void _fallbackBeat(double dt) {
-    double peak = 0;
-    double sumSq = 0;
-    for (final v in _waveform) {
-      final a = v.abs();
-      if (a > peak) peak = a;
-      sumSq += v * v;
-    }
-    final rms = _waveform.isEmpty ? 0.0 : math.sqrt(sumSq / _waveform.length);
-    _beatDetector.step(math.min(1.0, math.max(rms * 1.25, peak)), dt);
-    final pulse = _beatDetector.pulse;
-    if (pulse > _prevPulse + 0.04) {
-      _motion.hit(
-        BassHit(age: 0, strength: pulse, gain: pulse - _prevPulse, onset: true),
-      );
-    }
-    _prevPulse = pulse;
-    for (var i = 0; i < kCrownBars; i++) {
-      final idx = (math.pow(i / kCrownBars, 1.3) * (_freqBands.length - 1))
-          .round();
-      _crownTarget[i] = _freqBands[idx].clamp(0.0, 1.0);
-    }
+    SchedulerBinding.instance.addTimingsCallback(_radial.observeFrameTimings);
+    final hz = WidgetsBinding
+        .instance
+        .platformDispatcher
+        .views
+        .firstOrNull
+        ?.display
+        .refreshRate;
+    if (hz != null && hz > 0) _radial.refreshPeriodUs = 1e6 / hz;
   }
 
   /// Loads the playing track's artwork for the core, once per track.
@@ -321,7 +214,12 @@ class _WaveVisualizerState extends State<WaveVisualizer>
 
   @override
   void dispose() {
-    _beatSub?.cancel();
+    if (_beatSub != null) {
+      _beatSub!.cancel();
+      SchedulerBinding.instance.removeTimingsCallback(
+        _radial.observeFrameTimings,
+      );
+    }
     _idleTimer?.cancel();
     _controller.dispose();
     // A decoded ui.Image is native memory the GC does not account for; leaking
@@ -497,10 +395,10 @@ class _WaveVisualizerState extends State<WaveVisualizer>
   RadialBurstVisualizer _radialPainter() {
     _ensureBeatFeed();
     return RadialBurstVisualizer(
-      crown: _crown,
-      swell: _motion.swell,
-      flare: _motion.flare,
-      rings: _motion.rings,
+      crown: _radial.crown,
+      swell: _radial.swell,
+      flare: _radial.flare,
+      rings: _radial.rings,
       cover: _cover,
     );
   }
@@ -648,28 +546,3 @@ class _WaveVisualizerState extends State<WaveVisualizer>
     );
   }
 }
-
-/// Bands 1..51 of the native 64: ~43 Hz to ~14 kHz at 44.1 kHz. Above that,
-/// lossy audio is mostly empty and the bars there would never move.
-const int _crownBands = 51;
-
-/// After this long without a beat frame, the scene falls back to the old pulse.
-const int _beatStaleUs = 400000;
-
-/// Centre frequency of native band [band] (fft_visualizer.h's power-curve
-/// edges over a 2048-point FFT).
-double _bandCentre(int band, double sampleRate) {
-  final lo = _bandEdges[band];
-  final hi = _bandEdges[band + 1];
-  return (lo + hi - 1) / 2 * sampleRate / 2048;
-}
-
-final List<int> _bandEdges = () {
-  final edges = [
-    for (var b = 0; b <= 64; b++) 1 + ((b / 64) * (b / 64) * 1023).floor(),
-  ];
-  for (var b = 1; b <= 64; b++) {
-    if (edges[b] <= edges[b - 1]) edges[b] = edges[b - 1] + 1;
-  }
-  return edges;
-}();

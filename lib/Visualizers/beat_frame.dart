@@ -17,6 +17,7 @@ class BeatFrame {
     required this.synced,
     required this.hops,
     required this.bandsDb,
+    this.heardAtUs,
   });
 
   final double sampleRate;
@@ -33,8 +34,21 @@ class BeatFrame {
   /// The 64 power-curve bands' levels in dBFS where the hops end, or empty.
   final Float32List bandsDb;
 
+  /// When the last hop will be heard, in microseconds on the monotonic clock
+  /// `Timeline.now` reads (Android reads ~200 ms ahead, so this is usually in
+  /// the future); null when there is no playback clock (iOS).
+  final int? heardAtUs;
+
   /// Reads a frame, or null if [data] is not one this code understands.
+  ///
+  /// Android sends `{f: <frame>, heard: <µs>}`; iOS the bare frame.
   static BeatFrame? parse(Object? data) {
+    int? heardAtUs;
+    if (data is Map) {
+      final heard = data['heard'];
+      heardAtUs = heard is int ? heard : null;
+      data = data['f'];
+    }
     final Float32List f;
     if (data is Float32List) {
       f = data;
@@ -56,6 +70,7 @@ class BeatFrame {
       synced: f[3] != 0,
       hops: Float32List.sublistView(f, 5, 5 + n),
       bandsDb: Float32List.sublistView(f, 6 + n, 6 + n + m),
+      heardAtUs: heardAtUs,
     );
   }
 }
