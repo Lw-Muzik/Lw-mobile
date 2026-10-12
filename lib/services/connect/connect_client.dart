@@ -156,21 +156,15 @@ Duration connectBackoff(int attempt, double random) {
 
 class ConnectClient {
   ConnectClient({
-    required Uri wsUri,
-    required ConnectSocketFactory connect,
-    required Future<String> Function() accessToken,
-    required Future<void> Function() refreshToken,
-    required Future<void> Function() resetSession,
-    required Future<DeviceHello> Function() device,
+    required this._wsUri,
+    required this._connect,
+    required this._accessToken,
+    required this._refreshToken,
+    required this._resetSession,
+    required this._device,
     Random? random,
     this.welcomeTimeout = const Duration(seconds: 15),
-  })  : _wsUri = wsUri,
-        _connect = connect,
-        _accessToken = accessToken,
-        _refreshToken = refreshToken,
-        _resetSession = resetSession,
-        _device = device,
-        _random = random ?? Random();
+  }) : _random = random ?? Random();
 
   final Uri _wsUri;
   final ConnectSocketFactory _connect;

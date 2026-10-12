@@ -154,17 +154,13 @@ class ConnectTokens {
 
 class ConnectAccount {
   ConnectAccount({
-    required http.Client client,
-    required Uri apiBase,
-    required ConnectSecretStore store,
-    required Future<ConnectInstallInfo> Function() installInfo,
+    required this._client,
+    required this._apiBase,
+    required this._store,
+    required this._installInfo,
     String Function()? newInstallId,
     this.requestTimeout = const Duration(seconds: 15),
-  })  : _client = client,
-        _apiBase = apiBase,
-        _store = store,
-        _installInfo = installInfo,
-        _newInstallId = newInstallId ?? (() => const Uuid().v4());
+  }) : _newInstallId = newInstallId ?? (() => const Uuid().v4());
 
   static const installIdKey = 'hype_connect.install_id';
   static const tokensKey = 'hype_connect.tokens';

@@ -16,11 +16,10 @@ import 'connect_protocol.dart';
 
 class ConnectApi {
   ConnectApi({
-    required http.Client client,
-    required ConnectAccount account,
+    required this._client,
+    required this._account,
     this.requestTimeout = const Duration(seconds: 15),
-  })  : _client = client,
-        _account = account;
+  });
 
   final http.Client _client;
   final ConnectAccount _account;
