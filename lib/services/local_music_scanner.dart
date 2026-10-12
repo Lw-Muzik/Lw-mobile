@@ -191,7 +191,7 @@ class LocalMusicScanner {
           'aiff',
           'alac',
         ],
-        allowMultiple: true,
+        // allowMultiple: true,
       );
 
       debugPrint('LocalMusicScanner: Picker result: ${result.length}');
