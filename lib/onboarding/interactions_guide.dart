@@ -1,3 +1,4 @@
+import 'package:eq_app/Themes/app_fonts.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -320,9 +321,8 @@ class _SectionPage extends StatelessWidget {
           // Title
           Text(
             section.title,
-            style: const TextStyle(
+            style: AppFonts.displayStyle(
               fontSize: 28,
-              fontWeight: FontWeight.w800,
               color: Colors.white,
               height: 1.15,
               letterSpacing: -0.5,

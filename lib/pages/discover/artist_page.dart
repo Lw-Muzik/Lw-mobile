@@ -14,6 +14,7 @@
 /// button does.
 library;
 
+import 'package:eq_app/Themes/app_fonts.dart';
 import 'dart:math' as math;
 import 'dart:ui' show ImageFilter;
 
@@ -392,13 +393,14 @@ class _ArtistHero extends StatelessWidget {
                 name,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
+                style: AppFonts.displayStyle(
                   color: Ember.textPrimary,
                   fontSize: 36,
-                  fontWeight: FontWeight.w800,
                   height: 1.05,
                   letterSpacing: -1,
-                  shadows: [Shadow(color: Color(0x66000000), blurRadius: 18)],
+                  shadows: const [
+                    Shadow(color: Color(0x66000000), blurRadius: 18),
+                  ],
                 ),
               ),
               if (stats.isNotEmpty) ...[

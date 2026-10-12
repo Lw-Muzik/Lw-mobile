@@ -1,4 +1,5 @@
 // ignore_for_file: library_private_types_in_public_api, depend_on_referenced_packages
+import 'package:eq_app/Themes/app_fonts.dart';
 import 'dart:async';
 
 import 'package:rxdart/rxdart.dart';
@@ -618,10 +619,9 @@ class _TrackInfo extends StatelessWidget {
               type: MaterialType.transparency,
               child: _MarqueeText(
                 text: song.title,
-                style: const TextStyle(
+                style: AppFonts.displayStyle(
                   color: Colors.white,
                   fontSize: 20,
-                  fontWeight: FontWeight.w700,
                   letterSpacing: 0.2,
                 ),
               ),

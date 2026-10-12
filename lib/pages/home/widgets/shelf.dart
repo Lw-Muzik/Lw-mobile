@@ -6,6 +6,7 @@
 /// is easiest to keep when it is written once.
 library;
 
+import 'package:eq_app/Themes/app_fonts.dart';
 import 'package:flutter/material.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 
@@ -125,11 +126,10 @@ class MixShelf extends StatelessWidget {
                                   mix.descriptor.toUpperCase(),
                                   maxLines: 3,
                                   overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
+                                  style: AppFonts.displayStyle(
                                     color: Colors.white,
                                     fontSize: 20,
                                     height: 1.1,
-                                    fontWeight: FontWeight.w800,
                                     letterSpacing: -0.4,
                                   ),
                                 ),
