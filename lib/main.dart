@@ -41,6 +41,7 @@ import 'services/library_scanner.dart';
 import 'services/artwork_service.dart';
 import 'services/ytmusic/yt_downloads.dart';
 import 'services/share_service.dart';
+import 'services/connect/hype_connect.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -137,7 +138,14 @@ Future<void> main() async {
   runApp(
     MultiBlocProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => AppController(prefs, handler)),
+        ChangeNotifierProvider(
+          create: (_) {
+            final app = AppController(prefs, handler);
+            // Off unless the user has switched Hype Connect on; see HypeConnect.
+            HypeConnect.attach(app, prefs);
+            return app;
+          },
+        ),
         ChangeNotifierProvider(create: (_) => PlaylistController()),
         Provider<HypeAudioHandler>.value(value: handler),
         ChangeNotifierProvider(create: (_) => PlayerController()),
