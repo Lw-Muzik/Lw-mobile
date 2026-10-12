@@ -16,6 +16,8 @@ import '../onboarding/coach_marks.dart';
 import '../onboarding/interactions_guide.dart';
 import '../services/streaming_data_guard.dart';
 import '../services/share_service.dart';
+import '../services/connect/hype_connect.dart';
+import 'hype_connect_page.dart';
 import 'stream_server.dart';
 
 import '/widgets/bottom_player.dart';
@@ -135,6 +137,8 @@ const kSettingsIndex = <SettingsEntry>[
   SettingsEntry('Cloud storage', SettingsCategory.devices, 'google drive dropbox'),
   SettingsEntry('Phone link', SettingsCategory.devices, 'upload transfer'),
   SettingsEntry('Stream to desktop', SettingsCategory.devices, 'cast'),
+  SettingsEntry('Hype Connect', SettingsCategory.devices,
+      'remote control browser web link devices qr code play from computer'),
   SettingsEntry('About Hype Music', SettingsCategory.about, 'version build info'),
   SettingsEntry('Interactions Guide', SettingsCategory.about, 'gestures shortcuts tips'),
   SettingsEntry('Reset Guides', SettingsCategory.about,
@@ -420,6 +424,8 @@ class _SettingsState extends State<Settings> {
           _buildCloudStorageSection(controller),
           const SizedBox(height: 12),
           _buildPhoneLinkSection(),
+          const SizedBox(height: 12),
+          _buildHypeConnectSection(),
         ]),
       SettingsCategory.about => _buildAboutSection(context),
     };
@@ -1603,6 +1609,38 @@ class _SettingsState extends State<Settings> {
             ),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => Routes.routeTo(const StreamServerPage(), context),
+          ),
+        ]),
+      ],
+    );
+  }
+
+  // -- Hype Connect --
+
+  Widget _buildHypeConnectSection() {
+    final connect = HypeConnect.instanceOrNull;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionHeader(Icons.cast_connected_rounded, "Hype Connect"),
+        _buildSectionCard([
+          ListenableBuilder(
+            listenable: connect ?? const AlwaysStoppedAnimation(0),
+            builder: (context, _) => ListTile(
+              leading: const Icon(Icons.cast_connected_rounded),
+              title: const Text("Hype Connect"),
+              subtitle: Text(
+                connect == null
+                    ? "Play music here from the web or your computer"
+                    : connect.enabled
+                        ? "On — link browsers and computers, see linked devices"
+                        : "Off — play music here from the web or your computer",
+              ),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: connect == null
+                  ? null
+                  : () => Routes.routeTo(const HypeConnectPage(), context),
+            ),
           ),
         ]),
       ],

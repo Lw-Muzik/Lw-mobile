@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 
 import '../services/cast_controller.dart';
 import '../services/share_service.dart';
+import '../services/connect/hype_connect.dart';
+import 'hype_connect_page.dart';
 import 'scan_desktop.dart';
 
 /// "Stream / Cast" — turn this phone into a media source the desktop app can
@@ -90,6 +92,8 @@ class _StreamServerPageState extends State<StreamServerPage> {
                 _buildPairedCard(theme),
               ],
               const SizedBox(height: 12),
+              _buildConnectCard(theme),
+              const SizedBox(height: 12),
               _buildCastCard(theme),
               const SizedBox(height: 16),
               _buildHelp(theme),
@@ -135,6 +139,29 @@ class _StreamServerPageState extends State<StreamServerPage> {
               label: const Text('Scan desktop code'),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  /// Entry point for Hype Connect: playing this phone's music from a browser or
+  /// a desktop that is signed in to the same account, on any network.
+  Widget _buildConnectCard(ThemeData theme) {
+    final connect = HypeConnect.instanceOrNull;
+    return Card(
+      child: ListTile(
+        leading: Icon(Icons.cast_connected_rounded,
+            color: theme.colorScheme.primary),
+        title: const Text('Hype Connect'),
+        subtitle: Text(
+          connect != null && connect.enabled
+              ? 'On — control this phone from the web or your computer'
+              : 'Play music here from the web or your computer',
+        ),
+        trailing: const Icon(Icons.chevron_right),
+        enabled: connect != null,
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const HypeConnectPage()),
         ),
       ),
     );

@@ -96,6 +96,38 @@ String deviceDisplayName({
       : '$brand $type';
 }
 
+/// What to tell the user when linking a device failed.
+///
+/// One sentence each, saying what happened and what to do — the codes the hub
+/// answers with (404 unknown or used, 409 two accounts, 429 too many guesses)
+/// each have a different remedy.
+String describeLinkError(Object error) {
+  if (error is ConnectHttpException) {
+    switch (error.statusCode) {
+      case 404:
+        return 'That code has expired or was already used. '
+            'Ask the other device for a new one.';
+      case 409:
+        if (error.code == 'BOTH_HAVE_ACCOUNTS') {
+          return 'Both devices are signed in to different HypeMuzik accounts, '
+              'so they cannot be linked. Sign one of them out first.';
+        }
+        return 'That device changed accounts after the code was made. '
+            'Ask it for a new code.';
+      case 429:
+        return 'Too many attempts. Wait a minute and try again.';
+    }
+    if (error.statusCode >= 500) {
+      return 'HypeMuzik is having trouble right now. Try again in a moment.';
+    }
+    return 'Could not link that device (${error.statusCode}).';
+  }
+  if (error is TimeoutException || error is SocketException) {
+    return 'Could not reach HypeMuzik. Check your connection and try again.';
+  }
+  return 'Could not link that device. Try again.';
+}
+
 /// Keeps the last `seq` in preferences, so a restart continues after it.
 class PrefsConnectSeqStore implements ConnectSeqStore {
   PrefsConnectSeqStore(this._prefs);
