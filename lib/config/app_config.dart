@@ -59,6 +59,16 @@ class AppConfig {
     defaultValue: 'http://37.60.225.220:3035',
   );
 
+  // HypeMuzik backend (accounts + Hype Connect). The `/api` prefix is part of
+  // the base: every route the backend serves lives under it, and the Hype
+  // Connect socket is `<base>/connect/ws` with the scheme swapped to ws(s).
+  //
+  //   flutter run --dart-define=HM_API_BASE=https://api.example.com/api
+  static const String hypeMuzikApiBase = String.fromEnvironment(
+    'HM_API_BASE',
+    defaultValue: 'http://37.60.225.220:9400/api',
+  );
+
   // AcoustID (audio fingerprint recognition)
   static const String acoustIdApiKey = String.fromEnvironment(
     'ACOUSTID_API_KEY',
