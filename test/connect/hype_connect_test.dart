@@ -128,10 +128,10 @@ class _Source implements ConnectStateSource {
 }
 
 class _Rig {
-  _Rig({this.musicMode = true, this.playing = false});
+  _Rig({this.musicMode = true});
 
   bool musicMode;
-  bool playing;
+  bool playing = false;
   final sockets = <_Socket>[];
   final requests = <String>[];
   final player = _Player();
