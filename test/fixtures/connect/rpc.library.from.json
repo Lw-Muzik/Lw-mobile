@@ -1,0 +1,11 @@
+{
+  "t": "rpc",
+  "id": "r-5",
+  "from": "cm1webdevice0001abcdefgh",
+  "method": "library",
+  "params": {
+    "offset": 0,
+    "limit": 100,
+    "query": "sauti"
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "t": "rpc",
+  "id": "r-2",
+  "from": "cm1webdevice0001abcdefgh",
+  "method": "suggest",
+  "params": {
+    "query": "rick"
+  }
+}

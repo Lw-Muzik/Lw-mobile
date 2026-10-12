@@ -1,0 +1,8 @@
+{
+  "t": "cmd",
+  "id": "c-8",
+  "from": "cm1webdevice0001abcdefgh",
+  "cmd": {
+    "type": "stop"
+  }
+}

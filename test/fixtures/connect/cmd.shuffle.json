@@ -1,0 +1,9 @@
+{
+  "t": "cmd",
+  "id": "c-12",
+  "from": "cm1webdevice0001abcdefgh",
+  "cmd": {
+    "type": "shuffle",
+    "on": true
+  }
+}

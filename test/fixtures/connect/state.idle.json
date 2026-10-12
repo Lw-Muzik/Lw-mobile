@@ -1,0 +1,14 @@
+{
+  "t": "state",
+  "state": {
+    "seq": 1,
+    "track": null,
+    "playing": false,
+    "positionMs": 0,
+    "durationMs": null,
+    "volume": 1.0,
+    "shuffle": false,
+    "repeat": "off",
+    "queue": []
+  }
+}

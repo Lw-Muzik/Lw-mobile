@@ -1,0 +1,20 @@
+{
+  "t": "cmd",
+  "id": "c-3",
+  "from": "cm1webdevice0001abcdefgh",
+  "cmd": {
+    "type": "enqueue",
+    "items": [
+      {
+        "src": "yt",
+        "videoId": "kJQP7kiw5Fk",
+        "title": "Despacito",
+        "artist": "Luis Fonsi",
+        "album": null,
+        "durationMs": 229000,
+        "artUrl": "https://i.ytimg.com/vi/kJQP7kiw5Fk/hqdefault.jpg"
+      }
+    ],
+    "mode": "next"
+  }
+}

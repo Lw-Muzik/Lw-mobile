@@ -1,0 +1,11 @@
+{
+  "t": "rpc_result",
+  "id": "r-2",
+  "ok": true,
+  "result": {
+    "suggestions": [
+      "rick astley",
+      "rick and morty"
+    ]
+  }
+}

@@ -1,0 +1,95 @@
+{
+  "t": "welcome",
+  "v": 1,
+  "deviceId": "cm1webdevice0001abcdefgh",
+  "serverTime": 1760295600000,
+  "devices": [
+    {
+      "id": "6f1d2c3b-4a59-4e6f-8a7b-9c0d1e2f3a4b",
+      "kind": "mobile",
+      "name": "Bruno's Pixel",
+      "platform": "android",
+      "appVersion": "1.0.0",
+      "caps": [
+        "player",
+        "yt",
+        "local"
+      ],
+      "online": true,
+      "lastSeenAt": "2026-10-12T18:20:00.000Z"
+    },
+    {
+      "id": "0b9a8c7d-6e5f-4a3b-8c2d-1e0f9a8b7c6d",
+      "kind": "desktop",
+      "name": "Bruno's MacBook",
+      "platform": "macos",
+      "appVersion": "0.1.26",
+      "caps": [
+        "player",
+        "yt",
+        "local"
+      ],
+      "online": false,
+      "lastSeenAt": "2026-10-12T18:20:00.000Z"
+    },
+    {
+      "id": "cm1webdevice0001abcdefgh",
+      "kind": "web",
+      "name": "Chrome on macOS",
+      "platform": "macos",
+      "appVersion": null,
+      "caps": [],
+      "online": true,
+      "lastSeenAt": "2026-10-12T18:20:00.000Z"
+    }
+  ],
+  "activeDeviceId": "6f1d2c3b-4a59-4e6f-8a7b-9c0d1e2f3a4b",
+  "states": {
+    "6f1d2c3b-4a59-4e6f-8a7b-9c0d1e2f3a4b": {
+      "seq": 42,
+      "track": {
+        "src": "yt",
+        "videoId": "dQw4w9WgXcQ",
+        "title": "Never Gonna Give You Up",
+        "artist": "Rick Astley",
+        "album": "Whenever You Need Somebody",
+        "durationMs": 213000,
+        "artUrl": "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg"
+      },
+      "playing": true,
+      "positionMs": 61250,
+      "durationMs": 213000,
+      "volume": 0.8,
+      "shuffle": false,
+      "repeat": "off",
+      "queue": [
+        {
+          "uid": "q-7",
+          "track": {
+            "src": "yt",
+            "videoId": "kJQP7kiw5Fk",
+            "title": "Despacito",
+            "artist": "Luis Fonsi",
+            "album": null,
+            "durationMs": 229000,
+            "artUrl": "https://i.ytimg.com/vi/kJQP7kiw5Fk/hqdefault.jpg"
+          }
+        },
+        {
+          "uid": "q-8",
+          "track": {
+            "src": "local",
+            "deviceId": "6f1d2c3b-4a59-4e6f-8a7b-9c0d1e2f3a4b",
+            "id": "18342",
+            "title": "Sura Yako",
+            "artist": "Sauti Sol",
+            "album": "Midnight Train",
+            "durationMs": 201000,
+            "artUrl": null
+          }
+        }
+      ],
+      "at": 1760295600000
+    }
+  }
+}

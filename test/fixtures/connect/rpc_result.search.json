@@ -1,0 +1,41 @@
+{
+  "t": "rpc_result",
+  "id": "r-1",
+  "ok": true,
+  "result": {
+    "shelves": [
+      {
+        "title": "Top result",
+        "items": [
+          {
+            "kind": "song",
+            "id": "dQw4w9WgXcQ",
+            "title": "Never Gonna Give You Up",
+            "subtitle": "Song • Rick Astley • 3:33",
+            "thumbnail": "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg",
+            "artist": "Rick Astley",
+            "album": "Whenever You Need Somebody",
+            "durationMs": 213000,
+            "hasVideo": true
+          }
+        ]
+      },
+      {
+        "title": "Albums",
+        "items": [
+          {
+            "kind": "album",
+            "id": "MPREb_abc123",
+            "title": "Whenever You Need Somebody",
+            "subtitle": "Album • Rick Astley • 1987",
+            "thumbnail": "https://lh3.googleusercontent.com/abc=w226-h226",
+            "artist": "Rick Astley",
+            "album": null,
+            "durationMs": null,
+            "hasVideo": false
+          }
+        ]
+      }
+    ]
+  }
+}

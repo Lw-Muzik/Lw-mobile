@@ -1,0 +1,44 @@
+{
+  "t": "devices",
+  "devices": [
+    {
+      "id": "6f1d2c3b-4a59-4e6f-8a7b-9c0d1e2f3a4b",
+      "kind": "mobile",
+      "name": "Bruno's Pixel",
+      "platform": "android",
+      "appVersion": "1.0.0",
+      "caps": [
+        "player",
+        "yt",
+        "local"
+      ],
+      "online": true,
+      "lastSeenAt": "2026-10-12T18:20:00.000Z"
+    },
+    {
+      "id": "0b9a8c7d-6e5f-4a3b-8c2d-1e0f9a8b7c6d",
+      "kind": "desktop",
+      "name": "Bruno's MacBook",
+      "platform": "macos",
+      "appVersion": "0.1.26",
+      "caps": [
+        "player",
+        "yt",
+        "local"
+      ],
+      "online": false,
+      "lastSeenAt": "2026-10-12T18:20:00.000Z"
+    },
+    {
+      "id": "cm1webdevice0001abcdefgh",
+      "kind": "web",
+      "name": "Chrome on macOS",
+      "platform": "macos",
+      "appVersion": null,
+      "caps": [],
+      "online": true,
+      "lastSeenAt": "2026-10-12T18:20:00.000Z"
+    }
+  ],
+  "activeDeviceId": "6f1d2c3b-4a59-4e6f-8a7b-9c0d1e2f3a4b"
+}

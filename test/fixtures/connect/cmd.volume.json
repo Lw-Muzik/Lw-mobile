@@ -1,0 +1,9 @@
+{
+  "t": "cmd",
+  "id": "c-11",
+  "from": "cm1webdevice0001abcdefgh",
+  "cmd": {
+    "type": "volume",
+    "value": 0.35
+  }
+}

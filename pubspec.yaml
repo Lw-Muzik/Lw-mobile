@@ -93,12 +93,25 @@ dependencies:
   # notification) even after the app is swiped from recents (Android).
   flutter_foreground_task: ^11.0.1
 
+  # Hype Connect — a browser picks this phone as the player and drives it over
+  # a WebSocket to the HypeMuzik backend. See `lib/services/connect/`. All five
+  # were already in the lockfile as transitive dependencies; they are listed
+  # here because this app now imports them directly.
+  web_socket_channel: ^3.0.3
+  uuid: ^4.5.1
+  device_info_plus: ^13.2.0
+  package_info_plus: ^10.2.1
+  clock: ^1.1.2
+
 
 dev_dependencies:
   integration_test:
     sdk: flutter
   flutter_test:
     sdk: flutter
+  # Drives the Hype Connect client's backoff, debounce and heartbeat timers in
+  # tests without waiting for them.
+  fake_async: ^1.3.3
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is

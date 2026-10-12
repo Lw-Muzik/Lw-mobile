@@ -1,0 +1,9 @@
+{
+  "t": "cmd",
+  "id": "c-9",
+  "from": "cm1webdevice0001abcdefgh",
+  "cmd": {
+    "type": "seek",
+    "positionMs": 90000
+  }
+}

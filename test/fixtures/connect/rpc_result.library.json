@@ -1,0 +1,20 @@
+{
+  "t": "rpc_result",
+  "id": "r-5",
+  "ok": true,
+  "result": {
+    "total": 1,
+    "tracks": [
+      {
+        "src": "local",
+        "deviceId": "6f1d2c3b-4a59-4e6f-8a7b-9c0d1e2f3a4b",
+        "id": "18342",
+        "title": "Sura Yako",
+        "artist": "Sauti Sol",
+        "album": "Midnight Train",
+        "durationMs": 201000,
+        "artUrl": null
+      }
+    ]
+  }
+}

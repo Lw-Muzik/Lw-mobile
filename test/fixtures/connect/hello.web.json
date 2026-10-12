@@ -1,0 +1,13 @@
+{
+  "t": "hello",
+  "v": 1,
+  "token": "eyJhbGciOiJIUzI1NiJ9.e30.sig",
+  "device": {
+    "id": "cm1webdevice0001abcdefgh",
+    "kind": "web",
+    "name": "Chrome on macOS",
+    "platform": "macos",
+    "appVersion": "0.1.0",
+    "caps": []
+  }
+}

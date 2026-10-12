@@ -1,0 +1,8 @@
+{
+  "status": "approved",
+  "accessToken": "eyJhbGciOiJIUzI1NiJ9.e30.sig",
+  "refreshToken": "9d8c7b6a5f4e3d2c1b0a",
+  "expiresIn": 900,
+  "deviceId": "cm1webdevice0001abcdefgh",
+  "userId": "cm1user000000001abcdefgh"
+}

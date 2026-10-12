@@ -1,0 +1,9 @@
+{
+  "t": "rpc",
+  "id": "r-4",
+  "from": "cm1webdevice0001abcdefgh",
+  "method": "artist",
+  "params": {
+    "id": "UCuAXFkgsw1L7xaCfnd5JJOw"
+  }
+}

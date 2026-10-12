@@ -1,0 +1,9 @@
+{
+  "t": "cmd",
+  "id": "c-13",
+  "from": "cm1webdevice0001abcdefgh",
+  "cmd": {
+    "type": "repeat",
+    "mode": "one"
+  }
+}

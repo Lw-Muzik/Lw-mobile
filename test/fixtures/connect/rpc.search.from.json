@@ -1,0 +1,10 @@
+{
+  "t": "rpc",
+  "id": "r-1",
+  "from": "cm1webdevice0001abcdefgh",
+  "method": "search",
+  "params": {
+    "query": "rick astley",
+    "filter": "all"
+  }
+}

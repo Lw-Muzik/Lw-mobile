@@ -1,0 +1,21 @@
+{
+  "t": "state",
+  "state": {
+    "seq": 7,
+    "track": {
+      "src": "other",
+      "title": "Capital FM Kampala",
+      "artist": null,
+      "album": null,
+      "durationMs": null,
+      "artUrl": null
+    },
+    "playing": true,
+    "positionMs": 0,
+    "durationMs": null,
+    "volume": 0.5,
+    "shuffle": true,
+    "repeat": "all",
+    "queue": []
+  }
+}

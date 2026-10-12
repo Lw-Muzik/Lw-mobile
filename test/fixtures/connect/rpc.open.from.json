@@ -1,0 +1,19 @@
+{
+  "t": "rpc",
+  "id": "r-3",
+  "from": "cm1webdevice0001abcdefgh",
+  "method": "open",
+  "params": {
+    "item": {
+      "kind": "album",
+      "id": "MPREb_abc123",
+      "title": "Whenever You Need Somebody",
+      "subtitle": "Album • Rick Astley • 1987",
+      "thumbnail": "https://lh3.googleusercontent.com/abc=w226-h226",
+      "artist": "Rick Astley",
+      "album": null,
+      "durationMs": null,
+      "hasVideo": false
+    }
+  }
+}
