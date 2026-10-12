@@ -1,3 +1,4 @@
+import 'package:eq_app/Themes/app_fonts.dart';
 import 'dart:io';
 
 import '/exports/exports.dart';
@@ -297,12 +298,11 @@ class _BrandHeader extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                Text(
                   'Hype Muzik',
-                  style: TextStyle(
+                  style: AppFonts.displayStyle(
                     color: Colors.white,
                     fontSize: 22,
-                    fontWeight: FontWeight.w700,
                     letterSpacing: -0.3,
                   ),
                 ),

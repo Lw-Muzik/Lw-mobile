@@ -1,3 +1,4 @@
+import 'package:eq_app/Themes/app_fonts.dart';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -276,9 +277,8 @@ class _OnboardingPageView extends StatelessWidget {
           // Title
           Text(
             page.title,
-            style: const TextStyle(
+            style: AppFonts.displayStyle(
               fontSize: 34,
-              fontWeight: FontWeight.w800,
               color: Colors.white,
               height: 1.15,
               letterSpacing: -0.5,

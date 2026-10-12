@@ -1,3 +1,4 @@
+import 'package:eq_app/Themes/app_fonts.dart';
 import 'dart:io' show Platform;
 import 'dart:math' as math;
 import 'dart:ui';
@@ -115,11 +116,10 @@ class _ModeChooserState extends State<ModeChooser>
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
+                          Text(
                             'How would you\nlike to use Hype?',
-                            style: TextStyle(
+                            style: AppFonts.displayStyle(
                               fontSize: 30,
-                              fontWeight: FontWeight.w800,
                               color: Colors.white,
                               height: 1.15,
                               letterSpacing: -0.5,

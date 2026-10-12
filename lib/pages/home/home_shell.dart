@@ -21,6 +21,7 @@
 /// the note in `themes/ember.dart`.
 library;
 
+import 'package:eq_app/Themes/app_fonts.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -150,9 +151,8 @@ class _HomeShellState extends State<HomeShell> {
         _destinations[_index].label == 'Home'
             ? 'Hype Muzik'
             : _destinations[_index].label,
-        style: const TextStyle(
+        style: AppFonts.displayStyle(
           fontSize: 22,
-          fontWeight: FontWeight.w700,
           letterSpacing: -0.5,
           color: Ember.textPrimary,
         ),

@@ -18,6 +18,7 @@
 /// arriving here from the player ("Go to album") shows where the song sits.
 library;
 
+import 'package:eq_app/Themes/app_fonts.dart';
 import 'dart:math' as math;
 import 'dart:ui' show ImageFilter;
 
@@ -363,10 +364,9 @@ class _Hero extends StatelessWidget {
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
           textAlign: wide ? TextAlign.start : TextAlign.center,
-          style: const TextStyle(
+          style: AppFonts.displayStyle(
             color: Ember.textPrimary,
             fontSize: 26,
-            fontWeight: FontWeight.w800,
             height: 1.15,
             letterSpacing: -0.5,
           ),

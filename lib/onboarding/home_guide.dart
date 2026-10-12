@@ -1,3 +1,4 @@
+import 'package:eq_app/Themes/app_fonts.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -227,9 +228,8 @@ class _HomeGuideState extends State<HomeGuide>
             Text(
               tip.title,
               textAlign: TextAlign.center,
-              style: const TextStyle(
+              style: AppFonts.displayStyle(
                 fontSize: 24,
-                fontWeight: FontWeight.w700,
                 color: Colors.white,
                 letterSpacing: -0.3,
               ),

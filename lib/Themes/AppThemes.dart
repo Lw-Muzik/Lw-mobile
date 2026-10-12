@@ -1,4 +1,5 @@
 import 'package:eq_app/Global/index.dart';
+import 'package:eq_app/Themes/app_fonts.dart';
 import 'package:flutter/material.dart';
 
 import '../themes/ember.dart';
@@ -23,6 +24,8 @@ import '../themes/ember.dart';
 class AppThemes {
   static ThemeData lightTheme = ThemeData(
     useMaterial3: true,
+    fontFamily: AppFonts.body,
+    textTheme: AppFonts.displayTextTheme,
     colorScheme: ColorScheme.fromSeed(
       seedColor: Ember.accent,
       brightness: Brightness.light,
@@ -52,6 +55,8 @@ class AppThemes {
 
   static ThemeData darkTheme = ThemeData(
     useMaterial3: true,
+    fontFamily: AppFonts.body,
+    textTheme: AppFonts.displayTextTheme,
     bottomNavigationBarTheme: const BottomNavigationBarThemeData(
       backgroundColor: Colors.transparent,
     ),
@@ -62,6 +67,8 @@ class AppThemes {
 
   static ThemeData fancyTheme = ThemeData(
     useMaterial3: true,
+    fontFamily: AppFonts.body,
+    textTheme: AppFonts.displayTextTheme,
     bottomNavigationBarTheme: const BottomNavigationBarThemeData(
       backgroundColor: Colors.transparent,
       elevation: 0,

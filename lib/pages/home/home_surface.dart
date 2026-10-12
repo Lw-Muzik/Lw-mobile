@@ -14,6 +14,7 @@
 /// The page is complete and useful with the phone in aeroplane mode.
 library;
 
+import 'package:eq_app/Themes/app_fonts.dart';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -294,10 +295,9 @@ class _HomeSurfaceState extends State<HomeSurface> with WidgetsBindingObserver {
         children: [
           Text(
             'Good ${_greetingWord(daypart)}',
-            style: const TextStyle(
+            style: AppFonts.displayStyle(
               color: Ember.textPrimary,
               fontSize: 28,
-              fontWeight: FontWeight.w700,
               letterSpacing: -0.8,
             ),
           ),
