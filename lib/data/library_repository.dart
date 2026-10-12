@@ -1,3 +1,5 @@
+import 'dart:math' show min;
+
 import 'package:drift/drift.dart';
 import 'package:flutter/foundation.dart' show ValueNotifier;
 import 'package:on_audio_query/on_audio_query.dart';
@@ -195,6 +197,64 @@ class LibraryRepository {
       readsFrom: {_db.songs},
     ).get();
     return _songs(rows);
+  }
+
+  /// The songs among [ids] that are in the library, by id.
+  ///
+  /// One `IN` query per 500 ids: SQLite caps the variables in a statement
+  /// (999 on older builds), and a controller may send a queue far longer than
+  /// that. Ids the library does not hold are simply absent from the result.
+  Future<Map<int, SongModel>> songsWithIds(Iterable<int> ids) async {
+    final wanted = ids.toSet().toList();
+    final found = <int, SongModel>{};
+    for (var i = 0; i < wanted.length; i += 500) {
+      final chunk = wanted.sublist(i, min(i + 500, wanted.length));
+      final marks = List.filled(chunk.length, '?').join(',');
+      final rows = await _db.customSelect(
+        'SELECT * FROM songs WHERE id IN ($marks)',
+        variables: [for (final id in chunk) Variable<int>(id)],
+        readsFrom: {_db.songs},
+      ).get();
+      for (final song in _songs(rows)) {
+        found[song.id] = song;
+      }
+    }
+    return found;
+  }
+
+  /// One page of the library in title order, and how many songs match.
+  ///
+  /// [query] matches title, artist or album as a plain substring: a `%` or `_`
+  /// the user typed is searched for, not treated as a wildcard.
+  Future<({int total, List<SongModel> songs})> songsPage({
+    required int offset,
+    required int limit,
+    String? query,
+  }) async {
+    final text = query?.trim() ?? '';
+    final filtered = text.isNotEmpty;
+    final where = filtered
+        ? "WHERE title LIKE ?1 ESCAPE '\\' OR artist LIKE ?1 ESCAPE '\\' "
+            "OR album LIKE ?1 ESCAPE '\\'"
+        : '';
+    final like = [
+      if (filtered)
+        Variable<String>(
+          '%${text.replaceAll('\\', '\\\\').replaceAll('%', '\\%').replaceAll('_', '\\_')}%',
+        ),
+    ];
+    final count = await _db.customSelect(
+      'SELECT COUNT(*) AS c FROM songs $where',
+      variables: like,
+      readsFrom: {_db.songs},
+    ).getSingle();
+    final rows = await _db.customSelect(
+      'SELECT * FROM songs $where ORDER BY title COLLATE NOCASE ASC, id ASC '
+      'LIMIT ?${like.length + 1} OFFSET ?${like.length + 2}',
+      variables: [...like, Variable<int>(limit), Variable<int>(offset)],
+      readsFrom: {_db.songs},
+    ).get();
+    return (total: count.data['c'] as int, songs: _songs(rows));
   }
 
   Future<int> songCount() async {

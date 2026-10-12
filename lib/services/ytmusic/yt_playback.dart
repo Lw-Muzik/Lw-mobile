@@ -62,14 +62,63 @@ class YtPlayback {
     List<YtTrack> tracks,
     int index, {
     bool radio = false,
+  }) {
+    return playTracks(
+      context.read<AppController>(),
+      tracks,
+      index,
+      radio: radio,
+      isWanted: () => context.mounted,
+      complain: (message) {
+        if (context.mounted) _complain(context, message);
+      },
+      onStarted: () {
+        if (context.mounted) Routes.playerTo(context);
+      },
+    );
+  }
+
+  /// [play] without a screen to speak to.
+  ///
+  /// Everything [play] does to the interface goes through a callback, so a
+  /// caller with no `BuildContext` — Hype Connect, acting on a command from
+  /// another device — can start the same playback without opening the player
+  /// or showing a snack bar. [play] is this with the callbacks wired to the
+  /// widget tree, so the two cannot drift apart.
+  ///
+  /// * [isWanted] is asked after each wait (the resolve, the cover); once it is
+  ///   false nothing more is started. [play] answers it with `context.mounted`.
+  /// * [complain] receives the sentence a user would be shown when nothing
+  ///   could be played.
+  /// * [onStarted] runs the moment the first track has been handed to the
+  ///   player, before the queue fills — the in-app caller opens the player
+  ///   screen there.
+  /// * [startAt] starts the first track part-way in. It belongs to
+  ///   `tracks[index]`, so it applies only when that track is the one that
+  ///   plays: if it is unavailable and the next one plays instead, the position
+  ///   would land in a song nobody asked to resume.
+  ///
+  /// The returned future completes once the first track is loaded (not once it
+  /// has played) — last, after the queue fill and any station have been
+  /// started, so a caller can order later actions behind it.
+  static Future<void> playTracks(
+    AppController controller,
+    List<YtTrack> tracks,
+    int index, {
+    bool radio = false,
+    Duration? startAt,
+    bool Function()? isWanted,
+    void Function(String message)? complain,
+    void Function()? onStarted,
   }) async {
+    bool wanted() => isWanted?.call() ?? true;
     if (tracks.isEmpty || index < 0 || index >= tracks.length) return;
     final playable = [
       for (final track in tracks.skip(index))
         if (track.isAvailable) track,
     ];
     if (playable.isEmpty) {
-      _complain(context, 'Nothing in this list can be played.');
+      complain?.call('Nothing in this list can be played.');
       return;
     }
 
@@ -78,14 +127,17 @@ class YtPlayback {
     // independent requests and waiting for them in turn would show a spinner
     // for the sum of the two.
     final artwork = cacheArtwork(first);
-    final target = await _resolveForPlay(context, first);
-    if (target == null || !context.mounted) return;
+    final target = await _resolveForPlay(first, complain);
+    if (target == null || !wanted()) return;
     await artwork;
-    if (!context.mounted) return;
+    if (!wanted()) return;
 
-    final controller = context.read<AppController>();
-    controller.playSongFromList([songModelOf(first, target)], 0);
-    Routes.playerTo(context);
+    final load = controller.playSongFromList(
+      [songModelOf(first, target)],
+      0,
+      initialPosition: identical(first, tracks[index]) ? startAt : null,
+    );
+    onStarted?.call();
 
     // Attached before the fill starts, not after: the fill takes the station it
     // is filling on the way in and stops if it stops being the current one, so
@@ -97,10 +149,11 @@ class YtPlayback {
       // yes to. Reaching `fill` directly rather than waiting for the queue to
       // run low is the whole point: a queue of one has no "near the end".
       unawaited(RadioQueue.instance.fill(controller));
-      return;
+    } else {
+      // Everything after the first track arrives behind the music.
+      unawaited(_fillQueue(controller, playable.skip(1).toList()));
     }
-    // Everything after the first track arrives behind the music.
-    _fillQueue(controller, playable.skip(1).toList());
+    await load;
   }
 
   /// Plays [track] as video.
@@ -313,7 +366,9 @@ class YtPlayback {
   /// for by name.
   static Future<void> startRadio(BuildContext context, YtTrack seed) async {
     final artwork = cacheArtwork(seed);
-    final target = await _resolveForPlay(context, seed);
+    final target = await _resolveForPlay(seed, (message) {
+      if (context.mounted) _complain(context, message);
+    });
     if (target == null || !context.mounted) return;
     await artwork;
     if (!context.mounted) return;
@@ -433,22 +488,21 @@ class YtPlayback {
   /// The resolve is bounded: a request that cannot finish must become an error
   /// the user can act on, never an interface that waits forever.
   static Future<StreamTarget?> _resolveForPlay(
-    BuildContext context,
     YtTrack track,
+    void Function(String message)? complain,
   ) async {
     try {
       return await YtMusicRepository.instance
           .audioTarget(track.videoId)
           .timeout(const Duration(seconds: 25));
     } on TimeoutException {
-      if (context.mounted)
-        _complain(context, 'YouTube took too long to answer.');
+      complain?.call('YouTube took too long to answer.');
       return null;
     } on YtException catch (e) {
-      if (context.mounted) _complain(context, e.message);
+      complain?.call(e.message);
       return null;
     } catch (e) {
-      if (context.mounted) _complain(context, 'Could not play that: $e');
+      complain?.call('Could not play that: $e');
       return null;
     }
   }

@@ -107,4 +107,79 @@ void main() {
       }
     });
   });
+
+  group('insertNext', () {
+    final extra = [song(90), song(91)];
+
+    test('unshuffled: lands straight after the playing track in the queue', () {
+      final out = QueueOrder.insertNext(
+        original: [for (var i = 1; i <= 4; i++) song(i)],
+        shuffled: [for (var i = 1; i <= 4; i++) song(i)],
+        isShuffled: false,
+        playingIndex: 1,
+        extra: extra,
+      )!;
+      expect(ids(out.original), [1, 2, 90, 91, 3, 4]);
+    });
+
+    test('shuffled: after the playing track in the shuffled order', () {
+      final out = QueueOrder.insertNext(
+        original: [for (var i = 1; i <= 5; i++) song(i)],
+        shuffled: [song(4), song(2), song(5), song(1), song(3)],
+        isShuffled: true,
+        playingIndex: 3,
+        extra: extra,
+      )!;
+      expect(ids(out.shuffled), [4, 2, 5, 1, 90, 91, 3]);
+    });
+
+    test('shuffled: and after that same song in the original order', () {
+      final out = QueueOrder.insertNext(
+        original: [for (var i = 1; i <= 5; i++) song(i)],
+        shuffled: [song(4), song(2), song(5), song(1), song(3)],
+        isShuffled: true,
+        playingIndex: 3,
+        extra: extra,
+      )!;
+      expect(ids(out.original), [1, 90, 91, 2, 3, 4, 5]);
+    });
+
+    test('nothing after the playing track: null, so the caller appends', () {
+      expect(
+        QueueOrder.insertNext(
+          original: [song(1), song(2)],
+          shuffled: [song(2), song(1)],
+          isShuffled: true,
+          playingIndex: 1,
+          extra: extra,
+        ),
+        isNull,
+      );
+    });
+
+    test('a stale playing index is treated as nothing following', () {
+      expect(
+        QueueOrder.insertNext(
+          original: [song(1)],
+          shuffled: [song(1)],
+          isShuffled: false,
+          playingIndex: 7,
+          extra: extra,
+        ),
+        isNull,
+      );
+    });
+
+    test('does not mutate the lists it was given', () {
+      final original = [song(1), song(2), song(3)];
+      QueueOrder.insertNext(
+        original: original,
+        shuffled: [song(3), song(1), song(2)],
+        isShuffled: false,
+        playingIndex: 0,
+        extra: extra,
+      );
+      expect(ids(original), [1, 2, 3]);
+    });
+  });
 }

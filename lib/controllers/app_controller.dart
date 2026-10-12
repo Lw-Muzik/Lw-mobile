@@ -1178,7 +1178,17 @@ class AppController with ChangeNotifier implements StationSink {
 
   /// Central method for playing a song selected from any list.
   /// Properly handles gapless queue vs single-source loading.
-  void playSongFromList(List<SongModel> songList, int index) {
+  ///
+  /// Returns the load, which finishes once the player holds the track (it does
+  /// not wait for playback to end). Taps ignore it, as they always did; Hype
+  /// Connect awaits it so a remote `pause` cannot overtake the `play` before
+  /// it. [initialPosition] starts the track part-way in, which a controller
+  /// handing over a song mid-way asks for.
+  Future<void> playSongFromList(
+    List<SongModel> songList,
+    int index, {
+    Duration? initialPosition,
+  }) {
     // The user picked something rather than resuming. Whatever was waiting from
     // the last session is no longer what is about to play.
     _pendingResume = null;
@@ -1213,13 +1223,42 @@ class AppController with ChangeNotifier implements StationSink {
     // locally (the desktop pulls + plays it through its DSP chain).
     if (CastController.instance.isCasting) {
       CastController.instance.cast(songList[index]);
-      return;
+      return Future.value();
     }
     if (_gaplessPlayback && _crossfadeDuration == 0) {
-      loadGaplessQueue(startIndex);
-    } else {
-      loadAudioSource(handler, songList[index], replayGain: _replayGain);
+      return loadGaplessQueue(startIndex, initialPosition: initialPosition);
     }
+    return loadAudioSource(
+      handler,
+      songList[index],
+      replayGain: _replayGain,
+      initialPosition: initialPosition,
+    );
+  }
+
+  /// Puts [extra] right after the playing track — "play next".
+  ///
+  /// With nothing after the playing track this is [appendToQueue]. Otherwise
+  /// [QueueOrder.insertNext] places the tracks in both orderings (while
+  /// shuffled, [songs] is [_shuffledSongs], so they must land after the playing
+  /// song *there*), and the player is then handed the new order the way a
+  /// reorder hands it one — serialised with appends, so neither sees a
+  /// half-built list.
+  Future<void> insertNext(List<SongModel> extra) {
+    if (extra.isEmpty) return Future.value();
+    final spliced = QueueOrder.insertNext(
+      original: _songs,
+      shuffled: _shuffledSongs,
+      isShuffled: _isShuffled,
+      playingIndex: _songId,
+      extra: extra,
+    );
+    if (spliced == null) return appendToQueue(extra);
+    _songs = spliced.original;
+    _shuffledSongs = spliced.shuffled;
+    notifyListeners();
+    _saveSession();
+    return _queueSync.serial(_reloadQueueOrder);
   }
 
   /// Plays [seed] alone and builds a station behind it.

@@ -48,11 +48,21 @@ class MixPlayback {
 
   /// Plays [mix], starting as soon as anything in it can be played.
   ///
-  /// Returns once the first track is playing; the rest arrive behind it.
+  /// Returns once the first track is loaded; the rest arrive behind it. The
+  /// load is awaited *after* the queue fill has been started, so a caller that
+  /// orders a later action behind this one (Hype Connect does) cannot have it
+  /// reach the player before the track does. The in-app callers navigate before
+  /// they await, so waiting here costs them nothing.
+  ///
+  /// [startAt] starts the first track part-way in. It is the position of
+  /// `mix.tracks.first`, so it applies only if that track is the one that
+  /// plays — when it will not resolve and a later one plays instead, the
+  /// position would belong to a different song.
   static Future<void> play(
     AppController controller,
     ResolvedMixSource mix, {
     required CloudLinkResolver resolveCloud,
+    Duration? startAt,
   }) async {
     if (mix.tracks.isEmpty) return;
 
@@ -62,13 +72,18 @@ class MixPlayback {
 
       // A mix is a running order — it was built as one — so it queues rather
       // than seeding a station.
-      controller.playSongFromList([song], 0);
+      final load = controller.playSongFromList(
+        [song],
+        0,
+        initialPosition: i == 0 ? startAt : null,
+      );
       unawaited(_fillBehind(
         controller,
         mix.tracks.sublist(i + 1),
         resolveCloud,
         generation: controller.queueGeneration,
       ));
+      await load;
       return;
     }
   }

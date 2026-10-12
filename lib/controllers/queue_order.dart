@@ -64,4 +64,36 @@ class QueueOrder {
     final at = list.indexWhere((candidate) => candidate.id == song.id);
     return at < 0 ? 0 : at;
   }
+
+  /// Both orderings of a queue with [extra] placed right after the playing
+  /// track, or null when nothing follows it (the caller appends instead).
+  ///
+  /// [playingIndex] is a position in the list the user is looking at —
+  /// [shuffled] while [isShuffled], otherwise [original]. The extras go in
+  /// straight after the playing track there. In the *other* ordering they go
+  /// after that same song, found by id, so that switching shuffle off keeps
+  /// them beside the song they were queued behind rather than stranding them
+  /// at a position that only meant something in the shuffled order. If the
+  /// playing song is somehow not in the other list, they go on its end.
+  static ({List<SongModel> original, List<SongModel> shuffled})? insertNext({
+    required List<SongModel> original,
+    required List<SongModel> shuffled,
+    required bool isShuffled,
+    required int playingIndex,
+    required List<SongModel> extra,
+  }) {
+    final visible = isShuffled ? shuffled : original;
+    if (playingIndex < 0 || playingIndex >= visible.length - 1) return null;
+
+    final playing = visible[playingIndex];
+    final nextOriginal = List<SongModel>.of(original);
+    final nextShuffled = List<SongModel>.of(shuffled);
+    final into = isShuffled ? nextShuffled : nextOriginal;
+    final other = isShuffled ? nextOriginal : nextShuffled;
+
+    into.insertAll(playingIndex + 1, extra);
+    final at = other.indexWhere((song) => song.id == playing.id);
+    other.insertAll(at < 0 ? other.length : at + 1, extra);
+    return (original: nextOriginal, shuffled: nextShuffled);
+  }
 }

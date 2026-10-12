@@ -201,4 +201,75 @@ void main() {
       svc.clearMemory();
     });
   });
+
+  group('songsWithIds', () {
+    test('returns the songs that exist and omits the rest', () async {
+      await repo.upsertSongs([song(1, title: 'a'), song(2, title: 'b')]);
+      final found = await repo.songsWithIds([2, 99, 1]);
+      expect(found.keys.toSet(), {1, 2});
+      expect(found[2]!.title, 'b');
+    });
+
+    test('is not capped by the variable limit of one statement', () async {
+      await repo.upsertSongs([for (var i = 1; i <= 1200; i++) song(i)]);
+      final found = await repo.songsWithIds([for (var i = 1; i <= 1200; i++) i]);
+      expect(found.length, 1200);
+    });
+
+    test('an empty request asks nothing', () async {
+      expect(await repo.songsWithIds(const []), isEmpty);
+    });
+  });
+
+  group('songsPage', () {
+    setUp(() async {
+      await repo.upsertSongs([
+        song(1, title: 'delta', artist: 'Zed'),
+        song(2, title: 'Alpha', artist: 'Yan'),
+        song(3, title: 'charlie', album: '100% Pure'),
+        song(4, title: 'bravo', artist: 'snake_case'),
+      ]);
+    });
+
+    test('pages in title order and reports the total', () async {
+      final first = await repo.songsPage(offset: 0, limit: 2);
+      expect(first.total, 4);
+      expect(first.songs.map((s) => s.title), ['Alpha', 'bravo']);
+      final second = await repo.songsPage(offset: 2, limit: 2);
+      expect(second.songs.map((s) => s.title), ['charlie', 'delta']);
+    });
+
+    test('the total counts matches, not the page', () async {
+      final page = await repo.songsPage(offset: 0, limit: 1, query: 'a');
+      expect(page.songs, hasLength(1));
+      expect(page.total, 4);
+    });
+
+    test('matches title, artist or album, ignoring case', () async {
+      expect(
+        (await repo.songsPage(offset: 0, limit: 10, query: 'ZED')).songs.single.id,
+        1,
+      );
+      expect(
+        (await repo.songsPage(offset: 0, limit: 10, query: 'pure')).songs.single.id,
+        3,
+      );
+    });
+
+    test('a percent sign is searched for, not a wildcard', () async {
+      final page = await repo.songsPage(offset: 0, limit: 10, query: '%');
+      expect(page.songs.map((s) => s.id), [3]);
+      expect(page.total, 1);
+    });
+
+    test('an underscore is searched for, not a wildcard', () async {
+      final page = await repo.songsPage(offset: 0, limit: 10, query: 'e_c');
+      expect(page.songs.map((s) => s.id), [4]);
+      expect((await repo.songsPage(offset: 0, limit: 10, query: 'p_a')).total, 0);
+    });
+
+    test('a blank query is no filter', () async {
+      expect((await repo.songsPage(offset: 0, limit: 10, query: '  ')).total, 4);
+    });
+  });
 }
