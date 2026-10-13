@@ -253,6 +253,8 @@ public class MainActivity extends AudioServiceFragmentActivity {
     protected void onCreate(Bundle savedInstance) {
         EdgeToEdge.enable(this);
         super.onCreate(savedInstance);
+        // Tapped from the Hype Connect notification? (A re-launch arrives in onNewIntent.)
+        ConnectChannel.handleLaunchIntent(getIntent());
         new HeadphoneService();
         // Initialize AudioProcessor singletons so just_audio can discover them
         RoomEffectsProcessor.getInstance();
@@ -359,10 +361,20 @@ public class MainActivity extends AudioServiceFragmentActivity {
         return super.onKeyDown(keyCode, event);
     }
 
+    @Override
+    protected void onNewIntent(@NonNull Intent intent) {
+        super.onNewIntent(intent);
+        ConnectChannel.handleLaunchIntent(intent);
+    }
+
     @SuppressLint("NewApi")
     @Override
     public void configureFlutterEngine(@NonNull FlutterEngine flutterEngine) {
         super.configureFlutterEngine(flutterEngine);
+
+        // Hype Connect's background service channel. Also attached by
+        // ConnectService itself when it creates this engine with no activity.
+        ConnectChannel.attach(flutterEngine, this);
 
         // DVC init & EventChannel
         DvcController.init(this);

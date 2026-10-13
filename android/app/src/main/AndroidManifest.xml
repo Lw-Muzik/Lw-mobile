@@ -34,6 +34,13 @@
          the app is swiped from recents) + its persistent notification. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC"/>
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <!-- Hype Connect's background service (ConnectService): a connectedDevice
+         foreground service. CHANGE_NETWORK_STATE is one of the permissions
+         Android 14+ requires before it will accept that type; the boot
+         permission lets it come back after a reboot. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE"/>
+    <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE"/>
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
 
     <application android:name=".HypeApplication" android:enableOnBackInvokedCallback="true" android:icon="@mipmap/ic_launcher" android:label="${appLabel}" tools:ignore="ExtraText" android:requestLegacyExternalStorage="true" android:usesCleartextTraffic="true">
@@ -86,6 +93,21 @@
         <service android:name=".EqModeService"
             android:enabled="true" android:exported="false"
             android:foregroundServiceType="mediaPlayback" />
+        <!-- Keeps Hype Connect reachable in the background, with a persistent
+             notification. stopWithTask="false": swiping the app away must not
+             end it. -->
+        <service android:name=".ConnectService"
+            android:exported="false"
+            android:stopWithTask="false"
+            android:foregroundServiceType="connectedDevice" />
+        <!-- Restores it after a reboot or an update if Hype Connect was on. Both
+             broadcasts are protected (only the system can send them). -->
+        <receiver android:name=".ConnectBootReceiver" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
         <service android:name=".MediaNotificationListener"
             android:enabled="true" android:exported="true"
             android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
