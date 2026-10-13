@@ -205,6 +205,18 @@ void main() {
       expect(events, isEmpty);
     });
 
+    test('no notice when it drops in the same frame this phone takes over', () {
+      final r = Rig();
+      final events = <RemoteEvent>[];
+      r.session.events.listen(events.add);
+      r.session.onFrame(r.welcome());
+      r.session.onFrame(DevicesFrame(
+        devices: [r.phone, device('desk', online: false)],
+        activeDeviceId: self,
+      ));
+      expect(events, isEmpty);
+    });
+
     test('no notice when the target merely stops being a player', () {
       final r = Rig();
       final events = <RemoteEvent>[];
