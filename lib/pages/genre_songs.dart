@@ -137,7 +137,7 @@ class _GenreSongsState extends State<GenreSongs> {
                       );
                     },
                   ),
-                  bottomNavigationBar: controller.hasNowPlaying
+                  bottomNavigationBar: controller.hasMiniPlayer
                       ? BottomPlayer(controller: controller)
                       : null,
                 );

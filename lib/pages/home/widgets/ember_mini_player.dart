@@ -17,6 +17,10 @@ import '../../../player/now_playing_hero.dart';
 import '../../../routes/routes.dart';
 import '../../../themes/ember.dart';
 import '../../../widgets/artwork_widget.dart';
+import '../../../player/remote/connect_device_picker.dart';
+import '../../../player/remote/remote_mini_player.dart';
+import '../../../player/remote/remote_scope.dart';
+import '../../../services/connect/hype_connect.dart';
 
 class EmberMiniPlayer extends StatelessWidget {
   const EmberMiniPlayer({super.key, required this.controller});
@@ -29,6 +33,19 @@ class EmberMiniPlayer extends StatelessWidget {
   Widget build(BuildContext context) {
     // Callers gate on this too, but a queue can be replaced between that check
     // and this build, and an out-of-range read throws.
+    // Another device is the player: show and drive that one.
+    final connect = HypeConnect.instanceOrNull;
+    if (connect != null) {
+      return RemoteBuilder(
+        builder: (context, remote) => remote != null
+            ? RemoteMiniPlayer(remote: remote)
+            : _local(context),
+      );
+    }
+    return _local(context);
+  }
+
+  Widget _local(BuildContext context) {
     if (!controller.hasNowPlaying) return const SizedBox.shrink();
     final song = controller.songs[controller.songId];
 
@@ -104,6 +121,7 @@ class EmberMiniPlayer extends StatelessWidget {
                   ],
                 ),
               ),
+              const ConnectPickerButton(size: 20),
               _Control(
                 icon: Icons.skip_previous_rounded,
                 onPressed: controller.prev,

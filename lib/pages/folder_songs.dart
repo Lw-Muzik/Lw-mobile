@@ -127,7 +127,7 @@ class _FolderSongsState extends State<FolderSongs> {
               ? Colors.transparent
               : Theme.of(context).scaffoldBackgroundColor,
           body: _buildSongList(controller, songs, hasData),
-          bottomNavigationBar: controller.hasNowPlaying
+          bottomNavigationBar: controller.hasMiniPlayer
               ? BottomPlayer(controller: controller)
               : null,
         );

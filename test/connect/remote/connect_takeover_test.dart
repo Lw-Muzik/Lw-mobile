@@ -24,7 +24,7 @@ DeviceInfo device(
 const self = 'phone';
 
 class Rig {
-  Rig({bool sends = true}) : _sends = sends {
+  Rig({this._sends = true}) {
     takeover = ConnectTakeover(
       selfId: self,
       sendSelect: (id) {

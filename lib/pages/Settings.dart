@@ -210,7 +210,7 @@ class _SettingsState extends State<Settings> {
                     ? _buildIndex(controller)
                     : _buildCategory(controller, widget.category!),
                 bottomNavigationBar:
-                    !controller.isEqMode && controller.hasNowPlaying
+                    !controller.isEqMode && controller.hasMiniPlayer
                     ? BottomPlayer(controller: controller)
                     : null,
               ),

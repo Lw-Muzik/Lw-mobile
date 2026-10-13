@@ -362,7 +362,7 @@ class _CloudFolderSongsState extends State<CloudFolderSongs>
               ? Colors.transparent
               : Theme.of(context).scaffoldBackgroundColor,
           body: _buildContent(controller),
-          bottomNavigationBar: controller.hasNowPlaying
+          bottomNavigationBar: controller.hasMiniPlayer
               ? BottomPlayer(controller: controller)
               : null,
         );

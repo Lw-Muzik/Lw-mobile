@@ -2357,6 +2357,15 @@ class AppController with ChangeNotifier implements StationSink {
     return queue.isNotEmpty && _songId >= 0 && _songId < queue.length;
   }
 
+  /// Whether the bottom player should show: a local track, or another device
+  /// that this phone is controlling (Hype Connect remote mode).
+  bool get hasMiniPlayer =>
+      hasNowPlaying ||
+      (ConnectPlayRouter.instance?.session.isRemote ?? false);
+
+  /// Remote mode started or ended: redraw the bottom players and the player.
+  void refreshRemoteMode() => notifyListeners();
+
   Timer? _sessionTicker;
 
   /// Notes the position periodically while something is playing.

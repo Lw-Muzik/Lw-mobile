@@ -185,7 +185,7 @@ class _HomeShellState extends State<HomeShell> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (controller.hasNowPlaying)
+            if (controller.hasMiniPlayer)
               EmberMiniPlayer(controller: controller),
             _buildNavBar(),
           ],

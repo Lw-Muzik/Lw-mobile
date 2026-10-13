@@ -9,6 +9,7 @@ import 'package:eq_app/services/connect/connect_client.dart';
 import 'package:eq_app/services/connect/connect_protocol.dart';
 import 'package:eq_app/services/connect/hype_connect.dart';
 import 'package:eq_app/themes/ember.dart';
+import 'package:eq_app/player/remote/link_direction_sheet.dart';
 
 /// The one sentence under the switch: where Hype Connect stands, in plain words.
 ///
@@ -144,6 +145,11 @@ class _HypeConnectPageState extends State<HypeConnectPage> {
       if (approve) {
         await _connect.approveLink(code);
         if (mounted) _say('Linked ${preview.name}.');
+        // A desktop can be a speaker or a remote: ask which (re-linking an
+        // already linked desktop asks again).
+        if (mounted && preview.kind == DeviceKind.desktop) {
+          await showLinkDirectionSheet(context, preview);
+        }
       } else {
         await _connect.denyLink(code);
         if (mounted) _say('Refused ${preview.name}.');

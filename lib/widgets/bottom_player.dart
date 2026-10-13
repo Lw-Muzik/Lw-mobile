@@ -5,6 +5,11 @@ import 'package:eq_app/widgets/artwork_widget.dart';
 import 'package:eq_app/widgets/globals.dart';
 import 'package:flutter/material.dart';
 
+import '../player/remote/remote_mini_player.dart';
+import '../player/remote/remote_scope.dart';
+import '../services/connect/hype_connect.dart';
+import '../themes/ember.dart';
+
 import '../controllers/app_controller.dart';
 import '../player/player_presence.dart';
 import '../player/player_ui.dart';
@@ -21,6 +26,31 @@ class _BottomPlayerState extends State<BottomPlayer>
     with TickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
+    final connect = HypeConnect.instanceOrNull;
+    if (connect != null) {
+      return RemoteBuilder(
+        builder: (context, remote) => remote != null
+            ? Padding(
+                padding: EdgeInsets.only(
+                  left: 12,
+                  right: 12,
+                  bottom: MediaQuery.of(context).padding.bottom + 8,
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: ColoredBox(
+                    color: Ember.surface,
+                    child: RemoteMiniPlayer(remote: remote),
+                  ),
+                ),
+              )
+            : _local(context),
+      );
+    }
+    return _local(context);
+  }
+
+  Widget _local(BuildContext context) {
     if (!widget.controller.hasNowPlaying) return const SizedBox.shrink();
     final song = widget.controller.songs[widget.controller.songId];
     final closed = ArtworkWidget(

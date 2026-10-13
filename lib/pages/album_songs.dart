@@ -152,7 +152,7 @@ class _AlbumSongsState extends State<AlbumSongs> {
                       );
                     },
                   ),
-                  bottomNavigationBar: controller.hasNowPlaying
+                  bottomNavigationBar: controller.hasMiniPlayer
                       ? BottomPlayer(controller: controller)
                       : null,
                 );

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '/pages/settings.dart';
+import '../remote/connect_device_picker.dart';
 
 class Header extends StatelessWidget {
   const Header({super.key});
@@ -30,6 +31,7 @@ class Header extends StatelessWidget {
               ),
             ),
           ),
+          const ConnectPickerButton(size: 20),
           IconButton(
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => const Settings()),

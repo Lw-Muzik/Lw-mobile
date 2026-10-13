@@ -170,6 +170,7 @@ class HypeConnect extends ChangeNotifier with WidgetsBindingObserver {
     this.currentSong,
     this.vizFeed,
     this.position,
+    this.onRemoteModeChanged,
     int Function()? nowUs,
     Duration presenceGrace = const Duration(minutes: 2),
   }) : _nowUs = nowUs ?? timelineNowUs {
@@ -231,6 +232,7 @@ class HypeConnect extends ChangeNotifier with WidgetsBindingObserver {
       },
       vizFeed: AppConnectVizFeed(app),
       position: () => app.handler.currentTrackPlayer.position,
+      onRemoteModeChanged: app.refreshRemoteMode,
     );
     app.addListener(connect.inputsChanged);
     app.handler.playbackState.listen((_) => connect.inputsChanged());
@@ -255,6 +257,10 @@ class HypeConnect extends ChangeNotifier with WidgetsBindingObserver {
   final int Function() _nowUs;
 
   ConnectVizStreamer? _viz;
+
+  /// Called when remote mode starts or ends.
+  final VoidCallback? onRemoteModeChanged;
+  bool _wasRemote = false;
 
   final ConnectPlayer _player;
   final ConnectLibrary _library;
@@ -386,6 +392,12 @@ class HypeConnect extends ChangeNotifier with WidgetsBindingObserver {
       deviceId: deviceId,
       ui: ConnectUiHost.instance,
     );
+    session.addListener(() {
+      if (session.isRemote != _wasRemote) {
+        _wasRemote = session.isRemote;
+        onRemoteModeChanged?.call();
+      }
+    });
     _remoteEvents = session.events.listen((event) {
       if (event is RemoteWentOffline) {
         ConnectUiHost.instance.say('${event.deviceName} went offline');

@@ -88,12 +88,11 @@ class _Overlay {
 class ConnectRemoteSession extends ChangeNotifier {
   ConnectRemoteSession({
     required this.selfId,
-    required bool Function(ConnectFrame frame) send,
-    required int Function() hubNowMs,
+    required this._send,
+    required this._hubNowMs,
     this.cmdTimeout = const Duration(seconds: 11),
     this.overlayTtl = const Duration(seconds: 3),
-  })  : _send = send,
-        _hubNowMs = hubNowMs;
+  });
 
   final String selfId;
   final bool Function(ConnectFrame frame) _send;

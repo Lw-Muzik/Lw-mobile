@@ -27,6 +27,10 @@ import '../onboarding/coach_marks.dart';
 import '../services/video/video_registry.dart';
 import 'now_playing_hero.dart';
 import 'player_presence.dart';
+import 'remote/remote_player.dart';
+import 'remote/remote_scope.dart';
+import '../services/connect/hype_connect.dart';
+import '../themes/ember.dart';
 
 // Main Player Widget
 class Player extends StatefulWidget {
@@ -60,7 +64,9 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
     Future.delayed(const Duration(milliseconds: 1500), () {
       if (!mounted) return;
       _coachController.hasBeenShown().then((shown) {
-        if (!shown && mounted) {
+        final remote =
+            HypeConnect.instanceOrNull?.session?.isRemote ?? false;
+        if (!shown && mounted && !remote) {
           _coachController.start(context, [
             CoachStep(
               targetKey: _cardDeckKey,
@@ -158,6 +164,23 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
+    // Another device is the player: this screen becomes its remote.
+    return RemoteBuilder(
+      builder: (context, remote) {
+        if (remote != null) return RemotePlayerView(remote: remote);
+        if (!context.read<AppController>().hasNowPlaying) {
+          // Remote mode ended with nothing of our own to show.
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (context.mounted) Navigator.of(context).maybePop();
+          });
+          return const Scaffold(backgroundColor: Ember.ground);
+        }
+        return _buildLocal(context);
+      },
+    );
+  }
+
+  Widget _buildLocal(BuildContext context) {
     return Scaffold(
       body: Consumer<AppController>(
         builder: (context, controller, child) {

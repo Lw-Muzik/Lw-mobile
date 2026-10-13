@@ -180,7 +180,7 @@ class _ArtistSongsState extends State<ArtistSongs> {
           ),
           floatingActionButtonLocation:
               FloatingActionButtonLocation.centerDocked,
-          bottomNavigationBar: controller.hasNowPlaying
+          bottomNavigationBar: controller.hasMiniPlayer
               ? BottomPlayer(controller: controller)
               : null,
         );
