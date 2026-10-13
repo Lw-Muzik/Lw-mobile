@@ -5,8 +5,10 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.ServiceConnection;
 import android.content.SharedPreferences;
 import android.content.pm.ServiceInfo;
 import android.os.Build;
@@ -14,6 +16,8 @@ import android.os.IBinder;
 import android.util.Log;
 
 import androidx.annotation.Nullable;
+
+import com.ryanheise.audioservice.AudioService;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -54,6 +58,26 @@ public class ConnectService extends Service {
     private static final String KEY_WANTED = "wanted";
 
     private static volatile ConnectService sInstance;
+
+    /**
+     * Held while the service runs so audio_service's {@link AudioService} is
+     * never left with no client. Swiping the app away unbinds the activity;
+     * when nothing has played, AudioService is bound-only, so Android destroys
+     * it, and its onDestroy destroys the shared Flutter engine
+     * (AudioServicePlugin.disposeFlutterEngine) — the isolate that holds the
+     * Hype Connect socket. Device-tested: without this binding the phone fell
+     * off the hub one ping timeout (~47 s) after every swipe-away.
+     */
+    private final ServiceConnection audioKeepAlive = new ServiceConnection() {
+        @Override
+        public void onServiceConnected(ComponentName name, IBinder service) {
+        }
+
+        @Override
+        public void onServiceDisconnected(ComponentName name) {
+        }
+    };
+    private boolean audioBound;
 
     /** What the notification says. Survives the service so a restart can show it at once. */
     private static volatile Content sContent = Content.placeholder();
@@ -186,6 +210,7 @@ public class ConnectService extends Service {
         } catch (Throwable t) {
             Log.e(TAG, "could not start the Flutter engine", t);
         }
+        holdAudioService();
         if (button) {
             String id = intent.getStringExtra(EXTRA_BUTTON);
             if (id != null) ConnectChannel.sendAction(id);
@@ -195,6 +220,7 @@ public class ConnectService extends Service {
 
     @Override
     public void onDestroy() {
+        releaseAudioService();
         if (sInstance == this) sInstance = null;
         Log.i(TAG, "ConnectService stopped");
         super.onDestroy();
@@ -211,6 +237,28 @@ public class ConnectService extends Service {
     @Override
     public IBinder onBind(Intent intent) {
         return null;
+    }
+
+    private void holdAudioService() {
+        if (audioBound) return;
+        try {
+            // The MediaBrowserService action, so onBind hands back a binder.
+            Intent intent = new Intent("android.media.browse.MediaBrowserService")
+                    .setComponent(new ComponentName(this, AudioService.class));
+            audioBound = bindService(intent, audioKeepAlive, Context.BIND_AUTO_CREATE);
+        } catch (RuntimeException e) {
+            Log.w(TAG, "could not bind AudioService", e);
+        }
+    }
+
+    private void releaseAudioService() {
+        if (!audioBound) return;
+        audioBound = false;
+        try {
+            unbindService(audioKeepAlive);
+        } catch (IllegalArgumentException e) {
+            // Already unbound.
+        }
     }
 
     private void goForeground() {
