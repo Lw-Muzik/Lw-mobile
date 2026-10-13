@@ -30,10 +30,12 @@ class ScanStatus {
 /// rows are written, and each batch is committed so drift's watched queries
 /// emit — that is what makes songs stream in progressively on a cold first run.
 class LibraryScanner {
-  LibraryScanner(this._repo);
+  LibraryScanner(this._repo, {Future<List<SongModel>> Function()? querySongs})
+      : _queryOverride = querySongs;
 
   final LibraryRepository _repo;
   final OnAudioQuery _audioQuery = OnAudioQuery();
+  final Future<List<SongModel>> Function()? _queryOverride;
   final StreamController<ScanStatus> _status =
       StreamController<ScanStatus>.broadcast();
 
@@ -122,12 +124,13 @@ class LibraryScanner {
   }
 
   Future<List<SongModel>> _querySongs() async {
-    List<SongModel> songs;
-    try {
-      songs = await _audioQuery.querySongs();
-    } catch (_) {
-      songs = [];
-    }
+    // A query that fails is not an empty library. Letting the error through
+    // makes [scan] stop before the diff; treating it as "no songs" would delete
+    // every row, and with them the play counts and last-played times. It
+    // fails whenever the app runs with no screen: on_audio_query needs an
+    // Activity, and Hype Connect's background service starts the app without
+    // one after a reboot or an update.
+    var songs = await (_queryOverride ?? _audioQuery.querySongs)();
 
     // iOS: MPMediaQuery misses files imported into Documents/Music.
     if (Platform.isIOS) {

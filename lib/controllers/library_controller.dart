@@ -69,6 +69,15 @@ class LibraryController extends ChangeNotifier {
 
   Future<void> scan({bool force = false}) => _scanner.scan(force: force);
 
+  /// Runs the scan again if the last one failed — called when the app comes to
+  /// the front. A scan started with no screen (Hype Connect's background start)
+  /// cannot query the media library; the first time the user opens the app is
+  /// the first moment it can.
+  Future<void> retryIfFailed() async {
+    if (!_started || _scanStatus.phase != ScanPhase.error) return;
+    await scan();
+  }
+
   Future<void> rescan() => scan(force: true);
 
   /// Per-category pinch-zoom level (grid extent), Poweramp-style: each library

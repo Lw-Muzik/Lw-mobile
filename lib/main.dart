@@ -282,6 +282,9 @@ class _AppLifecycleGateState extends State<_AppLifecycleGate>
         break;
       case AppLifecycleState.resumed:
         AppController.instanceOrNull?.resumeVisualTap();
+        // A library scan that ran before there was a screen failed; now it can
+        // work.
+        unawaited(context.read<LibraryController>().retryIfFailed());
         break;
       case AppLifecycleState.inactive:
         break;
