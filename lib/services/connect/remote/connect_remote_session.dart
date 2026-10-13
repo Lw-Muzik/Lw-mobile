@@ -151,6 +151,13 @@ class ConnectRemoteSession extends ChangeNotifier {
   /// Progress of the target right now, for a ticking progress bar.
   int? positionMs() => nowPlaying()?.positionMs;
 
+  /// Progress of any device we hold a state for, interpolated to now; null with
+  /// no state. Used to hand a track over mid-way.
+  int? positionOf(String deviceId) {
+    if (_states[deviceId] == null) return null;
+    return _interpolated(deviceId, overlay: _overlays[deviceId]);
+  }
+
   // -- Inputs ----------------------------------------------------------------
 
   void onFrame(ConnectFrame frame) {
