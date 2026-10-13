@@ -122,8 +122,18 @@ class ConnectTransfer {
         (payload.track is LocalTrackRef &&
             (payload.track as LocalTrackRef).deviceId == to);
     if (!headSendable) {
+      if (!payload.playing) {
+        // Paused: there is no music to carry, only the choice of player, and
+        // refusing would leave the user no way to switch. The song stays where
+        // it is; the picker says so.
+        if (!select(to)) {
+          return const TransferResult.failed('Not connected right now.');
+        }
+        return TransferResult.ok(dropped: refs.length);
+      }
       return TransferResult.failed(
-        "'${_titleOf(payload.track!)}' is only on ${nameOf(from)}, "
+        "'${_titleOf(payload.track!)}' is only on "
+        '${from == selfId ? 'this phone' : nameOf(from)}, '
         'so ${toPhone ? 'this phone' : nameOf(to)} cannot play it.',
       );
     }
@@ -168,6 +178,7 @@ class ConnectTransfer {
             trackRefOf(entry.song, deviceId: selfId),
         ],
         positionMs: snapshot.position.inMilliseconds,
+        playing: snapshot.playing,
       );
     }
     final stamped = session.stateOf(from);
@@ -179,6 +190,7 @@ class ConnectTransfer {
         for (final entry in state.queue.take(maxItems)) entry.track,
       ],
       positionMs: session.positionOf(from) ?? state.positionMs,
+      playing: state.playing,
     );
   }
 
@@ -194,8 +206,10 @@ class _Payload {
     required this.track,
     required this.queue,
     required this.positionMs,
+    required this.playing,
   });
   final TrackRef? track;
   final List<TrackRef> queue;
   final int positionMs;
+  final bool playing;
 }

@@ -199,9 +199,35 @@ void main() {
       );
       final result = await r.transfer.moveTo('desk');
       expect(result.ok, isFalse);
-      expect(result.message, contains("'Song 1' is only on This phone"));
+      expect(result.message, contains("'Song 1' is only on this phone"));
       expect(r.cmds, isEmpty);
       expect(r.paused, 0);
+    });
+
+    test('paused on a local head song: hands over the player role, nothing moves',
+        () async {
+      final paused = playingSnapshot(song(1), [song(2, videoId: 'x')]);
+      final r = Rig(
+        active: me,
+        source: FakeSource(
+          snapshot: ConnectSnapshot(
+            track: paused.track,
+            playing: false,
+            position: paused.position,
+            duration: paused.duration,
+            volume: 1,
+            shuffle: false,
+            repeat: ConnectRepeat.off,
+            upcoming: paused.upcoming,
+          ),
+        ),
+      );
+      final result = await r.transfer.moveTo('desk');
+      expect(result.ok, isTrue);
+      expect(result.dropped, 2);
+      expect(r.cmds, isEmpty);
+      expect(r.paused, 0);
+      expect(r.selects, ['desk']);
     });
 
     test('an offline target says so', () async {
@@ -267,6 +293,34 @@ void main() {
       expect(result.ok, isFalse);
       expect(result.message, contains("'Their file' is only on Name of desk"));
       expect(r.localPlays, isEmpty);
+    });
+
+    test('paused on the desktop\'s own file: the phone becomes the player, '
+        'nothing plays', () async {
+      final r = Rig();
+      r.session.onFrame(StampedStateFrame(
+        deviceId: 'desk',
+        state: StampedState(
+          state: PlayerState(
+            seq: 9,
+            track: LocalTrackRef(deviceId: 'desk', id: '/f.mp3', title: 'Their file', artist: null, album: null, durationMs: null),
+            playing: false,
+            positionMs: 0,
+            durationMs: null,
+            volume: 1,
+            shuffle: false,
+            repeat: ConnectRepeat.off,
+            queue: const [],
+          ),
+          at: r.hubNow,
+        ),
+      ));
+      final result = await r.transfer.moveTo(me);
+      expect(result.ok, isTrue);
+      expect(result.dropped, 1);
+      expect(r.localPlays, isEmpty);
+      expect(r.cmds, isEmpty);
+      expect(r.selects.last, me);
     });
   });
 
