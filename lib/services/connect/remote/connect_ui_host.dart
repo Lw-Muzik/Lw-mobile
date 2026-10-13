@@ -36,6 +36,8 @@ class ConnectUiHost implements ConnectPlayUi {
     for (var attempt = 0; attempt < 40; attempt++) {
       final navigator = navigatorKey.currentState;
       if (navigator != null) {
+        // Already open (from Settings, say): the tap has nothing to add.
+        if (HypeConnectPage.openCount > 0) return;
         unawaited(
           navigator.push(
             MaterialPageRoute<void>(builder: (_) => const HypeConnectPage()),

@@ -58,6 +58,11 @@ String connectStatusLine({
 class HypeConnectPage extends StatefulWidget {
   const HypeConnectPage({super.key});
 
+  /// How many copies are on the navigator right now. Settings, the sharing
+  /// page and the notification all open this page; the notification checks
+  /// this so a tap does not stack a second copy on the first.
+  static int openCount = 0;
+
   @override
   State<HypeConnectPage> createState() => _HypeConnectPageState();
 }
@@ -76,6 +81,7 @@ class _HypeConnectPageState extends State<HypeConnectPage>
   @override
   void initState() {
     super.initState();
+    HypeConnectPage.openCount++;
     WidgetsBinding.instance.addObserver(this);
     unawaited(_loadDevices());
     unawaited(_checkBattery());
@@ -83,6 +89,7 @@ class _HypeConnectPageState extends State<HypeConnectPage>
 
   @override
   void dispose() {
+    HypeConnectPage.openCount--;
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -538,7 +545,13 @@ class _DeviceTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final detail = [
       if (isThisPhone) 'This phone',
-      if (isActive) 'Playing here' else if (device.online) 'Online' else 'Offline',
+      // The active device is the player; "here" only when that is this phone.
+      if (isActive)
+        isThisPhone ? 'Playing here' : 'Plays the music'
+      else if (device.online)
+        'Online'
+      else
+        'Offline',
       if (device.platform != null && device.platform!.isNotEmpty) device.platform!,
     ].join(' · ');
     return Container(
