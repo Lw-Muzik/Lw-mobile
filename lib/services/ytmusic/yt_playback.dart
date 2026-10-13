@@ -28,6 +28,7 @@ import 'package:provider/provider.dart';
 
 import '../radio/radio_queue.dart';
 import '../radio/youtube_station.dart';
+import '../connect/remote/connect_play_router.dart';
 import '../../routes/routes.dart';
 import '../../controllers/app_controller.dart';
 import '../../models/track_extras.dart';
@@ -63,6 +64,14 @@ class YtPlayback {
     int index, {
     bool radio = false,
   }) {
+    // Another device is the player: play there (Hype Connect remote mode).
+    final routed = ConnectPlayRouter.yt(
+      tracks,
+      index,
+      radio: radio,
+      here: () => play(context, tracks, index, radio: radio),
+    );
+    if (routed != null) return routed;
     return playTracks(
       context.read<AppController>(),
       tracks,
@@ -188,6 +197,12 @@ class YtPlayback {
     /// video and then a station of audio — one video, from a tab of videos.
     List<YtTrack> siblings = const [],
   }) async {
+    final routed = ConnectPlayRouter.yt(
+      [track, ...siblings],
+      0,
+      here: () => watch(context, track, siblings: siblings),
+    );
+    if (routed != null) return routed;
     final artwork = cacheArtwork(track);
     final StreamTarget target;
     try {
@@ -365,6 +380,13 @@ class YtPlayback {
   /// setting governs radio the app starts by itself, not radio the user asked
   /// for by name.
   static Future<void> startRadio(BuildContext context, YtTrack seed) async {
+    final routed = ConnectPlayRouter.yt(
+      [seed],
+      0,
+      radio: true,
+      here: () => startRadio(context, seed),
+    );
+    if (routed != null) return routed;
     final artwork = cacheArtwork(seed);
     final target = await _resolveForPlay(seed, (message) {
       if (context.mounted) _complain(context, message);

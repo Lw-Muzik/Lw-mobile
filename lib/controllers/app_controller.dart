@@ -18,6 +18,7 @@ import 'package:http/http.dart' as http;
 
 import '../models/cloud_file.dart';
 import '../services/cloud_auth_service.dart';
+import '../services/connect/remote/connect_play_router.dart';
 import '../services/cloud_cache_service.dart';
 import '../services/cloud_metadata_service.dart';
 import '../services/google_drive_service.dart';
@@ -1189,6 +1190,17 @@ class AppController with ChangeNotifier implements StationSink {
     int index, {
     Duration? initialPosition,
   }) {
+    // Another device is the player: play there (Hype Connect remote mode).
+    final routed = ConnectPlayRouter.songs(
+      songList,
+      index,
+      here: () => playSongFromList(
+        songList,
+        index,
+        initialPosition: initialPosition,
+      ),
+    );
+    if (routed != null) return routed;
     // The user picked something rather than resuming. Whatever was waiting from
     // the last session is no longer what is about to play.
     _pendingResume = null;
@@ -1274,6 +1286,14 @@ class AppController with ChangeNotifier implements StationSink {
   /// stations the app decides to start on its own as a queue runs out; this is
   /// one the user asked for by tapping.
   Future<void> playStation(SongModel seed, StationSource source) async {
+    // Another device is the player: it starts the radio (Hype Connect).
+    final routed = ConnectPlayRouter.songs(
+      [seed],
+      0,
+      radio: true,
+      here: () => playStation(seed, source),
+    );
+    if (routed != null) return routed;
     // First, because playSongFromList detaches whatever station was running.
     playSongFromList([seed], 0);
     RadioQueue.instance.attach(source);

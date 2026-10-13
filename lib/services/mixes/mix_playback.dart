@@ -22,6 +22,7 @@ import 'package:on_audio_query/on_audio_query.dart';
 
 import '../../controllers/app_controller.dart';
 import '../../models/cloud_file.dart';
+import '../connect/remote/connect_play_router.dart';
 import '../ytmusic/yt_playback.dart';
 import '../ytmusic/yt_repository.dart';
 import 'daily_mixes.dart';
@@ -65,6 +66,17 @@ class MixPlayback {
     Duration? startAt,
   }) async {
     if (mix.tracks.isEmpty) return;
+    // Another device is the player: it plays the mix (Hype Connect).
+    final routed = ConnectPlayRouter.mix(
+      mix.tracks,
+      here: () => play(
+        controller,
+        mix,
+        resolveCloud: resolveCloud,
+        startAt: startAt,
+      ),
+    );
+    if (routed != null) return routed;
 
     for (var i = 0; i < mix.tracks.length; i++) {
       final song = await _resolve(mix.tracks[i], resolveCloud);

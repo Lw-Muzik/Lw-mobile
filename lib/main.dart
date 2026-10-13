@@ -42,6 +42,7 @@ import 'services/artwork_service.dart';
 import 'services/ytmusic/yt_downloads.dart';
 import 'services/share_service.dart';
 import 'services/connect/hype_connect.dart';
+import 'services/connect/remote/connect_ui_host.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -166,6 +167,8 @@ Future<void> main() async {
         options: const WiredashOptionsData(locale: Locale('en')),
         child: _AppLifecycleGate(
           child: MaterialApp(
+            navigatorKey: ConnectUiHost.navigatorKey,
+            scaffoldMessengerKey: ConnectUiHost.messengerKey,
             debugShowCheckedModeBanner: false,
             theme: AppThemes.fancyTheme,
             initialRoute: Routes.loader,

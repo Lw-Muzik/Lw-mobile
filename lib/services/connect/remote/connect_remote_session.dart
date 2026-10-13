@@ -76,7 +76,7 @@ final class RemoteWentOffline extends RemoteEvent {
 }
 
 class _Overlay {
-  _Overlay({this.playing, this.positionMs, required this.atMs});
+  _Overlay({required this.atMs});
 
   bool? playing;
   int? positionMs;

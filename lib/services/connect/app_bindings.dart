@@ -34,6 +34,7 @@ import 'package:eq_app/services/connect/connect_protocol.dart';
 import 'package:eq_app/services/connect/connect_rpc.dart';
 import 'package:eq_app/services/connect/connect_state_publisher.dart';
 import 'package:eq_app/services/connect/connect_tracks.dart';
+import 'package:eq_app/services/connect/remote/connect_play_router.dart';
 import 'package:eq_app/services/mixes/mix_playback.dart';
 import 'package:eq_app/services/mixes/mix_track_ref.dart';
 import 'package:eq_app/services/radio/library_station.dart';
@@ -55,7 +56,10 @@ class AppConnectPlayer implements ConnectPlayer {
   bool get hasQueue => _app.songs.isNotEmpty;
 
   @override
-  Future<void> play(PlayPlan plan) async {
+  Future<void> play(PlayPlan plan) =>
+      ConnectPlayRouter.local(() => _play(plan));
+
+  Future<void> _play(PlayPlan plan) async {
     switch (plan) {
       case LocalListPlan():
         await _app.playSongFromList(
@@ -104,7 +108,10 @@ class AppConnectPlayer implements ConnectPlayer {
   }
 
   @override
-  Future<void> enqueue(List<Playable> items, EnqueueMode mode) async {
+  Future<void> enqueue(List<Playable> items, EnqueueMode mode) =>
+      ConnectPlayRouter.local(() => _enqueue(items, mode));
+
+  Future<void> _enqueue(List<Playable> items, EnqueueMode mode) async {
     final songs = await _songsFor(items);
     if (songs.isEmpty) return;
     await (mode == EnqueueMode.next
@@ -161,7 +168,9 @@ class AppConnectPlayer implements ConnectPlayer {
   Future<void> seek(Duration position) => _app.handler.seek(position);
 
   @override
-  Future<bool> jump(String uid) async {
+  Future<bool> jump(String uid) => ConnectPlayRouter.local(() => _jump(uid));
+
+  Future<bool> _jump(String uid) async {
     final queue = List<SongModel>.of(_app.songs);
     final index = queueUids(queue).indexOf(uid);
     if (index < 0) return false;

@@ -47,6 +47,12 @@ import 'package:eq_app/services/connect/connect_presence.dart';
 import 'package:eq_app/services/connect/connect_protocol.dart';
 import 'package:eq_app/services/connect/connect_rpc.dart';
 import 'package:eq_app/services/connect/connect_state_publisher.dart';
+import 'package:eq_app/services/connect/remote/connect_link_direction.dart';
+import 'package:eq_app/services/connect/remote/connect_play_router.dart';
+import 'package:eq_app/services/connect/remote/connect_remote_session.dart';
+import 'package:eq_app/services/connect/remote/connect_takeover.dart';
+import 'package:eq_app/services/connect/remote/connect_transfer.dart';
+import 'package:eq_app/services/connect/remote/connect_ui_host.dart';
 
 /// The hub's WebSocket address for a REST base such as
 /// `http://host:9400/api` — same host, same prefix, `/connect/ws`.
@@ -259,6 +265,11 @@ class HypeConnect extends ChangeNotifier with WidgetsBindingObserver {
   ConnectExecutor? _executor;
   ConnectRpcHandler? _rpc;
   ConnectStatePublisher? _publisher;
+  ConnectRemoteSession? _session;
+  ConnectTakeover? _takeover;
+  ConnectTransfer? _transfer;
+  ConnectLinkDirection? _direction;
+  StreamSubscription<RemoteEvent>? _remoteEvents;
   StreamSubscription<ConnectFrame>? _frames;
   bool _started = false;
 
@@ -288,6 +299,15 @@ class HypeConnect extends ChangeNotifier with WidgetsBindingObserver {
 
   /// This phone's id on the hub, once known.
   String? get thisDeviceId => _thisDeviceId;
+
+  /// This phone as a remote for the active player (null until started).
+  ConnectRemoteSession? get session => _session;
+
+  /// Moves playback between devices (null until started).
+  ConnectTransfer? get transfer => _transfer;
+
+  /// The "where should music play?" logic after linking a desktop.
+  ConnectLinkDirection? get linkDirection => _direction;
 
   /// Prepares the executor and rpc handler (they need this install's id, which
   /// comes from secure storage) and then applies the stored switch.
@@ -327,6 +347,50 @@ class HypeConnect extends ChangeNotifier with WidgetsBindingObserver {
       deviceId: deviceId,
       seqStore: PrefsConnectSeqStore(prefs),
     );
+    final session = _session = ConnectRemoteSession(
+      selfId: deviceId,
+      send: client.send,
+      hubNowMs: client.hubClock.nowMs,
+    );
+    _takeover = ConnectTakeover(
+      selfId: deviceId,
+      sendSelect: (id) => client.send(SelectFrame(id)),
+      pauseLocal: () => unawaited(_player.pause()),
+    );
+    _transfer = ConnectTransfer(
+      session: session,
+      selfId: deviceId,
+      localState: _stateSource,
+      pauseLocal: _player.pause,
+      playLocal: (command) => _executor!.execute(
+        CmdFrame(id: 'transfer-${DateTime.now().microsecondsSinceEpoch}', cmd: command),
+      ),
+      select: (id) => client.send(SelectFrame(id)),
+      nameOf: (id) {
+        for (final d in session.devices) {
+          if (d.id == id) return d.name;
+        }
+        return 'the other device';
+      },
+    );
+    _direction = ConnectLinkDirection(
+      session: session,
+      transfer: _transfer!,
+      selfId: deviceId,
+      phonePlaying: isPlaying,
+      isOnline: () => client.isOnline,
+      select: (id) => client.send(SelectFrame(id)),
+    );
+    ConnectPlayRouter.instance = ConnectPlayRouter(
+      session: session,
+      deviceId: deviceId,
+      ui: ConnectUiHost.instance,
+    );
+    _remoteEvents = session.events.listen((event) {
+      if (event is RemoteWentOffline) {
+        ConnectUiHost.instance.say('${event.deviceName} went offline');
+      }
+    });
     _frames = client.frames.listen(_onFrame);
     final state = WidgetsBinding.instance.lifecycleState;
     _presence
@@ -343,6 +407,7 @@ class HypeConnect extends ChangeNotifier with WidgetsBindingObserver {
     _presence
       ..musicMode = isMusicMode()
       ..playing = isPlaying();
+    _takeover?.onLocalPlaying(isPlaying());
     _viz?.refresh();
   }
 
@@ -419,11 +484,14 @@ class HypeConnect extends ChangeNotifier with WidgetsBindingObserver {
   void _onClientState() {
     final state = client.state.value;
     if (state.status == ConnectStatus.online) {
+      _takeover?.onConnected();
       _publisher?.start();
       _viz?.setOnline(true);
     } else {
       _publisher?.stop();
       _viz?.setOnline(false);
+      _takeover?.onDisconnected();
+      _session?.onDisconnected();
     }
     if (state.status == ConnectStatus.unlinked) {
       _notice = state.lastError;
@@ -433,16 +501,26 @@ class HypeConnect extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   void _onFrame(ConnectFrame frame) {
+    _session?.onFrame(frame);
     switch (frame) {
       case WelcomeFrame():
         _devices = frame.devices;
         _activeDeviceId = frame.activeDeviceId;
+        _takeover?.onList(
+          frame.devices,
+          frame.activeDeviceId,
+          isWelcome: true,
+          activeIsPlaying: frame.states[frame.activeDeviceId]?.state.playing,
+        );
         _publisher?.sendNow();
         notifyListeners();
       case DevicesFrame():
         _devices = frame.devices;
         _activeDeviceId = frame.activeDeviceId;
+        _takeover?.onList(frame.devices, frame.activeDeviceId);
         notifyListeners();
+      case ErrorFrame():
+        _takeover?.onError(frame.code);
       case CmdFrame():
         final executor = _executor;
         if (executor == null) return;
@@ -501,6 +579,12 @@ class HypeConnect extends ChangeNotifier with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     unawaited(_frames?.cancel());
+    unawaited(_remoteEvents?.cancel());
+    _takeover?.dispose();
+    _session?.dispose();
+    if (ConnectPlayRouter.instance?.session == _session) {
+      ConnectPlayRouter.instance = null;
+    }
     _presence.dispose();
     _publisher?.stop();
     _viz?.dispose();
