@@ -1,52 +1,30 @@
-# Flutter specific rules (v1 and v2 embedding)
--keep class io.flutter.app.** { *; }
--keep class io.flutter.plugin.**  { *; }
--keep class io.flutter.util.**  { *; }
--keep class io.flutter.view.**  { *; }
--keep class io.flutter.**  { *; }
--keep class io.flutter.plugins.**  { *; }
--keep class io.flutter.embedding.** { *; }
--keep class io.flutter.embedding.android.** { *; }
--keep class io.flutter.embedding.engine.** { *; }
+# R8 rules. Kept minimal on purpose: blanket `-keep ... { *; }` package rules
+# stopped R8 from shrinking/optimizing/obfuscating ~90% of the DEX (Play Console
+# warning "DEX code optimization is below our threshold"). Flutter, AndroidX,
+# Firebase, GMS, audio_service etc. ship their own consumer rules.
 
-# Keep AndroidX and support library classes
--keep class androidx.** { *; }
--keep interface androidx.** { *; }
--dontwarn androidx.**
--keep class androidx.core.app.CoreComponentFactory { *; }
-
-# Keep MainActivity and related classes
--keep class x.a.zix.MainActivity { *; }
--keep class x.a.zix.** { *; }
-
-# Keep AudioService related classes
--keep class com.ryanheise.audioservice.** { *; }
-
-# Keep all your custom equalizer classes
--keep class x.a.zix.AudioVisualizer { *; }
--keep class x.a.zix.BassEq { *; }
--keep class x.a.zix.LoudnessControl { *; }
--keep class x.a.zix.DvcController { *; }
--keep class x.a.zix.ReverbEngine { *; }
--keep class x.a.zix.RoomEffectsProcessor { *; }
-
-# Keep classes used by Flutter method channels
--keepclassmembers class * {
-  @io.flutter.plugin.common.MethodChannel.MethodCallHandler *;
+# Native stems engine (stems_jni.cpp) calls this via GetStaticMethodID; no Java
+# caller exists, so R8 would otherwise strip it.
+-keepclassmembers class x.a.zix.StemEngineBridge {
+    static void onNativeStatus(java.lang.String);
 }
 
-# Ignore missing Google Play Core classes (they're optional)
+# just_audio fork (AudioPlayer.java) does Class.forName(...).getMethod("createPlayerInstance").
+-keep class x.a.zix.RoomEffectsProcessor {
+    public static x.a.zix.RoomEffectsProcessor createPlayerInstance();
+}
+-keep class x.a.zix.VisualizerTapProcessor {
+    public static x.a.zix.VisualizerTapProcessor createPlayerInstance();
+}
+
+# JAudioTagger builds frame-body classes by name at runtime and calls copy/default
+# constructors reflectively (getConstructor, newInstance).
+-keep class org.jaudiotagger.tag.id3.framebody.** { <init>(...); }
+-keepclassmembers class org.jaudiotagger.** { <init>(...); }
+# It references java.awt / javax.imageio, absent on Android.
+-dontwarn org.jaudiotagger.**
+
+# Flutter deferred components reference Play Core, which we do not ship.
 -dontwarn com.google.android.play.core.splitcompat.SplitCompatApplication
 -dontwarn com.google.android.play.core.splitinstall.**
 -dontwarn com.google.android.play.core.tasks.**
-
-# Keep Google Play Core classes if present
--keep class com.google.android.play.core.** { *; }
-
-# Keep Firebase classes
--keep class com.google.firebase.** { *; }
--keep class com.google.android.gms.** { *; }
-
-# JAudioTagger (multi-format audio tag library)
--keep class org.jaudiotagger.** { *; }
--dontwarn org.jaudiotagger.**

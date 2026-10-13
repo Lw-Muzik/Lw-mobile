@@ -98,7 +98,9 @@ android {
         release {
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.
-             signingConfig = signingConfigs.getByName("release")
+             // The dev copy is always debug-signed so a release-mode test build installs over the
+             // existing x.a.zix.dev without uninstalling it (which would wipe its data).
+             signingConfig = if (devCopy) signingConfigs.getByName("debug") else signingConfigs.getByName("release")
              isMinifyEnabled = true
              isShrinkResources = false
              proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")

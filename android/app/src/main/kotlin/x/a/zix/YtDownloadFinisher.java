@@ -157,9 +157,27 @@ public final class YtDownloadFinisher {
         }
     }
 
+    /** Longest cover decode we allow: the short side stays at least this many px. */
+    private static final int MAX_COVER_SIDE = 1200;
+
+    /** Largest power-of-two sample size that keeps the short side >= {@code minSide}. */
+    static int sampleSizeFor(int w, int h, int minSide) {
+        int shortSide = Math.min(w, h);
+        int sample = 1;
+        while (shortSide / (sample * 2) >= minSide) sample *= 2;
+        return sample;
+    }
+
     /** A 16:9 video thumbnail's middle square, as a JPEG beside it. */
     static File cropSquare(File src) {
-        Bitmap bitmap = BitmapFactory.decodeFile(src.getPath());
+        BitmapFactory.Options bounds = new BitmapFactory.Options();
+        bounds.inJustDecodeBounds = true;
+        BitmapFactory.decodeFile(src.getPath(), bounds);
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null;
+        if (bounds.outWidth == bounds.outHeight) return src;
+        BitmapFactory.Options opts = new BitmapFactory.Options();
+        opts.inSampleSize = sampleSizeFor(bounds.outWidth, bounds.outHeight, MAX_COVER_SIDE);
+        Bitmap bitmap = BitmapFactory.decodeFile(src.getPath(), opts);
         if (bitmap == null) return null;
         int w = bitmap.getWidth();
         int h = bitmap.getHeight();
