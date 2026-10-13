@@ -62,16 +62,44 @@ class HypeConnectPage extends StatefulWidget {
   State<HypeConnectPage> createState() => _HypeConnectPageState();
 }
 
-class _HypeConnectPageState extends State<HypeConnectPage> {
+class _HypeConnectPageState extends State<HypeConnectPage>
+    with WidgetsBindingObserver {
   final HypeConnect _connect = HypeConnect.instance;
   bool _busy = false;
   bool _loadingDevices = true;
   String? _devicesError;
 
+  /// Whether the system may still stop the app in the background. Unknown
+  /// (and so hidden) until asked.
+  bool _batteryRestricted = false;
+
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     unawaited(_loadDevices());
+    unawaited(_checkBattery());
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  /// Coming back from the system's battery page is how the row learns it was
+  /// answered, so it is checked again on every resume.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) unawaited(_checkBattery());
+  }
+
+  Future<void> _checkBattery() async {
+    if (!_connect.hasBackgroundService) return;
+    final exempt = await _connect.isIgnoringBatteryOptimizations();
+    if (mounted && _batteryRestricted == exempt) {
+      setState(() => _batteryRestricted = !exempt);
+    }
   }
 
   Future<void> _loadDevices() async {
@@ -222,6 +250,12 @@ class _HypeConnectPageState extends State<HypeConnectPage> {
               ),
               children: [
                 _StatusCard(connect: _connect),
+                if (_connect.enabled &&
+                    _connect.hasBackgroundService &&
+                    _batteryRestricted) ...[
+                  const SizedBox(height: 12),
+                  _BackgroundRow(onTap: _connect.openBatterySettings),
+                ],
                 const SizedBox(height: 16),
                 _LinkActions(
                   busy: _busy,
@@ -332,6 +366,64 @@ class _StatusCard extends StatelessWidget {
             style: TextStyle(color: Ember.textSecondary, height: 1.35),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Some phone makers stop background apps however well they behave; the
+/// system's battery page is where the user can say "not this one".
+class _BackgroundRow extends StatelessWidget {
+  const _BackgroundRow({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Ember.surface,
+      borderRadius: BorderRadius.circular(Ember.radiusTile),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(Ember.radiusTile),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(Ember.radiusTile),
+            border: Border.all(color: Ember.outline),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.battery_saver_rounded, color: Ember.accent),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Let Hype run in the background',
+                      style: TextStyle(
+                        color: Ember.textPrimary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Some phones stop apps in the background otherwise, '
+                      'and this phone would drop off your other screens.',
+                      style: TextStyle(
+                        color: Ember.textTertiary,
+                        height: 1.3,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_right_rounded, color: Ember.textTertiary),
+            ],
+          ),
+        ),
       ),
     );
   }

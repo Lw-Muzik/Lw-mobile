@@ -32,6 +32,7 @@ import 'package:flutter/widgets.dart';
 import 'package:http/http.dart' as http;
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:eq_app/config/app_config.dart';
@@ -42,6 +43,8 @@ import 'package:eq_app/services/connect/connect_api.dart';
 import 'package:eq_app/services/connect/connect_client.dart';
 import 'package:eq_app/services/connect/connect_executor.dart';
 import 'package:eq_app/services/connect/connect_lyrics.dart';
+import 'package:eq_app/services/connect/connect_notification.dart';
+import 'package:eq_app/services/connect/connect_service.dart';
 import 'package:eq_app/services/connect/connect_viz.dart';
 import 'package:eq_app/services/connect/connect_presence.dart';
 import 'package:eq_app/services/connect/connect_protocol.dart';
@@ -173,9 +176,28 @@ class HypeConnect extends ChangeNotifier with WidgetsBindingObserver {
     this.onRemoteModeChanged,
     int Function()? nowUs,
     Duration presenceGrace = const Duration(minutes: 2),
-  }) : _nowUs = nowUs ?? timelineNowUs {
+    bool backgroundAlways = false,
+    ConnectServiceBridge? serviceBridge,
+    Future<void> Function()? requestNotifications,
+  })  : _nowUs = nowUs ?? timelineNowUs,
+        _serviceBridge = serviceBridge {
     _enabled = prefs.getBool(enabledKey) ?? false;
-    _presence = ConnectPresence(onWanted: _onWanted, grace: presenceGrace);
+    _presence = ConnectPresence(
+      onWanted: _onWanted,
+      grace: presenceGrace,
+      backgroundAlways: backgroundAlways,
+    );
+    final bridge = serviceBridge;
+    if (bridge != null) {
+      _service = ConnectServiceController(
+        bridge: bridge,
+        content: _notificationContent,
+        requestNotifications: requestNotifications,
+      );
+      bridge
+        ..onAction = _onServiceAction
+        ..onOpenRequested = () => unawaited(_openRequested());
+    }
     client.state.addListener(_onClientState);
   }
 
@@ -233,11 +255,24 @@ class HypeConnect extends ChangeNotifier with WidgetsBindingObserver {
       vizFeed: AppConnectVizFeed(app),
       position: () => app.handler.currentTrackPlayer.position,
       onRemoteModeChanged: app.refreshRemoteMode,
+      // Android keeps the phone on the hub in the background, held up by the
+      // foreground service; iOS cannot, so it keeps the grace rule.
+      backgroundAlways: Platform.isAndroid,
+      serviceBridge: Platform.isAndroid ? MethodChannelConnectService() : null,
+      requestNotifications: Platform.isAndroid ? _requestNotifications : null,
     );
     app.addListener(connect.inputsChanged);
     app.handler.playbackState.listen((_) => connect.inputsChanged());
     connect.start();
     return _instance = connect;
+  }
+
+  /// Android 13+ keeps a notification hidden until it is allowed. Asked when
+  /// the user turns Hype Connect on; a "no" leaves the service running (its
+  /// entry is still in the system's task manager), just without the shade card.
+  static Future<void> _requestNotifications() async {
+    if (await Permission.notification.status.isGranted) return;
+    await Permission.notification.request();
   }
 
   final SharedPreferences prefs;
@@ -268,6 +303,12 @@ class HypeConnect extends ChangeNotifier with WidgetsBindingObserver {
   final ConnectStateSource _stateSource;
 
   late final ConnectPresence _presence;
+  final ConnectServiceBridge? _serviceBridge;
+  ConnectServiceController? _service;
+
+  /// The device that last sent this phone a command, for the notification's
+  /// "Controlled from …". Forgotten when that device goes offline.
+  String? _controllerId;
   ConnectExecutor? _executor;
   ConnectRpcHandler? _rpc;
   ConnectStatePublisher? _publisher;
@@ -298,6 +339,19 @@ class HypeConnect extends ChangeNotifier with WidgetsBindingObserver {
   /// Whether the app is meant to be on the hub right now. Differs from
   /// [enabled] while the app sits in the background, or in equalizer mode.
   bool get wantsConnection => _presence.wanted;
+
+  /// Whether this phone has a background service to keep it reachable
+  /// (Android). The page offers the battery-optimisation shortcut only then.
+  bool get hasBackgroundService => _serviceBridge != null;
+
+  /// Whether the system lets the app run unrestricted in the background; true
+  /// when there is nothing to ask.
+  Future<bool> isIgnoringBatteryOptimizations() async =>
+      await _serviceBridge?.isIgnoringBatteryOptimizations() ?? true;
+
+  /// Opens the system page for exempting the app from battery optimisation.
+  Future<void> openBatterySettings() async =>
+      _serviceBridge?.openBatterySettings();
 
   /// Every linked device of this account.
   List<DeviceInfo> get devices => _devices;
@@ -397,6 +451,7 @@ class HypeConnect extends ChangeNotifier with WidgetsBindingObserver {
         _wasRemote = session.isRemote;
         onRemoteModeChanged?.call();
       }
+      _service?.refresh();
     });
     _remoteEvents = session.events.listen((event) {
       if (event is RemoteWentOffline) {
@@ -410,8 +465,22 @@ class HypeConnect extends ChangeNotifier with WidgetsBindingObserver {
       ..musicMode = isMusicMode()
       ..playing = isPlaying()
       ..enabled = _enabled;
+    // The service learns what is already running before it is told what to do:
+    // after a reboot native has started it and this process has no screen.
+    await _service?.init(
+      wanted: _serviceWanted,
+      foreground: state == null || state == AppLifecycleState.resumed,
+    );
     notifyListeners();
+    // The notification may have been tapped while the app was not running.
+    if (await _serviceBridge?.takeOpenRequest() ?? false) {
+      unawaited(ConnectUiHost.instance.openConnectPage());
+    }
   }
+
+  /// The foreground service runs exactly when the socket is meant to be held:
+  /// Hype Connect on, in music-player mode.
+  bool get _serviceWanted => _enabled && isMusicMode();
 
   /// The app's mode or playback changed.
   void inputsChanged() {
@@ -421,12 +490,19 @@ class HypeConnect extends ChangeNotifier with WidgetsBindingObserver {
       ..playing = isPlaying();
     _takeover?.onLocalPlaying(isPlaying());
     _viz?.refresh();
+    _service
+      ?..setWanted(_serviceWanted)
+      ..refresh();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    _presence.foreground = state == AppLifecycleState.resumed ||
+    final foreground = state == AppLifecycleState.resumed ||
         state == AppLifecycleState.inactive;
+    _presence.foreground = foreground;
+    // Resuming is also the moment to start a service that could not be started
+    // from the background, and the battery shortcut is re-checked by the page.
+    _service?.setForeground(foreground);
   }
 
   Future<void> setEnabled(bool value) async {
@@ -434,7 +510,11 @@ class HypeConnect extends ChangeNotifier with WidgetsBindingObserver {
     _enabled = value;
     if (value) _notice = null;
     await prefs.setBool(enabledKey, value);
-    if (_started) _presence.enabled = value;
+    if (_started) {
+      _presence.enabled = value;
+      if (value) await _service?.userEnabled();
+      _service?.setWanted(_serviceWanted);
+    }
     notifyListeners();
   }
 
@@ -509,6 +589,7 @@ class HypeConnect extends ChangeNotifier with WidgetsBindingObserver {
       _notice = state.lastError;
       unawaited(setEnabled(false));
     }
+    _service?.refresh();
     notifyListeners();
   }
 
@@ -525,15 +606,24 @@ class HypeConnect extends ChangeNotifier with WidgetsBindingObserver {
           activeIsPlaying: frame.states[frame.activeDeviceId]?.state.playing,
         );
         _publisher?.sendNow();
+        _forgetOfflineController();
+        _service?.refresh();
         notifyListeners();
       case DevicesFrame():
         _devices = frame.devices;
         _activeDeviceId = frame.activeDeviceId;
         _takeover?.onList(frame.devices, frame.activeDeviceId);
+        _forgetOfflineController();
+        _service?.refresh();
         notifyListeners();
       case ErrorFrame():
         _takeover?.onError(frame.code);
       case CmdFrame():
+        final from = frame.from;
+        if (from != null && from != _thisDeviceId && from != _controllerId) {
+          _controllerId = from;
+          _service?.refresh();
+        }
         final executor = _executor;
         if (executor == null) return;
         unawaited(executor.execute(frame).then(client.send));
@@ -545,6 +635,63 @@ class HypeConnect extends ChangeNotifier with WidgetsBindingObserver {
         _viz?.setSubscribed(frame.on);
       default:
         break;
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // The background service's notification
+  // -------------------------------------------------------------------------
+
+  void _forgetOfflineController() {
+    final id = _controllerId;
+    if (id == null) return;
+    final online = _devices.any((d) => d.id == id && d.online);
+    if (!online) _controllerId = null;
+  }
+
+  ConnectNotificationContent _notificationContent() {
+    final remote = _session?.nowPlaying();
+    final song = currentSong?.call();
+    final retry = client.state.value;
+    return buildConnectNotification(
+      ConnectNotificationInput(
+        status: retry.status,
+        retryIn: retry.retryIn,
+        thisDeviceId: _thisDeviceId,
+        devices: _devices,
+        remoteDevice: remote?.device,
+        remoteTrack: remote?.track,
+        remotePlaying: remote?.playing ?? false,
+        hasLocalTrack: song != null,
+        localTitle: song?.title,
+        localArtist: song?.artist,
+        localPlaying: isPlaying(),
+        controllerId: _controllerId,
+      ),
+    );
+  }
+
+  /// A button on the notification: the transport buttons drive the remote
+  /// player exactly as the in-app remote mini-player does, and "Turn off" is
+  /// the switch on the Hype Connect page.
+  void _onServiceAction(String id) {
+    final session = _session;
+    switch (id) {
+      case 'previous':
+        unawaited(session?.prev());
+      case 'next':
+        unawaited(session?.next());
+      case 'toggle':
+        final playing = session?.nowPlaying()?.playing ?? false;
+        unawaited(playing ? session?.pause() : session?.resume());
+      case 'off':
+        unawaited(setEnabled(false));
+    }
+  }
+
+  Future<void> _openRequested() async {
+    if (await _serviceBridge?.takeOpenRequest() ?? false) {
+      await ConnectUiHost.instance.openConnectPage();
     }
   }
 
@@ -598,6 +745,7 @@ class HypeConnect extends ChangeNotifier with WidgetsBindingObserver {
       ConnectPlayRouter.instance = null;
     }
     _presence.dispose();
+    _service?.dispose();
     _publisher?.stop();
     _viz?.dispose();
     client.state.removeListener(_onClientState);

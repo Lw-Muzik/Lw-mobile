@@ -6,6 +6,8 @@ import 'package:eq_app/services/connect/connect_api.dart';
 import 'package:eq_app/models/lyrics_model.dart';
 import 'package:eq_app/services/connect/connect_client.dart';
 import 'package:eq_app/services/connect/connect_lyrics.dart';
+import 'package:eq_app/services/connect/connect_notification.dart';
+import 'package:eq_app/services/connect/connect_service.dart';
 import 'package:eq_app/services/connect/connect_viz.dart';
 import 'package:eq_app/visualizers/beat_frame.dart';
 import 'dart:typed_data';
@@ -154,8 +156,51 @@ class _Lyrics implements ConnectLyricsSource {
       parseLrc('[00:01.00]hello');
 }
 
+class _Bridge implements ConnectServiceBridge {
+  bool running = false;
+  final calls = <String>[];
+  final updates = <ConnectNotificationContent>[];
+  void Function(String id)? action;
+
+  @override
+  set onAction(void Function(String id)? handler) => action = handler;
+  @override
+  set onOpenRequested(void Function()? handler) {}
+  @override
+  Future<bool> isRunning() async => running;
+  @override
+  Future<bool> start() async {
+    calls.add('start');
+    return running = true;
+  }
+
+  @override
+  Future<void> update(ConnectNotificationContent content) async =>
+      updates.add(content);
+  @override
+  Future<void> stop() async {
+    calls.add('stop');
+    running = false;
+  }
+
+  @override
+  Future<void> setBootEnabled(bool enabled) async => calls.add('boot:$enabled');
+  @override
+  Future<bool> isIgnoringBatteryOptimizations() async => true;
+  @override
+  Future<void> openBatterySettings() async {}
+  @override
+  Future<bool> takeOpenRequest() async => false;
+}
+
 class _Rig {
   _Rig({this.musicMode = true});
+
+  /// Set before [build] to behave like Android: a background service and a
+  /// socket that is never let go in the background.
+  _Bridge? bridge;
+  bool backgroundAlways = false;
+  Duration grace = const Duration(minutes: 2);
 
   bool musicMode;
   bool playing = false;
@@ -232,6 +277,9 @@ class _Rig {
       vizFeed: feed,
       position: () => const Duration(seconds: 12),
       nowUs: () => nowUs,
+      presenceGrace: grace,
+      backgroundAlways: backgroundAlways,
+      serviceBridge: bridge,
     );
     await connect.start();
     await pump();
@@ -495,6 +543,100 @@ void main() {
       await rig.pump();
       expect(rig.connect.devices.single.name, 'Chrome on macOS');
       expect(rig.connect.activeDeviceId, 'install-1');
+    });
+  });
+
+  group('background service (Android)', () {
+    _Rig android() => _Rig()
+      ..bridge = _Bridge()
+      ..backgroundAlways = true
+      ..grace = const Duration(milliseconds: 30);
+
+    test('stays on the hub in the background; iOS rules still let go', () async {
+      final droid = android();
+      await droid.build(prefsValues: {HypeConnect.enabledKey: true});
+      await droid.welcome();
+      droid.connect.didChangeAppLifecycleState(AppLifecycleState.paused);
+      await Future<void>.delayed(const Duration(milliseconds: 120));
+      expect(droid.connect.wantsConnection, isTrue);
+
+      final ios = _Rig()..grace = const Duration(milliseconds: 30);
+      await ios.build(prefsValues: {HypeConnect.enabledKey: true});
+      await ios.welcome();
+      ios.connect.didChangeAppLifecycleState(AppLifecycleState.paused);
+      await Future<void>.delayed(const Duration(milliseconds: 120));
+      expect(ios.connect.wantsConnection, isFalse);
+    });
+
+    test('turning it on starts the service; turning it off stops it', () async {
+      final rig = android();
+      await rig.build();
+      await rig.connect.setEnabled(true);
+      await rig.pump();
+      expect(rig.bridge!.calls, contains('start'));
+      expect(rig.bridge!.updates, isNotEmpty);
+      await rig.connect.setEnabled(false);
+      await rig.pump();
+      expect(rig.bridge!.calls.last, 'stop');
+      expect(rig.bridge!.calls, contains('boot:false'));
+    });
+
+    test('a service left running by a reboot is adopted, not restarted', () async {
+      final rig = android();
+      rig.bridge!.running = true;
+      await rig.build(prefsValues: {HypeConnect.enabledKey: true});
+      await rig.pump();
+      expect(rig.bridge!.calls, isNot(contains('start')));
+      expect(rig.bridge!.calls, isNot(contains('stop')));
+      expect(rig.bridge!.updates.single.title, 'Reconnecting…');
+    });
+
+    test('leaving music-player mode stops the service', () async {
+      final rig = android();
+      await rig.build(prefsValues: {HypeConnect.enabledKey: true});
+      expect(rig.bridge!.running, isTrue);
+      rig.musicMode = false;
+      rig.connect.inputsChanged();
+      await rig.pump();
+      expect(rig.bridge!.running, isFalse);
+    });
+
+    test('Turn off on the notification switches Hype Connect off', () async {
+      final rig = android();
+      await rig.build(prefsValues: {HypeConnect.enabledKey: true});
+      await rig.welcome();
+      rig.bridge!.action!('off');
+      await rig.pump();
+      expect(rig.connect.enabled, isFalse);
+      expect(rig.bridge!.running, isFalse);
+    });
+
+    test('the notification says who is controlling and how many are online', () async {
+      final rig = android();
+      await rig.build(prefsValues: {HypeConnect.enabledKey: true});
+      final socket = await rig.welcome();
+      socket.receive(const DevicesFrame(
+        devices: [
+          DeviceInfo(
+            id: 'web-1',
+            kind: DeviceKind.web,
+            name: 'Chrome',
+            platform: null,
+            appVersion: null,
+            caps: [],
+            online: true,
+            lastSeenAt: '2026-10-12T08:00:00Z',
+          ),
+        ],
+        activeDeviceId: 'install-1',
+      ));
+      socket.receive(const CmdFrame(id: 'c1', from: 'web-1', cmd: PauseCommand()));
+      await rig.pump();
+      // Updates are held back to one a second.
+      await Future<void>.delayed(const Duration(milliseconds: 1100));
+      final last = rig.bridge!.updates.last;
+      expect(last.title, 'Ready for your devices');
+      expect(last.subText, 'Controlled from Chrome · 1 device online');
     });
   });
 

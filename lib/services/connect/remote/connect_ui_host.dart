@@ -6,9 +6,12 @@
 /// uses them.
 library;
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import 'package:eq_app/Themes/app_fonts.dart';
+import 'package:eq_app/pages/hype_connect_page.dart';
 import 'package:eq_app/themes/ember.dart';
 import 'connect_play_router.dart';
 
@@ -21,6 +24,28 @@ class ConnectUiHost implements ConnectPlayUi {
       GlobalKey<NavigatorState>(debugLabel: 'hypeNavigator');
   static final GlobalKey<ScaffoldMessengerState> messengerKey =
       GlobalKey<ScaffoldMessengerState>(debugLabel: 'hypeMessenger');
+
+  /// Opens the Hype Connect page — what tapping the background notification
+  /// asks for.
+  ///
+  /// The notification can be tapped while the app is still starting (the
+  /// navigator does not exist yet) or from a process that was running with no
+  /// screen at all, so this waits a few seconds for the navigator rather than
+  /// dropping the request.
+  Future<void> openConnectPage() async {
+    for (var attempt = 0; attempt < 40; attempt++) {
+      final navigator = navigatorKey.currentState;
+      if (navigator != null) {
+        unawaited(
+          navigator.push(
+            MaterialPageRoute<void>(builder: (_) => const HypeConnectPage()),
+          ),
+        );
+        return;
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+    }
+  }
 
   @override
   void say(String message) {

@@ -139,4 +139,62 @@ void main() {
       expect(calls, isEmpty);
     });
   });
+
+  group('backgroundAlways (Android)', () {
+    void android(void Function(FakeAsync async, ConnectPresence p, List<bool> calls) body) {
+      fakeAsync((async) {
+        final calls = <bool>[];
+        final presence = ConnectPresence(onWanted: calls.add, backgroundAlways: true);
+        body(async, presence, calls);
+        presence.dispose();
+      });
+    }
+
+    test('stays connected in the background, silent, for hours', () {
+      android((async, p, calls) {
+        p.enabled = true;
+        p.foreground = false;
+        async.elapse(const Duration(hours: 6));
+        expect(calls, [true]);
+        expect(p.wanted, isTrue);
+      });
+    });
+
+    test('connects while backgrounded and silent', () {
+      android((async, p, calls) {
+        p.foreground = false;
+        p.enabled = true;
+        expect(calls, [true]);
+      });
+    });
+
+    test('switching off still disconnects at once', () {
+      android((async, p, calls) {
+        p.enabled = true;
+        p.foreground = false;
+        p.enabled = false;
+        expect(calls, [true, false]);
+      });
+    });
+
+    test('equalizer-only mode still disconnects at once, and returning reconnects', () {
+      android((async, p, calls) {
+        p.enabled = true;
+        p.foreground = false;
+        p.musicMode = false;
+        expect(calls, [true, false]);
+        p.musicMode = true;
+        expect(calls, [true, false, true]);
+      });
+    });
+
+    test('does not connect in equalizer-only mode, in the background or not', () {
+      android((async, p, calls) {
+        p.musicMode = false;
+        p.foreground = false;
+        p.enabled = true;
+        expect(calls, isEmpty);
+      });
+    });
+  });
 }

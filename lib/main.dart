@@ -61,11 +61,18 @@ Future<void> main() async {
     FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
     return true;
   };
-  await [
-    Permission.mediaLibrary,
-    Permission.storage,
-    Permission.audio,
-  ].request();
+  try {
+    await [
+      Permission.mediaLibrary,
+      Permission.storage,
+      Permission.audio,
+    ].request();
+  } catch (e) {
+    // Asking needs an Activity. After a reboot Hype Connect's background
+    // service runs this very main() with no screen at all, and the request
+    // throws; the permissions were granted by an earlier launch, so carry on.
+    debugPrint('Startup permission request skipped: $e');
+  }
 
   // On iOS, ensure media library permission is fully granted before proceeding.
   // MPMediaLibrary.requestAuthorization is async — the permission_handler call
@@ -136,17 +143,17 @@ Future<void> main() async {
   AppController.libraryRepo = libraryRepo;
   final libraryScanner = LibraryScanner(libraryRepo);
 
+  // Built here rather than by a lazy provider: after a reboot Hype Connect's
+  // background service runs this main() with no screen, so no widget is ever
+  // built to ask for the controller, and Hype Connect would never start.
+  final app = AppController(prefs, handler);
+  // Off unless the user has switched Hype Connect on; see HypeConnect.
+  HypeConnect.attach(app, prefs);
+
   runApp(
     MultiBlocProvider(
       providers: [
-        ChangeNotifierProvider(
-          create: (_) {
-            final app = AppController(prefs, handler);
-            // Off unless the user has switched Hype Connect on; see HypeConnect.
-            HypeConnect.attach(app, prefs);
-            return app;
-          },
-        ),
+        ChangeNotifierProvider.value(value: app),
         ChangeNotifierProvider(create: (_) => PlaylistController()),
         Provider<HypeAudioHandler>.value(value: handler),
         ChangeNotifierProvider(create: (_) => PlayerController()),
