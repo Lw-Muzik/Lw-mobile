@@ -83,9 +83,18 @@ class _DevicePickerSheetState extends State<_DevicePickerSheet> {
     if (!result.ok) {
       ConnectUiHost.instance.say(result.message ?? 'Could not move playback.');
     } else if (result.dropped > 0) {
+      // Which device the songs stayed on depends on the direction; where they
+      // could not go does not.
+      final target = id == connect.thisDeviceId
+          ? 'this phone'
+          : connect.devices
+                  .where((d) => d.id == id)
+                  .map((d) => d.name)
+                  .firstOrNull ??
+              'that device';
       ConnectUiHost.instance.say(result.dropped == 1
-          ? '1 song stayed behind: it is only on the other device.'
-          : '${result.dropped} songs stayed behind: they are only on the other device.');
+          ? "1 song couldn't move to $target."
+          : "${result.dropped} songs couldn't move to $target.");
     }
   }
 
