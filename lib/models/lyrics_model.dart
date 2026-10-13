@@ -37,6 +37,10 @@ class LyricsData {
   final String? album;
   final int offsetMs;
 
+  /// Where these lyrics came from, for attribution: `file`, `embedded`,
+  /// `lrclib`, `hypemuzik`. Null when unknown (e.g. built by hand).
+  final String? source;
+
   const LyricsData({
     required this.lines,
     required this.isSynced,
@@ -45,7 +49,20 @@ class LyricsData {
     this.title,
     this.album,
     this.offsetMs = 0,
+    this.source,
   });
+
+  /// The same lyrics, attributed to [source].
+  LyricsData withSource(String source) => LyricsData(
+        lines: lines,
+        isSynced: isSynced,
+        raw: raw,
+        artist: artist,
+        title: title,
+        album: album,
+        offsetMs: offsetMs,
+        source: source,
+      );
 
   Map<String, dynamic> toJson() {
     return {

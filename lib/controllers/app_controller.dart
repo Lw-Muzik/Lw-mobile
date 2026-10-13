@@ -1847,6 +1847,14 @@ class AppController with ChangeNotifier implements StationSink {
     if (push != null) Visualizers.enableVisual(push);
   }
 
+  /// Hype Connect: a controller is (or stops) watching the visualiser. Keeps the
+  /// native tap running even while the app is backgrounded.
+  void setRemoteVisual(bool on) {
+    if (_visualTap.remoteVisual == on) return;
+    _visualTap.remoteVisual = on;
+    _syncVisualTap();
+  }
+
   /// Silences the capture while the app is backgrounded, and restores exactly
   /// what was on screen when it comes back.
   void suspendVisualTap() {

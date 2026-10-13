@@ -123,8 +123,9 @@ enum DeviceKind { web, mobile, desktop }
 
 /// What a device can do. `player` obeys commands and publishes state; `yt` can
 /// play and search YouTube Music; `local` has an on-device library and answers
-/// the `library` rpc.
-enum ConnectCap { player, yt, local }
+/// the `library` rpc; `lyrics` answers the `lyrics` rpc and `viz` streams
+/// `viz` frames (both v1.1).
+enum ConnectCap { player, yt, local, lyrics, viz }
 
 enum ConnectRepeat { off, all, one }
 
@@ -155,7 +156,7 @@ enum RpcError implements WireEnum {
   final String wire;
 }
 
-enum RpcMethod { search, suggest, open, artist, library }
+enum RpcMethod { search, suggest, open, artist, library, lyrics }
 
 /// The search filters a controller may ask for.
 enum ConnectSearchFilter { all, songs, videos, albums, artists, playlists }
@@ -976,6 +977,152 @@ class LibraryResult {
       };
 }
 
+// --- lyrics (v1.1, §3.8) ---
+
+/// One word with timing, inside a [ConnectLyricLine].
+class ConnectLyricWord {
+  const ConnectLyricWord({
+    required this.startMs,
+    required this.endMs,
+    required this.text,
+  });
+
+  final int startMs;
+  final int endMs;
+  final String text;
+
+  factory ConnectLyricWord.fromJson(Object? raw) {
+    final json = _asMap(raw, 'word');
+    return ConnectLyricWord(
+      startMs: _int(json, 'startMs'),
+      endMs: _int(json, 'endMs'),
+      text: _str(json, 'text'),
+    );
+  }
+
+  JsonMap toJson() => {'startMs': startMs, 'endMs': endMs, 'text': text};
+}
+
+/// A line of lyrics. [startMs] is null when the lyrics are not synced; [text]
+/// may be empty for an instrumental gap; [words] is null unless word timing is
+/// known. Both nulls are always written: the contract lists them as nullable,
+/// not optional.
+class ConnectLyricLine {
+  const ConnectLyricLine({this.startMs, required this.text, this.words});
+
+  final int? startMs;
+  final String text;
+  final List<ConnectLyricWord>? words;
+
+  factory ConnectLyricLine.fromJson(Object? raw) {
+    final json = _asMap(raw, 'line');
+    final words = json['words'];
+    return ConnectLyricLine(
+      startMs: _intOrNull(json, 'startMs'),
+      text: _str(json, 'text'),
+      words: words == null
+          ? null
+          : _list(json, 'words', ConnectLyricWord.fromJson),
+    );
+  }
+
+  JsonMap toJson() => {
+        'startMs': startMs,
+        'text': text,
+        'words': words == null
+            ? null
+            : [for (final word in words!) word.toJson()],
+      };
+}
+
+/// The result of the `lyrics` rpc.
+class LyricsResult {
+  const LyricsResult({
+    required this.track,
+    required this.found,
+    required this.synced,
+    required this.source,
+    required this.lines,
+  });
+
+  /// Nothing playing, or nothing found: no lines.
+  const LyricsResult.none(this.track)
+      : found = false,
+        synced = false,
+        source = null,
+        lines = const [];
+
+  final TrackRef? track;
+  final bool found;
+  final bool synced;
+  final String? source;
+  final List<ConnectLyricLine> lines;
+
+  factory LyricsResult.fromJson(Object? raw) {
+    final json = _asMap(raw, 'result');
+    final track = json['track'];
+    return LyricsResult(
+      track: track == null ? null : TrackRef.fromJson(track),
+      found: _bool(json, 'found'),
+      synced: _bool(json, 'synced'),
+      source: _strOrNull(json, 'source'),
+      lines: _list(json, 'lines', ConnectLyricLine.fromJson),
+    );
+  }
+
+  JsonMap toJson() => {
+        'track': track?.toJson(),
+        'found': found,
+        'synced': synced,
+        'source': source,
+        'lines': [for (final line in lines) line.toJson()],
+      };
+}
+
+// --- visualiser (v1.1, §3.11) ---
+
+/// What one `viz` frame carries.
+class VizData {
+  const VizData({
+    required this.heardAt,
+    required this.positionMs,
+    required this.bands,
+    required this.level,
+    required this.beat,
+  });
+
+  /// Hub-clock epoch milliseconds at which this frame's audio is heard.
+  final int heardAt;
+  final int positionMs;
+
+  /// 32 values in 0..1, log-spaced ~30 Hz to 16 kHz, low first.
+  final List<double> bands;
+  final double level;
+  final double beat;
+
+  factory VizData.fromJson(Object? raw) {
+    final json = _asMap(raw, 'frame');
+    return VizData(
+      heardAt: _int(json, 'heardAt'),
+      positionMs: _int(json, 'positionMs'),
+      bands: _list(json, 'bands', (v) {
+        if (v is num) return v.toDouble();
+        throw const FormatException('band: expected a number');
+      }),
+      level: _double(json, 'level'),
+      beat: _double(json, 'beat'),
+    );
+  }
+
+  JsonMap toJson() => {
+        'heardAt': heardAt,
+        'positionMs': positionMs,
+        'bands': bands,
+        'level': level,
+        'beat': beat,
+      };
+}
+
 // ---------------------------------------------------------------------------
 // Frames
 // ---------------------------------------------------------------------------
@@ -1077,6 +1224,13 @@ sealed class ConnectFrame {
         return RpcResultFrame.error(
           id: _str(json, 'id'),
           error: _enum(RpcError.values, _str(json, 'error'), 'error'),
+        );
+      case 'viz_sub':
+        return VizSubFrame(to: _strOrNull(json, 'to'), on: _bool(json, 'on'));
+      case 'viz':
+        return VizFrame(
+          deviceId: _strOrNull(json, 'deviceId'),
+          frame: VizData.fromJson(json['frame']),
         );
     }
     return UnknownFrame(t, json);
@@ -1331,6 +1485,41 @@ final class RpcResultFrame extends ConnectFrame {
         'id': id,
         'ok': ok,
         if (ok) 'result': result else 'error': error!.wire,
+      };
+}
+
+/// Turns the visualiser stream on or off. A controller sends it with [to]; the
+/// hub tells a player with no `to` when its subscriber count goes 0 -> 1 or
+/// 1 -> 0.
+final class VizSubFrame extends ConnectFrame {
+  const VizSubFrame({this.to, required this.on});
+
+  final String? to;
+  final bool on;
+
+  @override
+  String get t => 'viz_sub';
+
+  @override
+  JsonMap toJson() => {'t': t, if (to != null) 'to': to, 'on': on};
+}
+
+/// One visualiser frame. A player sends it bare; the hub fans it out to
+/// controllers with the player's [deviceId].
+final class VizFrame extends ConnectFrame {
+  const VizFrame({this.deviceId, required this.frame});
+
+  final String? deviceId;
+  final VizData frame;
+
+  @override
+  String get t => 'viz';
+
+  @override
+  JsonMap toJson() => {
+        't': t,
+        if (deviceId != null) 'deviceId': deviceId,
+        'frame': frame.toJson(),
       };
 }
 

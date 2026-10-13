@@ -1,12 +1,12 @@
 # Hype Connect protocol fixtures (copied, do not edit here)
 
-These 46 files are verbatim copies of the normative example frames in the
+These 56 files are verbatim copies of the normative example frames in the
 backend repository:
 
     hypemuzik-management/backend/connect-protocol/fixtures/
 
 copied on 2026-10-12 alongside the contract
-`hypemuzik-management/backend/docs/hype-connect.md` (protocol v1).
+`hypemuzik-management/backend/docs/hype-connect.md` (protocol v1, with the v1.1 additions: lyrics and viz).
 
 They are the contract between the backend hub, the web controller, the desktop
 player and this app. `test/connect/connect_protocol_test.dart` proves every one

@@ -1,0 +1,62 @@
+{
+  "t": "rpc_result",
+  "id": "r-6",
+  "ok": true,
+  "result": {
+    "track": {
+      "src": "yt",
+      "videoId": "dQw4w9WgXcQ",
+      "title": "Never Gonna Give You Up",
+      "artist": "Rick Astley",
+      "album": "Whenever You Need Somebody",
+      "durationMs": 213000,
+      "artUrl": "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg"
+    },
+    "found": true,
+    "synced": true,
+    "source": "lrclib",
+    "lines": [
+      {
+        "startMs": 18000,
+        "text": "We're no strangers to love",
+        "words": [
+          {
+            "startMs": 18000,
+            "endMs": 18450,
+            "text": "We're"
+          },
+          {
+            "startMs": 18450,
+            "endMs": 18800,
+            "text": "no"
+          },
+          {
+            "startMs": 18800,
+            "endMs": 19500,
+            "text": "strangers"
+          },
+          {
+            "startMs": 19500,
+            "endMs": 19800,
+            "text": "to"
+          },
+          {
+            "startMs": 19800,
+            "endMs": 20600,
+            "text": "love"
+          }
+        ]
+      },
+      {
+        "startMs": 22300,
+        "text": "You know the rules and so do I",
+        "words": null
+      },
+      {
+        "startMs": 26000,
+        "text": "",
+        "words": null
+      }
+    ]
+  }
+}

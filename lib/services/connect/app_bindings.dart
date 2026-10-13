@@ -16,11 +16,19 @@ library;
 
 import 'dart:async';
 
+import 'dart:developer' show Timeline;
+import 'dart:io' show Platform;
+
 import 'package:just_audio/just_audio.dart' show LoopMode;
 import 'package:on_audio_query/on_audio_query.dart';
 
 import 'package:eq_app/controllers/app_controller.dart';
 import 'package:eq_app/data/library_repository.dart';
+import 'package:eq_app/helpers/audio_visualizer.dart';
+import 'package:eq_app/models/lyrics_model.dart';
+import 'package:eq_app/services/connect/connect_lyrics.dart';
+import 'package:eq_app/services/connect/connect_viz.dart';
+import 'package:eq_app/visualizers/beat_frame.dart';
 import 'package:eq_app/services/connect/connect_executor.dart';
 import 'package:eq_app/services/connect/connect_protocol.dart';
 import 'package:eq_app/services/connect/connect_rpc.dart';
@@ -305,3 +313,75 @@ class AppConnectStateSource implements ConnectStateSource {
     unawaited(_changes.close());
   }
 }
+
+/// [ConnectLyricsSource] over the player's own lyrics resolver.
+///
+/// Cache first (the player screen has usually loaded them already) and
+/// concurrent lookups for a song are shared, so a controller asking while the
+/// player screen is still resolving does not start a second fingerprint.
+///
+/// A lookup that found nothing is remembered for [missTtl]: the web re-asks
+/// every 8 s while it has no lyrics, and without this each ask would repeat a
+/// full online search for a song that has none.
+class AppConnectLyrics implements ConnectLyricsSource {
+  AppConnectLyrics(this._app, {this.missTtl = const Duration(minutes: 2)});
+
+  final AppController _app;
+  final Duration missTtl;
+  final Map<int, DateTime> _missedAt = {};
+
+  @override
+  Future<LyricsData?> lyricsFor(SongModel song) async {
+    final missed = _missedAt[song.id];
+    if (missed != null && DateTime.now().difference(missed) < missTtl) {
+      return null;
+    }
+    final data = await _app.lyricsService.loadLyrics(song);
+    if (data == null) {
+      _missedAt[song.id] = DateTime.now();
+    } else {
+      _missedAt.remove(song.id);
+    }
+    return data;
+  }
+}
+
+/// [ConnectVizFeed] over the native analysis stream. Listening turns the
+/// native tap on (even in the background); cancelling turns it off again.
+class AppConnectVizFeed implements ConnectVizFeed {
+  AppConnectVizFeed(this._app);
+
+  final AppController _app;
+  AudioVisualizer? _ios;
+
+  @override
+  Stream<BeatFrame> get frames {
+    StreamSubscription<BeatFrame>? source;
+    late final StreamController<BeatFrame> out;
+    out = StreamController<BeatFrame>(
+      onListen: () {
+        // iOS delivers beat frames through the shared method-channel handler,
+        // which exists once a visualizer has been constructed.
+        if (Platform.isIOS) {
+          _ios = Visualizers.audioVisualizer();
+        }
+        _app.setRemoteVisual(true);
+        source = AudioVisualizer.beatFrames.listen(
+          out.add,
+          onError: (Object _) {},
+        );
+      },
+      onCancel: () async {
+        await source?.cancel();
+        source = null;
+        _ios?.dispose();
+        _ios = null;
+        _app.setRemoteVisual(false);
+      },
+    );
+    return out.stream;
+  }
+}
+
+/// `Timeline.now`, the clock native heard-at times are read from.
+int timelineNowUs() => Timeline.now;

@@ -27,7 +27,17 @@ abstract final class AppFonts {
   /// Clash Display Semibold, the heavier of the two shipped weights.
   static const FontWeight semibold = FontWeight.w600;
 
-  /// A Clash Display [TextStyle] for hand-styled titles.
+  /// Clash Display's word space is too tight at display sizes ("Hype Muzik"
+  /// reads "HypeMuzik"), so display styles add this fraction of the font size
+  /// on top of it.
+  static const double wordSpacingFactor = 0.25;
+
+  /// The extra word spacing, in logical pixels, for a display style of
+  /// [fontSize].
+  static double wordSpacingFor(double fontSize) => fontSize * wordSpacingFactor;
+
+  /// A Clash Display [TextStyle] for hand-styled titles. Given a [fontSize] it
+  /// also carries the matching word spacing.
   ///
   /// [weight] must be [medium] or [semibold]; anything else is a bug because
   /// the family has no such face.
@@ -50,25 +60,26 @@ abstract final class AppFonts {
       color: color,
       height: height,
       letterSpacing: letterSpacing,
+      wordSpacing: fontSize == null ? null : wordSpacingFor(fontSize),
       shadows: shadows,
     );
   }
 
   /// Overrides to merge into a theme's `textTheme`: Clash Display on the
-  /// display, headline and large-title roles. Only the family and weight are
-  /// set; size, colour and height still come from Material's defaults.
+  /// display, headline and large-title roles. Only the family, weight and word
+  /// spacing (for Material's default size of each role) are set; size, colour and height still come from Material's defaults.
   ///
   /// `titleLarge` is the app-bar and dialog title role (it is not used for
   /// list rows, those use `titleMedium` / `bodyLarge`), so it takes the
   /// lighter weight like the web's section titles.
-  static const TextTheme displayTextTheme = TextTheme(
-    displayLarge: TextStyle(fontFamily: display, fontWeight: semibold),
-    displayMedium: TextStyle(fontFamily: display, fontWeight: semibold),
-    displaySmall: TextStyle(fontFamily: display, fontWeight: semibold),
-    headlineLarge: TextStyle(fontFamily: display, fontWeight: semibold),
-    headlineMedium: TextStyle(fontFamily: display, fontWeight: semibold),
-    headlineSmall: TextStyle(fontFamily: display, fontWeight: semibold),
-    titleLarge: TextStyle(fontFamily: display, fontWeight: medium),
+  static final TextTheme displayTextTheme = TextTheme(
+    displayLarge: TextStyle(fontFamily: display, fontWeight: semibold, wordSpacing: 57 * wordSpacingFactor),
+    displayMedium: TextStyle(fontFamily: display, fontWeight: semibold, wordSpacing: 45 * wordSpacingFactor),
+    displaySmall: TextStyle(fontFamily: display, fontWeight: semibold, wordSpacing: 36 * wordSpacingFactor),
+    headlineLarge: TextStyle(fontFamily: display, fontWeight: semibold, wordSpacing: 32 * wordSpacingFactor),
+    headlineMedium: TextStyle(fontFamily: display, fontWeight: semibold, wordSpacing: 28 * wordSpacingFactor),
+    headlineSmall: TextStyle(fontFamily: display, fontWeight: semibold, wordSpacing: 24 * wordSpacingFactor),
+    titleLarge: TextStyle(fontFamily: display, fontWeight: medium, wordSpacing: 22 * wordSpacingFactor),
   );
 
   /// Time and progress readouts: equal-width digits so the text does not

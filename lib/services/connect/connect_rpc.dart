@@ -10,7 +10,10 @@ library;
 import 'package:flutter/foundation.dart';
 
 import '../ytmusic/yt_models.dart';
+import 'package:on_audio_query/on_audio_query.dart';
+
 import 'connect_executor.dart';
+import 'connect_lyrics.dart';
 import 'connect_protocol.dart';
 import 'connect_tracks.dart';
 
@@ -43,7 +46,18 @@ class ConnectRpcHandler {
     required this._catalog,
     required this._library,
     required this._deviceId,
+    this._lyrics,
+    this._currentSong,
+    this.lyricsWindow = lyricsAnswerWindow,
   });
+
+  final ConnectLyricsSource? _lyrics;
+
+  /// The track playing now, or null.
+  final SongModel? Function()? _currentSong;
+
+  /// How long the `lyrics` rpc waits for a lookup.
+  final Duration lyricsWindow;
 
   final ConnectCatalog _catalog;
   final ConnectLibrary _library;
@@ -57,6 +71,8 @@ class ConnectRpcHandler {
     try {
       final result = await _run(method, frame.params);
       return RpcResultFrame.ok(id: frame.id, result: result);
+    } on _Unsupported {
+      return RpcResultFrame.error(id: frame.id, error: RpcError.unsupported);
     } on _NotSignedIn {
       return RpcResultFrame.error(id: frame.id, error: RpcError.notSignedIn);
     } on FormatException catch (e) {
@@ -101,6 +117,19 @@ class ConnectRpcHandler {
         final shelves = await _catalog.artist(p.id);
         return ShelvesResult([for (final s in shelves) shelfOf(s)]).toJson();
 
+      case RpcMethod.lyrics:
+        final source = _lyrics;
+        final current = _currentSong;
+        if (source == null || current == null) throw const _Unsupported();
+        final song = current();
+        return (await answerLyrics(
+          track: song == null ? null : trackRefOf(song, deviceId: _deviceId),
+          song: song,
+          source: source,
+          window: lyricsWindow,
+        ))
+            .toJson();
+
       case RpcMethod.library:
         final p = LibraryParams.fromJson(params);
         // A page larger than the contract allows is served at the largest
@@ -136,6 +165,10 @@ class ConnectRpcHandler {
 
   static String? _orNull(String? value) =>
       value == null || value.isEmpty || value == '<unknown>' ? null : value;
+}
+
+class _Unsupported implements Exception {
+  const _Unsupported();
 }
 
 class _NotSignedIn implements Exception {

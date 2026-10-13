@@ -30,6 +30,7 @@ import 'dart:io';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/widgets.dart';
 import 'package:http/http.dart' as http;
+import 'package:on_audio_query/on_audio_query.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -40,6 +41,8 @@ import 'package:eq_app/services/connect/connect_account.dart';
 import 'package:eq_app/services/connect/connect_api.dart';
 import 'package:eq_app/services/connect/connect_client.dart';
 import 'package:eq_app/services/connect/connect_executor.dart';
+import 'package:eq_app/services/connect/connect_lyrics.dart';
+import 'package:eq_app/services/connect/connect_viz.dart';
 import 'package:eq_app/services/connect/connect_presence.dart';
 import 'package:eq_app/services/connect/connect_protocol.dart';
 import 'package:eq_app/services/connect/connect_rpc.dart';
@@ -157,12 +160,26 @@ class HypeConnect extends ChangeNotifier with WidgetsBindingObserver {
     required this._stateSource,
     required this.isMusicMode,
     required this.isPlaying,
+    this.lyrics,
+    this.currentSong,
+    this.vizFeed,
+    this.position,
+    int Function()? nowUs,
     Duration presenceGrace = const Duration(minutes: 2),
-  }) {
+  }) : _nowUs = nowUs ?? timelineNowUs {
     _enabled = prefs.getBool(enabledKey) ?? false;
     _presence = ConnectPresence(onWanted: _onWanted, grace: presenceGrace);
     client.state.addListener(_onClientState);
   }
+
+  /// What this phone tells the hub it can do (protocol v1.1).
+  static const List<ConnectCap> deviceCaps = [
+    ConnectCap.player,
+    ConnectCap.yt,
+    ConnectCap.local,
+    ConnectCap.lyrics,
+    ConnectCap.viz,
+  ];
 
   static const enabledKey = 'hype_connect.enabled';
 
@@ -201,6 +218,13 @@ class HypeConnect extends ChangeNotifier with WidgetsBindingObserver {
       stateSource: AppConnectStateSource(app),
       isMusicMode: () => !app.isEqMode,
       isPlaying: () => app.handler.playbackState.value.playing,
+      lyrics: AppConnectLyrics(app),
+      currentSong: () {
+        final i = app.songId;
+        return i >= 0 && i < app.songs.length ? app.songs[i] : null;
+      },
+      vizFeed: AppConnectVizFeed(app),
+      position: () => app.handler.currentTrackPlayer.position,
     );
     app.addListener(connect.inputsChanged);
     app.handler.playbackState.listen((_) => connect.inputsChanged());
@@ -214,6 +238,17 @@ class HypeConnect extends ChangeNotifier with WidgetsBindingObserver {
   final ConnectClient client;
   final bool Function() isMusicMode;
   final bool Function() isPlaying;
+
+  /// Answers the `lyrics` rpc; without it the rpc is `unsupported`.
+  final ConnectLyricsSource? lyrics;
+  final SongModel? Function()? currentSong;
+
+  /// The native analysis for the visualiser stream, and the playback position.
+  final ConnectVizFeed? vizFeed;
+  final Duration Function()? position;
+  final int Function() _nowUs;
+
+  ConnectVizStreamer? _viz;
 
   final ConnectPlayer _player;
   final ConnectLibrary _library;
@@ -271,7 +306,21 @@ class HypeConnect extends ChangeNotifier with WidgetsBindingObserver {
       catalog: _catalog,
       library: _library,
       deviceId: deviceId,
+      lyrics: lyrics,
+      currentSong: currentSong,
     );
+    final feed = vizFeed;
+    final positionOf = position;
+    if (feed != null && positionOf != null) {
+      _viz = ConnectVizStreamer(
+        feed: feed,
+        send: client.send,
+        isPlaying: isPlaying,
+        position: positionOf,
+        hubNowMs: client.hubClock.nowMs,
+        nowUs: _nowUs,
+      );
+    }
     _publisher = ConnectStatePublisher(
       source: _stateSource,
       send: client.send,
@@ -294,6 +343,7 @@ class HypeConnect extends ChangeNotifier with WidgetsBindingObserver {
     _presence
       ..musicMode = isMusicMode()
       ..playing = isPlaying();
+    _viz?.refresh();
   }
 
   @override
@@ -370,8 +420,10 @@ class HypeConnect extends ChangeNotifier with WidgetsBindingObserver {
     final state = client.state.value;
     if (state.status == ConnectStatus.online) {
       _publisher?.start();
+      _viz?.setOnline(true);
     } else {
       _publisher?.stop();
+      _viz?.setOnline(false);
     }
     if (state.status == ConnectStatus.unlinked) {
       _notice = state.lastError;
@@ -399,6 +451,8 @@ class HypeConnect extends ChangeNotifier with WidgetsBindingObserver {
         final rpc = _rpc;
         if (rpc == null) return;
         unawaited(rpc.handle(frame).then(client.send));
+      case VizSubFrame():
+        _viz?.setSubscribed(frame.on);
       default:
         break;
     }
@@ -439,7 +493,7 @@ class HypeConnect extends ChangeNotifier with WidgetsBindingObserver {
       name: name,
       platform: Platform.isIOS ? 'ios' : 'android',
       appVersion: await _appVersion(),
-      caps: const [ConnectCap.player, ConnectCap.yt, ConnectCap.local],
+      caps: deviceCaps,
     );
   }
 
@@ -449,6 +503,7 @@ class HypeConnect extends ChangeNotifier with WidgetsBindingObserver {
     unawaited(_frames?.cancel());
     _presence.dispose();
     _publisher?.stop();
+    _viz?.dispose();
     client.state.removeListener(_onClientState);
     super.dispose();
   }

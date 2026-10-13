@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
+import 'package:eq_app/Themes/app_fonts.dart';
 import 'package:eq_app/services/connect/connect_client.dart';
 import 'package:eq_app/services/connect/connect_protocol.dart';
 import 'package:eq_app/services/connect/hype_connect.dart';
@@ -192,7 +193,10 @@ class _HypeConnectPageState extends State<HypeConnectPage> {
     return Scaffold(
       backgroundColor: Ember.ground,
       appBar: AppBar(
-        title: const Text('Hype Connect'),
+        title: Text(
+          'Hype Connect',
+          style: AppFonts.displayStyle(fontSize: 22, weight: AppFonts.medium),
+        ),
         backgroundColor: Ember.ground,
       ),
       body: ListenableBuilder(
@@ -656,7 +660,12 @@ class _ScanLinkCodePageState extends State<_ScanLinkCodePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Scan a code')),
+      appBar: AppBar(
+        title: Text(
+          'Scan a code',
+          style: AppFonts.displayStyle(fontSize: 22, weight: AppFonts.medium),
+        ),
+      ),
       body: Stack(
         fit: StackFit.expand,
         children: [

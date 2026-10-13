@@ -55,16 +55,34 @@ class LyricsService {
   /// 6. Tags looked fine but still missed → fingerprint once and retry
   ///
   /// [isCancelled] stops the online chain early once the user has moved on.
+  ///
+  /// Concurrent calls for the same song share one lookup: the player screen and
+  /// a Hype Connect controller both ask for the playing track's lyrics, and a
+  /// second fingerprint-and-search for the same words is pure waste. The lookup
+  /// belongs to whoever asked first, so [isCancelled] is that caller's.
   Future<LyricsData?> loadLyrics(
     SongModel song, {
     bool Function()? isCancelled,
-  }) async {
+  }) {
     // Check cache first (refresh LRU position on hit)
     final hit = _cache.remove(song.id);
     if (hit != null) {
       _cache[song.id] = hit;
-      return hit;
+      return Future.value(hit);
     }
+    final running = _inflight[song.id];
+    if (running != null) return running;
+    final lookup = _lookup(song, isCancelled);
+    _inflight[song.id] = lookup;
+    return lookup.whenComplete(() => _inflight.remove(song.id));
+  }
+
+  final Map<int, Future<LyricsData?>> _inflight = {};
+
+  Future<LyricsData?> _lookup(
+    SongModel song,
+    bool Function()? isCancelled,
+  ) async {
 
     LyricsData? result;
 
@@ -73,13 +91,13 @@ class LyricsService {
 
     if (isLocalFile) {
       // 1. Try .lrc sidecar file
-      result = await _loadFromLrcFile(filePath);
+      result = (await _loadFromLrcFile(filePath))?.withSource('file');
 
       // 2. Try ID3 USLT via Dart id3tag package
-      result ??= await _loadFromId3Tag(filePath);
+      result ??= (await _loadFromId3Tag(filePath))?.withSource('embedded');
 
       // 3. Try native fallback
-      result ??= await _loadFromNative(filePath);
+      result ??= (await _loadFromNative(filePath))?.withSource('embedded');
     }
 
     // 4–6. Online sources.
@@ -180,14 +198,14 @@ class LyricsService {
         durationMs: song.duration,
         isCancelled: isCancelled,
       );
-      found = _parse(text);
+      found = _parse(text)?.withSource('lrclib');
     } catch (e) {
       debugPrint('LyricsService: error fetching lyrics from LRCLIB: $e');
     }
 
     if (found == null && !(isCancelled?.call() ?? false)) {
       try {
-        found = _parse(await _backend(title, artist));
+        found = _parse(await _backend(title, artist))?.withSource('hypemuzik');
       } catch (e) {
         debugPrint('LyricsService: error fetching lyrics from backend: $e');
       }

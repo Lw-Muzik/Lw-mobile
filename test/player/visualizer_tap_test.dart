@@ -110,4 +110,27 @@ void main() {
       expect(tap.pendingPush(), isNull);
     });
   });
+
+  group('a Hype Connect viewer', () {
+    test('turns the tap on with no surface on screen', () {
+      final tap = VisualizerTap();
+      tap.pendingPush();
+      tap.remoteVisual = true;
+      expect(tap.pendingPush(), isTrue);
+      tap.remoteVisual = false;
+      expect(tap.pendingPush(), isFalse);
+    });
+
+    test('keeps it on while the app is backgrounded', () {
+      final tap = VisualizerTap()
+        ..playerVisual = true
+        ..remoteVisual = true;
+      tap.pendingPush();
+      tap.suspended = true;
+      expect(tap.shouldRun, isTrue);
+      expect(tap.pendingPush(), isNull);
+      tap.remoteVisual = false;
+      expect(tap.pendingPush(), isFalse, reason: 'now only the suspended surface');
+    });
+  });
 }

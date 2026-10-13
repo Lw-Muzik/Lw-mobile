@@ -51,6 +51,7 @@ const _frameTypes = <String, Type>{
   'devices.json': DevicesFrame,
   'error.json': ErrorFrame,
   'hello.mobile.json': HelloFrame,
+  'hello.mobile.v11.json': HelloFrame,
   'hello.web.json': HelloFrame,
   'ping.json': PingFrame,
   'pong.json': PongFrame,
@@ -66,6 +67,15 @@ const _frameTypes = <String, Type>{
   'rpc.search.from.json': RpcFrame,
   'rpc.search.to.json': RpcFrame,
   'rpc.suggest.from.json': RpcFrame,
+  'rpc.lyrics.from.json': RpcFrame,
+  'rpc_result.lyrics.json': RpcResultFrame,
+  'rpc_result.lyrics.none.json': RpcResultFrame,
+  'rpc_result.lyrics.plain.json': RpcResultFrame,
+  'viz_sub.player.off.json': VizSubFrame,
+  'viz_sub.player.on.json': VizSubFrame,
+  'viz_sub.to.json': VizSubFrame,
+  'viz.player.json': VizFrame,
+  'viz.stamped.json': VizFrame,
   'select.json': SelectFrame,
   'state.idle.json': StateFrame,
   'state.other.json': StateFrame,
@@ -108,6 +118,7 @@ final _paramParsers = <String, Map<String, Object?> Function(Object?)>{
   'open': (raw) => OpenParams.fromJson(raw).toJson(),
   'artist': (raw) => ArtistParams.fromJson(raw).toJson(),
   'library': (raw) => LibraryParams.fromJson(raw).toJson(),
+  'lyrics': (raw) => Map<String, Object?>.of(raw as Map<String, Object?>),
 };
 
 /// The typed shape of each successful rpc result. The frame does not say which
@@ -118,6 +129,9 @@ final _resultParsers = <String, Map<String, Object?> Function(Object?)>{
   'rpc_result.suggest.json': (raw) => SuggestResult.fromJson(raw).toJson(),
   'rpc_result.open.json': (raw) => OpenResult.fromJson(raw).toJson(),
   'rpc_result.library.json': (raw) => LibraryResult.fromJson(raw).toJson(),
+  'rpc_result.lyrics.json': (raw) => LyricsResult.fromJson(raw).toJson(),
+  'rpc_result.lyrics.none.json': (raw) => LyricsResult.fromJson(raw).toJson(),
+  'rpc_result.lyrics.plain.json': (raw) => LyricsResult.fromJson(raw).toJson(),
 };
 
 void main() {
@@ -129,8 +143,8 @@ void main() {
       .toList()
     ..sort();
 
-  test('the folder holds the 46 fixtures the contract ships', () {
-    expect(names, hasLength(46));
+  test('the folder holds the 56 fixtures the contract ships', () {
+    expect(names, hasLength(56));
     // Every one is covered by exactly one of the two tables below, so a
     // fixture added upstream and re-copied here cannot slip through untested.
     for (final name in names) {
@@ -243,9 +257,49 @@ void main() {
         'hello',
       );
     });
+
+    test('v1.1 advertises lyrics and viz, as the fixture does', () {
+      const hello = HelloFrame(
+        token: 'eyJhbGciOiJIUzI1NiJ9.e30.sig',
+        device: DeviceHello(
+          id: '6f1d2c3b-4a59-4e6f-8a7b-9c0d1e2f3a4b',
+          kind: DeviceKind.mobile,
+          name: "Bruno's Pixel",
+          platform: 'android',
+          appVersion: '1.1.0',
+          caps: [
+            ConnectCap.player,
+            ConnectCap.yt,
+            ConnectCap.local,
+            ConnectCap.lyrics,
+            ConnectCap.viz,
+          ],
+        ),
+      );
+      _expectSame(
+        _wire(hello.toJson()),
+        _load('hello.mobile.v11.json'),
+        'hello v1.1',
+      );
+    });
   });
 
   group('tolerance', () {
+    test('unknown caps are dropped, known ones kept', () {
+      final hello = HelloFrame(
+        token: 't',
+        device: DeviceHello.fromJson({
+          'id': 'i',
+          'kind': 'mobile',
+          'name': 'n',
+          'platform': 'android',
+          'appVersion': '1',
+          'caps': ['player', 'hologram', 'viz', 42],
+        }),
+      );
+      expect(hello.device.caps, [ConnectCap.player, ConnectCap.viz]);
+    });
+
     test('an unknown frame type is carried, not rejected', () {
       final frame = ConnectFrame.fromJson({'t': 'telemetry', 'x': 1});
       expect(frame, isA<UnknownFrame>());

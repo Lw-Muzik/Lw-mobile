@@ -1,0 +1,7 @@
+{
+  "t": "rpc",
+  "id": "r-6",
+  "from": "cm1webdevice0001abcdefgh",
+  "method": "lyrics",
+  "params": {}
+}

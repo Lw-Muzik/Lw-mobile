@@ -39,9 +39,11 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
+import 'package:clock/clock.dart';
 import 'package:flutter/foundation.dart';
 import 'package:web_socket_channel/io.dart';
 
+import 'connect_clock.dart';
 import 'connect_protocol.dart';
 
 /// One WebSocket, as the client needs it. Production wraps `dart:io`; tests
@@ -164,7 +166,10 @@ class ConnectClient {
     required this._device,
     Random? random,
     this.welcomeTimeout = const Duration(seconds: 15),
-  }) : _random = random ?? Random();
+    this.clockInterval = const Duration(seconds: 10),
+    HubClock? hubClock,
+  })  : _random = random ?? Random(),
+        hubClock = hubClock ?? HubClock();
 
   final Uri _wsUri;
   final ConnectSocketFactory _connect;
@@ -176,6 +181,13 @@ class ConnectClient {
 
   /// How long to wait for `welcome` after `hello` before giving up on a socket.
   final Duration welcomeTimeout;
+
+  /// How often the hub clock is re-measured while online (contract §3.7: on
+  /// every `welcome` and then every ~10 s).
+  final Duration clockInterval;
+
+  /// This phone's offset to the hub's clock, kept fresh by ping/pong.
+  final HubClock hubClock;
 
   final ValueNotifier<ConnectClientState> state =
       ValueNotifier(const ConnectClientState(ConnectStatus.off));
@@ -195,6 +207,11 @@ class ConnectClient {
   StreamSubscription<String>? _subscription;
   Timer? _retryTimer;
   Timer? _welcomeTimer;
+  Timer? _clockTimer;
+
+  /// Pings in flight: id -> local epoch ms when sent.
+  final Map<String, int> _pings = {};
+  int _pingCount = 0;
 
   bool get isOnline => state.value.status == ConnectStatus.online;
 
@@ -307,7 +324,14 @@ class ConnectClient {
     if (frame is WelcomeFrame) {
       _welcomeTimer?.cancel();
       _attempt = 0;
+      hubClock.seedFromWelcome(
+        serverTimeMs: frame.serverTime,
+        receivedMs: clock.now().millisecondsSinceEpoch,
+      );
       _set(ConnectClientState(ConnectStatus.online, welcome: frame));
+      _startClockSync();
+    } else if (frame is PongFrame) {
+      _onPong(frame);
     } else if (!isOnline) {
       // Nothing but welcome means anything before welcome.
       if (frame is ErrorFrame) {
@@ -414,7 +438,36 @@ class ConnectClient {
     _retry(why);
   }
 
+  /// Measures the hub clock now and again every [clockInterval] while online.
+  void _startClockSync() {
+    _clockTimer?.cancel();
+    _pings.clear();
+    _ping();
+    _clockTimer = Timer.periodic(clockInterval, (_) => _ping());
+  }
+
+  void _ping() {
+    final now = clock.now().millisecondsSinceEpoch;
+    // A pong that never came back is not coming; do not collect them.
+    _pings.removeWhere((_, sent) => now - sent > 30000);
+    final id = 'c${++_pingCount}';
+    if (send(PingFrame(id))) _pings[id] = now;
+  }
+
+  void _onPong(PongFrame pong) {
+    final sent = _pings.remove(pong.id);
+    if (sent == null) return;
+    hubClock.addSample(
+      sentMs: sent,
+      receivedMs: clock.now().millisecondsSinceEpoch,
+      serverTimeMs: pong.serverTime,
+    );
+  }
+
   void _detach() {
+    _clockTimer?.cancel();
+    _clockTimer = null;
+    _pings.clear();
     _generation++;
     unawaited(_subscription?.cancel());
     _subscription = null;

@@ -1,0 +1,20 @@
+{
+  "t": "rpc_result",
+  "id": "r-8",
+  "ok": true,
+  "result": {
+    "track": {
+      "src": "yt",
+      "videoId": "dQw4w9WgXcQ",
+      "title": "Never Gonna Give You Up",
+      "artist": "Rick Astley",
+      "album": "Whenever You Need Somebody",
+      "durationMs": 213000,
+      "artUrl": "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg"
+    },
+    "found": false,
+    "synced": false,
+    "source": null,
+    "lines": []
+  }
+}

@@ -8,6 +8,7 @@ import '/exports/exports.dart';
 import 'package:rxdart/rxdart.dart';
 
 import '../controllers/app_controller.dart';
+import '../Themes/app_fonts.dart';
 import '../models/lyrics_model.dart';
 import '../widgets/artwork_widget.dart';
 import '../widgets/common.dart';
@@ -591,7 +592,7 @@ class _SyncedLyricsState extends State<_SyncedLyrics> {
               }
 
               final line = widget.lyrics.lines[index];
-              return _LyricLine(
+              return LyricLineTile(
                 key: _lineKeys[index],
                 text: line.text,
                 isCurrent: isCurrent,
@@ -612,7 +613,8 @@ class _SyncedLyricsState extends State<_SyncedLyrics> {
 // Individual lyric line — shimmer reveal + stretch (Apple Music style)
 // ---------------------------------------------------------------------------
 
-class _LyricLine extends StatelessWidget {
+@visibleForTesting
+class LyricLineTile extends StatelessWidget {
   final String text;
   final bool isCurrent;
   final double alpha;
@@ -620,7 +622,7 @@ class _LyricLine extends StatelessWidget {
   final ValueListenable<int> lyricClockMs;
   final VoidCallback onTap;
 
-  const _LyricLine({
+  const LyricLineTile({
     super.key,
     required this.text,
     required this.isCurrent,
@@ -657,20 +659,27 @@ class _LyricLine extends StatelessWidget {
           child: AnimatedDefaultTextStyle(
             duration: const Duration(milliseconds: 600),
             curve: Curves.easeOutCubic,
-            style: TextStyle(
-              fontSize: isCurrent ? 28 : 20,
-              fontWeight: isCurrent ? FontWeight.w800 : FontWeight.w500,
-              color: Colors.white.withValues(alpha: alpha),
-              height: 1.3,
-              letterSpacing: isCurrent ? -0.5 : 0,
-              shadows: isCurrent
-                  ? [
-                      Shadow(
-                        color: Colors.white.withValues(alpha: 0.25),
-                        blurRadius: 24,
-                      ),
-                    ]
-                  : [const Shadow(color: Colors.transparent, blurRadius: 0)],
+            // MERGED into the ambient style: a DefaultTextStyle replaces it
+            // outright, and a bare TextStyle has no family, so lines used to
+            // fall back to the platform font. Clash Display for every line,
+            // 600 for the current one and 500 for the rest (it ships no
+            // other weights) so the family never changes mid-animation.
+            style: DefaultTextStyle.of(context).style.merge(
+              AppFonts.displayStyle(
+                fontSize: isCurrent ? 28 : 20,
+                weight: isCurrent ? AppFonts.semibold : AppFonts.medium,
+                color: Colors.white.withValues(alpha: alpha),
+                height: 1.3,
+                letterSpacing: isCurrent ? -0.5 : 0,
+                shadows: isCurrent
+                    ? [
+                        Shadow(
+                          color: Colors.white.withValues(alpha: 0.25),
+                          blurRadius: 24,
+                        ),
+                      ]
+                    : [const Shadow(color: Colors.transparent, blurRadius: 0)],
+              ),
             ),
             child: isCurrent && words != null && words!.isNotEmpty
                 ? WordFillText(words: words!, positionMs: lyricClockMs)

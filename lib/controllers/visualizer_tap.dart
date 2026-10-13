@@ -27,13 +27,21 @@ class VisualizerTap {
   /// backgrounding the app can stop the capture and resuming can restore it.
   bool suspended = false;
 
+  /// A Hype Connect controller is watching this phone's visualiser. Unlike the
+  /// two surfaces above it is not on this screen, so backgrounding the app does
+  /// not silence it: the phone is typically playing in a pocket while a laptop
+  /// draws the spectrum. Hype Connect clears it as soon as nobody watches or
+  /// playback stops.
+  bool remoteVisual = false;
+
   /// The last value handed to [pendingPush], or null if the native side has
   /// never been told anything. Native boots in an unknown state, so the first
   /// push always happens even when it agrees with the default.
   bool? _pushed;
 
   /// Whether the native tap should be capturing right now.
-  bool get shouldRun => !suspended && (playerVisual || backgroundVisual);
+  bool get shouldRun =>
+      remoteVisual || (!suspended && (playerVisual || backgroundVisual));
 
   /// The value to send to the native side, or null when it already agrees.
   ///

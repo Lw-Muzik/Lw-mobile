@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
+import 'package:clock/clock.dart';
 import 'package:eq_app/services/connect/connect_client.dart';
 import 'package:eq_app/services/connect/connect_protocol.dart';
 import 'package:fake_async/fake_async.dart';
@@ -135,6 +136,7 @@ class Harness {
 }
 
 void main() {
+  clockTests();
   group('connectBackoff', () {
     test('doubles from 1 s and caps at 30 s with no jitter at 0.5', () {
       final delays = [
@@ -446,7 +448,8 @@ void main() {
         h.last.receiveText('not json at all');
         async.flushMicrotasks();
 
-        expect(h.last.sentJson.skip(1), [
+        // hello, then the clock ping that every welcome starts.
+        expect(h.last.sentJson.skip(2), [
           {'t': 'ack', 'id': 'c-77', 'ok': false, 'error': 'failed'},
           {'t': 'rpc_result', 'id': 'r-9', 'ok': false, 'error': 'failed'},
         ]);
@@ -462,4 +465,70 @@ class SocketExceptionStub implements Exception {
   final String message;
   @override
   String toString() => message;
+}
+
+/// The hub clock (contract §3.7): a ping on every welcome and every 10 s.
+void clockTests() {
+  group('hub clock', () {
+    test('pings on welcome, then every 10 s while online, and learns the offset',
+        () {
+      fakeAsync((async) {
+        final h = Harness();
+        h.client.start();
+        async.flushMicrotasks();
+        h.last.receive(_welcome());
+        async.flushMicrotasks();
+
+        List<Map<String, Object?>> pings() =>
+            [for (final f in h.last.sentJson) if (f['t'] == 'ping') f];
+        expect(pings(), hasLength(1));
+
+        // The hub answers 40 ms later with its own clock: 5 s ahead of ours.
+        async.elapse(const Duration(milliseconds: 40));
+        final id = pings().single['id']! as String;
+        final mid = clock.now().millisecondsSinceEpoch - 20;
+        h.last.receive(PongFrame(id: id, serverTime: mid + 5000));
+        async.flushMicrotasks();
+        expect(h.client.hubClock.offsetMs, 5000);
+        expect(h.client.hubClock.roundTripMs, 40);
+
+        async.elapse(const Duration(seconds: 10));
+        expect(pings(), hasLength(2));
+        async.elapse(const Duration(seconds: 10));
+        expect(pings(), hasLength(3));
+      });
+    });
+
+    test('stops pinging when the socket goes away', () {
+      fakeAsync((async) {
+        final h = Harness();
+        h.client.start();
+        async.flushMicrotasks();
+        h.last.receive(_welcome());
+        async.flushMicrotasks();
+        expect(async.periodicTimerCount, greaterThan(0), reason: 'pinging');
+        final socket = h.last;
+        socket.serverClose(1006);
+        async.flushMicrotasks();
+        final before = socket.sentJson.where((f) => f['t'] == 'ping').length;
+        expect(async.periodicTimerCount, 0, reason: 'the ping timer is gone');
+        async.elapse(const Duration(seconds: 25));
+        expect(socket.sentJson.where((f) => f['t'] == 'ping').length, before);
+      });
+    });
+
+    test('a pong nobody asked for changes nothing', () {
+      fakeAsync((async) {
+        final h = Harness();
+        h.client.start();
+        async.flushMicrotasks();
+        h.last.receive(_welcome());
+        async.flushMicrotasks();
+        final before = h.client.hubClock.isMeasured;
+        h.last.receive(const PongFrame(id: 'zzz', serverTime: 1));
+        async.flushMicrotasks();
+        expect(h.client.hubClock.isMeasured, before);
+      });
+    });
+  });
 }

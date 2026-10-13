@@ -3,7 +3,12 @@ import 'dart:convert';
 
 import 'package:eq_app/services/connect/connect_account.dart';
 import 'package:eq_app/services/connect/connect_api.dart';
+import 'package:eq_app/models/lyrics_model.dart';
 import 'package:eq_app/services/connect/connect_client.dart';
+import 'package:eq_app/services/connect/connect_lyrics.dart';
+import 'package:eq_app/services/connect/connect_viz.dart';
+import 'package:eq_app/visualizers/beat_frame.dart';
+import 'dart:typed_data';
 import 'package:eq_app/services/connect/connect_executor.dart';
 import 'package:eq_app/services/connect/connect_protocol.dart';
 import 'package:eq_app/services/connect/connect_rpc.dart';
@@ -127,6 +132,28 @@ class _Source implements ConnectStateSource {
       );
 }
 
+class _Feed implements ConnectVizFeed {
+  final c = StreamController<BeatFrame>(sync: true);
+  int listens = 0;
+  int cancels = 0;
+
+  @override
+  Stream<BeatFrame> get frames => Stream<BeatFrame>.multi((m) {
+        listens++;
+        final sub = c.stream.listen(m.add);
+        m.onCancel = () {
+          cancels++;
+          return sub.cancel();
+        };
+      });
+}
+
+class _Lyrics implements ConnectLyricsSource {
+  @override
+  Future<LyricsData?> lyricsFor(SongModel song) async =>
+      parseLrc('[00:01.00]hello');
+}
+
 class _Rig {
   _Rig({this.musicMode = true});
 
@@ -136,6 +163,12 @@ class _Rig {
   final requests = <String>[];
   final player = _Player();
   late HypeConnect connect;
+
+  /// Set before [build] to wire the v1.1 features.
+  _Feed? feed;
+  _Lyrics? lyrics;
+  SongModel? song;
+  int nowUs = 1000000000;
 
   Future<void> build({Map<String, Object> prefsValues = const {}}) async {
     SharedPreferences.setMockInitialValues(prefsValues);
@@ -194,6 +227,11 @@ class _Rig {
       stateSource: _Source(),
       isMusicMode: () => musicMode,
       isPlaying: () => playing,
+      lyrics: lyrics,
+      currentSong: () => song,
+      vizFeed: feed,
+      position: () => const Duration(seconds: 12),
+      nowUs: () => nowUs,
     );
     await connect.start();
     await pump();
@@ -327,7 +365,76 @@ void main() {
       final rig = _Rig();
       await rig.build(prefsValues: {HypeConnect.enabledKey: true});
       final socket = await rig.welcome();
-      expect(socket.types, ['hello', 'state']);
+      // The client measures the hub clock on every welcome (contract §3.7).
+      expect(socket.types, ['hello', 'ping', 'state']);
+    });
+
+    test('advertises v1.1: lyrics and viz', () {
+      expect(HypeConnect.deviceCaps.map((c) => c.name),
+          ['player', 'yt', 'local', 'lyrics', 'viz']);
+    });
+
+    test('answers the lyrics rpc end to end', () async {
+      final rig = _Rig()
+        ..lyrics = _Lyrics()
+        ..song = SongModel({
+          '_id': 7,
+          '_data': '/m/a.mp3',
+          'title': 'Hello',
+          'artist': 'Adele',
+          'duration': 1000,
+          '_display_name': 'a.mp3',
+          '_display_name_wo_ext': 'a',
+        });
+      await rig.build(prefsValues: {HypeConnect.enabledKey: true});
+      final socket = await rig.welcome();
+      socket.receive(const RpcFrame(
+          id: 'r-1', from: 'web', method: 'lyrics', params: {}));
+      await rig.pump();
+      final out = socket.sent.firstWhere((f) => f['t'] == 'rpc_result');
+      expect(out['ok'], isTrue);
+      expect((out['result'] as Map)['found'], isTrue);
+    });
+
+    test('streams viz only after viz_sub on, and releases on off', () async {
+      final rig = _Rig()..feed = _Feed();
+      rig.playing = true;
+      await rig.build(prefsValues: {HypeConnect.enabledKey: true});
+      final socket = await rig.welcome();
+      expect(rig.feed!.listens, 0, reason: 'nobody is watching');
+
+      socket.receive(const VizSubFrame(on: true));
+      await rig.pump();
+      expect(rig.feed!.listens, 1);
+      rig.nowUs += 100000;
+      rig.feed!.c.add(BeatFrame(
+        sampleRate: 44100,
+        hopSeconds: 0.005,
+        synced: false,
+        hops: Float32List(0),
+        bandsDb: Float32List.fromList(List.filled(64, -40)),
+      ));
+      await rig.pump();
+      final viz = socket.sent.firstWhere((f) => f['t'] == 'viz');
+      expect(((viz['frame'] as Map)['bands'] as List), hasLength(32));
+      expect((viz['frame'] as Map)['positionMs'], 12000);
+
+      socket.receive(const VizSubFrame(on: false));
+      await rig.pump();
+      expect(rig.feed!.cancels, 1);
+    });
+
+    test('a dropped socket releases the viz stream', () async {
+      final rig = _Rig()..feed = _Feed();
+      rig.playing = true;
+      await rig.build(prefsValues: {HypeConnect.enabledKey: true});
+      final socket = await rig.welcome();
+      socket.receive(const VizSubFrame(on: true));
+      await rig.pump();
+      expect(rig.feed!.listens, 1);
+      socket.serverClose(1006);
+      await rig.pump();
+      expect(rig.feed!.cancels, 1);
     });
 
     test('answers a command', () async {
