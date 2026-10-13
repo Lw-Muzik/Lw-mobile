@@ -45,6 +45,12 @@ class Rig {
     takeover.onConnected();
     takeover.onList(devices, active);
   }
+
+  /// A `welcome` carrying whether the active device's state says playing.
+  void welcome(List<DeviceInfo> devices, String? active, {bool? activePlaying}) {
+    takeover.onConnected();
+    takeover.onList(devices, active, isWelcome: true, activeIsPlaying: activePlaying);
+  }
 }
 
 void main() {
@@ -403,6 +409,89 @@ void main() {
         r.takeover.onConnected(); // welcome not seen yet
         r.takeover.onLocalPlaying(true);
         expect(r.selects, [self]); // not "already active" from the stale list
+      });
+    });
+  });
+
+  group('claim (c): welcome', () {
+    test('offline start claims on welcome even if another player plays', () {
+      scenario((_) {
+        final r = Rig();
+        r.takeover.onLocalPlaying(true); // no socket
+        r.welcome([phone, desktop], 'desk', activePlaying: true);
+        expect(r.selects, [self]);
+        expect(r.pauses, 0);
+      });
+    });
+
+    test('stale idle active on welcome claims', () {
+      scenario((_) {
+        final r = Rig();
+        r.takeover.onConnected();
+        r.takeover.onLocalPlaying(true); // claim (a) happens; reset via fresh rig
+        final r2 = Rig()..takeover.onConnected();
+        r2.takeover.onList([phone, desktop], self);
+        r2.takeover.onLocalPlaying(true);
+        r2.takeover.onDisconnected();
+        r2.takeover.onConnected();
+        r2.takeover.onList([phone, desktop], 'desk', isWelcome: true, activeIsPlaying: false);
+        expect(r2.selects, [self]);
+        expect(r2.pauses, 0);
+      });
+    });
+
+    test('active with no state entry on welcome claims', () {
+      scenario((_) {
+        final r = Rig()..connect([phone, desktop], self);
+        r.takeover.onLocalPlaying(true);
+        r.takeover.onList([phone, desktop], 'desk', isWelcome: true, activeIsPlaying: null);
+        expect(r.selects, [self]);
+      });
+    });
+
+    test('active playing on welcome, no offline start: yield', () {
+      scenario((_) {
+        final r = Rig()..connect([phone, desktop], self);
+        r.takeover.onLocalPlaying(true);
+        r.takeover.onList([phone, desktop], 'desk', isWelcome: true, activeIsPlaying: true);
+        expect(r.pauses, 1);
+        expect(r.selects, isEmpty);
+      });
+    });
+
+    test('the same idle active on a devices frame still yields', () {
+      scenario((_) {
+        final r = Rig()..connect([phone, desktop], self);
+        r.takeover.onLocalPlaying(true);
+        r.takeover.onList([phone, desktop], 'desk');
+        expect(r.pauses, 1);
+        expect(r.selects, isEmpty);
+      });
+    });
+
+    test('the flag clears once a claim is sent', () {
+      scenario((async) {
+        final r = Rig();
+        r.takeover.onLocalPlaying(true);
+        r.welcome([phone, desktop], 'desk', activePlaying: true);
+        expect(r.selects, [self]);
+        async.elapse(const Duration(seconds: 4));
+        final before = r.pauses;
+        r.takeover.onDisconnected();
+        r.welcome([phone, desktop], 'desk', activePlaying: true);
+        expect(r.pauses, before + 1, reason: 'claim consumed the offline start');
+        expect(r.selects, hasLength(1));
+      });
+    });
+
+    test('a postponed check after claiming applies as a devices check', () {
+      scenario((async) {
+        final r = Rig();
+        r.takeover.onLocalPlaying(true);
+        r.welcome([phone, desktop], 'desk', activePlaying: false);
+        expect(r.selects, [self]);
+        async.elapse(const Duration(seconds: 3));
+        expect(r.pauses, 1);
       });
     });
   });

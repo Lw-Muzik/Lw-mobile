@@ -11,13 +11,19 @@
 ///       command — or
 ///   (b) it receives `welcome` or `devices` while playing and the active device
 ///       is null, offline, or not a player.
+/// (c) it receives `welcome` while playing and either its playback started
+///       while it had no socket (a lock-screen play after the background grace
+///       closed the socket), or the active device's entry in `welcome.states`
+///       is missing or not playing (a stale selection, e.g. left over from a
+///       merge).
 ///   It is then *claiming* until a `welcome`/`devices` shows itself as active,
 ///   the hub answers `not_a_player`, or [claimWindow] passes. At most one claim
 ///   is sent per [claimWindow].
 /// * **Yield.** A player that is playing, is not claiming, and receives a
-///   `welcome`/`devices` naming **another online player** as active pauses its
-///   own playback (pause, not stop). A claiming player postpones that check
-///   until claiming ends, then applies it to the latest list.
+///   `devices` naming **another online player** as active pauses its own
+///   playback (pause, not stop). On `welcome` it yields only when (c) does not
+///   apply. A claiming player postpones the check until claiming ends, then
+///   applies it to the latest list as a `devices` check.
 ///
 /// Two players that start at once both claim; the hub applies the selects in
 /// turn, and the loser sees the winner as active when its claiming ends and
@@ -58,6 +64,7 @@ class ConnectTakeover {
 
   bool _connected = false;
   bool _playing = false;
+  bool _startedOffline = false;
   List<DeviceInfo> _devices = const [];
   String? _activeId;
 
@@ -83,8 +90,14 @@ class ConnectTakeover {
     _endClaim();
   }
 
-  /// A `welcome` or `devices` frame.
-  void onList(List<DeviceInfo> devices, String? activeDeviceId) {
+  /// A `welcome` ([isWelcome], with [activeIsPlaying] from `welcome.states`:
+  /// null when the active device has no entry) or `devices` frame.
+  void onList(
+    List<DeviceInfo> devices,
+    String? activeDeviceId, {
+    bool isWelcome = false,
+    bool? activeIsPlaying,
+  }) {
     _devices = devices;
     _activeId = activeDeviceId;
     if (!_connected) return;
@@ -94,7 +107,11 @@ class ConnectTakeover {
       return; // Otherwise the check waits for the claim to end.
     }
     if (!_playing) return;
-    _evaluate(allowClaim: true);
+    _evaluate(
+      allowClaim: true,
+      isWelcome: isWelcome,
+      activeIsPlaying: activeIsPlaying,
+    );
   }
 
   /// The `error` frame with [code]. Only `not_a_player` concerns a claim.
@@ -108,6 +125,8 @@ class ConnectTakeover {
   void onLocalPlaying(bool playing) {
     final started = playing && !_playing;
     _playing = playing;
+    if (!playing) _startedOffline = false;
+    if (started && !_connected) _startedOffline = true;
     if (!started || !_connected) return;
     if (_activeId == selfId) return;
     _claim();
@@ -120,15 +139,27 @@ class ConnectTakeover {
 
   // -- Rules -----------------------------------------------------------------
 
-  void _evaluate({required bool allowClaim}) {
+  void _evaluate({
+    required bool allowClaim,
+    bool isWelcome = false,
+    bool? activeIsPlaying,
+  }) {
     final active = _activeId;
-    if (active == selfId) return;
+    if (active == selfId) {
+      _startedOffline = false;
+      return;
+    }
     final device = active == null ? null : _deviceById(active);
     final activeIsOnlinePlayer =
         device != null && device.online && device.isPlayer;
     if (activeIsOnlinePlayer) {
-      pauseLocal(); // Yield.
-      return;
+      // Rule (c): on welcome, an offline start or a stale/idle selection wins.
+      final claimInstead =
+          isWelcome && (_startedOffline || activeIsPlaying != true);
+      if (!claimInstead) {
+        pauseLocal(); // Yield.
+        return;
+      }
     }
     if (allowClaim) _claim(); // Rule (b).
   }
@@ -145,6 +176,7 @@ class ConnectTakeover {
     final last = _lastClaimAt;
     if (last != null && now.difference(last) < claimWindow) return;
     if (!sendSelect(selfId)) return;
+    _startedOffline = false;
     _lastClaimAt = now;
     _claiming = true;
     _claimTimer?.cancel();
