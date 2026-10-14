@@ -24,6 +24,7 @@ import 'package:eq_app/services/connect/hype_connect.dart';
 import 'package:eq_app/services/connect/remote/connect_remote_session.dart';
 import 'package:eq_app/themes/ember.dart';
 import 'package:eq_app/widgets/common.dart';
+
 import 'connect_device_picker.dart';
 import 'remote_scope.dart';
 
@@ -31,7 +32,7 @@ import 'remote_scope.dart';
 const _toggleGold = Color(0xFFD4A825);
 
 /// Height of the collapsed queue sheet, handle and "Next:" line included.
-const _peekHeight = 76.0;
+const _peekHeight = 88.0;
 
 class RemotePlayerView extends StatelessWidget {
   const RemotePlayerView({super.key, required this.remote, this.session});
@@ -201,7 +202,11 @@ class _DevicePill extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(iconForDevice(remote.device.kind), size: 14, color: Ember.accent),
+              Icon(
+                iconForDevice(remote.device.kind),
+                size: 14,
+                color: Ember.accent,
+              ),
               const SizedBox(width: 6),
               Flexible(
                 child: Text(
@@ -217,7 +222,7 @@ class _DevicePill extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              _LiveBars(active: remote.playing),
+              RepaintBoundary(child: _LiveBars(active: remote.playing)),
             ],
           ),
         ),
@@ -284,15 +289,18 @@ class _LiveBarsState extends State<_LiveBars>
             for (var i = 0; i < 3; i++)
               Container(
                 width: 3,
-                height: 12 *
+                height:
+                    12 *
                     (widget.active
                         ? 0.3 +
-                            0.7 *
-                                (0.5 +
-                                    0.5 *
-                                        math.sin(
-                                          (_c.value + _phase[i]) * 2 * math.pi,
-                                        ))
+                              0.7 *
+                                  (0.5 +
+                                      0.5 *
+                                          math.sin(
+                                            (_c.value + _phase[i]) *
+                                                2 *
+                                                math.pi,
+                                          ))
                         : _rest[i]),
                 decoration: BoxDecoration(
                   color: Ember.accent,
@@ -309,7 +317,11 @@ class _LiveBarsState extends State<_LiveBars>
 // --- Hero artwork and track info ---------------------------------------------
 
 class _HeroArt extends StatelessWidget {
-  const _HeroArt({required this.session, required this.remote, required this.size});
+  const _HeroArt({
+    required this.session,
+    required this.remote,
+    required this.size,
+  });
 
   final ConnectRemoteSession session;
   final RemoteNowPlaying remote;
@@ -329,7 +341,9 @@ class _HeroArt extends StatelessWidget {
         vx < 0 ? session.next() : session.prev();
       },
       onVerticalDragEnd: (d) {
-        if (d.velocity.pixelsPerSecond.dy > 700) Navigator.of(context).maybePop();
+        if (d.velocity.pixelsPerSecond.dy > 700) {
+          Navigator.of(context).maybePop();
+        }
       },
       child: AnimatedScale(
         scale: remote.playing ? 1.0 : 0.94,
@@ -393,7 +407,11 @@ class _TrackInfo extends StatelessWidget {
             artist,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(color: Ember.textSecondary, fontSize: 15, height: 1.3),
+            style: TextStyle(
+              color: Ember.textSecondary,
+              fontSize: 15,
+              height: 1.3,
+            ),
           ),
         ],
       ],
@@ -469,9 +487,7 @@ class _RemoteWaveState extends State<_RemoteWave> {
       bufferedPosition: position,
       isPlaying: now.playing,
       height: widget.height,
-      onChangeEnd: known
-          ? (d) => widget.session.seek(d.inMilliseconds)
-          : null,
+      onChangeEnd: known ? (d) => widget.session.seek(d.inMilliseconds) : null,
     );
   }
 }
@@ -626,19 +642,19 @@ class _Skip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Tooltip(
-        message: tooltip,
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: onPressed,
-            borderRadius: BorderRadius.circular(24),
-            child: Padding(
-              padding: const EdgeInsets.all(8),
-              child: Icon(icon, color: Colors.white, size: size),
-            ),
-          ),
+    message: tooltip,
+    child: Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(24),
+        child: Padding(
+          padding: const EdgeInsets.all(8),
+          child: Icon(icon, color: Colors.white, size: size),
         ),
-      );
+      ),
+    ),
+  );
 }
 
 class _Toggle extends StatelessWidget {
@@ -656,31 +672,27 @@ class _Toggle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Tooltip(
-        message: tooltip,
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: onPressed,
-            borderRadius: BorderRadius.circular(20),
-            child: Container(
-              width: 40,
-              height: 40,
-              alignment: Alignment.center,
-              decoration: on
-                  ? BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: _toggleGold.withValues(alpha: 0.15),
-                    )
-                  : null,
-              child: Icon(
-                icon,
-                size: 22,
-                color: on ? _toggleGold : Colors.white38,
-              ),
-            ),
-          ),
+    message: tooltip,
+    child: Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          width: 40,
+          height: 40,
+          alignment: Alignment.center,
+          decoration: on
+              ? BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: _toggleGold.withValues(alpha: 0.15),
+                )
+              : null,
+          child: Icon(icon, size: 22, color: on ? _toggleGold : Colors.white38),
         ),
-      );
+      ),
+    ),
+  );
 }
 
 // --- Volume ------------------------------------------------------------------
@@ -705,8 +717,8 @@ class _VolumeRowState extends State<_VolumeRow> {
     final icon = value <= 0.001
         ? Icons.volume_off_rounded
         : value < 0.5
-            ? Icons.volume_down_rounded
-            : Icons.volume_up_rounded;
+        ? Icons.volume_down_rounded
+        : Icons.volume_up_rounded;
     return Row(
       children: [
         Icon(icon, size: 20, color: Ember.textSecondary),
@@ -725,7 +737,8 @@ class _VolumeRowState extends State<_VolumeRow> {
               onChanged: (v) {
                 setState(() => _dragging = v);
                 final now = DateTime.now();
-                if (now.difference(_lastSent) > const Duration(milliseconds: 150)) {
+                if (now.difference(_lastSent) >
+                    const Duration(milliseconds: 150)) {
                   _lastSent = now;
                   widget.session.volume(v);
                 }
@@ -841,7 +854,10 @@ class _QueueRow extends StatelessWidget {
                         artist,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(color: Ember.textTertiary, fontSize: 12),
+                        style: TextStyle(
+                          color: Ember.textTertiary,
+                          fontSize: 12,
+                        ),
                       ),
                   ],
                 ),
@@ -869,7 +885,11 @@ List<Widget> _queueSlivers({
           padding: const EdgeInsets.symmetric(vertical: 28),
           child: Column(
             children: [
-              Icon(Icons.queue_music_rounded, size: 32, color: Ember.textTertiary),
+              Icon(
+                Icons.queue_music_rounded,
+                size: 32,
+                color: Ember.textTertiary,
+              ),
               const SizedBox(height: 8),
               Text(
                 'Nothing queued on $device',
@@ -976,13 +996,15 @@ class _PortraitLayoutState extends State<_PortraitLayout> {
                 builder: (context, scroll) => DecoratedBox(
                   decoration: BoxDecoration(
                     color: Ember.surface,
-                    borderRadius:
-                        const BorderRadius.vertical(top: Radius.circular(24)),
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(24),
+                    ),
                     boxShadow: Ember.lift,
                   ),
                   child: ClipRRect(
-                    borderRadius:
-                        const BorderRadius.vertical(top: Radius.circular(24)),
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(24),
+                    ),
                     child: CustomScrollView(
                       key: const Key('remote-queue'),
                       controller: scroll,
@@ -1081,9 +1103,9 @@ class _NowPlayingBlock extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, box) {
-        final w = math.min(box.maxWidth, 560.0);
-        final h = box.maxHeight;
         final big = MediaQuery.sizeOf(context).shortestSide >= 600;
+        final w = math.min(box.maxWidth, big ? 680.0 : 560.0);
+        final h = box.maxHeight;
         final titleSize = big ? 28.0 : 24.0;
         final gap = (h * 0.015).clamp(6.0, 16.0);
         final infoH = titleSize * 1.15 * 2 + 4 + 20 + 4;
@@ -1100,7 +1122,7 @@ class _NowPlayingBlock extends StatelessWidget {
           art = math.min(w - 48, h - fixed(waveH));
         }
         final scrolls = art < 120;
-        art = art.clamp(120.0, 520.0);
+        art = art.clamp(120.0, big ? 620.0 : 520.0);
 
         final column = Column(
           mainAxisSize: scrolls ? MainAxisSize.min : MainAxisSize.max,
@@ -1143,7 +1165,9 @@ class _NowPlayingBlock extends StatelessWidget {
             ),
           ],
         );
-        final body = Center(child: SizedBox(width: w, child: column));
+        final body = Center(
+          child: SizedBox(width: w, child: column),
+        );
         return scrolls
             ? SingleChildScrollView(child: body)
             : SizedBox(height: h, child: body);
@@ -1172,72 +1196,96 @@ class _LandscapeLayout extends StatelessWidget {
         final waveH = (h * 0.1).clamp(44.0, 85.0);
         final stripH = waveH + 6 + 20 + 20;
         final middleH = h - headerH - stripH;
-        final art = math.max(
-          120.0,
-          math.min(middleH - 16, w * 0.42),
-        );
+        final art = math.max(120.0, math.min(middleH - 16, w * 0.42));
         return Column(
           children: [
             _Header(remote: remote, height: headerH),
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Row(
-                  children: [
-                    _HeroArt(session: session, remote: remote, size: art),
-                    const SizedBox(width: 24),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _TrackInfo(
-                            track: remote.track,
-                            titleSize: big ? 28 : 20,
-                            titleLines: 1,
+                // The art's height bounds the queue column too, so the two
+                // panes start and end on the same lines.
+                child: Center(
+                  child: SizedBox(
+                    height: art,
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Center(
+                          child: _HeroArt(
+                            session: session,
+                            remote: remote,
+                            size: art,
                           ),
-                          if (!wide) ...[
-                            const SizedBox(height: 4),
-                            SizedBox(
-                              height: 36,
-                              child: _VolumeRow(session: session, remote: remote),
-                            ),
-                          ],
-                          const SizedBox(height: 8),
-                          Expanded(
-                            child: DecoratedBox(
-                              decoration: BoxDecoration(
-                                color: Ember.surface.withValues(alpha: 0.78),
-                                borderRadius: BorderRadius.circular(Ember.radiusTile),
-                                border: Border.all(color: Ember.outline),
+                        ),
+                        const SizedBox(width: 24),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _TrackInfo(
+                                track: remote.track,
+                                titleSize: big ? 28 : 20,
+                                titleLines: 1,
                               ),
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(Ember.radiusTile),
-                                child: Column(
-                                  children: [
-                                    Padding(
-                                      padding:
-                                          const EdgeInsets.fromLTRB(16, 12, 16, 6),
-                                      child: _QueueHeader(remote: remote),
+                              if (!wide) ...[
+                                const SizedBox(height: 4),
+                                SizedBox(
+                                  height: 36,
+                                  child: _VolumeRow(
+                                    session: session,
+                                    remote: remote,
+                                  ),
+                                ),
+                              ],
+                              const SizedBox(height: 8),
+                              Expanded(
+                                child: DecoratedBox(
+                                  decoration: BoxDecoration(
+                                    color: Ember.surface.withValues(
+                                      alpha: 0.78,
                                     ),
-                                    Expanded(
-                                      child: CustomScrollView(
-                                        key: const Key('remote-queue'),
-                                        slivers: _queueSlivers(
-                                          session: session,
-                                          remote: remote,
-                                          bottomPad: 0,
+                                    borderRadius: BorderRadius.circular(
+                                      Ember.radiusTile,
+                                    ),
+                                    border: Border.all(color: Ember.outline),
+                                  ),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(
+                                      Ember.radiusTile,
+                                    ),
+                                    child: Column(
+                                      children: [
+                                        Padding(
+                                          padding: const EdgeInsets.fromLTRB(
+                                            16,
+                                            12,
+                                            16,
+                                            6,
+                                          ),
+                                          child: _QueueHeader(remote: remote),
                                         ),
-                                      ),
+                                        Expanded(
+                                          child: CustomScrollView(
+                                            key: const Key('remote-queue'),
+                                            slivers: _queueSlivers(
+                                              session: session,
+                                              remote: remote,
+                                              bottomPad: 0,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
                                     ),
-                                  ],
+                                  ),
                                 ),
                               ),
-                            ),
+                            ],
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
               ),
             ),
