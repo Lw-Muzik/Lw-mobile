@@ -29,10 +29,18 @@
 /// position) that holds until a state arrives for that device (it is
 /// only accepted with a newer `seq`), or [overlayTtl] passes — whichever is first — and then the device's
 /// own report wins again.
+///
+/// A **volume** overlay follows different rules. Volume is stepped quickly
+/// (hardware keys repeat while held, a slider is dragged) and the echo of an
+/// earlier step arrives while the next is already on screen, so "any newer
+/// state drops it" would jitter the display back to a stale value. It is
+/// dropped only by a state whose volume is within 0.01 of it (the device caught
+/// up) or when [overlayTtl] passes since the last change.
 library;
 
 import 'dart:async';
 
+import 'package:clock/clock.dart';
 import 'package:flutter/foundation.dart';
 
 import '../connect_protocol.dart';
@@ -81,6 +89,9 @@ class _Overlay {
   bool? playing;
   int? positionMs;
 
+  /// Held separately from the transport guesses; see the library docs.
+  double? volume;
+
   /// Hub time when the position was set.
   int atMs;
 }
@@ -107,6 +118,18 @@ class ConnectRemoteSession extends ChangeNotifier {
   final Map<String, StampedState> _states = {};
   final Map<String, _Overlay> _overlays = {};
   final Map<String, Timer> _overlayTimers = {};
+  final Map<String, Timer> _volumeTimers = {};
+
+  /// One step of [nudgeVolume]: a hardware key press.
+  static const double volumeStep = 0.05;
+
+  /// A volume command is sent at once if the last one went at least this long
+  /// ago; otherwise the newest value goes once the gap has passed.
+  static const Duration volumeGap = Duration(milliseconds: 120);
+
+  DateTime? _volumeSentAt;
+  Timer? _volumeTrailing;
+  double? _volumePending;
 
   final Map<String, Completer<AckFrame>> _pending = {};
   final Map<String, Timer> _pendingTimers = {};
@@ -198,8 +221,13 @@ class ConnectRemoteSession extends ChangeNotifier {
     if (held != null && state.state.seq <= held.state.seq) return;
     _states[deviceId] = state;
     // The device has spoken since the tap (a state only gets here if its seq is
-    // newer than any held): its word beats the guess.
-    _dropOverlay(deviceId);
+    // newer than any held): its word beats the guess. Except for the volume,
+    // which is only let go once the device reports it (or the TTL passes).
+    _dropTransportOverlay(deviceId);
+    final guessed = _overlays[deviceId]?.volume;
+    if (guessed != null && (state.state.volume - guessed).abs() <= 0.01) {
+      _dropVolumeOverlay(deviceId);
+    }
     if (deviceId == _targetId) notifyListeners();
   }
 
@@ -287,7 +315,52 @@ class ConnectRemoteSession extends ChangeNotifier {
   Future<AckFrame> next() => cmdTarget(const NextCommand());
   Future<AckFrame> prev() => cmdTarget(const PrevCommand());
   Future<AckFrame> jump(String uid) => cmdTarget(JumpCommand(uid));
-  Future<AckFrame> volume(double value) => cmdTarget(VolumeCommand(value));
+  Future<AckFrame> volume(double value) {
+    _guessVolume(value.clamp(0.0, 1.0));
+    return cmdTarget(VolumeCommand(value));
+  }
+
+  /// One hardware-key step on the remote device: [direction] is +1 or -1.
+  /// Returns the level it now stands at, or null outside remote mode.
+  ///
+  /// At a bound nothing is sent and the current level is returned: a desktop
+  /// boosted above 100 % reports 1.0, and an "up" there must not cut its boost
+  /// back to 100 %.
+  double? nudgeVolume(int direction) {
+    final id = _targetId;
+    final device = id == null ? null : _deviceById(id);
+    if (id == null || device == null) return null;
+    final current = _view(device).volume;
+    final next = ((current + volumeStep * direction.sign) * 100).round() / 100;
+    final clamped = next.clamp(0.0, 1.0);
+    if (clamped == current) return current;
+    _guessVolume(clamped);
+    _sendVolumeThrottled(clamped);
+    return clamped;
+  }
+
+  void _sendVolumeThrottled(double value) {
+    final last = _volumeSentAt;
+    final now = clock.now();
+    if (_volumeTrailing == null &&
+        (last == null || now.difference(last) >= volumeGap)) {
+      _volumeSentAt = now;
+      unawaited(cmdTarget(VolumeCommand(value)));
+      return;
+    }
+    // Last value wins: a held key sends the final level, not every step.
+    _volumePending = value;
+    if (_volumeTrailing != null) return;
+    final wait = last == null ? volumeGap : volumeGap - now.difference(last);
+    _volumeTrailing = Timer(wait, () {
+      _volumeTrailing = null;
+      final pending = _volumePending;
+      _volumePending = null;
+      if (pending == null) return;
+      _volumeSentAt = clock.now();
+      unawaited(cmdTarget(VolumeCommand(pending)));
+    });
+  }
   Future<AckFrame> shuffle(bool on) => cmdTarget(ShuffleCommand(on));
   Future<AckFrame> repeat(ConnectRepeat mode) => cmdTarget(RepeatCommand(mode));
 
@@ -308,22 +381,58 @@ class ConnectRemoteSession extends ChangeNotifier {
     }
     _overlayTimers[id]?.cancel();
     _overlayTimers[id] = Timer(overlayTtl, () {
-      _dropOverlay(id);
+      _dropTransportOverlay(id);
       notifyListeners();
     });
     notifyListeners();
   }
 
+  void _guessVolume(double value) {
+    final id = _targetId;
+    if (id == null) return;
+    final overlay = _overlays[id] ??
+        (_overlays[id] = _Overlay(atMs: _hubNowMs()));
+    overlay.volume = value;
+    _volumeTimers[id]?.cancel();
+    _volumeTimers[id] = Timer(overlayTtl, () {
+      _dropVolumeOverlay(id);
+      notifyListeners();
+    });
+    notifyListeners();
+  }
+
+  /// Drops everything for [id]: the device went away or the session reset.
   void _dropOverlay(String id) {
     _overlays.remove(id);
     _overlayTimers.remove(id)?.cancel();
+    _volumeTimers.remove(id)?.cancel();
+  }
+
+  void _dropTransportOverlay(String id) {
+    _overlayTimers.remove(id)?.cancel();
+    final overlay = _overlays[id];
+    if (overlay == null) return;
+    overlay.playing = null;
+    overlay.positionMs = null;
+    if (overlay.volume == null) _overlays.remove(id);
+  }
+
+  void _dropVolumeOverlay(String id) {
+    _volumeTimers.remove(id)?.cancel();
+    final overlay = _overlays[id];
+    if (overlay == null) return;
+    overlay.volume = null;
+    if (overlay.playing == null && overlay.positionMs == null) {
+      _overlays.remove(id);
+    }
   }
 
   void _clearOverlays() {
-    for (final timer in _overlayTimers.values) {
+    for (final timer in [..._overlayTimers.values, ..._volumeTimers.values]) {
       timer.cancel();
     }
     _overlayTimers.clear();
+    _volumeTimers.clear();
     _overlays.clear();
   }
 
@@ -347,7 +456,7 @@ class ConnectRemoteSession extends ChangeNotifier {
       playing: playing,
       positionMs: _interpolated(device.id, overlay: overlay, playing: playing),
       durationMs: state?.durationMs,
-      volume: state?.volume ?? 1,
+      volume: overlay?.volume ?? state?.volume ?? 1,
       shuffle: state?.shuffle ?? false,
       repeat: state?.repeat ?? ConnectRepeat.off,
       queue: state?.queue ?? const [],
@@ -380,9 +489,14 @@ class ConnectRemoteSession extends ChangeNotifier {
 
   @override
   void dispose() {
-    for (final timer in [..._pendingTimers.values, ..._overlayTimers.values]) {
+    for (final timer in [
+      ..._pendingTimers.values,
+      ..._overlayTimers.values,
+      ..._volumeTimers.values,
+    ]) {
       timer.cancel();
     }
+    _volumeTrailing?.cancel();
     unawaited(_events.close());
     super.dispose();
   }
