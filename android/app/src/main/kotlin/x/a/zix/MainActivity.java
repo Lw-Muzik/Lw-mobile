@@ -353,12 +353,27 @@ public class MainActivity extends AudioServiceFragmentActivity {
 
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
+        // Phone as a remote: the keys step the playing device's volume, not
+        // this phone's silent one. Before DVC, which would otherwise take them.
+        if (ConnectVolume.isRemoteKey(keyCode)
+                && ConnectChannel.sendVolumeKey(
+                        keyCode == KeyEvent.KEYCODE_VOLUME_UP ? "up" : "down")) {
+            return true;
+        }
         if (keyCode == KeyEvent.KEYCODE_VOLUME_UP) {
             if (DvcController.onVolumeButton("up")) return true;
         } else if (keyCode == KeyEvent.KEYCODE_VOLUME_DOWN) {
             if (DvcController.onVolumeButton("down")) return true;
         }
         return super.onKeyDown(keyCode, event);
+    }
+
+    @Override
+    public boolean onKeyUp(int keyCode, KeyEvent event) {
+        // The matching key-up, or the system's own path still clicks and shows
+        // its volume panel for the phone's stream.
+        if (ConnectVolume.isRemoteKey(keyCode)) return true;
+        return super.onKeyUp(keyCode, event);
     }
 
     @Override

@@ -89,6 +89,21 @@ final class ConnectChannel {
                         openBatterySettings(app);
                         result.success(null);
                         break;
+                    case "getVolume":
+                        result.success(ConnectVolume.get(app));
+                        break;
+                    case "setVolume":
+                        ConnectVolume.set(app, ((Number) call.arguments).doubleValue());
+                        result.success(null);
+                        break;
+                    case "watchVolume":
+                        ConnectVolume.watch(app, Boolean.TRUE.equals(call.arguments));
+                        result.success(null);
+                        break;
+                    case "setRemoteVolumeKeys":
+                        ConnectVolume.sRemoteKeys = Boolean.TRUE.equals(call.arguments);
+                        result.success(null);
+                        break;
                     case "takeOpenRequest": {
                         boolean pending;
                         synchronized (ConnectChannel.class) {
@@ -119,6 +134,30 @@ final class ConnectChannel {
             return;
         }
         channel.invokeMethod("action", id);
+    }
+
+    /** The media volume changed (0..1): tell Dart if it is listening. */
+    static void sendVolumeChanged(double value) {
+        invokeDart("volumeChanged", value);
+    }
+
+    /**
+     * A hardware volume key was pressed while this phone is a remote: Dart
+     * steps the other device's volume. Returns whether Dart was there to hear
+     * it; when it was not, the key falls through to the system as usual.
+     */
+    static boolean sendVolumeKey(String direction) {
+        return invokeDart("volumeKey", direction);
+    }
+
+    private static boolean invokeDart(String method, Object argument) {
+        MethodChannel channel;
+        synchronized (ConnectChannel.class) {
+            channel = sChannel;
+        }
+        if (channel == null) return false;
+        channel.invokeMethod(method, argument);
+        return true;
     }
 
     /**

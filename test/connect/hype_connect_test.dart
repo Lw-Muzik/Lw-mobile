@@ -161,11 +161,26 @@ class _Bridge implements ConnectServiceBridge {
   final calls = <String>[];
   final updates = <ConnectNotificationContent>[];
   void Function(String id)? action;
+  void Function(String direction)? volumeKey;
+  final remoteKeys = <bool>[];
 
   @override
   set onAction(void Function(String id)? handler) => action = handler;
   @override
   set onOpenRequested(void Function()? handler) {}
+  @override
+  set onVolumeChanged(void Function(double value)? handler) {}
+  @override
+  set onVolumeKey(void Function(String direction)? handler) =>
+      volumeKey = handler;
+  @override
+  Future<double?> getVolume() async => null;
+  @override
+  Future<bool> setVolume(double value) async => false;
+  @override
+  Future<void> watchVolume(bool on) async {}
+  @override
+  Future<void> setRemoteVolumeKeys(bool on) async => remoteKeys.add(on);
   @override
   Future<bool> isRunning() async => running;
   @override
@@ -637,6 +652,89 @@ void main() {
       final last = rig.bridge!.updates.last;
       expect(last.title, 'Ready for your devices');
       expect(last.subText, 'Controlled from Chrome · 1 device online');
+    });
+  });
+
+  group('remote volume keys', () {
+    const phone = DeviceInfo(
+      id: 'install-1',
+      kind: DeviceKind.mobile,
+      name: 'Test phone',
+      platform: null,
+      appVersion: null,
+      caps: [ConnectCap.player],
+      online: true,
+      lastSeenAt: '2026-01-01T00:00:00Z',
+    );
+    const desk = DeviceInfo(
+      id: 'desk',
+      kind: DeviceKind.desktop,
+      name: 'Studio PC',
+      platform: null,
+      appVersion: null,
+      caps: [ConnectCap.player],
+      online: true,
+      lastSeenAt: '2026-01-01T00:00:00Z',
+    );
+
+    Future<_Socket> remoteWelcome(_Rig rig) async {
+      await rig.pump();
+      final socket = rig.sockets.last;
+      socket.receive(const WelcomeFrame(
+        v: 1,
+        deviceId: 'install-1',
+        serverTime: 1,
+        devices: [phone, desk],
+        activeDeviceId: 'desk',
+        // A key steps from the level the device reported; with none it does
+        // nothing (see ConnectRemoteSession.nudgeVolume).
+        states: {
+          'desk': StampedState(
+            state: PlayerState(
+              seq: 1,
+              track: null,
+              playing: true,
+              positionMs: 0,
+              durationMs: null,
+              volume: 0.5,
+              shuffle: false,
+              repeat: ConnectRepeat.off,
+              queue: [],
+            ),
+            at: 1,
+          ),
+        },
+      ));
+      await rig.pump();
+      return socket;
+    }
+
+    test('go to the playing device while remote, and back when it ends', () async {
+      final rig = _Rig()..bridge = _Bridge();
+      await rig.build(prefsValues: {HypeConnect.enabledKey: true});
+      final socket = await remoteWelcome(rig);
+      expect(rig.bridge!.remoteKeys, contains(true));
+
+      rig.bridge!.volumeKey!('down');
+      await rig.pump();
+      final cmd = socket.sent.lastWhere((f) => f['t'] == 'cmd');
+      expect((cmd['cmd']! as Map)['type'], 'volume');
+      expect((cmd['cmd']! as Map)['value'], closeTo(0.45, 0.001));
+      expect(rig.connect.volumeHud.value?.deviceName, 'Studio PC');
+
+      socket.serverClose(1006);
+      await rig.pump();
+      expect(rig.bridge!.remoteKeys.last, isFalse);
+    });
+
+    test('a key press outside remote mode does nothing', () async {
+      final rig = _Rig()..bridge = _Bridge();
+      await rig.build(prefsValues: {HypeConnect.enabledKey: true});
+      final socket = await rig.welcome();
+      rig.bridge!.volumeKey!('down');
+      await rig.pump();
+      expect(socket.types, isNot(contains('cmd')));
+      expect(rig.connect.volumeHud.value, isNull);
     });
   });
 
