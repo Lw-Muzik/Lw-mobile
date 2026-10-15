@@ -58,9 +58,29 @@ abstract interface class ConnectServiceBridge {
   /// clears it.
   Future<bool> takeOpenRequest();
 
+  /// The system media volume as 0..1; null when the platform cannot say (iOS,
+  /// a test engine), in which case the caller falls back to the player gain.
+  Future<double?> getVolume();
+
+  /// Sets the system media volume (0..1) silently. False when unavailable.
+  Future<bool> setVolume(double value);
+
+  /// Starts or stops [onVolumeChanged] events for the media stream.
+  Future<void> watchVolume(bool on);
+
+  /// While on, the hardware volume keys do not touch this phone: they arrive
+  /// as [onVolumeKey] instead (this phone is a remote for another player).
+  Future<void> setRemoteVolumeKeys(bool on);
+
   /// Notification button taps and "open the Hype Connect page" requests.
   set onAction(void Function(String id)? handler);
   set onOpenRequested(void Function()? handler);
+
+  /// The system media volume changed (0..1) while watched.
+  set onVolumeChanged(void Function(double value)? handler);
+
+  /// A hardware volume key was pressed in remote-keys mode: "up" or "down".
+  set onVolumeKey(void Function(String direction)? handler);
 }
 
 /// The real thing: `x.a.zix/connect_service`, handled by `ConnectChannel.java`.
@@ -77,6 +97,8 @@ class MethodChannelConnectService implements ConnectServiceBridge {
   final MethodChannel _channel;
   void Function(String id)? _onAction;
   void Function()? _onOpenRequested;
+  void Function(double value)? _onVolumeChanged;
+  void Function(String direction)? _onVolumeKey;
 
   Future<dynamic> _fromNative(MethodCall call) async {
     switch (call.method) {
@@ -84,6 +106,12 @@ class MethodChannelConnectService implements ConnectServiceBridge {
         _onAction?.call(call.arguments as String);
       case 'openRequested':
         _onOpenRequested?.call();
+      case 'volumeChanged':
+        final value = call.arguments;
+        if (value is num) _onVolumeChanged?.call(value.toDouble().clamp(0.0, 1.0));
+      case 'volumeKey':
+        final direction = call.arguments;
+        if (direction is String) _onVolumeKey?.call(direction);
     }
     return null;
   }
@@ -104,6 +132,42 @@ class MethodChannelConnectService implements ConnectServiceBridge {
 
   @override
   set onOpenRequested(void Function()? handler) => _onOpenRequested = handler;
+
+  @override
+  set onVolumeChanged(void Function(double value)? handler) =>
+      _onVolumeChanged = handler;
+
+  @override
+  set onVolumeKey(void Function(String direction)? handler) =>
+      _onVolumeKey = handler;
+
+  @override
+  Future<double?> getVolume() async {
+    final value = await _call<double>('getVolume');
+    return value?.clamp(0.0, 1.0);
+  }
+
+  @override
+  Future<bool> setVolume(double value) async {
+    // Not through _call: a void reply and a failure are both null there, and
+    // the caller needs to tell them apart to fall back to the player gain.
+    try {
+      await _channel.invokeMethod<void>('setVolume', value);
+      return true;
+    } on PlatformException catch (e) {
+      debugPrint('Hype Connect service: setVolume failed: ${e.message}');
+    } on MissingPluginException {
+      debugPrint('Hype Connect service: setVolume has no native handler');
+    }
+    return false;
+  }
+
+  @override
+  Future<void> watchVolume(bool on) => _call<void>('watchVolume', on);
+
+  @override
+  Future<void> setRemoteVolumeKeys(bool on) =>
+      _call<void>('setRemoteVolumeKeys', on);
 
   @override
   Future<bool> isRunning() async => await _call<bool>('isRunning') ?? false;

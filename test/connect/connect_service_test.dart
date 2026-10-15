@@ -17,6 +17,18 @@ class FakeBridge implements ConnectServiceBridge {
   set onAction(void Function(String id)? handler) {}
   @override
   set onOpenRequested(void Function()? handler) {}
+  @override
+  set onVolumeChanged(void Function(double value)? handler) {}
+  @override
+  set onVolumeKey(void Function(String direction)? handler) {}
+  @override
+  Future<double?> getVolume() async => null;
+  @override
+  Future<bool> setVolume(double value) async => false;
+  @override
+  Future<void> watchVolume(bool on) async {}
+  @override
+  Future<void> setRemoteVolumeKeys(bool on) async {}
 
   @override
   Future<bool> isRunning() async => running;
