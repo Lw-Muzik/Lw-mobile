@@ -49,7 +49,7 @@ app.*.map.json
 android/.kotlin/
 
 # claude
-/.claude/
+/.claude/*
 /.remember/
 
 # graft's local graph cache — regenerable, not committed (run `graft build`).
