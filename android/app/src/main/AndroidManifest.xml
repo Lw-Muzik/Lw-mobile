@@ -42,6 +42,8 @@
     <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE"/>
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+    <!-- GlobalEqService (system-wide equalizer) is a specialUse foreground service. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE"/>
 
     <application android:name=".HypeApplication" android:enableOnBackInvokedCallback="true" android:icon="@mipmap/ic_launcher" android:label="${appLabel}" tools:ignore="ExtraText" android:requestLegacyExternalStorage="true" android:usesCleartextTraffic="true">
         <meta-data android:name="google_analytics_automatic_screen_reporting_enabled" android:value="true" />
@@ -87,12 +89,16 @@
             android:foregroundServiceType="dataSync"
             android:stopWithTask="false"
             android:exported="false" />
+        <!-- System-wide equalizer. It applies the EQ to every app's audio but
+             plays nothing itself, so mediaPlayback would misdescribe it; no
+             standard type covers it, hence specialUse. Play reviews the
+             subtype below against the Console declaration — keep them in step. -->
         <service android:name=".GlobalEqService"
             android:enabled="true" android:exported="false"
-            android:foregroundServiceType="mediaPlayback" />
-        <service android:name=".EqModeService"
-            android:enabled="true" android:exported="false"
-            android:foregroundServiceType="mediaPlayback" />
+            android:foregroundServiceType="specialUse">
+            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="System-wide equalizer: applies the user's EQ to the audio output mix of all apps while the user has it switched on. Started only by the user; ongoing notification with a Turn off action." />
+        </service>
         <!-- Keeps Hype Connect reachable in the background, with a persistent
              notification. stopWithTask="false": swiping the app away must not
              end it. -->

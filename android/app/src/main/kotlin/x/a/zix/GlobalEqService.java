@@ -54,6 +54,21 @@ public class GlobalEqService extends Service {
     private PowerManager.WakeLock wakeLock;
     private final Handler handler = new Handler(Looper.getMainLooper());
 
+    // The running instance (main thread only) and the preset shown in its
+    // notification. The preset is kept even while the service is stopped, so
+    // the notification is right from the moment the service starts.
+    private static GlobalEqService instance;
+    private static String presetLabel;
+
+    /** Sets the preset named in the notification; refreshes it if running. */
+    static void updatePreset(String preset) {
+        presetLabel = preset;
+        GlobalEqService svc = instance;
+        if (svc == null) return;
+        NotificationManager nm = svc.getSystemService(NotificationManager.class);
+        if (nm != null) nm.notify(NOTIFICATION_ID, svc.buildNotification());
+    }
+
     // Currently playing app package names (for UI display only)
     private static final CopyOnWriteArrayList<String> playingApps = new CopyOnWriteArrayList<>();
 
@@ -65,6 +80,7 @@ public class GlobalEqService extends Service {
     @Override
     public void onCreate() {
         super.onCreate();
+        instance = this;
         createNotificationChannel();
         startForeground(NOTIFICATION_ID, buildNotification());
 
@@ -125,6 +141,7 @@ public class GlobalEqService extends Service {
             wakeLock = null;
         }
         Log.i(TAG, "GlobalEqService stopped");
+        instance = null;
         super.onDestroy();
     }
 
@@ -389,7 +406,9 @@ public class GlobalEqService extends Service {
 
         return new NotificationCompat.Builder(this, CHANNEL_ID)
                 .setContentTitle("Hype EQ Active")
-                .setContentText("Equalizer applied to all apps")
+                .setContentText(presetLabel != null
+                        ? "Applied to all apps · Preset: " + presetLabel
+                        : "Equalizer applied to all apps")
                 .setSmallIcon(R.drawable.ic_stat_eq)
                 .setOngoing(true)
                 .setContentIntent(launchPi)

@@ -173,11 +173,20 @@ class Channel {
 
   // ==================== Global EQ (System-Wide) ====================
 
-  /// Enable or disable global EQ (applies EQ to all apps).
+  /// Enable or disable global EQ (applies EQ to all apps). [preset] is the
+  /// name shown in its notification.
   /// Returns true if the command was accepted, false if API < 28.
-  static Future<bool> enableGlobalEq(bool enable) async {
+  static Future<bool> enableGlobalEq(bool enable, {String? preset}) async {
     return await _invokeRequired<bool>("enableGlobalEq", false, {
       "enable": enable,
+      "preset": preset,
+    });
+  }
+
+  /// Update the preset name shown in the global EQ notification.
+  static Future<bool> updateGlobalEqPreset(String preset) async {
+    return await _invokeRequired<bool>("updateGlobalEqPreset", false, {
+      "preset": preset,
     });
   }
 
@@ -214,27 +223,6 @@ class Channel {
       "requestDisableBatteryOptimization",
       false,
     );
-  }
-
-  // ==================== EQ Mode Notification ====================
-
-  /// Start the EQ mode foreground service with persistent notification.
-  static Future<bool> startEqModeService(String preset) async {
-    return await _invokeRequired<bool>("startEqModeService", false, {
-      "preset": preset,
-    });
-  }
-
-  /// Stop the EQ mode foreground service.
-  static Future<bool> stopEqModeService() async {
-    return await _invokeRequired<bool>("stopEqModeService", false);
-  }
-
-  /// Update the preset name shown in the EQ mode notification.
-  static Future<bool> updateEqModePreset(String preset) async {
-    return await _invokeRequired<bool>("updateEqModePreset", false, {
-      "preset": preset,
-    });
   }
 
   // ==================== Custom DSP Room Effects ====================

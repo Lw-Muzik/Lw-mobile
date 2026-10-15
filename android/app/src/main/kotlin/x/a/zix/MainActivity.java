@@ -1194,6 +1194,8 @@ public class MainActivity extends AudioServiceFragmentActivity {
                                 break;
                             }
                             if (globalOn) {
+                                String preset = call.argument("preset");
+                                if (preset != null) GlobalEqService.updatePreset(preset);
                                 Intent svc = new Intent(getApplicationContext(), GlobalEqService.class);
                                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                                     startForegroundService(svc);
@@ -1217,28 +1219,11 @@ public class MainActivity extends AudioServiceFragmentActivity {
                             result.success(Build.VERSION.SDK_INT >= Build.VERSION_CODES.P);
                             break;
 
-                        // ==================== EQ Mode Notification ====================
-                        case "startEqModeService": {
+                        case "updateGlobalEqPreset": {
                             String preset = call.argument("preset");
-                            Intent svc = new Intent(getApplicationContext(), EqModeService.class);
-                            if (preset != null) svc.putExtra(EqModeService.EXTRA_PRESET, preset);
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                                startForegroundService(svc);
-                            } else {
-                                startService(svc);
+                            if (preset != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                                GlobalEqService.updatePreset(preset);
                             }
-                            result.success(true);
-                            break;
-                        }
-                        case "stopEqModeService":
-                            stopService(new Intent(getApplicationContext(), EqModeService.class));
-                            result.success(true);
-                            break;
-                        case "updateEqModePreset": {
-                            String preset = call.argument("preset");
-                            Intent svc = new Intent(getApplicationContext(), EqModeService.class);
-                            if (preset != null) svc.putExtra(EqModeService.EXTRA_PRESET, preset);
-                            startService(svc);
                             result.success(true);
                             break;
                         }

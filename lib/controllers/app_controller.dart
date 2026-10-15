@@ -107,12 +107,8 @@ class AppController with ChangeNotifier implements StationSink {
     if (value == AppMode.musicPlayer && _globalEqEnabled) {
       globalEqEnabled = false;
     }
-    // Persistent notification for EQ mode
-    if (value == AppMode.equalizer) {
-      Channel.startEqModeService(_activePresetName);
-    } else {
-      Channel.stopEqModeService();
-    }
+    // EQ mode has no notification of its own: the global EQ service's
+    // notification (with the preset) covers it.
     // The Stems tab exists only in music-player mode. A mix changed there
     // would otherwise keep, say, the vocals muted in a mode with no control
     // left to bring them back.
@@ -433,9 +429,9 @@ class AppController with ChangeNotifier implements StationSink {
     if (_activePresetName == value) return;
     _prefs.setString("activePresetName", value);
     _activePresetName = value;
-    // Update EQ mode notification with new preset name
-    if (_appMode == AppMode.equalizer) {
-      Channel.updateEqModePreset(value);
+    // Update the global EQ notification with the new preset name
+    if (_globalEqEnabled) {
+      Channel.updateGlobalEqPreset(value);
     }
     notifyListeners();
   }
@@ -672,7 +668,7 @@ class AppController with ChangeNotifier implements StationSink {
   set globalEqEnabled(bool value) {
     _prefs.setBool("globalEqEnabled", value);
     _globalEqEnabled = value;
-    Channel.enableGlobalEq(value);
+    Channel.enableGlobalEq(value, preset: _activePresetName);
     if (value) {
       // Give the service a moment to start and detect sessions
       Future.delayed(const Duration(milliseconds: 800), refreshPlayingApps);
@@ -840,11 +836,6 @@ class AppController with ChangeNotifier implements StationSink {
 
     // Global EQ: check availability and restore state
     _initGlobalEq();
-
-    // Start EQ mode notification if already in equalizer mode
-    if (_appMode == AppMode.equalizer) {
-      Channel.startEqModeService(_activePresetName);
-    }
 
     _bindDvcVolumeButtons();
     _bindProcessingState();
@@ -2184,7 +2175,7 @@ class AppController with ChangeNotifier implements StationSink {
   Future<void> _initGlobalEq() async {
     _globalEqAvailable = await Channel.isGlobalEqAvailable();
     if (_globalEqAvailable && _globalEqEnabled) {
-      Channel.enableGlobalEq(true);
+      Channel.enableGlobalEq(true, preset: _activePresetName);
     }
   }
 
