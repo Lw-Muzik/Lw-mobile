@@ -98,6 +98,28 @@ void main() {
       });
     });
 
+    test('does nothing until the device has reported a volume', () {
+      _scenario((async) {
+        final r = _Rig();
+        // The view's stand-in is 1.0; stepping from it would send 0.95.
+        expect(r.session.nudgeVolume(-1), isNull);
+        expect(r.session.nudgeVolume(1), isNull);
+        expect(r.volumesSent, isEmpty);
+        r.report(0.2);
+        expect(r.session.nudgeVolume(-1), 0.15);
+        expect(r.volumesSent, [0.15]);
+      });
+    });
+
+    test('steps from a level the slider set, before any report', () {
+      _scenario((async) {
+        final r = _Rig();
+        r.session.volume(0.4);
+        async.elapse(const Duration(milliseconds: 200));
+        expect(r.session.nudgeVolume(1), 0.45);
+      });
+    });
+
     test('clamps, and sends nothing when already at a bound', () {
       _scenario((async) {
         final r = _Rig(volume: 1.0);

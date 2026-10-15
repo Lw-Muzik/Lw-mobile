@@ -321,15 +321,21 @@ class ConnectRemoteSession extends ChangeNotifier {
   }
 
   /// One hardware-key step on the remote device: [direction] is +1 or -1.
-  /// Returns the level it now stands at, or null outside remote mode.
+  /// Returns the level it now stands at, or null outside remote mode or while
+  /// the device has not yet said what its volume is.
   ///
   /// At a bound nothing is sent and the current level is returned: a desktop
   /// boosted above 100 % reports 1.0, and an "up" there must not cut its boost
   /// back to 100 %.
+  ///
+  /// With no reported level there is nothing to step from. The view's stand-in
+  /// of 1.0 is fine for drawing a slider, but stepping from it would turn a
+  /// "down" on a device playing at 20 % into a jump to 95 %.
   double? nudgeVolume(int direction) {
     final id = _targetId;
     final device = id == null ? null : _deviceById(id);
     if (id == null || device == null) return null;
+    if (_states[id] == null && _overlays[id]?.volume == null) return null;
     final current = _view(device).volume;
     final next = ((current + volumeStep * direction.sign) * 100).round() / 100;
     final clamped = next.clamp(0.0, 1.0);

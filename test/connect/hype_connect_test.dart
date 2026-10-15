@@ -686,7 +686,24 @@ void main() {
         serverTime: 1,
         devices: [phone, desk],
         activeDeviceId: 'desk',
-        states: {},
+        // A key steps from the level the device reported; with none it does
+        // nothing (see ConnectRemoteSession.nudgeVolume).
+        states: {
+          'desk': StampedState(
+            state: PlayerState(
+              seq: 1,
+              track: null,
+              playing: true,
+              positionMs: 0,
+              durationMs: null,
+              volume: 0.5,
+              shuffle: false,
+              repeat: ConnectRepeat.off,
+              queue: [],
+            ),
+            at: 1,
+          ),
+        },
       ));
       await rig.pump();
       return socket;
@@ -702,7 +719,7 @@ void main() {
       await rig.pump();
       final cmd = socket.sent.lastWhere((f) => f['t'] == 'cmd');
       expect((cmd['cmd']! as Map)['type'], 'volume');
-      expect((cmd['cmd']! as Map)['value'], closeTo(0.95, 0.001));
+      expect((cmd['cmd']! as Map)['value'], closeTo(0.45, 0.001));
       expect(rig.connect.volumeHud.value?.deviceName, 'Studio PC');
 
       socket.serverClose(1006);
