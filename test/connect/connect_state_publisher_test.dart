@@ -302,6 +302,27 @@ void main() {
       });
     });
 
+    test('a volume-only change is sent, coalesced by the debounce', () {
+      scenario((async, source, sent, publisher, _) {
+        source.poke();
+        async.elapse(const Duration(seconds: 1));
+        expect(sent, hasLength(1));
+        // A hardware key held down: several steps inside one debounce window.
+        for (final v in [0.55, 0.6, 0.65]) {
+          source.volume = v;
+          source.poke();
+          async.elapse(const Duration(milliseconds: 50));
+        }
+        expect(sent, hasLength(1));
+        async.elapse(const Duration(milliseconds: 300));
+        expect(sent.map((s) => s.volume), [0.5, 0.65]);
+        // Nothing else changed, and the same volume again is not worth a frame.
+        source.poke();
+        async.elapse(const Duration(seconds: 1));
+        expect(sent, hasLength(2));
+      });
+    });
+
     test('an unreadable volume (mid crossfade) keeps the last one', () {
       scenario((async, source, sent, publisher, _) {
         source.volume = 0.4;

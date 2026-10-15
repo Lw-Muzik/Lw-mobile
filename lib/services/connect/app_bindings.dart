@@ -34,6 +34,7 @@ import 'package:eq_app/services/connect/connect_protocol.dart';
 import 'package:eq_app/services/connect/connect_rpc.dart';
 import 'package:eq_app/services/connect/connect_state_publisher.dart';
 import 'package:eq_app/services/connect/connect_tracks.dart';
+import 'package:eq_app/services/connect/connect_volume.dart';
 import 'package:eq_app/services/connect/remote/connect_play_router.dart';
 import 'package:eq_app/services/mixes/mix_playback.dart';
 import 'package:eq_app/services/mixes/mix_track_ref.dart';
@@ -45,9 +46,10 @@ import 'package:eq_app/services/ytmusic/yt_repository.dart';
 
 /// [ConnectPlayer] over the app's controller and audio handler.
 class AppConnectPlayer implements ConnectPlayer {
-  AppConnectPlayer(this._app);
+  AppConnectPlayer(this._app, this._volume);
 
   final AppController _app;
+  final ConnectDeviceVolume _volume;
 
   @override
   bool get available => !_app.isEqMode;
@@ -180,8 +182,9 @@ class AppConnectPlayer implements ConnectPlayer {
   }
 
   @override
-  Future<void> setVolume(double value) =>
-      _app.handler.currentTrackPlayer.setVolume(value);
+  // The loudness the listener hears (DVC gain or the system media volume), not
+  // the just_audio gain that ReplayGain and crossfades rewrite.
+  Future<void> setVolume(double value) => _volume.set(value);
 
   @override
   Future<void> setShuffle(bool on) => _app.setShuffled(on);
@@ -268,12 +271,18 @@ class YtConnectCatalog implements ConnectCatalog {
 /// it is re-bound to whichever player is active — where listening to one
 /// `AudioPlayer` would go quiet at the first swap.
 class AppConnectStateSource implements ConnectStateSource {
-  AppConnectStateSource(this._app) {
+  AppConnectStateSource(this._app, this._volume) {
     _app.addListener(_poke);
     _playback = _app.handler.playbackState.listen((_) => _poke());
+    // A hardware key or the system panel moved the volume: nothing else in the
+    // app notices, so without this the hub would keep the old value. (DVC gain
+    // changes already arrive through [_app].)
+    _volumeSub = _volume.changes.listen((_) => _poke());
   }
 
   final AppController _app;
+  final ConnectDeviceVolume _volume;
+  late final StreamSubscription<void> _volumeSub;
   late final StreamSubscription<Object?> _playback;
   final _changes = StreamController<void>.broadcast(sync: true);
 
@@ -298,9 +307,10 @@ class AppConnectStateSource implements ConnectStateSource {
       playing: handler.playbackState.value.playing,
       position: player.position,
       duration: player.duration,
-      // While a crossfade runs, each player's volume is a point on a ramp, not
-      // what the user set; the publisher repeats the last real value.
-      volume: identical(player, handler.player) ? player.volume : null,
+      // DVC gain or system volume; only the legacy player-gain fallback can be
+      // null: while a crossfade runs each player's volume is a point on a
+      // ramp, not what the user set, and the publisher repeats the last value.
+      volume: _volume.read(),
       shuffle: _app.isShuffled,
       repeat: switch (handler.loopMode) {
         LoopMode.off => ConnectRepeat.off,
@@ -319,6 +329,7 @@ class AppConnectStateSource implements ConnectStateSource {
   void dispose() {
     _app.removeListener(_poke);
     unawaited(_playback.cancel());
+    unawaited(_volumeSub.cancel());
     unawaited(_changes.close());
   }
 }

@@ -46,6 +46,7 @@ import 'package:eq_app/services/connect/connect_lyrics.dart';
 import 'package:eq_app/services/connect/connect_notification.dart';
 import 'package:eq_app/services/connect/connect_service.dart';
 import 'package:eq_app/services/connect/connect_viz.dart';
+import 'package:eq_app/services/connect/connect_volume.dart';
 import 'package:eq_app/services/connect/connect_presence.dart';
 import 'package:eq_app/services/connect/connect_protocol.dart';
 import 'package:eq_app/services/connect/connect_rpc.dart';
@@ -174,6 +175,7 @@ class HypeConnect extends ChangeNotifier with WidgetsBindingObserver {
     this.vizFeed,
     this.position,
     this.onRemoteModeChanged,
+    this.deviceVolume,
     int Function()? nowUs,
     Duration presenceGrace = const Duration(minutes: 2),
     bool backgroundAlways = false,
@@ -196,7 +198,8 @@ class HypeConnect extends ChangeNotifier with WidgetsBindingObserver {
       );
       bridge
         ..onAction = _onServiceAction
-        ..onOpenRequested = () => unawaited(_openRequested());
+        ..onOpenRequested = (() => unawaited(_openRequested()))
+        ..onVolumeKey = _onVolumeKey;
     }
     client.state.addListener(_onClientState);
   }
@@ -236,15 +239,32 @@ class HypeConnect extends ChangeNotifier with WidgetsBindingObserver {
       resetSession: account.resetSession,
       device: () => _deviceHello(account),
     );
+    // One bridge for the whole channel: a second Dart MethodChannel on the same
+    // name would replace the first one's handler.
+    final bridge = Platform.isAndroid ? MethodChannelConnectService() : null;
+    final volume = AppConnectDeviceVolume(
+      bridge: bridge,
+      dvcEnabled: () => app.dvcEnabled,
+      dvcGainDb: () => app.dvcGain,
+      setDvcGainDb: (db) => app.dvcGain = db,
+      legacyRead: () {
+        final handler = app.handler;
+        final player = handler.currentTrackPlayer;
+        // Mid-crossfade each player sits on a ramp: no real value.
+        return identical(player, handler.player) ? player.volume : null;
+      },
+      legacySet: (v) => app.handler.currentTrackPlayer.setVolume(v),
+    );
     final connect = HypeConnect(
       prefs: prefs,
       account: account,
       api: ConnectApi(client: http0, account: account),
       client: client,
-      player: AppConnectPlayer(app),
+      player: AppConnectPlayer(app, volume),
       library: RepositoryConnectLibrary(() => AppController.libraryRepo),
       catalog: YtConnectCatalog(app),
-      stateSource: AppConnectStateSource(app),
+      stateSource: AppConnectStateSource(app, volume),
+      deviceVolume: volume,
       isMusicMode: () => !app.isEqMode,
       isPlaying: () => app.handler.playbackState.value.playing,
       lyrics: AppConnectLyrics(app),
@@ -258,7 +278,7 @@ class HypeConnect extends ChangeNotifier with WidgetsBindingObserver {
       // Android keeps the phone on the hub in the background, held up by the
       // foreground service; iOS cannot, so it keeps the grace rule.
       backgroundAlways: Platform.isAndroid,
-      serviceBridge: Platform.isAndroid ? MethodChannelConnectService() : null,
+      serviceBridge: bridge,
       requestNotifications: Platform.isAndroid ? _requestNotifications : null,
     );
     app.addListener(connect.inputsChanged);
@@ -296,6 +316,14 @@ class HypeConnect extends ChangeNotifier with WidgetsBindingObserver {
   /// Called when remote mode starts or ends.
   final VoidCallback? onRemoteModeChanged;
   bool _wasRemote = false;
+
+  /// What the listener hears from this phone (DVC gain or system media volume);
+  /// watched while the socket is up, so hardware keys reach the hub.
+  final ConnectDeviceVolume? deviceVolume;
+
+  /// The latest hardware-key press while this phone remote-controls another
+  /// device, for the "Volume on (device)" HUD. Null until the first press.
+  final ValueNotifier<ConnectVolumeHudEvent?> volumeHud = ValueNotifier(null);
 
   final ConnectPlayer _player;
   final ConnectLibrary _library;
@@ -449,6 +477,8 @@ class HypeConnect extends ChangeNotifier with WidgetsBindingObserver {
     session.addListener(() {
       if (session.isRemote != _wasRemote) {
         _wasRemote = session.isRemote;
+        // Phone as a remote: its volume keys now belong to the playing device.
+        unawaited(_serviceBridge?.setRemoteVolumeKeys(_wasRemote));
         onRemoteModeChanged?.call();
       }
       _service?.refresh();
@@ -578,9 +608,13 @@ class HypeConnect extends ChangeNotifier with WidgetsBindingObserver {
     if (state.status == ConnectStatus.online) {
       _takeover?.onConnected();
       _publisher?.start();
+      unawaited(deviceVolume?.start());
       _viz?.setOnline(true);
     } else {
       _publisher?.stop();
+      deviceVolume?.stop();
+      // Nothing is left to control, so the keys go back to this phone.
+      unawaited(_serviceBridge?.setRemoteVolumeKeys(false));
       _viz?.setOnline(false);
       _takeover?.onDisconnected();
       _session?.onDisconnected();
@@ -689,6 +723,21 @@ class HypeConnect extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
+  /// A hardware volume key while this phone is a remote: one step on the
+  /// playing device, and a HUD saying which device and where it landed.
+  void _onVolumeKey(String direction) {
+    final session = _session;
+    if (session == null) return;
+    final target = session.remoteTarget;
+    final value = session.nudgeVolume(direction == 'up' ? 1 : -1);
+    if (value == null || target == null) return;
+    volumeHud.value = ConnectVolumeHudEvent(
+      deviceName: target.name,
+      volume: value,
+      shownAt: DateTime.now(),
+    );
+  }
+
   Future<void> _openRequested() async {
     if (await _serviceBridge?.takeOpenRequest() ?? false) {
       await ConnectUiHost.instance.openConnectPage();
@@ -747,6 +796,9 @@ class HypeConnect extends ChangeNotifier with WidgetsBindingObserver {
     _presence.dispose();
     _service?.dispose();
     _publisher?.stop();
+    deviceVolume?.stop();
+    unawaited(_serviceBridge?.setRemoteVolumeKeys(false));
+    volumeHud.dispose();
     _viz?.dispose();
     client.state.removeListener(_onClientState);
     super.dispose();

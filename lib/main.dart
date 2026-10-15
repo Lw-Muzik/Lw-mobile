@@ -30,6 +30,7 @@ import 'data/library_database.dart';
 import 'data/library_repository.dart';
 import 'firebase_options.dart';
 import 'helpers/audio_handler.dart';
+import 'widgets/connect_volume_hud.dart';
 import 'widgets/dvc_volume_overlay.dart';
 import 'player/video/picture_in_picture.dart';
 import 'player/video/video_mini_player.dart';
@@ -204,6 +205,7 @@ Future<void> main() async {
                           children: [
                             child!,
                             const DvcVolumeOverlay(),
+                            const ConnectVolumeHud(),
                             const VideoMiniPlayer(),
                           ],
                         ),
